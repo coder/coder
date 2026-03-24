@@ -1516,6 +1516,25 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) GetChatSystemPromptSettings(ctx context.Context) (database.GetChatSystemPromptSettingsRow, error) {
+	// The system prompt settings are deployment-wide values read during
+	// chat creation by every authenticated user, so no RBAC policy check
+	// is needed. We still verify that a valid actor exists in the
+	// context to ensure this is never callable by an unauthenticated
+	// or system-internal path without an explicit actor.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return database.GetChatSystemPromptSettingsRow{}, ErrNoActor
+	}
+	return q.db.GetChatSystemPromptSettings(ctx)
+}
+
+func (q *querier) UpsertChatSystemPromptSettings(ctx context.Context, arg database.UpsertChatSystemPromptSettingsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatSystemPromptSettings(ctx, arg)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -2660,18 +2679,6 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 		return nil, err
 	}
 	return q.db.GetChatQueuedMessages(ctx, chatID)
-}
-
-func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
-	// The system prompt is a deployment-wide setting read during chat
-	// creation by every authenticated user, so no RBAC policy check
-	// is needed. We still verify that a valid actor exists in the
-	// context to ensure this is never callable by an unauthenticated
-	// or system-internal path without an explicit actor.
-	if _, ok := ActorFromContext(ctx); !ok {
-		return "", ErrNoActor
-	}
-	return q.db.GetChatSystemPrompt(ctx)
 }
 
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
@@ -6803,13 +6810,6 @@ func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg databas
 		return database.ChatDiffStatus{}, err
 	}
 	return q.db.UpsertChatDiffStatusReference(ctx, arg)
-}
-
-func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatSystemPrompt(ctx, value)
 }
 
 func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.UpsertChatUsageLimitConfigParams) (database.ChatUsageLimitConfig, error) {

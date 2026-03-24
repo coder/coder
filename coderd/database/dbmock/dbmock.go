@@ -2208,19 +2208,19 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessages), ctx, chatID)
 }
 
-// GetChatSystemPrompt mocks base method.
-func (m *MockStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
+// GetChatSystemPromptSettings mocks base method.
+func (m *MockStore) GetChatSystemPromptSettings(ctx context.Context) (database.GetChatSystemPromptSettingsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatSystemPrompt", ctx)
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "GetChatSystemPromptSettings", ctx)
+	ret0, _ := ret[0].(database.GetChatSystemPromptSettingsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatSystemPrompt indicates an expected call of GetChatSystemPrompt.
-func (mr *MockStoreMockRecorder) GetChatSystemPrompt(ctx any) *gomock.Call {
+// GetChatSystemPromptSettings indicates an expected call of GetChatSystemPromptSettings.
+func (mr *MockStoreMockRecorder) GetChatSystemPromptSettings(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatSystemPrompt), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSystemPromptSettings", reflect.TypeOf((*MockStore)(nil).GetChatSystemPromptSettings), ctx)
 }
 
 // GetChatUsageLimitConfig mocks base method.
@@ -8999,18 +8999,18 @@ func (mr *MockStoreMockRecorder) UpsertChatDiffStatusReference(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatDiffStatusReference", reflect.TypeOf((*MockStore)(nil).UpsertChatDiffStatusReference), ctx, arg)
 }
 
-// UpsertChatSystemPrompt mocks base method.
-func (m *MockStore) UpsertChatSystemPrompt(ctx context.Context, value string) error {
+// UpsertChatSystemPromptSettings mocks base method.
+func (m *MockStore) UpsertChatSystemPromptSettings(ctx context.Context, arg database.UpsertChatSystemPromptSettingsParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatSystemPrompt", ctx, value)
+	ret := m.ctrl.Call(m, "UpsertChatSystemPromptSettings", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertChatSystemPrompt indicates an expected call of UpsertChatSystemPrompt.
-func (mr *MockStoreMockRecorder) UpsertChatSystemPrompt(ctx, value any) *gomock.Call {
+// UpsertChatSystemPromptSettings indicates an expected call of UpsertChatSystemPromptSettings.
+func (mr *MockStoreMockRecorder) UpsertChatSystemPromptSettings(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatSystemPrompt", reflect.TypeOf((*MockStore)(nil).UpsertChatSystemPrompt), ctx, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatSystemPromptSettings", reflect.TypeOf((*MockStore)(nil).UpsertChatSystemPromptSettings), ctx, arg)
 }
 
 // UpsertChatUsageLimitConfig mocks base method.

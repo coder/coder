@@ -1842,11 +1842,19 @@ export interface ChatStreamStatus {
 
 // From codersdk/chats.go
 /**
- * ChatSystemPrompt is the request and response body for the chat
- * system prompt configuration endpoint.
+ * ChatSystemPromptSettings is the shared request/response body for the
+ * chat system prompt configuration endpoint.
+ *
+ * DefaultSystemPromptPreview is returned on GET for UI preview and is
+ * ignored on PUT. SystemPrompt is preserved for backward compatibility
+ * with older clients that still treat this endpoint as a single-string
+ * replacement prompt.
  */
-export interface ChatSystemPrompt {
-	readonly system_prompt: string;
+export interface ChatSystemPromptSettings {
+	readonly include_default_system_prompt: boolean;
+	readonly additional_system_prompt: string;
+	readonly default_system_prompt_preview?: string;
+	readonly system_prompt?: string;
 }
 
 // From codersdk/chats.go

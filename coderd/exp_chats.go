@@ -2603,26 +2603,36 @@ func detectChatFileType(data []byte) string {
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	prompt, err := api.Database.GetChatSystemPrompt(ctx)
+	settings, err := api.Database.GetChatSystemPromptSettings(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching chat system prompt.",
+			Message: "Internal error fetching chat system prompt settings.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPrompt{
-		SystemPrompt: prompt,
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptSettings{
+		IncludeDefaultSystemPrompt: settings.IncludeDefaultSystemPrompt,
+		AdditionalSystemPrompt:     settings.AdditionalSystemPrompt,
+		DefaultSystemPromptPreview: chatd.DefaultSystemPrompt,
+		SystemPrompt:               settings.AdditionalSystemPrompt,
 	})
 }
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var req codersdk.ChatSystemPrompt
+	var req codersdk.ChatSystemPromptSettings
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	trimmedPrompt := strings.TrimSpace(req.SystemPrompt)
+	usesLegacyShape := req.SystemPrompt != "" ||
+		(!req.IncludeDefaultSystemPrompt && req.AdditionalSystemPrompt == "" && req.SystemPrompt == "")
+	trimmedPrompt := strings.TrimSpace(req.AdditionalSystemPrompt)
+	includeDefault := req.IncludeDefaultSystemPrompt
+	if usesLegacyShape {
+		trimmedPrompt = strings.TrimSpace(req.SystemPrompt)
+		includeDefault = false
+	}
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
 	if len(trimmedPrompt) > maxSystemPromptLenBytes {
@@ -2632,13 +2642,23 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err := api.Database.UpsertChatSystemPrompt(ctx, trimmedPrompt)
+	if !includeDefault && trimmedPrompt == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "System prompt configuration is invalid.",
+			Detail:  "Either include the Coder Agents default system prompt or provide an additional system prompt.",
+		})
+		return
+	}
+	err := api.Database.UpsertChatSystemPromptSettings(ctx, database.UpsertChatSystemPromptSettingsParams{
+		IncludeDefaultSystemPrompt: includeDefault,
+		AdditionalSystemPrompt:     trimmedPrompt,
+	})
 	if httpapi.Is404Error(err) { // also catches authz error
 		httpapi.ResourceNotFound(rw)
 		return
 	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating chat system prompt.",
+			Message: "Internal error updating chat system prompt settings.",
 			Detail:  err.Error(),
 		})
 		return
@@ -3004,18 +3024,30 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func composeChatSystemPrompt(settings database.GetChatSystemPromptSettingsRow) string {
+	parts := make([]string, 0, 2)
+	if settings.IncludeDefaultSystemPrompt {
+		parts = append(parts, chatd.DefaultSystemPrompt)
+	}
+	if trimmedAdditional := strings.TrimSpace(settings.AdditionalSystemPrompt); trimmedAdditional != "" {
+		parts = append(parts, trimmedAdditional)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
-	custom, err := api.Database.GetChatSystemPrompt(ctx)
+	settings, err := api.Database.GetChatSystemPromptSettings(ctx)
 	if err != nil {
 		// Log but don't fail chat creation — fall back to the
 		// built-in default so the user isn't blocked.
-		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
+		api.Logger.Error(ctx, "failed to fetch chat system prompt settings, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}
-	if strings.TrimSpace(custom) != "" {
-		return custom
+	resolved := composeChatSystemPrompt(settings)
+	if resolved == "" {
+		return chatd.DefaultSystemPrompt
 	}
-	return chatd.DefaultSystemPrompt
+	return resolved
 }
 
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {

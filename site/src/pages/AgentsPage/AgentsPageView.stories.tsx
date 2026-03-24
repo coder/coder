@@ -198,7 +198,9 @@ const meta: Meta<typeof AgentsPageView> = {
 			mockUsageUsers,
 		);
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
-			system_prompt: "",
+			include_default_system_prompt: true,
+			additional_system_prompt: "",
+			default_system_prompt_preview: "Default prompt preview",
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({

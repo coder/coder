@@ -4755,46 +4755,52 @@ func TestChatSystemPrompt(t *testing.T) {
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
+	t.Run("ReturnsDefaultEnabledWhenUnset", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		resp, err := adminClient.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
-		require.Equal(t, "", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, "", resp.AdditionalSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPromptPreview)
 	})
 
-	t.Run("AdminCanSet", func(t *testing.T) {
+	t.Run("AdminCanSetAdditionalPrompt", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: "You are a helpful coding assistant.",
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPromptSettings{
+			IncludeDefaultSystemPrompt: true,
+			AdditionalSystemPrompt:     "You are a helpful coding assistant.",
 		})
 		require.NoError(t, err)
 
 		resp, err := adminClient.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
-		require.Equal(t, "You are a helpful coding assistant.", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, "You are a helpful coding assistant.", resp.AdditionalSystemPrompt)
 	})
 
-	t.Run("AdminCanUnset", func(t *testing.T) {
+	t.Run("AdminCanExcludeDefaultWithAdditionalPrompt", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Unset by sending an empty string.
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: "",
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPromptSettings{
+			IncludeDefaultSystemPrompt: false,
+			AdditionalSystemPrompt:     "Only follow these instructions.",
 		})
 		require.NoError(t, err)
 
 		resp, err := adminClient.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
-		require.Equal(t, "", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, "Only follow these instructions.", resp.AdditionalSystemPrompt)
 	})
 
 	t.Run("NonAdminFails", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: "This should fail.",
+		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPromptSettings{
+			IncludeDefaultSystemPrompt: true,
+			AdditionalSystemPrompt:     "This should fail.",
 		})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -4810,12 +4816,24 @@ func TestChatSystemPrompt(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
 
+	t.Run("RejectsEmptyPromptWhenDefaultExcluded", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPromptSettings{
+			IncludeDefaultSystemPrompt: false,
+			AdditionalSystemPrompt:     "",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "System prompt configuration is invalid.", sdkErr.Message)
+	})
+
 	t.Run("TooLong", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		tooLong := strings.Repeat("a", 131073)
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: tooLong,
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPromptSettings{
+			IncludeDefaultSystemPrompt: true,
+			AdditionalSystemPrompt:     tooLong,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)

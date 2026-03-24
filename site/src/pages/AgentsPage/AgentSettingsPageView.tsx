@@ -62,6 +62,7 @@ import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
 import { SectionHeader } from "./components/SectionHeader";
+import { TextPreviewDialog } from "./components/TextPreviewDialog";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const AdminBadge: FC = () => (
@@ -537,15 +538,36 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		isError: isSaveWorkspaceTTLError,
 	} = useMutation(updateChatWorkspaceTTL(queryClient));
 
-	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
-	const [localEdit, setLocalEdit] = useState<string | null>(null);
-	const systemPromptDraft = localEdit ?? serverPrompt;
+	const serverIncludeDefaultSystemPrompt =
+		systemPromptQuery.data?.include_default_system_prompt ?? true;
+	const serverAdditionalSystemPrompt =
+		systemPromptQuery.data?.additional_system_prompt ?? "";
+	const defaultSystemPromptPreviewText =
+		systemPromptQuery.data?.default_system_prompt_preview ?? "";
+	const [localIncludeDefaultSystemPrompt, setLocalIncludeDefaultSystemPrompt] =
+		useState<boolean | null>(null);
+	const [localAdditionalSystemPrompt, setLocalAdditionalSystemPrompt] =
+		useState<string | null>(null);
+	const [
+		isDefaultSystemPromptPreviewOpen,
+		setIsDefaultSystemPromptPreviewOpen,
+	] = useState(false);
+	const includeDefaultSystemPrompt =
+		localIncludeDefaultSystemPrompt ?? serverIncludeDefaultSystemPrompt;
+	const additionalSystemPromptDraft =
+		localAdditionalSystemPrompt ?? serverAdditionalSystemPrompt;
 
 	const serverUserPrompt = userPromptQuery.data?.custom_prompt ?? "";
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 
-	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
+	const isSystemPromptDirty =
+		(localIncludeDefaultSystemPrompt !== null &&
+			localIncludeDefaultSystemPrompt !== serverIncludeDefaultSystemPrompt) ||
+		(localAdditionalSystemPrompt !== null &&
+			localAdditionalSystemPrompt !== serverAdditionalSystemPrompt);
+	const isSystemPromptInvalid =
+		!includeDefaultSystemPrompt && additionalSystemPromptDraft.trim() === "";
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
@@ -559,16 +581,25 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const isTTLOverMax = ttlMs > maxTTLMs;
 	const isTTLZero = isAutostopEnabled && ttlMs === 0;
 	const isPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
+	const isSystemPromptLoading = systemPromptQuery.isLoading;
 	const isDesktopSaving = isSavingDesktopEnabled;
 	const isTTLSaving = isSavingWorkspaceTTL;
 	const isTTLLoading = workspaceTTLQuery.isLoading;
 
 	const handleSaveSystemPrompt = (event: FormEvent) => {
 		event.preventDefault();
-		if (!isSystemPromptDirty) return;
+		if (!isSystemPromptDirty || isSystemPromptInvalid) return;
 		saveSystemPrompt(
-			{ system_prompt: systemPromptDraft },
-			{ onSuccess: () => setLocalEdit(null) },
+			{
+				include_default_system_prompt: includeDefaultSystemPrompt,
+				additional_system_prompt: additionalSystemPromptDraft,
+			},
+			{
+				onSuccess: () => {
+					setLocalIncludeDefaultSystemPrompt(null);
+					setLocalAdditionalSystemPrompt(null);
+				},
+			},
 		);
 	};
 
@@ -678,6 +709,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 							isLoadingModelConfigs={modelConfigsQuery.isLoading}
 						/>
 
+						{isDefaultSystemPromptPreviewOpen && (
+							<TextPreviewDialog
+								content={defaultSystemPromptPreviewText}
+								fileName="Coder Agents default system prompt"
+								onClose={() => setIsDefaultSystemPromptPreviewOpen(false)}
+							/>
+						)}
+
 						{/* ── Admin system prompt (admin only) ── */}
 						{canSetSystemPrompt && (
 							<>
@@ -692,16 +731,60 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										</h3>
 										<AdminBadge />
 									</div>
-									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										Applied to all chats for every user. When empty, the
-										built-in default is used.
-									</p>
+									<div className="!mt-0.5 m-0 flex items-start justify-between gap-4 text-xs text-content-secondary">
+										<p className="m-0 flex-1">
+											Applied to all chats for every user. When enabled, the
+											additional system prompt is appended after the built-in
+											Coder Agents default system prompt.
+										</p>
+										<Button
+											size="sm"
+											variant="outline"
+											type="button"
+											onClick={() => setIsDefaultSystemPromptPreviewOpen(true)}
+											disabled={
+												isSystemPromptLoading || !defaultSystemPromptPreviewText
+											}
+										>
+											Preview default prompt
+										</Button>
+									</div>
+									<div className="flex items-center justify-between gap-4 rounded-md border border-border bg-surface-secondary px-3 py-2">
+										<label
+											id="include-default-system-prompt-label"
+											className="flex-1 text-xs text-content-secondary"
+											htmlFor="include-default-system-prompt"
+										>
+											<span className="block font-medium text-content-primary">
+												Include Coder Agents default system prompt
+											</span>
+											<span className="mt-1 block">
+												Disable this to use only the additional system prompt.
+											</span>
+										</label>
+										<Switch
+											id="include-default-system-prompt"
+											checked={includeDefaultSystemPrompt}
+											onCheckedChange={setLocalIncludeDefaultSystemPrompt}
+											aria-labelledby="include-default-system-prompt-label"
+											disabled={isPromptSaving || isSystemPromptLoading}
+										/>
+									</div>
+									<label
+										className="m-0 block text-xs font-medium text-content-primary"
+										htmlFor="additional-system-prompt"
+									>
+										Additional system prompt
+									</label>
 									<TextareaAutosize
+										id="additional-system-prompt"
 										className={textareaClassName}
 										placeholder="Additional behavior, style, and tone preferences for all users"
-										value={systemPromptDraft}
-										onChange={(event) => setLocalEdit(event.target.value)}
-										disabled={isPromptSaving}
+										value={additionalSystemPromptDraft}
+										onChange={(event) =>
+											setLocalAdditionalSystemPrompt(event.target.value)
+										}
+										disabled={isPromptSaving || isSystemPromptLoading}
 										minRows={1}
 									/>
 									<div className="flex justify-end gap-2">
@@ -709,19 +792,29 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 											size="sm"
 											variant="outline"
 											type="button"
-											onClick={() => setLocalEdit("")}
-											disabled={isPromptSaving || !systemPromptDraft}
+											onClick={() => setLocalAdditionalSystemPrompt("")}
+											disabled={isPromptSaving || !additionalSystemPromptDraft}
 										>
 											Clear
 										</Button>
 										<Button
 											size="sm"
 											type="submit"
-											disabled={isPromptSaving || !isSystemPromptDirty}
+											disabled={
+												isPromptSaving ||
+												!isSystemPromptDirty ||
+												isSystemPromptInvalid
+											}
 										>
 											Save
 										</Button>
 									</div>
+									{isSystemPromptInvalid && (
+										<p className="m-0 text-xs text-content-destructive">
+											Either include the default system prompt or provide an
+											additional system prompt.
+										</p>
+									)}
 									{isSaveSystemPromptError && (
 										<p className="m-0 text-xs text-content-destructive">
 											Failed to save system prompt.

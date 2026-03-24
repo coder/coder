@@ -17473,16 +17473,22 @@ func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return enable_desktop, err
 }
 
-const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
+const getChatSystemPromptSettings = `-- name: GetChatSystemPromptSettings :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_include_default_system_prompt'), true) :: boolean AS include_default_system_prompt,
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS additional_system_prompt
 `
 
-func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatSystemPrompt)
-	var chat_system_prompt string
-	err := row.Scan(&chat_system_prompt)
-	return chat_system_prompt, err
+type GetChatSystemPromptSettingsRow struct {
+	IncludeDefaultSystemPrompt bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	AdditionalSystemPrompt     string `db:"additional_system_prompt" json:"additional_system_prompt"`
+}
+
+func (q *sqlQuerier) GetChatSystemPromptSettings(ctx context.Context) (GetChatSystemPromptSettingsRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatSystemPromptSettings)
+	var i GetChatSystemPromptSettingsRow
+	err := row.Scan(&i.IncludeDefaultSystemPrompt, &i.AdditionalSystemPrompt)
+	return i, err
 }
 
 const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
@@ -17706,13 +17712,22 @@ func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop
 	return err
 }
 
-const upsertChatSystemPrompt = `-- name: UpsertChatSystemPrompt :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_system_prompt'
+const upsertChatSystemPromptSettings = `-- name: UpsertChatSystemPromptSettings :exec
+INSERT INTO site_configs (key, value)
+VALUES
+	('agents_chat_include_default_system_prompt', CASE WHEN $1::bool THEN 'true' ELSE 'false' END),
+	('agents_chat_system_prompt', $2::text)
+ON CONFLICT (key) DO UPDATE
+SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
 `
 
-func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
+type UpsertChatSystemPromptSettingsParams struct {
+	IncludeDefaultSystemPrompt bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	AdditionalSystemPrompt     string `db:"additional_system_prompt" json:"additional_system_prompt"`
+}
+
+func (q *sqlQuerier) UpsertChatSystemPromptSettings(ctx context.Context, arg UpsertChatSystemPromptSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatSystemPromptSettings, arg.IncludeDefaultSystemPrompt, arg.AdditionalSystemPrompt)
 	return err
 }
 

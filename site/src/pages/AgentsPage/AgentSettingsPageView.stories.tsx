@@ -5,7 +5,14 @@ import { API } from "api/api";
 import { userKey } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	getByText,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { AgentSettingsPageView } from "./AgentSettingsPageView";
 
 // ── Usage mock helpers ─────────────────────────────────────────
@@ -146,7 +153,9 @@ const meta = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
-			system_prompt: "",
+			include_default_system_prompt: true,
+			additional_system_prompt: "",
+			default_system_prompt_preview: "Default prompt preview",
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
@@ -177,6 +186,45 @@ export default meta;
 type Story = StoryObj<typeof AgentSettingsPageView>;
 
 // ── Behavior tab stories ───────────────────────────────────────
+
+export const SystemPromptPreview: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("System Instructions");
+		const previewButton = await canvas.findByRole("button", {
+			name: "Preview default prompt",
+		});
+		await userEvent.click(previewButton);
+		await waitFor(() => {
+			expect(
+				getByText(document.body, "Coder Agents default system prompt"),
+			).toBeVisible();
+			expect(getByText(document.body, "Default prompt preview")).toBeVisible();
+		});
+	},
+};
+
+export const SystemPromptValidation: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			include_default_system_prompt: true,
+			additional_system_prompt: "",
+			default_system_prompt_preview: "Default prompt preview",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Include Coder Agents default system prompt",
+		});
+		await userEvent.click(toggle);
+		await canvas.findByText(
+			"Either include the default system prompt or provide an additional system prompt.",
+		);
+		const saveButton = await canvas.findByRole("button", { name: "Save" });
+		expect(saveButton).toBeDisabled();
+	},
+};
 
 export const DesktopSetting: Story = {
 	play: async ({ canvasElement }) => {
