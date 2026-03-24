@@ -97,7 +97,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			? "bg-surface-red"
 			: usageProgressPercentage >= 75
 				? "bg-surface-orange"
-				: "bg-surface-green";
+				: "bg-content-success";
 	const usageLimitExceeded =
 		showUsageLimitCard && usageLimitCurrentSpend >= usageLimitSpendMicros;
 	const usageLimitStatusText = usageLimitExceeded
@@ -217,7 +217,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 								{usageLimitStatusText}
 							</p>
 							<p className="text-content-secondary">
-								Resets {usageLimitResetAt}
+								Resets{" "}{usageLimitResetAt}
 							</p>
 						</div>
 					</div>

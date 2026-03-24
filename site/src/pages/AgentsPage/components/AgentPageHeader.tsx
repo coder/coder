@@ -95,9 +95,8 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 							<BarChart3Icon />
 						</Link>
 					</Button>
-				</div>
-			)}
-			{children && <div className="flex items-center gap-2">{children}</div>}
+					</div>
+				)}			{children && <div className="flex items-center gap-2">{children}</div>}
 		</div>
 	);
 };

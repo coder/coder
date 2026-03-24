@@ -95,14 +95,14 @@ export const UsageIndicator: FC = () => {
 
 				{data.period_end && (
 					<div className="px-2 pb-2 text-xs text-content-secondary">
-						Resets {dayjs(data.period_end).format("MMM D, YYYY")}
+						Resets{" "}{dayjs(data.period_end).format("MMM D, YYYY")}
 					</div>
 				)}
 
 				<DropdownMenuSeparator />
 
 				<DropdownMenuItem asChild>
-					<Link to="/agents/analytics">View details</Link>
+					<Link to="/agents/analytics">View usage</Link>
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
