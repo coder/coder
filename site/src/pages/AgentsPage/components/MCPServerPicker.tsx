@@ -12,12 +12,13 @@ import { Switch } from "components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import {
 	CheckCircleIcon,
-	ExternalLinkIcon,
 	LockIcon,
+	LogInIcon,
 	PlugIcon,
 	ServerIcon,
 } from "lucide-react";
@@ -40,6 +41,19 @@ export interface MCPServerPickerProps {
 }
 
 // ── Helpers ────────────────────────────────────────────────────
+
+const availabilityLabel = (a: string) => {
+	switch (a) {
+		case "force_on":
+			return "Always on";
+		case "default_on":
+			return "On by default";
+		case "default_off":
+			return "Optional";
+		default:
+			return a;
+	}
+};
 
 const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 	iconUrl,
@@ -193,101 +207,97 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 				</TooltipTrigger>
 				<TooltipContent>Configure MCP Servers</TooltipContent>
 			</Tooltip>
-			<PopoverContent align="start" className="w-80 p-0">
+			<PopoverContent align="start" className="w-72 p-0">
 				<div className="border-0 border-b border-solid border-border px-3 py-2">
-					<h4 className="m-0 text-sm font-medium text-content-primary">
+					<h4 className="m-0 text-xs font-medium text-content-primary">
 						MCP Servers
 					</h4>
-					<p className="m-0 text-xs text-content-secondary">
-						Select which servers provide tools for this chat.
-					</p>
 				</div>
-				<div className="max-h-64 overflow-y-auto py-1 [scrollbar-width:thin]">
-					{enabledServers.map((server) => {
-						const isForceOn = server.availability === "force_on";
-						const isSelected =
-							isForceOn || selectedServerIds.includes(server.id);
-						const needsAuth =
-							server.auth_type === "oauth2" && !server.auth_connected;
-						const isConnecting = connectingServerId === server.id;
+				<TooltipProvider delayDuration={300}>
+					<div className="max-h-64 overflow-y-auto py-0.5 [scrollbar-width:thin]">
+						{enabledServers.map((server) => {
+							const isForceOn = server.availability === "force_on";
+							const isSelected =
+								isForceOn || selectedServerIds.includes(server.id);
+							const needsAuth =
+								server.auth_type === "oauth2" && !server.auth_connected;
+							const isConnecting = connectingServerId === server.id;
 
-						return (
-							<div
-								key={server.id}
-								className="flex items-center gap-3 px-3 py-2"
-							>
-								<MCPIcon
-									iconUrl={server.icon_url}
-									name={server.display_name}
-									className="h-7 w-7"
-								/>
-								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-1.5">
-										<span className="truncate text-sm font-medium text-content-primary">
+							return (
+								<Tooltip key={server.id}>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-2 px-3 py-1.5">
+											<MCPIcon
+												iconUrl={server.icon_url}
+												name={server.display_name}
+												className="h-5 w-5"
+											/>
+											<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
+												{server.display_name}
+											</span>
+											{isForceOn && (
+												<LockIcon className="h-3 w-3 shrink-0 text-content-secondary" />
+											)}
+											{needsAuth && isSelected && (
+												<Button
+													variant="outline"
+													size="sm"
+													className="h-5 shrink-0 gap-1 px-1.5 text-[10px]"
+													onClick={(e) => {
+														e.stopPropagation();
+														handleConnect(server);
+													}}
+													disabled={disabled || isConnecting}
+													aria-label={`Authenticate with ${server.display_name}`}
+												>
+													{isConnecting ? (
+														<Spinner loading className="h-2.5 w-2.5" />
+													) : (
+														<LogInIcon className="h-2.5 w-2.5" />
+													)}
+													Auth
+												</Button>
+											)}
+											{server.auth_type === "oauth2" &&
+												server.auth_connected &&
+												isSelected && (
+													<CheckCircleIcon className="h-3.5 w-3.5 shrink-0 text-content-success" />
+												)}
+											<Switch
+												checked={isSelected}
+												onCheckedChange={(checked) =>
+													handleToggle(server.id, checked)
+												}
+												disabled={disabled || isForceOn}
+												aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+												className="scale-[0.8]"
+											/>
+										</div>
+									</TooltipTrigger>
+									<TooltipContent
+										side="right"
+										sideOffset={8}
+										className="max-w-[220px] px-2.5 py-1.5"
+									>
+										<span className="block font-semibold leading-tight text-content-primary">
 											{server.display_name}
 										</span>
-										{isForceOn && (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<LockIcon className="h-3 w-3 shrink-0 text-content-secondary" />
-												</TooltipTrigger>
-												<TooltipContent>
-													This server is always enabled by your administrator.
-												</TooltipContent>
-											</Tooltip>
-										)}
-									</div>
-									{server.description && (
-										<p className="m-0 truncate text-xs text-content-secondary">
-											{server.description}
-										</p>
-									)}
-									{needsAuth && isSelected && (
-										<button
-											type="button"
-											className={cn(
-												"mt-1 inline-flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 text-xs font-medium transition-colors",
-												isConnecting
-													? "text-content-secondary"
-													: "text-content-link hover:text-content-link/80",
-											)}
-											onClick={() => handleConnect(server)}
-											disabled={isConnecting}
-										>
-											{isConnecting ? (
-												<>
-													<Spinner loading className="h-3 w-3" />
-													Connecting...
-												</>
-											) : (
-												<>
-													<ExternalLinkIcon className="h-3 w-3" />
-													Connect to authenticate
-												</>
-											)}
-										</button>
-									)}
-									{server.auth_type === "oauth2" &&
-										server.auth_connected &&
-										isSelected && (
-											<span className="mt-0.5 inline-flex items-center gap-1 text-xs text-content-success">
-												<CheckCircleIcon className="h-3 w-3" />
-												Connected
+										{server.description && (
+											<span className="block leading-tight text-content-secondary">
+												{server.description}
 											</span>
 										)}
-								</div>
-								<Switch
-									checked={isSelected}
-									onCheckedChange={(checked) =>
-										handleToggle(server.id, checked)
-									}
-									disabled={disabled || isForceOn}
-									aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-								/>
-							</div>
-						);
-					})}
-				</div>
+										<span className="mt-1 block text-content-secondary leading-tight">
+											{availabilityLabel(server.availability)}
+											{server.auth_type !== "none" &&
+												` · ${server.auth_connected ? "Authenticated" : "Not authenticated"}`}
+										</span>
+									</TooltipContent>
+								</Tooltip>
+							);
+						})}
+					</div>
+				</TooltipProvider>
 			</PopoverContent>
 		</Popover>
 	);

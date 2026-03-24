@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import { fn } from "storybook/test";
-import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
+import { MCPServerPicker, getDefaultMCPSelection } from "./MCPServerPicker";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -193,7 +193,7 @@ export const SingleDefaultOff: Story = {
 	},
 };
 
-/** OAuth2 server needing authentication. */
+/** OAuth2 server needing authentication — shows Auth button. */
 export const OAuthNeedsAuth: Story = {
 	args: {
 		servers: [githubServer],
@@ -201,7 +201,7 @@ export const OAuthNeedsAuth: Story = {
 	},
 };
 
-/** OAuth2 server already authenticated. */
+/** OAuth2 server already authenticated — shows check icon. */
 export const OAuthConnected: Story = {
 	args: {
 		servers: [githubServerConnected],
@@ -255,7 +255,7 @@ export const AllOptedOut: Story = {
 	},
 };
 
-/** Default-off server with OAuth needing auth (opted in but not connected). */
+/** Default-off server with OAuth needing auth (opted in, Auth button shows). */
 export const OptionalOAuthNeedsAuth: Story = {
 	args: {
 		servers: [slackServer],
