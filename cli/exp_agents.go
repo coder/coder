@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,21 +16,6 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
-)
-
-var (
-	_ = createChatCmd
-	_ = sendMessageCmd
-	_ = interruptChatCmd
-	_ = listModelsCmd
-	_ = loadGitChangesCmd
-	_ = loadDiffContentsCmd
-	_ = listenToStream
-	_ = renderToolCall
-	_ = renderToolResult
-	_ = renderCompaction
-	_ = renderDiffDrawer
-	_ = renderModelPicker
 )
 
 func installTUISignalHandler(p *tea.Program) func() {
@@ -92,15 +78,16 @@ func truncateHelpText(text string, width int) string {
 	return "…"
 }
 
-func (r *RootCmd) chatsTUI() *serpent.Command {
+func (r *RootCmd) agentsCommand() *serpent.Command {
 	var (
 		workspaceFlag string
 		modelFlag     string
 	)
 
 	return &serpent.Command{
-		Use:   "tui [chat-id]",
-		Short: "Interactive TUI for managing chats.",
+		Use:     "agents [chat-id]",
+		Short:   "Interactive terminal UI for AI agents.",
+		Aliases: []string{"agent"},
 		Options: serpent.OptionSet{
 			{
 				Name:        "workspace",
@@ -183,4 +170,34 @@ func (r *RootCmd) chatsTUI() *serpent.Command {
 			return nil
 		},
 	}
+}
+
+//nolint:nilnil // A nil UUID indicates that no model override was provided.
+func resolveModel(ctx context.Context, client *codersdk.ExperimentalClient, modelFlag string) (*uuid.UUID, error) {
+	if modelFlag == "" {
+		return nil, nil
+	}
+
+	if id, err := uuid.Parse(modelFlag); err == nil {
+		return &id, nil
+	}
+
+	catalog, err := client.ListChatModels(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("listing models: %w", err)
+	}
+
+	for _, provider := range catalog.Providers {
+		for _, model := range provider.Models {
+			if model.ID == modelFlag || model.Provider+"/"+model.Model == modelFlag || model.DisplayName == modelFlag {
+				id, err := uuid.Parse(model.ID)
+				if err != nil {
+					return nil, xerrors.Errorf("invalid model ID %q: %w", model.ID, err)
+				}
+				return &id, nil
+			}
+		}
+	}
+
+	return nil, xerrors.Errorf("unknown model %q", modelFlag)
 }

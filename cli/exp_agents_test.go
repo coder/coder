@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestExpChatsTUI(t *testing.T) {
+func TestExpAgents(t *testing.T) {
 	t.Parallel()
 
 	t.Run("TopLevelModelRouting", func(t *testing.T) {

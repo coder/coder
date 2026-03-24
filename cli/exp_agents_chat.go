@@ -191,7 +191,10 @@ func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
 		return m, nil
 	}
 	m.composer.SetValue("")
-	content := promptToContent(text)
+	content := []codersdk.ChatInputPart{{
+		Type: codersdk.ChatInputPartTypeText,
+		Text: text,
+	}}
 
 	if m.draft {
 		req := codersdk.CreateChatRequest{

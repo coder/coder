@@ -1,17 +1,18 @@
-package cli
+package cli //nolint:testpackage // Tests unexported chat stream helpers.
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
+	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/serpent"
 )
 
 type chatWatchWriters struct {
@@ -32,88 +33,6 @@ func (w chatWatchWriters) Stderr() io.Writer {
 
 type chatStreamRenderState struct {
 	printedInline bool
-}
-
-func (r *RootCmd) chatsWatch() *serpent.Command {
-	var (
-		after      int64
-		outputMode string
-	)
-
-	return &serpent.Command{
-		Use:        "watch <chat-id>",
-		Short:      "Watch a chat for live updates.",
-		Middleware: serpent.RequireNArgs(1),
-		Options: serpent.OptionSet{
-			{
-				Name:        "after",
-				Flag:        "after",
-				Description: "Only stream messages created after the given message ID.",
-				Value:       serpent.Int64Of(&after),
-			},
-			{
-				Name:          "output",
-				Flag:          "output",
-				FlagShorthand: "o",
-				Default:       "text",
-				Description:   "Output format.",
-				Value:         serpent.EnumOf(&outputMode, "text", "json"),
-			},
-		},
-		Handler: func(inv *serpent.Invocation) error {
-			chatID, err := parseChatID(inv)
-			if err != nil {
-				return err
-			}
-
-			client, err := r.InitClient(inv)
-			if err != nil {
-				return err
-			}
-
-			expClient := codersdk.NewExperimentalClient(client)
-
-			var afterID *int64
-			if after > 0 {
-				afterID = &after
-			}
-
-			return watchChat(
-				inv.Context(),
-				expClient,
-				chatID,
-				afterID,
-				chatWatchWriters{stdout: inv.Stdout, stderr: inv.Stderr},
-				outputMode == "json",
-			)
-		},
-	}
-}
-
-// watchChat runs the streaming loop. It's used by the watch command directly
-// and by start/send with --follow.
-//
-//nolint:revive // The helper mirrors the CLI's text-vs-JSON follow mode.
-func watchChat(
-	ctx context.Context,
-	client *codersdk.ExperimentalClient,
-	chatID uuid.UUID,
-	afterID *int64,
-	out io.Writer,
-	jsonMode bool,
-) error {
-	eventCh, closer, err := client.StreamChat(ctx, chatID, &codersdk.StreamChatOptions{AfterID: afterID})
-	if err != nil {
-		return xerrors.Errorf("streaming chat: %w", err)
-	}
-	defer closer.Close()
-
-	outputMode := chatStreamOutputModeText
-	if jsonMode {
-		outputMode = chatStreamOutputModeJSON
-	}
-
-	return consumeChatStream(eventCh, out, outputMode)
 }
 
 type chatStreamOutputMode int
@@ -249,4 +168,109 @@ func chatMessageText(parts []codersdk.ChatMessagePart) string {
 		_, _ = builder.WriteString(part.Text)
 	}
 	return builder.String()
+}
+
+func TestConsumeChatStreamText(t *testing.T) {
+	t.Parallel()
+
+	events := make(chan codersdk.ChatStreamEvent, 7)
+	events <- codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: codersdk.ChatMessageRoleAssistant,
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "Hello",
+			},
+		},
+	}
+	events <- codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: codersdk.ChatMessageRoleAssistant,
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeToolCall,
+				Text: "ignored",
+			},
+		},
+	}
+	events <- codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: codersdk.ChatMessageRoleAssistant,
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: " world",
+			},
+		},
+	}
+	events <- codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessage,
+		Message: &codersdk.ChatMessage{
+			ID:     1,
+			ChatID: uuid.New(),
+			Role:   codersdk.ChatMessageRoleAssistant,
+			Content: []codersdk.ChatMessagePart{{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "Hello world",
+			}},
+		},
+	}
+	events <- codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeStatus,
+		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
+	}
+	events <- codersdk.ChatStreamEvent{
+		Type:  codersdk.ChatStreamEventTypeRetry,
+		Retry: &codersdk.ChatStreamRetry{Attempt: 2, Error: "rate limited"},
+	}
+	events <- codersdk.ChatStreamEvent{
+		Type:  codersdk.ChatStreamEventTypeError,
+		Error: &codersdk.ChatStreamError{Message: "boom"},
+	}
+	close(events)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := consumeChatStream(events, chatWatchWriters{stdout: &stdout, stderr: &stderr}, chatStreamOutputModeText)
+	require.NoError(t, err)
+	require.Equal(t, "Hello world\n[Status: running]\n[Retry attempt 2 after error: rate limited]\n", stdout.String())
+	require.Equal(t, "[Error: boom]\n", stderr.String())
+}
+
+func TestConsumeChatStreamJSON(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	events := make(chan codersdk.ChatStreamEvent, 2)
+	events <- codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeStatus,
+		ChatID: chatID,
+		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusPending},
+	}
+	events <- codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeError,
+		ChatID: chatID,
+		Error:  &codersdk.ChatStreamError{Message: "failed"},
+	}
+	close(events)
+
+	var stdout bytes.Buffer
+	err := consumeChatStream(events, &stdout, chatStreamOutputModeJSON)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	require.Len(t, lines, 2)
+
+	var statusEvent codersdk.ChatStreamEvent
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &statusEvent))
+	require.Equal(t, codersdk.ChatStreamEventTypeStatus, statusEvent.Type)
+	require.NotNil(t, statusEvent.Status)
+	require.Equal(t, codersdk.ChatStatusPending, statusEvent.Status.Status)
+
+	var errorEvent codersdk.ChatStreamEvent
+	require.NoError(t, json.Unmarshal([]byte(lines[1]), &errorEvent))
+	require.Equal(t, codersdk.ChatStreamEventTypeError, errorEvent.Type)
+	require.NotNil(t, errorEvent.Error)
+	require.Equal(t, "failed", errorEvent.Error.Message)
 }

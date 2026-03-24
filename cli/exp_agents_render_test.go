@@ -14,7 +14,7 @@ import (
 
 var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-func TestExpChatsTUIRender(t *testing.T) {
+func TestExpAgentsRender(t *testing.T) {
 	t.Parallel()
 
 	t.Run("MessagesToBlocks", func(t *testing.T) {
