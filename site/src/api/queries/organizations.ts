@@ -6,11 +6,14 @@ import {
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
+	Organization,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
+	UpdateWorkspaceSharingSettingsRequest,
 } from "api/typesGenerated";
+import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import {
 	type OrganizationPermissionName,
@@ -24,6 +27,7 @@ import {
 } from "modules/permissions/workspaces";
 import type { QueryClient, UseQueryOptions } from "react-query";
 import { meKey } from "./users";
+import { cachedQuery } from "./util";
 
 export const createOrganization = (queryClient: QueryClient) => {
 	return {
@@ -160,11 +164,14 @@ export const updateOrganizationMemberRoles = (
 
 export const organizationsKey = ["organizations"] as const;
 
-export const organizations = () => {
-	return {
+const notAvailable = { available: false, value: undefined } as const;
+
+export const organizations = (metadata?: MetadataState<Organization[]>) => {
+	return cachedQuery({
+		metadata: metadata ?? notAvailable,
 		queryKey: organizationsKey,
 		queryFn: () => API.getOrganizations(),
-	};
+	});
 };
 
 export const getProvisionerDaemonsKey = (
@@ -248,7 +255,7 @@ export const patchRoleSyncSettings = (
 	};
 };
 
-const getWorkspaceSharingSettingsKey = (organization: string) => [
+export const getWorkspaceSharingSettingsKey = (organization: string) => [
 	"organization",
 	organization,
 	"workspaceSharingSettings",
@@ -266,7 +273,7 @@ export const patchWorkspaceSharingSettings = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (request: { sharing_disabled: boolean }) =>
+		mutationFn: (request: UpdateWorkspaceSharingSettingsRequest) =>
 			API.patchWorkspaceSharingSettings(organization, request),
 		onSuccess: async () =>
 			await queryClient.invalidateQueries({

@@ -23,7 +23,7 @@ export const FullPageForm: FC<FullPageFormProps> = ({
 				{detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
 			</PageHeader>
 
-			<main>{children}</main>
+			<div>{children}</div>
 		</Margins>
 	);
 };

@@ -766,6 +766,21 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		WorkspaceID: workspace.ID,
 	})
 
+	// Publish workspace build update to the all builds channel if the experiment is enabled.
+	if api.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, api.Pubsub, codersdk.WorkspaceBuildUpdate{
+			WorkspaceID:   workspace.ID,
+			WorkspaceName: workspace.Name,
+			BuildID:       workspaceBuild.ID,
+			Transition:    string(workspaceBuild.Transition),
+			JobStatus:     string(database.ProvisionerJobStatusCanceled),
+			BuildNumber:   workspaceBuild.BuildNumber,
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
@@ -856,32 +871,24 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "No workspace exists for this job.",
-		})
+
+	// The dbauthz layer enforces policy.ActionUpdate on the template.
+	row, err := api.Database.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuild.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
-	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get template",
+			Message: "Internal error fetching provisioner state.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// You must have update permissions on the template to get the state.
-	// This matches a push!
-	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(workspaceBuild.ProvisionerState)
+	_, _ = rw.Write(row.ProvisionerState)
 }
 
 // @Summary Update workspace build state

@@ -118,6 +118,7 @@ The Coder backend includes a rich suite of unit and end-to-end tests. A variety 
   * [port.go](https://github.com/coder/coder/blob/main/testutil/port.go): select a free random port
   * [prometheus.go](https://github.com/coder/coder/blob/main/testutil/prometheus.go): validate Prometheus metrics with expected values
   * [pty.go](https://github.com/coder/coder/blob/main/testutil/pty.go): read output from a terminal until a condition is met
+  * [wait_buffer.go](https://github.com/coder/coder/blob/main/testutil/wait_buffer.go): thread-safe `io.Writer` that blocks until accumulated output contains a signal (`WaitFor`, `WaitForNth`, `WaitForCond`)
 
 ### [dbtestutil](https://github.com/coder/coder/tree/main/coderd/database/dbtestutil)
 

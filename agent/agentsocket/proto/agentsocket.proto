@@ -3,6 +3,8 @@ option go_package = "github.com/coder/coder/v2/agent/agentsocket/proto";
 
 package coder.agentsocket.v1;
 
+import "agent/proto/agent.proto";
+
 message PingRequest {}
 
 message PingResponse {}
@@ -66,4 +68,6 @@ service AgentSocket {
   rpc SyncReady(SyncReadyRequest) returns (SyncReadyResponse);
   // Get the status of a unit and list its dependencies.
   rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
+  // Update app status, forwarded to coderd.
+  rpc UpdateAppStatus(coder.agent.v2.UpdateAppStatusRequest) returns (coder.agent.v2.UpdateAppStatusResponse);
 }

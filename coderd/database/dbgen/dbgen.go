@@ -504,7 +504,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 			JobID:             jobID,
-			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
+			ProvisionerState:  []byte{},
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
@@ -578,17 +578,27 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 }
 
 func User(t testing.TB, db database.Store, orig database.User) database.User {
+	loginType := takeFirst(orig.LoginType, database.LoginTypePassword)
+	email := takeFirst(orig.Email, testutil.GetRandomName(t))
+	// A DB constraint requires login_type = 'none' and email = '' for service
+	// accounts.
+	if orig.IsServiceAccount {
+		loginType = database.LoginTypeNone
+		email = ""
+	}
+
 	user, err := db.InsertUser(genCtx, database.InsertUserParams{
-		ID:             takeFirst(orig.ID, uuid.New()),
-		Email:          takeFirst(orig.Email, testutil.GetRandomName(t)),
-		Username:       takeFirst(orig.Username, testutil.GetRandomName(t)),
-		Name:           takeFirst(orig.Name, testutil.GetRandomName(t)),
-		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
-		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-		RBACRoles:      takeFirstSlice(orig.RBACRoles, []string{}),
-		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
-		Status:         string(takeFirst(orig.Status, database.UserStatusDormant)),
+		ID:               takeFirst(orig.ID, uuid.New()),
+		Email:            email,
+		Username:         takeFirst(orig.Username, testutil.GetRandomName(t)),
+		Name:             takeFirst(orig.Name, testutil.GetRandomName(t)),
+		HashedPassword:   takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:        takeFirst(orig.UpdatedAt, dbtime.Now()),
+		RBACRoles:        takeFirstSlice(orig.RBACRoles, []string{}),
+		LoginType:        loginType,
+		Status:           string(takeFirst(orig.Status, database.UserStatusDormant)),
+		IsServiceAccount: orig.IsServiceAccount,
 	})
 	require.NoError(t, err, "insert user")
 
@@ -640,34 +650,26 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	})
 	require.NoError(t, err, "insert organization")
 
-	// Populate the placeholder organization-member system role (created by
-	// DB trigger/migration) so org members have expected permissions.
-	//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
+	// Populate the placeholder system roles (created by DB
+	// trigger/migration) so org members have expected permissions.
+	//nolint:gocritic // ReconcileSystemRole needs the system:update
 	// permission that `genCtx` does not have.
 	sysCtx := dbauthz.AsSystemRestricted(genCtx)
-	_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
-		Name: rbac.RoleOrgMember(),
-		OrganizationID: uuid.NullUUID{
-			UUID:  org.ID,
-			Valid: true,
-		},
-	}, org.WorkspaceSharingDisabled)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		// The trigger that creates the placeholder role didn't run (e.g.,
-		// triggers were disabled in the test). Create the role manually.
-		err = rolestore.CreateOrgMemberRole(sysCtx, db, org)
-		require.NoError(t, err, "create organization-member role")
-
-		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
-			Name: rbac.RoleOrgMember(),
-			OrganizationID: uuid.NullUUID{
-				UUID:  org.ID,
-				Valid: true,
-			},
-		}, org.WorkspaceSharingDisabled)
+	for roleName := range rolestore.SystemRoleNames {
+		role := database.CustomRole{
+			Name:           roleName,
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		}
+		_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
+		if errors.Is(err, sql.ErrNoRows) {
+			// The trigger that creates the placeholder role didn't run (e.g.,
+			// triggers were disabled in the test). Create the role manually.
+			err = rolestore.CreateSystemRole(sysCtx, db, org, roleName)
+			require.NoError(t, err, "create role "+roleName)
+			_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
+		}
+		require.NoError(t, err, "reconcile role "+roleName)
 	}
-	require.NoError(t, err, "reconcile organization-member role")
 
 	return org
 }
@@ -1585,14 +1587,17 @@ func ClaimPrebuild(
 
 func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
-		ID:          takeFirst(seed.ID, uuid.New()),
-		APIKeyID:    seed.APIKeyID,
-		InitiatorID: takeFirst(seed.InitiatorID, uuid.New()),
-		Provider:    takeFirst(seed.Provider, "provider"),
-		Model:       takeFirst(seed.Model, "model"),
-		Metadata:    takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
-		StartedAt:   takeFirst(seed.StartedAt, dbtime.Now()),
-		Client:      seed.Client,
+		ID:                         takeFirst(seed.ID, uuid.New()),
+		APIKeyID:                   seed.APIKeyID,
+		InitiatorID:                takeFirst(seed.InitiatorID, uuid.New()),
+		Provider:                   takeFirst(seed.Provider, "provider"),
+		Model:                      takeFirst(seed.Model, "model"),
+		Metadata:                   takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
+		StartedAt:                  takeFirst(seed.StartedAt, dbtime.Now()),
+		Client:                     seed.Client,
+		ThreadParentInterceptionID: seed.ThreadParentInterceptionID,
+		ThreadRootInterceptionID:   seed.ThreadRootInterceptionID,
+		ClientSessionID:            seed.ClientSessionID,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
@@ -1645,6 +1650,7 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 		ID:                 takeFirst(seed.ID, uuid.New()),
 		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
 		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
+		ProviderToolCallID: takeFirst(seed.ProviderToolCallID),
 		Tool:               takeFirst(seed.Tool, "tool"),
 		ServerUrl:          serverURL,
 		Input:              takeFirst(seed.Input, "input"),

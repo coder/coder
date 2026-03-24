@@ -24,12 +24,16 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
+	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -174,7 +178,7 @@ func TestAuthorization(t *testing.T) {
 				tc.mocksFn(db, apiKey, user)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -266,7 +270,7 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			accessURL := "https://my-cool-deployment.com"
 			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, codersdk.AIBridgeConfig{
 				InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
-			}, tc.externalAuthConfigs, tc.experiments)
+			}, tc.externalAuthConfigs, tc.experiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -316,7 +320,7 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 		{
 			ID: "3",
 		},
-	}, requiredExperiments)
+	}, requiredExperiments, agplaiseats.Noop{})
 	require.NoError(t, err)
 	require.NotNil(t, srv)
 
@@ -409,6 +413,81 @@ func TestRecordInterception(t *testing.T) {
 				},
 			},
 			{
+				name: "valid interception with client session ID",
+				request: &proto.RecordInterceptionRequest{
+					Id:              uuid.NewString(),
+					ApiKeyId:        uuid.NewString(),
+					InitiatorId:     uuid.NewString(),
+					Provider:        "anthropic",
+					Model:           "claude-4-opus",
+					Metadata:        metadataProto,
+					StartedAt:       timestamppb.Now(),
+					ClientSessionId: ptr.Ref("session-abc-123"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:              interceptionID,
+						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:     initiatorID,
+						Provider:        req.GetProvider(),
+						Model:           req.GetModel(),
+						Metadata:        json.RawMessage(metadataJSON),
+						StartedAt:       req.StartedAt.AsTime().UTC(),
+						ClientSessionID: sql.NullString{String: "session-abc-123", Valid: true},
+					}).Return(database.AIBridgeInterception{
+						ID:              interceptionID,
+						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:     initiatorID,
+						Provider:        req.GetProvider(),
+						Model:           req.GetModel(),
+						StartedAt:       req.StartedAt.AsTime().UTC(),
+						ClientSessionID: sql.NullString{String: "session-abc-123", Valid: true},
+					}, nil)
+				},
+			},
+			{
+				name: "empty client session ID treated as null",
+				request: &proto.RecordInterceptionRequest{
+					Id:              uuid.NewString(),
+					ApiKeyId:        uuid.NewString(),
+					InitiatorId:     uuid.NewString(),
+					Provider:        "anthropic",
+					Model:           "claude-4-opus",
+					Metadata:        metadataProto,
+					StartedAt:       timestamppb.Now(),
+					ClientSessionId: ptr.Ref(""),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:              interceptionID,
+						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:     initiatorID,
+						Provider:        req.GetProvider(),
+						Model:           req.GetModel(),
+						Metadata:        json.RawMessage(metadataJSON),
+						StartedAt:       req.StartedAt.AsTime().UTC(),
+						ClientSessionID: sql.NullString{},
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
 				name: "invalid interception ID",
 				request: &proto.RecordInterceptionRequest{
 					Id:          "not-a-uuid",
@@ -458,6 +537,130 @@ func TestRecordInterception(t *testing.T) {
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
 				},
 				expectedErr: "start interception",
+			},
+			{
+				name: "ok with parent correlation",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+					parentID := uuid.UUID{4}
+					rootID := uuid.UUID{5}
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+						ThreadParentID: parentID,
+						ThreadRootID:   rootID,
+					}, nil)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: rootID, Valid: true}, p.ThreadRootInterceptionID, "thread root interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "no lineage",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "parent without root", // This should never happen since GetAIBridgeInterceptionLineageByToolCallID always returns both, but still...
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+					parentID := uuid.UUID{4}
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+						ThreadParentID: parentID,
+					}, nil)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID not expected")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "ok no parent found",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{5}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: ptr.Ref("call_orphan"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_orphan",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
 			},
 		},
 	)
@@ -698,11 +901,12 @@ func TestRecordToolUsage(t *testing.T) {
 				request: &proto.RecordToolUsageRequest{
 					InterceptionId:  uuid.NewString(),
 					MsgId:           "msg_123",
-					ServerUrl:       strPtr("https://api.example.com"),
+					ToolCallId:      "call_xyz",
+					ServerUrl:       ptr.Ref("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        false,
-					InvocationError: strPtr("permission denied"),
+					InvocationError: ptr.Ref("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				},
@@ -726,6 +930,7 @@ func TestRecordToolUsage(t *testing.T) {
 						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
 							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
 							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
+							!assert.Equal(t, sql.NullString{String: "call_xyz", Valid: true}, p.ProviderToolCallID, "provider tool call ID") ||
 							!assert.Equal(t, req.GetTool(), p.Tool, "tool") ||
 							!assert.Equal(t, dbServerURL, p.ServerUrl, "server URL") ||
 							!assert.Equal(t, req.GetInput(), p.Input, "input") ||
@@ -782,6 +987,75 @@ func TestRecordToolUsage(t *testing.T) {
 	)
 }
 
+func TestRecordModelThought(t *testing.T) {
+	t.Parallel()
+
+	var (
+		metadataProto = map[string]*anypb.Any{
+			"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
+		}
+		metadataJSON = `{"key":"value"}`
+	)
+
+	testRecordMethod(t,
+		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+			return srv.RecordModelThought(ctx, req)
+		},
+		[]testRecordMethodCase[*proto.RecordModelThoughtRequest]{
+			{
+				name: "valid model thought",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: uuid.NewString(),
+					Content:        "I should list the files.",
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordModelThoughtRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeModelThoughtParams) bool {
+						if !assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
+							!assert.Equal(t, "I should list the files.", p.Content, "content") ||
+							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeModelThought{
+						InterceptionID: interceptionID,
+						Content:        "I should list the files.",
+						Metadata: pqtype.NullRawMessage{
+							RawMessage: json.RawMessage(metadataJSON),
+							Valid:      true,
+						},
+					}, nil)
+				},
+			},
+			{
+				name: "invalid interception ID",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: "not-a-uuid",
+					Content:        "thinking...",
+					CreatedAt:      timestamppb.Now(),
+				},
+				expectedErr: "failed to parse interception_id",
+			},
+			{
+				name: "database error",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: uuid.NewString(),
+					Content:        "thinking...",
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordModelThoughtRequest) {
+					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{}, sql.ErrConnDone)
+				},
+				expectedErr: "insert model thought",
+			},
+		},
+	)
+}
+
 type testRecordMethodCase[Req any] struct {
 	name    string
 	request Req
@@ -811,7 +1085,7 @@ func testRecordMethod[Req any, Resp any](
 			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 
 			resp, err := callMethod(srv, ctx, tc.request)
@@ -832,10 +1106,6 @@ func mustMarshalAny(t *testing.T, msg protobufproto.Message) *anypb.Any {
 	v, err := anypb.New(msg)
 	require.NoError(t, err)
 	return v
-}
-
-func strPtr(s string) *string {
-	return &s
 }
 
 // logLine represents a parsed JSON log entry.
@@ -887,35 +1157,54 @@ func TestStructuredLogging(t *testing.T) {
 
 	interceptionID := uuid.UUID{1}
 	initiatorID := uuid.UUID{2}
+	threadParentID := uuid.UUID{3}
+	threadRootID := uuid.UUID{4}
+
+	toolCallID := "my-tool-call"
+	sessionID := "some-session-id"
 
 	cases := []testCase{
 		{
 			name:              "RecordInterception_logs_when_enabled",
 			structuredLogging: true,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(gomock.Any(), toolCallID).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+					ThreadParentID: threadParentID,
+					ThreadRootID:   threadRootID,
+				}, nil)
+
 				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{
-					ID:          intcID,
-					InitiatorID: initiatorID,
+					ID:             intcID,
+					InitiatorID:    initiatorID,
+					ThreadParentID: uuid.NullUUID{UUID: threadParentID, Valid: true},
+					ThreadRootID:   uuid.NullUUID{UUID: threadRootID, Valid: true},
 				}, nil)
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
-					Id:          intcID.String(),
-					ApiKeyId:    "api-key-123",
-					InitiatorId: initiatorID.String(),
-					Provider:    "anthropic",
-					Model:       "claude-4-opus",
-					Metadata:    metadataProto,
-					StartedAt:   timestamppb.Now(),
+					Id:                    intcID.String(),
+					ApiKeyId:              "api-key-123",
+					InitiatorId:           initiatorID.String(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					Metadata:              metadataProto,
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: ptr.Ref(toolCallID),
+					ClientSessionId:       ptr.Ref(sessionID),
 				})
+
 				return err
 			},
 			expectedFields: map[string]any{
-				"record_type":     "interception_start",
-				"interception_id": interceptionID.String(),
-				"initiator_id":    initiatorID.String(),
-				"provider":        "anthropic",
-				"model":           "claude-4-opus",
+				"record_type":              "interception_start",
+				"interception_id":          interceptionID.String(),
+				"initiator_id":             initiatorID.String(),
+				"provider":                 "anthropic",
+				"model":                    "claude-4-opus",
+				"correlating_tool_call_id": toolCallID,
+				"thread_parent_id":         threadParentID.String(),
+				"thread_root_id":           threadRootID.String(),
+				"client_session_id":        sessionID,
 			},
 		},
 		{
@@ -1052,11 +1341,11 @@ func TestStructuredLogging(t *testing.T) {
 				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 					InterceptionId:  intcID.String(),
 					MsgId:           "msg_123",
-					ServerUrl:       strPtr("https://api.example.com"),
+					ServerUrl:       ptr.Ref("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        true,
-					InvocationError: strPtr("permission denied"),
+					InvocationError: ptr.Ref("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				})
@@ -1069,6 +1358,29 @@ func TestStructuredLogging(t *testing.T) {
 				"input":            `{"path": "/etc/hosts"}`,
 				"injected":         true,
 				"invocation_error": "permission denied",
+			},
+		},
+		{
+			name:              "RecordModelThought_logs_when_enabled",
+			structuredLogging: true,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{
+					InterceptionID: intcID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+					InterceptionId: intcID.String(),
+					Content:        "I need to list the files.",
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: map[string]any{
+				"record_type":     "model_thought",
+				"interception_id": interceptionID.String(),
+				"content":         "I need to list the files.",
 			},
 		},
 	}
@@ -1087,7 +1399,7 @@ func TestStructuredLogging(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{
 				StructuredLogging: serpent.Bool(tc.structuredLogging),
-			}, nil, requiredExperiments)
+			}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 
 			err = tc.recordFn(srv, ctx, interceptionID)
@@ -1103,7 +1415,7 @@ func TestStructuredLogging(t *testing.T) {
 				require.Empty(t, lines)
 			} else {
 				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
-				require.Len(t, matchedLines, 1, "expected exactly one log line with message %q", aibridgedserver.InterceptionLogMarker)
+				require.GreaterOrEqual(t, len(matchedLines), 1, "expected at least 1 log line(s) with message %q", aibridgedserver.InterceptionLogMarker)
 
 				fields := matchedLines[0].Fields
 				for key, expected := range tc.expectedFields {
@@ -1112,4 +1424,100 @@ func TestStructuredLogging(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestInferredThreadsByToolCalls verifies that a chain of interceptions linked via
+// tool call IDs correctly propagates thread_parent_id and thread_root_id.
+//
+// The chain is: A → B → C
+//   - A is the root (no parent, no root)
+//   - B correlates via a tool call recorded by A (parent=A, root=A)
+//   - C correlates via a tool call recorded by B (parent=B, root=A)
+func TestInferredThreadsByToolCalls(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	user := dbgen.User(t, db, database.User{})
+
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	aID := uuid.New()
+	bID := uuid.New()
+	cID := uuid.New()
+
+	// Record interception A (root of the chain, no correlation).
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:          aID.String(),
+		ApiKeyId:    uuid.NewString(),
+		InitiatorId: user.ID.String(),
+		Provider:    "anthropic",
+		Model:       "claude-4-opus",
+		StartedAt:   timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// No thread association yet.
+	intcA, err := db.GetAIBridgeInterceptionByID(ctx, aID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{}, intcA.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{}, intcA.ThreadRootID)
+
+	// Record tool usage on A with a known tool call ID.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: aID.String(),
+		MsgId:          "resp_a",
+		ToolCallId:     "call_a",
+		Tool:           "bash",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Record interception B correlating to A's tool call.
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:                    bID.String(),
+		ApiKeyId:              uuid.NewString(),
+		InitiatorId:           user.ID.String(),
+		Provider:              "anthropic",
+		Model:                 "claude-4-opus",
+		StartedAt:             timestamppb.Now(),
+		CorrelatingToolCallId: ptr.Ref("call_a"),
+	})
+	require.NoError(t, err)
+
+	intcB, err := db.GetAIBridgeInterceptionByID(ctx, bID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcB.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcB.ThreadRootID)
+
+	// Record tool usage on B.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: bID.String(),
+		MsgId:          "resp_b",
+		ToolCallId:     "call_b",
+		Tool:           "bash",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Record interception C correlating to B's tool call.
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:                    cID.String(),
+		ApiKeyId:              uuid.NewString(),
+		InitiatorId:           user.ID.String(),
+		Provider:              "anthropic",
+		Model:                 "claude-4-opus",
+		StartedAt:             timestamppb.Now(),
+		CorrelatingToolCallId: ptr.Ref("call_b"),
+	})
+	require.NoError(t, err)
+
+	intcC, err := db.GetAIBridgeInterceptionByID(ctx, cID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: bID, Valid: true}, intcC.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcC.ThreadRootID)
 }

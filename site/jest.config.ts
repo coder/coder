@@ -38,6 +38,8 @@ module.exports = {
 			moduleNameMapper: {
 				"\\.css$": "<rootDir>/src/testHelpers/styleMock.ts",
 				"^@fontsource": "<rootDir>/src/testHelpers/styleMock.ts",
+				"^@pierre/diffs/react$":
+					"<rootDir>/src/testHelpers/pierreDiffsReactMock.tsx",
 			},
 		},
 	],

@@ -6,10 +6,10 @@ import (
 	"context"
 	"net"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -21,26 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/testutil"
 )
-
-// logSink captures structured log entries for testing.
-type logSink struct {
-	mu      sync.Mutex
-	entries []slog.SinkEntry
-}
-
-func (s *logSink) LogEntry(_ context.Context, e slog.SinkEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.entries = append(s.entries, e)
-}
-
-func (*logSink) Sync() {}
-
-func (s *logSink) getEntries() []slog.SinkEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]slog.SinkEntry{}, s.entries...)
-}
 
 // getField returns the value of a field by name from a slog.Map.
 func getField(fields slog.Map, name string) interface{} {
@@ -69,14 +49,14 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
-	sink := &logSink{}
-	logger := slog.Make(sink)
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger(slog.LevelInfo)
 	workspaceID := uuid.New()
 	templateID := uuid.New()
 	templateVersionID := uuid.New()
@@ -117,10 +97,10 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	sendBoundaryLogsRequest(t, conn, req)
 
 	require.Eventually(t, func() bool {
-		return len(sink.getEntries()) >= 1
+		return len(sink.Entries()) >= 1
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	entries := sink.getEntries()
+	entries := sink.Entries()
 	require.Len(t, entries, 1)
 	entry := entries[0]
 	require.Equal(t, slog.LevelInfo, entry.Level)
@@ -151,10 +131,10 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	sendBoundaryLogsRequest(t, conn, req2)
 
 	require.Eventually(t, func() bool {
-		return len(sink.getEntries()) >= 2
+		return len(sink.Entries()) >= 2
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	entries = sink.getEntries()
+	entries = sink.Entries()
 	entry = entries[1]
 	require.Len(t, entries, 2)
 	require.Equal(t, slog.LevelInfo, entry.Level)

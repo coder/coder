@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/acarl005/stripansi"
 	"github.com/microcosm-cc/bluemonday"
@@ -53,7 +54,7 @@ const (
 	TruncateWithFullWords TruncateOption = 1 << 1
 )
 
-// Truncate truncates s to n characters.
+// Truncate truncates s to n runes.
 // Additional behaviors can be specified using TruncateOptions.
 func Truncate(s string, n int, opts ...TruncateOption) string {
 	var options TruncateOption
@@ -63,7 +64,8 @@ func Truncate(s string, n int, opts ...TruncateOption) string {
 	if n < 1 {
 		return ""
 	}
-	if len(s) <= n {
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
 
@@ -72,18 +74,18 @@ func Truncate(s string, n int, opts ...TruncateOption) string {
 		maxLen--
 	}
 	var sb strings.Builder
-	// If we need to truncate to full words, find the last word boundary before n.
 	if options&TruncateWithFullWords != 0 {
-		lastWordBoundary := strings.LastIndexFunc(s[:maxLen], unicode.IsSpace)
+		// Convert the rune-safe prefix to a string, then find
+		// the last word boundary (byte offset within that prefix).
+		truncated := string(runes[:maxLen])
+		lastWordBoundary := strings.LastIndexFunc(truncated, unicode.IsSpace)
 		if lastWordBoundary < 0 {
-			// We cannot find a word boundary. At this point, we'll truncate the string.
-			// It's better than nothing.
-			_, _ = sb.WriteString(s[:maxLen])
-		} else { // lastWordBoundary <= maxLen
-			_, _ = sb.WriteString(s[:lastWordBoundary])
+			_, _ = sb.WriteString(truncated)
+		} else {
+			_, _ = sb.WriteString(truncated[:lastWordBoundary])
 		}
 	} else {
-		_, _ = sb.WriteString(s[:maxLen])
+		_, _ = sb.WriteString(string(runes[:maxLen]))
 	}
 
 	if options&TruncateWithEllipsis != 0 {
@@ -125,4 +127,14 @@ func UISanitize(in string) string {
 		}
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// Capitalize returns s with its first rune upper-cased. It is safe for
+// multi-byte UTF-8 characters, unlike naive byte-slicing approaches.
+func Capitalize(s string) string {
+	r, size := utf8.DecodeRuneInString(s)
+	if size == 0 {
+		return s
+	}
+	return string(unicode.ToUpper(r)) + s[size:]
 }

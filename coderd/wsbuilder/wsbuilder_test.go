@@ -65,6 +65,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withLastBuildState,
 		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
@@ -124,6 +125,7 @@ func TestBuilder_Initiator(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withLastBuildState,
 		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
@@ -174,6 +176,7 @@ func TestBuilder_Baggage(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withLastBuildState,
 		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
@@ -216,6 +219,7 @@ func TestBuilder_Reason(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withLastBuildState,
 		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
@@ -365,6 +369,7 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(richParameters),
 		withLastBuildFound,
+		withLastBuildState,
 		withTemplateVersionVariables(inactiveVersionID, templateVersionVariables),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
@@ -464,6 +469,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
+			withLastBuildState,
 			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
@@ -515,6 +521,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
+			withLastBuildState,
 			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
@@ -661,6 +668,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
+			withLastBuildState,
 			withTemplateVersionVariables(activeVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
@@ -727,6 +735,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
+			withLastBuildState,
 			withTemplateVersionVariables(activeVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
@@ -791,6 +800,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
+			withLastBuildState,
 			withTemplateVersionVariables(activeVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
@@ -1062,6 +1072,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(nil),
 			withLastBuildFound,
+			withLastBuildState,
 			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(nil),
 			withParameterSchemas(inactiveJobID, nil),
@@ -1175,6 +1186,7 @@ func TestWorkspaceBuildWithTask(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withLastBuildState,
 		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
@@ -1378,7 +1390,6 @@ func withLastBuildFound(mTx *dbmock.MockStore) {
 			Transition:        database.WorkspaceTransitionStart,
 			InitiatorID:       userID,
 			JobID:             lastBuildJobID,
-			ProvisionerState:  []byte("last build state"),
 			Reason:            database.BuildReasonInitiator,
 		}, nil)
 
@@ -1395,6 +1406,14 @@ func withLastBuildFound(mTx *dbmock.MockStore) {
 			StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
 			UpdatedAt:      time.Now(),
 			CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+		}, nil)
+}
+
+func withLastBuildState(mTx *dbmock.MockStore) {
+	mTx.EXPECT().GetWorkspaceBuildProvisionerStateByID(gomock.Any(), lastBuildID).
+		Times(1).
+		Return(database.GetWorkspaceBuildProvisionerStateByIDRow{
+			ProvisionerState: []byte("last build state"),
 		}, nil)
 }
 

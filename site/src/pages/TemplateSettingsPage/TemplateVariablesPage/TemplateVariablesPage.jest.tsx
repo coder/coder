@@ -9,11 +9,19 @@ import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
-import { delay } from "utils/delay";
+import { toast } from "sonner";
 import TemplateVariablesPage from "./TemplateVariablesPage";
+
+// The createAndBuildTemplateVersion mutation polls getTemplateVersion behind
+// a real `delay(1000)` call. Without this mock the 1 s wall-clock wait races
+// against the default `waitFor` timeout (also 1 s), making the "submit"
+// assertion flaky in CI.
+jest.mock("utils/delay", () => ({
+	delay: () => Promise.resolve(),
+}));
 
 const validFormValues = {
 	first_variable: "Hello world",
@@ -99,11 +107,15 @@ describe("TemplateVariablesPage", () => {
 		await userEvent.type(secondVariableField, validFormValues.second_variable);
 
 		// Submit the form
+		const toastSuccessSpy = jest.spyOn(toast, "success");
 		const submitButton = await screen.findByText(/save/i);
 		await userEvent.click(submitButton);
-		// Wait for the success message
-		await delay(1500);
 
-		await screen.findByText("Template updated successfully");
+		await waitFor(() => {
+			expect(toastSuccessSpy).toHaveBeenCalledWith(
+				`Template "test-template" variables updated successfully.`,
+			);
+		});
+		toastSuccessSpy.mockRestore();
 	});
 });

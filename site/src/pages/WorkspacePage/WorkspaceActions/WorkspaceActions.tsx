@@ -29,7 +29,6 @@ interface WorkspaceActionsProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	permissions: WorkspacePermissions;
-	sharingDisabled?: boolean;
 	handleToggleFavorite: () => void;
 	handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
@@ -46,7 +45,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	isUpdating,
 	isRestarting,
 	permissions,
-	sharingDisabled,
 	handleToggleFavorite,
 	handleStart,
 	handleStop,
@@ -57,10 +55,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	handleDebug,
 	handleDormantActivate,
 }) => {
-	const { user } = useAuthenticated();
+	const {
+		permissions: { viewDeploymentConfig },
+		user,
+	} = useAuthenticated();
 	const { data: deployment } = useQuery({
 		...deploymentConfig(),
-		enabled: permissions.deploymentConfig,
+		enabled: viewDeploymentConfig,
 	});
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
@@ -191,7 +192,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			{!sharingDisabled && (
+			{permissions.shareWorkspace && (
 				<ShareButton
 					workspace={workspace}
 					canUpdatePermissions={permissions.updateWorkspace}

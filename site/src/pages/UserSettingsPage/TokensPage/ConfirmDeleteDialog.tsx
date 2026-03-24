@@ -1,8 +1,8 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { APIKeyWithOwner } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
+import { toast } from "sonner";
 import { useDeleteToken } from "./hooks";
 
 interface ConfirmDeleteDialogProps {
@@ -22,13 +22,15 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 		useDeleteToken(queryKey);
 
 	const onDeleteSuccess = () => {
-		displaySuccess("Token has been deleted");
+		toast.success("Token has been deleted.");
 		setToken(undefined);
 	};
 
-	const onDeleteError = (error: unknown) => {
+	const onDeleteError = (error: Error) => {
 		const message = getErrorMessage(error, "Failed to delete token");
-		displayError(message);
+		toast.error(message, {
+			description: getErrorDetail(error),
+		});
 		setToken(undefined);
 	};
 

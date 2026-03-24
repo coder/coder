@@ -1,7 +1,7 @@
 import { watchWorkspaceAgentLogs } from "api/api";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 type UseAgentLogsOptions = Readonly<{
 	agentId: string;
@@ -57,12 +57,11 @@ export function useAgentLogs(
 			});
 		});
 
-		socket.addEventListener("error", (e) => {
-			console.error("Error in agent log socket: ", e);
-			displayError(
-				"Unable to watch agent logs",
-				"Please try refreshing the browser",
-			);
+		socket.addEventListener("error", (error) => {
+			console.error("Error in agent log socket: ", error);
+			toast.error(`Unable to watch "${agentId}" agent logs.`, {
+				description: "Please try refreshing the browser.",
+			});
 			socket.close();
 		});
 

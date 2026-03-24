@@ -43,15 +43,16 @@ export const OnTagsChange: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 
 		const expandButton = canvas.getByRole("button", {
 			name: "Expand provisioner tags",
 		});
 		await userEvent.click(expandButton);
 
-		const keyInput = await canvas.findByLabelText("Tag key");
-		const valueInput = await canvas.findByLabelText("Tag value");
-		const addButton = await canvas.findByRole("button", {
+		const keyInput = await body.findByLabelText("Tag key");
+		const valueInput = await body.findByLabelText("Tag value");
+		const addButton = await body.findByRole("button", {
 			name: "Add tag",
 			hidden: true,
 		});
@@ -59,14 +60,14 @@ export const OnTagsChange: Story = {
 		await user.type(keyInput, "cluster");
 		await user.type(valueInput, "dogfood-2");
 		await user.click(addButton);
-		const addedTag = await canvas.findByTestId("tag-cluster");
+		const addedTag = await body.findByTestId("tag-cluster");
 		await expect(addedTag).toHaveTextContent("cluster dogfood-2");
 
-		const removeButton = canvas.getByRole("button", {
+		const removeButton = body.getByRole("button", {
 			name: "Delete cluster",
 			hidden: true,
 		});
 		await user.click(removeButton);
-		await expect(canvas.queryByTestId("tag-cluster")).toBeNull();
+		await expect(body.queryByTestId("tag-cluster")).toBeNull();
 	},
 };

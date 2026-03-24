@@ -1,9 +1,9 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { Section } from "../Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
@@ -51,9 +51,11 @@ const SSHKeysPage: FC = () => {
 				onConfirm={async () => {
 					try {
 						await regenerateSSHKeyMutation.mutateAsync();
-						displaySuccess(Language.regenerationSuccess);
+						toast.success(Language.regenerationSuccess);
 					} catch (error) {
-						displayError(getErrorMessage(error, Language.regenerationError));
+						toast.error(getErrorMessage(error, Language.regenerationError), {
+							description: getErrorDetail(error),
+						});
 					} finally {
 						setIsConfirmingRegeneration(false);
 					}

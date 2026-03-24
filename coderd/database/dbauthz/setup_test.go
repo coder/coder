@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -96,7 +97,7 @@ func (s *MethodTestSuite) TearDownSuite() {
 				notCalled = append(notCalled, m)
 			}
 		}
-		sort.Strings(notCalled)
+		slices.Sort(notCalled)
 		for _, m := range notCalled {
 			t.Errorf("Method never called: %q", m)
 		}
@@ -143,7 +144,7 @@ func (s *MethodTestSuite) Mocked(testCaseF func(dmb *dbmock.MockStore, faker *go
 					UUID:  pair.OrganizationID,
 					Valid: pair.OrganizationID != uuid.Nil,
 				},
-				IsSystem: rbac.SystemRoleName(pair.Name),
+				IsSystem: rolestore.IsSystemRoleName(pair.Name),
 				ID:       uuid.New(),
 			})
 		}

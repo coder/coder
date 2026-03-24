@@ -8,7 +8,13 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { screen, waitFor } from "@testing-library/react";
+import {
+	createEvent,
+	fireEvent,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { AuditLogsRequest } from "api/typesGenerated";
@@ -78,6 +84,58 @@ describe("AuditPage", () => {
 		});
 		screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
 		screen.getByTestId(`audit-log-row-${MockAuditLog2.id}`);
+	});
+
+	it("toggles an expandable audit row with Enter", async () => {
+		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+			audit_logs: [MockAuditLog],
+			count: 1,
+		});
+
+		await renderPage();
+
+		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
+		const expandableRowButton = within(row).getByRole("button");
+
+		expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
+
+		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
+
+		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
+
+		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
+
+		await waitFor(() => {
+			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
+		});
+	});
+
+	it("toggles an expandable audit row with Space and prevents default", async () => {
+		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
+			audit_logs: [MockAuditLog],
+			count: 1,
+		});
+
+		await renderPage();
+
+		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
+		const expandableRowButton = within(row).getByRole("button");
+		const spaceEvent = createEvent.keyDown(expandableRowButton, {
+			key: " ",
+			code: "Space",
+		});
+		const preventDefaultSpy = vi.spyOn(spaceEvent, "preventDefault");
+
+		fireEvent(expandableRowButton, spaceEvent);
+
+		expect(preventDefaultSpy).toHaveBeenCalled();
+		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
+
+		fireEvent.keyDown(expandableRowButton, { key: " " });
+
+		await waitFor(() => {
+			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
+		});
 	});
 
 	describe("Filtering", () => {

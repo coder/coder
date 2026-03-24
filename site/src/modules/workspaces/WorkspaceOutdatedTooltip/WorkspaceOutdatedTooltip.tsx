@@ -4,7 +4,6 @@ import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -19,6 +18,7 @@ import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
+import { toast } from "sonner";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
@@ -71,9 +71,11 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 		workspace,
 		latestVersion: activeVersion,
 		onError: (error) => {
-			displayError(
-				getErrorMessage(error, "Error updating workspace"),
-				getErrorDetail(error),
+			toast.error(
+				getErrorMessage(error, `Error updating workspace "${workspace.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
 			);
 		},
 	});

@@ -6,7 +6,7 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	type selectTemplatesByGroup,
 	updateNotificationTemplateMethod,
@@ -14,7 +14,6 @@ import {
 import type { DeploymentValues } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
@@ -29,6 +28,7 @@ import {
 } from "modules/notifications/utils";
 import { type FC, Fragment } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { docs } from "utils/docs";
 
 type NotificationEventsProps = {
@@ -180,10 +180,13 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 					await updateMethodMutation.mutateAsync({
 						method,
 					});
-					displaySuccess("Notification method updated");
+					toast.success("Notification method updated.");
 				} catch (error) {
-					displayError(
-						getErrorMessage(error, "Failed to update notification method"),
+					toast.error(
+						getErrorMessage(error, "Failed to update notification method."),
+						{
+							description: getErrorDetail(error),
+						},
 					);
 				}
 			}}

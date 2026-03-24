@@ -14,9 +14,9 @@ import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
 export const defaultPermissions: WorkspacePermissions = {
 	readWorkspace: true,
-	updateWorkspaceVersion: true,
+	shareWorkspace: true,
 	updateWorkspace: true,
-	deploymentConfig: true,
+	updateWorkspaceVersion: true,
 	deleteFailedWorkspace: true,
 };
 

@@ -319,6 +319,18 @@ export const WithParameters: Story = {
 	},
 };
 
+export const WithTooLongPrefilledName: Story = {
+	args: {
+		defaultName: "this-name-is-way-too-long-and-exceeds-the-limit",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.findByText(/Workspace Name cannot be longer than 32 characters/i),
+		).resolves.toBeVisible();
+	},
+};
+
 export const WithPresets: Story = {
 	args: {
 		presets: [

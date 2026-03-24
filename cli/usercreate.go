@@ -17,13 +17,14 @@ import (
 
 func (r *RootCmd) userCreate() *serpent.Command {
 	var (
-		email        string
-		username     string
-		name         string
-		password     string
-		disableLogin bool
-		loginType    string
-		orgContext   = NewOrganizationContext()
+		email          string
+		username       string
+		name           string
+		password       string
+		disableLogin   bool
+		loginType      string
+		serviceAccount bool
+		orgContext     = NewOrganizationContext()
 	)
 	cmd := &serpent.Command{
 		Use:   "create",
@@ -32,6 +33,23 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			if serviceAccount {
+				switch {
+				case loginType != "":
+					return xerrors.New("You cannot use --login-type with --service-account")
+				case password != "":
+					return xerrors.New("You cannot use --password with --service-account")
+				case email != "":
+					return xerrors.New("You cannot use --email with --service-account")
+				case disableLogin:
+					return xerrors.New("You cannot use --disable-login with --service-account")
+				}
+			}
+
+			if disableLogin && loginType != "" {
+				return xerrors.New("You cannot specify both --disable-login and --login-type")
+			}
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -59,7 +77,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 					return err
 				}
 			}
-			if email == "" {
+			if email == "" && !serviceAccount {
 				email, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Email:",
 					Validate: func(s string) error {
@@ -87,10 +105,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				}
 			}
 			userLoginType := codersdk.LoginTypePassword
-			if disableLogin && loginType != "" {
-				return xerrors.New("You cannot specify both --disable-login and --login-type")
-			}
-			if disableLogin {
+			if disableLogin || serviceAccount {
 				userLoginType = codersdk.LoginTypeNone
 			} else if loginType != "" {
 				userLoginType = codersdk.LoginType(loginType)
@@ -111,6 +126,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				Password:        password,
 				OrganizationIDs: []uuid.UUID{organization.ID},
 				UserLoginType:   userLoginType,
+				ServiceAccount:  serviceAccount,
 			})
 			if err != nil {
 				return err
@@ -126,6 +142,10 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				authenticationMethod = `Login is authenticated through GitHub.`
 			case codersdk.LoginTypeOIDC:
 				authenticationMethod = `Login is authenticated through the configured OIDC provider.`
+			}
+			if serviceAccount {
+				email = "n/a"
+				authenticationMethod = "Service accounts must authenticate with a token and cannot log in."
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, `A new user has been created!
@@ -193,6 +213,11 @@ Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!
 				}, ", ",
 				)),
 			Value: serpent.StringOf(&loginType),
+		},
+		{
+			Flag:        "service-account",
+			Description: "Create a user account intended to be used by a service or as an intermediary rather than by a human.",
+			Value:       serpent.BoolOf(&serviceAccount),
 		},
 	}
 

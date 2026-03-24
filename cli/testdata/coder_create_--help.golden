@@ -20,6 +20,10 @@ OPTIONS:
       --copy-parameters-from string, $CODER_WORKSPACE_COPY_PARAMETERS_FROM
           Specify the source workspace name to copy parameters from.
 
+      --no-wait bool, $CODER_CREATE_NO_WAIT
+          Return immediately after creating the workspace. The build will run in
+          the background.
+
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 

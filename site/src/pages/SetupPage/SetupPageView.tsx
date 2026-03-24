@@ -6,7 +6,7 @@ import TextField from "@mui/material/TextField";
 import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FormFields, VerticalForm } from "components/Form/Form";
@@ -354,13 +354,13 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						<Alert severity="error" prominent>
 							<AlertTitle>{error.response.data.message}</AlertTitle>
 							{error.response.data.detail && (
-								<AlertDetail>
+								<AlertDescription>
 									{error.response.data.detail}
 									<br />
 									<Link target="_blank" href="https://coder.com/contact/sales">
 										Contact Sales
 									</Link>
-								</AlertDetail>
+								</AlertDescription>
 							)}
 						</Alert>
 					)}

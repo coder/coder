@@ -140,7 +140,8 @@ describe("CreateWorkspacePage", () => {
 			const instanceTypeField = screen.getByTestId(
 				"parameter-field-instance_type",
 			);
-			const instanceTypeSelect = within(instanceTypeField).getByRole("button");
+			const instanceTypeSelect =
+				within(instanceTypeField).getByRole("combobox");
 			expect(instanceTypeSelect).toBeInTheDocument();
 
 			jest.useFakeTimers();
@@ -188,7 +189,10 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => {
 				expect(mockPublisher).toBeDefined();
 				mockPublisher.publishError(new Event("Connection failed"));
-				expect(screen.getByText(/connection failed/i)).toBeInTheDocument();
+				const alert = screen.getByRole("alert");
+				expect(
+					within(alert).getByRole("heading", { name: /connection failed/i }),
+				).toBeInTheDocument();
 			});
 		});
 
@@ -210,8 +214,11 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => {
 				expect(mockPublisher).toBeDefined();
 				mockPublisher.publishClose(new Event("close") as CloseEvent);
+				const alert = screen.getByRole("alert");
 				expect(
-					screen.getByText(/websocket connection.*unexpectedly closed/i),
+					within(alert).getByRole("heading", {
+						name: /websocket connection.*unexpectedly closed/i,
+					}),
 				).toBeInTheDocument();
 			});
 		});

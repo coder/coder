@@ -1,8 +1,9 @@
 import { API } from "api/api";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { getErrorDetail } from "api/errors";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
@@ -16,10 +17,13 @@ const AddNewLicensePage: FC = () => {
 	} = useMutation({
 		mutationFn: API.createLicense,
 		onSuccess: () => {
-			displaySuccess("You have successfully added a license");
+			toast.success("You have successfully added a license.");
 			navigate("/deployment/licenses?success=true");
 		},
-		onError: () => displayError("Failed to save license key"),
+		onError: (error) =>
+			toast.error("Failed to save license key.", {
+				description: getErrorDetail(error),
+			}),
 	});
 
 	function saveLicenseKey(licenseKey: string) {
@@ -27,10 +31,13 @@ const AddNewLicensePage: FC = () => {
 			{ license: licenseKey },
 			{
 				onSuccess: () => {
-					displaySuccess("You have successfully added a license");
+					toast.success("You have successfully added a license.");
 					navigate("/deployment/licenses?success=true");
 				},
-				onError: () => displayError("Failed to save license key"),
+				onError: (error) =>
+					toast.error("Failed to save license key.", {
+						description: getErrorDetail(error),
+					}),
 			},
 		);
 	}

@@ -1,13 +1,13 @@
 import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
@@ -47,11 +47,16 @@ const TemplateSettingsPage: FC = () => {
 					queryKey: templateByNameKey(template.organization_name, data.name),
 				});
 			}
-			displaySuccess("Template updated successfully");
+			toast.success(`Template "${data.name}" updated successfully.`);
 			navigate(getLink(linkToTemplate(data.organization_name, data.name)));
 		},
 		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to update template"));
+			toast.error(
+				getErrorMessage(error, `Failed to update template "${template.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 

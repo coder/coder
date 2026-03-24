@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -194,7 +193,7 @@ func joinScopes(scopes []codersdk.APIKeyScope) string {
 		return ""
 	}
 	vals := slice.ToStrings(scopes)
-	sort.Strings(vals)
+	slices.Sort(vals)
 	return strings.Join(vals, ", ")
 }
 
@@ -206,7 +205,7 @@ func joinAllowList(entries []codersdk.APIAllowListTarget) string {
 	for i, entry := range entries {
 		vals[i] = entry.String()
 	}
-	sort.Strings(vals)
+	slices.Sort(vals)
 	return strings.Join(vals, ", ")
 }
 
@@ -241,24 +240,11 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			}
 
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
-				IncludeAll: all,
+				IncludeAll:     all,
+				IncludeExpired: includeExpired,
 			})
 			if err != nil {
 				return xerrors.Errorf("list tokens: %w", err)
-			}
-
-			// Filter out expired tokens unless --include-expired is set
-			// TODO(Cian): This _could_ get too big for client-side filtering.
-			// If it causes issues, we can filter server-side.
-			if !includeExpired {
-				now := time.Now()
-				filtered := make([]codersdk.APIKeyWithOwner, 0, len(tokens))
-				for _, token := range tokens {
-					if token.ExpiresAt.After(now) {
-						filtered = append(filtered, token)
-					}
-				}
-				tokens = filtered
 			}
 
 			displayTokens = make([]tokenListRow, len(tokens))

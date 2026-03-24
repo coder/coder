@@ -6,8 +6,8 @@ import {
 import { renderHook, waitFor } from "@testing-library/react";
 import * as apiModule from "api/api";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
-import * as snackbarUtils from "components/GlobalSnackbar/utils";
 import { act } from "react";
+import { toast } from "sonner";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { useAgentLogs } from "./useAgentLogs";
 
@@ -45,7 +45,7 @@ type MountHookOptions = Readonly<{
 type MountHookResult = Readonly<{
 	serverResult: ServerResult;
 	rerender: (props: { agentId: string; enabled: boolean }) => void;
-	displayError: jest.SpyInstance<void, [s1: string, s2?: string], unknown>;
+	toastError: jest.SpyInstance;
 
 	// Note: the `current` property is only "halfway" readonly; the value is
 	// readonly, but the key is still mutable
@@ -74,14 +74,14 @@ function mountHook(options: MountHookOptions): MountHookResult {
 		});
 
 	void jest.spyOn(console, "error").mockImplementation(() => {});
-	const displayError = jest.spyOn(snackbarUtils, "displayError");
+	const toastError = jest.spyOn(toast, "error");
 
 	const { result: hookResult, rerender } = renderHook(
 		(props) => useAgentLogs(props),
 		{ initialProps: { enabled, agentId: initialAgentId } },
 	);
 
-	return { rerender, serverResult, hookResult, displayError };
+	return { rerender, serverResult, hookResult, toastError };
 }
 
 describe("useAgentLogs", () => {
@@ -144,7 +144,7 @@ describe("useAgentLogs", () => {
 	});
 
 	it("Calls error callback when error is received (but only while hook is enabled)", async () => {
-		const { serverResult, rerender, displayError } = mountHook({
+		const { serverResult, rerender, toastError } = mountHook({
 			initialAgentId: MockWorkspaceAgent.id,
 			// Start off disabled so that we can check that the callback is
 			// never called when there is no connection
@@ -153,11 +153,11 @@ describe("useAgentLogs", () => {
 
 		const errorEvent = new Event("error");
 		await act(async () => serverResult.current?.publishError(errorEvent));
-		expect(displayError).not.toHaveBeenCalled();
+		expect(toastError).not.toHaveBeenCalled();
 
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: true });
 		await act(async () => serverResult.current?.publishError(errorEvent));
-		expect(displayError).toHaveBeenCalledTimes(1);
+		expect(toastError).toHaveBeenCalledTimes(1);
 	});
 
 	// This is a protection to avoid duplicate logs when the hook goes back to

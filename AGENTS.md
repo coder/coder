@@ -37,19 +37,20 @@ Only pause to ask for confirmation when:
 
 ## Essential Commands
 
-| Task              | Command                  | Notes                            |
-|-------------------|--------------------------|----------------------------------|
-| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build        |
-| **Build**         | `make build`             | Fat binaries (includes server)   |
-| **Build Slim**    | `make build-slim`        | Slim binaries                    |
-| **Test**          | `make test`              | Full test suite                  |
-| **Test Single**   | `make test RUN=TestName` | Faster than full suite           |
-| **Test Postgres** | `make test-postgres`     | Run tests with Postgres database |
-| **Test Race**     | `make test-race`         | Run tests with Go race detector  |
-| **Lint**          | `make lint`              | Always run after changes         |
-| **Generate**      | `make gen`               | After database changes           |
-| **Format**        | `make fmt`               | Auto-format code                 |
-| **Clean**         | `make clean`             | Clean build artifacts            |
+| Task            | Command                  | Notes                               |
+|-----------------|--------------------------|-------------------------------------|
+| **Development** | `./scripts/develop.sh`   | ⚠️ Don't use manual build           |
+| **Build**       | `make build`             | Fat binaries (includes server)      |
+| **Build Slim**  | `make build-slim`        | Slim binaries                       |
+| **Test**        | `make test`              | Full test suite                     |
+| **Test Single** | `make test RUN=TestName` | Faster than full suite              |
+| **Test Race**   | `make test-race`         | Run tests with Go race detector     |
+| **Lint**        | `make lint`              | Always run after changes            |
+| **Generate**    | `make gen`               | After database changes              |
+| **Format**      | `make fmt`               | Auto-format code                    |
+| **Clean**       | `make clean`             | Clean build artifacts               |
+| **Pre-commit**  | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
+| **Pre-push**    | `make pre-push`          | Heavier CI checks (allowlisted)     |
 
 ### Documentation Commands
 
@@ -99,9 +100,74 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestrict
 app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 ```
 
+### API Design
+
+- Add swagger annotations when introducing new HTTP endpoints. Do this in
+  the same change as the handler so the docs do not get missed before
+  release.
+- For user-scoped or resource-scoped routes, prefer path parameters over
+  query parameters when that matches existing route patterns.
+- For experimental or unstable API paths, skip public doc generation with
+  `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
+  keeps them out of the published API reference until they stabilize.
+
+### Database Query Naming
+
+- Use `ByX` when `X` is the lookup or filter column.
+- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
+  dimension.
+- Avoid `ByX` names for grouped queries.
+
+### Database-to-SDK Conversions
+
+- Extract explicit db-to-SDK conversion helpers instead of inlining large
+  conversion blocks inside handlers.
+- Keep nullable-field handling, type coercion, and response shaping in the
+  converter so handlers stay focused on request flow and authorization.
+
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md
+
+### Git Hooks (MANDATORY - DO NOT SKIP)
+
+**You MUST install and use the git hooks. NEVER bypass them with
+`--no-verify`. Skipping hooks wastes CI cycles and is unacceptable.**
+
+The first run will be slow as caches warm up. Consecutive runs are
+**significantly faster** (often 10x) thanks to Go build cache,
+generated file timestamps, and warm node_modules. This is NOT a
+reason to skip them. Wait for hooks to complete before proceeding,
+no matter how long they take.
+
+```sh
+git config core.hooksPath scripts/githooks
+```
+
+Two hooks run automatically:
+
+- **pre-commit**: Classifies staged files by type and runs either
+  the full `make pre-commit` or the lightweight `make pre-commit-light`
+  depending on whether Go, TypeScript, SQL, proto, or Makefile
+  changes are present. Falls back to the full target when
+  `CODER_HOOK_RUN_ALL=1` is set. A markdown-only commit takes
+  seconds; a Go change takes several minutes.
+- **pre-push**: Classifies changed files (vs remote branch or
+  merge-base) and runs `make pre-push` when Go, TypeScript, SQL,
+  proto, or Makefile changes are detected. Skips tests entirely
+  for lightweight changes. Allowlisted in
+  `scripts/githooks/pre-push`. Runs only for developers who opt
+  in. Falls back to `make pre-push` when the diff range can't
+  be determined or `CODER_HOOK_RUN_ALL=1` is set. Allow at least
+  15 minutes for a full run.
+
+`git commit` and `git push` will appear to hang while hooks run.
+This is normal. Do not interrupt, retry, or reduce the timeout.
+
+NEVER run `git config core.hooksPath` to change or disable hooks.
+
+If a hook fails, fix the issue and retry. Do not work around the
+failure by skipping the hook.
 
 ### Git Workflow
 
@@ -151,6 +217,26 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
+- PR titles follow the same `type(scope): message` format.
+- When you use a scope, it must be a real filesystem path containing every
+  changed file.
+- Use a broader path scope, or omit the scope, for cross-cutting changes.
+- Example: `fix(coderd/chatd): ...` for changes only in `coderd/chatd/`.
+
+### Frontend Patterns
+
+- Prefer existing shared UI components and utilities over custom
+  implementations. Reuse common primitives such as loading, table, and error
+  handling components when they fit the use case.
+- Use Storybook stories for all component and page testing, including
+  visual presentation, user interactions, keyboard navigation, focus
+  management, and accessibility behavior. Do not create standalone
+  vitest/RTL test files for components or pages. Stories double as living
+  documentation, visual regression coverage, and interaction test suites
+  via `play` functions. Reserve plain vitest files for pure logic only:
+  utility functions, data transformations, hooks tested via
+  `renderHook()` that do not require DOM assertions, and query/cache
+  operations with no rendered output.
 
 ### Writing Comments
 
@@ -198,13 +284,12 @@ reviewer time and clutters the diff.
 **Don't delete existing comments** that explain non-obvious behavior. These
 comments preserve important context about why code works a certain way.
 
-**When adding tests for new behavior**, add new test cases instead of modifying
-existing ones. This preserves coverage for the original behavior and makes it
-clear what the new test covers.
+**When adding tests for new behavior**, read existing tests first to understand what's covered. Add new cases for uncovered behavior. Edit existing tests as needed, but don't change what they verify.
 
 ## Detailed Development Guides
 
 @.claude/docs/ARCHITECTURE.md
+@.claude/docs/GO.md
 @.claude/docs/OAUTH2.md
 @.claude/docs/TESTING.md
 @.claude/docs/TROUBLESHOOTING.md

@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -17,29 +16,18 @@ import (
 func TestExpTaskResume(t *testing.T) {
 	t.Parallel()
 
-	// pauseTask is a helper that pauses a task and waits for the stop
-	// build to complete.
-	pauseTask := func(ctx context.Context, t *testing.T, client *codersdk.Client, task codersdk.Task) {
-		t.Helper()
-
-		pauseResp, err := client.PauseTask(ctx, task.OwnerName, task.ID)
-		require.NoError(t, err)
-		require.NotNil(t, pauseResp.WorkspaceBuild)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, pauseResp.WorkspaceBuild.ID)
-	}
-
 	t.Run("WithYesFlag", func(t *testing.T) {
 		t.Parallel()
 
 		// Given: A paused task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, nil)
-		pauseTask(setupCtx, t, userClient, task)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
 		// When: We attempt to resume the task
-		inv, root := clitest.New(t, "task", "resume", task.Name, "--yes")
+		inv, root := clitest.New(t, "task", "resume", setup.task.Name, "--yes")
 		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		// Then: We expect the task to be resumed
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -47,7 +35,7 @@ func TestExpTaskResume(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, output.Stdout(), "has been resumed")
 
-		updated, err := userClient.TaskByIdentifier(ctx, task.Name)
+		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TaskStatusInitializing, updated.Status)
 	})
@@ -59,14 +47,14 @@ func TestExpTaskResume(t *testing.T) {
 
 		// Given: A different user's paused task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		adminClient, userClient, task := setupCLITaskTest(setupCtx, t, nil)
-		pauseTask(setupCtx, t, userClient, task)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
 		// When: We attempt to resume their task
-		identifier := fmt.Sprintf("%s/%s", task.OwnerName, task.Name)
+		identifier := fmt.Sprintf("%s/%s", setup.task.OwnerName, setup.task.Name)
 		inv, root := clitest.New(t, "task", "resume", identifier, "--yes")
 		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, adminClient, root)
+		clitest.SetupConfig(t, setup.ownerClient, root)
 
 		// Then: We expect the task to be resumed
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -74,7 +62,7 @@ func TestExpTaskResume(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, output.Stdout(), "has been resumed")
 
-		updated, err := adminClient.TaskByIdentifier(ctx, identifier)
+		updated, err := setup.ownerClient.TaskByIdentifier(ctx, identifier)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TaskStatusInitializing, updated.Status)
 	})
@@ -84,13 +72,13 @@ func TestExpTaskResume(t *testing.T) {
 
 		// Given: A paused task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, nil)
-		pauseTask(setupCtx, t, userClient, task)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
 		// When: We attempt to resume the task (and specify no wait)
-		inv, root := clitest.New(t, "task", "resume", task.Name, "--yes", "--no-wait")
+		inv, root := clitest.New(t, "task", "resume", setup.task.Name, "--yes", "--no-wait")
 		output := clitest.Capture(inv)
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		// Then: We expect the task to be resumed in the background
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -99,11 +87,11 @@ func TestExpTaskResume(t *testing.T) {
 		require.Contains(t, output.Stdout(), "in the background")
 
 		// And: The task to eventually be resumed
-		require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
-		ws := coderdtest.MustWorkspace(t, userClient, task.WorkspaceID.UUID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, ws.LatestBuild.ID)
+		require.True(t, setup.task.WorkspaceID.Valid, "task should have a workspace ID")
+		ws := coderdtest.MustWorkspace(t, setup.userClient, setup.task.WorkspaceID.UUID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.userClient, ws.LatestBuild.ID)
 
-		updated, err := userClient.TaskByIdentifier(ctx, task.Name)
+		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TaskStatusInitializing, updated.Status)
 	})
@@ -113,12 +101,12 @@ func TestExpTaskResume(t *testing.T) {
 
 		// Given: A paused task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, nil)
-		pauseTask(setupCtx, t, userClient, task)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
 		// When: We attempt to resume the task
-		inv, root := clitest.New(t, "task", "resume", task.Name)
-		clitest.SetupConfig(t, userClient, root)
+		inv, root := clitest.New(t, "task", "resume", setup.task.Name)
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		// And: We confirm we want to resume the task
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -132,7 +120,7 @@ func TestExpTaskResume(t *testing.T) {
 		pty.ExpectMatchContext(ctx, "has been resumed")
 		require.NoError(t, w.Wait())
 
-		updated, err := userClient.TaskByIdentifier(ctx, task.Name)
+		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TaskStatusInitializing, updated.Status)
 	})
@@ -142,12 +130,12 @@ func TestExpTaskResume(t *testing.T) {
 
 		// Given: A paused task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, nil)
-		pauseTask(setupCtx, t, userClient, task)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
 		// When: We attempt to resume the task
-		inv, root := clitest.New(t, "task", "resume", task.Name)
-		clitest.SetupConfig(t, userClient, root)
+		inv, root := clitest.New(t, "task", "resume", setup.task.Name)
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		// But: Say no at the confirmation screen
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -159,7 +147,7 @@ func TestExpTaskResume(t *testing.T) {
 		require.Error(t, w.Wait())
 
 		// Then: We expect the task to still be paused
-		updated, err := userClient.TaskByIdentifier(ctx, task.Name)
+		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.TaskStatusPaused, updated.Status)
 	})
@@ -169,11 +157,11 @@ func TestExpTaskResume(t *testing.T) {
 
 		// Given: A running task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		_, userClient, task := setupCLITaskTest(setupCtx, t, nil)
+		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		// When: We attempt to resume the task that is not paused
-		inv, root := clitest.New(t, "task", "resume", task.Name, "--yes")
-		clitest.SetupConfig(t, userClient, root)
+		inv, root := clitest.New(t, "task", "resume", setup.task.Name, "--yes")
+		clitest.SetupConfig(t, setup.userClient, root)
 
 		// Then: We expect to get an error that the task is not paused
 		ctx := testutil.Context(t, testutil.WaitMedium)

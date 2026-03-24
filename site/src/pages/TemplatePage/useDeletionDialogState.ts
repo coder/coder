@@ -1,42 +1,41 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useState } from "react";
-
-type DeleteTemplateState =
-	| { status: "idle" }
-	| { status: "confirming" }
-	| { status: "deleting" };
+import { useMutation } from "react-query";
+import { toast } from "sonner";
 
 export const useDeletionDialogState = (
 	templateId: string,
 	onDelete: () => void,
+	templateName?: string,
 ) => {
-	const [state, setState] = useState<DeleteTemplateState>({ status: "idle" });
-	const isDeleteDialogOpen =
-		state.status === "confirming" || state.status === "deleting";
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+	const deleteMutation = useMutation({
+		mutationFn: () => API.deleteTemplate(templateId),
+	});
 
 	const openDeleteConfirmation = () => {
-		setState({ status: "confirming" });
+		setIsDeleteDialogOpen(true);
 	};
 
 	const cancelDeleteConfirmation = () => {
-		setState({ status: "idle" });
+		setIsDeleteDialogOpen(false);
 	};
 
-	const confirmDelete = async () => {
-		try {
-			setState({ status: "deleting" });
-			await API.deleteTemplate(templateId);
-			onDelete();
-		} catch (e) {
-			setState({ status: "confirming" });
-			displayError(getErrorMessage(e, "Failed to delete template"));
-		}
+	const confirmDelete = () => {
+		const label = templateName ? ` "${templateName}"` : "";
+		const mutation = deleteMutation.mutateAsync();
+		toast.promise(mutation, {
+			loading: `Deleting template${label}...`,
+			success: `Template${label} deleted successfully.`,
+			error: (error) =>
+				getErrorMessage(error, `Failed to delete template${label}.`),
+		});
+		mutation.then(() => onDelete());
 	};
 
 	return {
-		state,
 		isDeleteDialogOpen,
 		openDeleteConfirmation,
 		cancelDeleteConfirmation,

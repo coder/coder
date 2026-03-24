@@ -1,12 +1,10 @@
-import { getErrorMessage } from "api/errors";
-import { group, patchGroup } from "api/queries/groups";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
+import { getErrorDetail, getErrorMessage } from "api/errors";
+import { patchGroup } from "api/queries/groups";
 import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router";
-import { pageTitle } from "utils/page";
+import { useMutation, useQueryClient } from "react-query";
+import { useNavigate, useOutletContext, useParams } from "react-router";
+import { toast } from "sonner";
+import type { GroupPageOutletContext } from "./GroupPage";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
 const GroupSettingsPage: FC = () => {
@@ -14,56 +12,46 @@ const GroupSettingsPage: FC = () => {
 		organization?: string;
 		groupName: string;
 	};
+	const { group: groupData } = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const groupQuery = useQuery(group(organization, groupName));
-	const patchGroupMutation = useMutation(patchGroup(queryClient));
+	const patchGroupMutation = useMutation(patchGroup(queryClient, organization));
 	const navigate = useNavigate();
 
-	const navigateToGroup = () => {
-		navigate(`/organizations/${organization}/groups/${groupName}`);
-	};
-
-	const title = <title>{pageTitle("Settings Group")}</title>;
-
-	if (groupQuery.error) {
-		return <ErrorAlert error={groupQuery.error} />;
-	}
-
-	if (groupQuery.isLoading || !groupQuery.data) {
-		return (
-			<>
-				{title}
-				<Loader />
-			</>
-		);
-	}
-	const groupId = groupQuery.data.id;
-
 	return (
-		<>
-			{title}
-
-			<GroupSettingsPageView
-				onCancel={navigateToGroup}
-				onSubmit={async (data) => {
-					try {
-						await patchGroupMutation.mutateAsync({
-							groupId,
-							...data,
-							add_users: [],
-							remove_users: [],
-						});
-						navigate(`../${data.name}`);
-					} catch (error) {
-						displayError(getErrorMessage(error, "Failed to update group"));
-					}
-				}}
-				group={groupQuery.data}
-				formErrors={groupQuery.error}
-				isLoading={groupQuery.isLoading}
-				isUpdating={patchGroupMutation.isPending}
-			/>
-		</>
+		<GroupSettingsPageView
+			onCancel={() => navigate("..")}
+			onSubmit={async (data) => {
+				await patchGroupMutation.mutateAsync(
+					{
+						groupId: groupData.id,
+						...data,
+						add_users: [],
+						remove_users: [],
+					},
+					{
+						onSuccess: () => {
+							navigate(`/organizations/${organization}/groups/${data.name}`);
+						},
+						onError: (error) => {
+							toast.error(
+								getErrorMessage(
+									error,
+									`Failed to update group "${groupName}".`,
+								),
+								{
+									description: getErrorDetail(error),
+								},
+							);
+						},
+					},
+				);
+			}}
+			group={groupData}
+			formErrors={undefined}
+			isLoading={false}
+			isUpdating={patchGroupMutation.isPending}
+		/>
 	);
 };
+
 export default GroupSettingsPage;

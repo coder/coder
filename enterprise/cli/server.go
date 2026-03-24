@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/url"
+	"time"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
@@ -39,40 +40,44 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			}
 		}
 
+		// Always generate a mesh key, even if the built-in DERP server is
+		// disabled. This mesh key is still used by workspace proxies running
+		// HA.
+		var meshKey string
+		err := options.Database.InTx(func(tx database.Store) error {
+			// This will block until the lock is acquired, and will be
+			// automatically released when the transaction ends.
+			err := tx.AcquireLock(ctx, database.LockIDEnterpriseDeploymentSetup)
+			if err != nil {
+				return xerrors.Errorf("acquire lock: %w", err)
+			}
+
+			meshKey, err = tx.GetDERPMeshKey(ctx)
+			if err == nil {
+				return nil
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get DERP mesh key: %w", err)
+			}
+			meshKey, err = cryptorand.String(32)
+			if err != nil {
+				return xerrors.Errorf("generate DERP mesh key: %w", err)
+			}
+			err = tx.InsertDERPMeshKey(ctx, meshKey)
+			if err != nil {
+				return xerrors.Errorf("insert DERP mesh key: %w", err)
+			}
+			return nil
+		}, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		if meshKey == "" {
+			return nil, nil, xerrors.New("mesh key is empty")
+		}
+
 		if options.DeploymentValues.DERP.Server.Enable {
 			options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
-			var meshKey string
-			err := options.Database.InTx(func(tx database.Store) error {
-				// This will block until the lock is acquired, and will be
-				// automatically released when the transaction ends.
-				err := tx.AcquireLock(ctx, database.LockIDEnterpriseDeploymentSetup)
-				if err != nil {
-					return xerrors.Errorf("acquire lock: %w", err)
-				}
-
-				meshKey, err = tx.GetDERPMeshKey(ctx)
-				if err == nil {
-					return nil
-				}
-				if !errors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("get DERP mesh key: %w", err)
-				}
-				meshKey, err = cryptorand.String(32)
-				if err != nil {
-					return xerrors.Errorf("generate DERP mesh key: %w", err)
-				}
-				err = tx.InsertDERPMeshKey(ctx, meshKey)
-				if err != nil {
-					return xerrors.Errorf("insert DERP mesh key: %w", err)
-				}
-				return nil
-			}, nil)
-			if err != nil {
-				return nil, nil, err
-			}
-			if meshKey == "" {
-				return nil, nil, xerrors.New("mesh key is empty")
-			}
 			options.DERPServer.SetMeshKey(meshKey)
 		}
 
@@ -142,6 +147,20 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			return nil, nil, xerrors.Errorf("start usage publisher: %w", err)
 		}
 		closers.Add(publisher)
+
+		// usageCron are heartbeat events to the usage table. These events are eventually sent
+		// to Tallyman.
+		usageCron := usage.NewCron(quartz.NewReal(), options.Logger.Named("usage-cron"), options.Database, *options.UsageInserter.Load())
+		// ai-seats heartbeats track the number of users that have used an AI feature.
+		// These users consume a seat for the AI addon to our License.
+		_ = usageCron.Register(usage.CronJob{
+			Name:     "ai-seats",
+			Interval: usage.AISeatsInterval,
+			Jitter:   10 * time.Minute,
+			Fn:       usage.AISeatsHeartbeat(options.Database),
+		})
+		usageCron.Start(ctx)
+		closers.Add(usageCron)
 
 		// In-memory aibridge daemon.
 		// TODO(@deansheather): the lifecycle of the aibridged server is

@@ -105,8 +105,13 @@ expires the token, (soft-delete):
 coder tokens remove <name|id>
 ```
 
-Expired tokens can no longer be used for authentication but remain visible in
-token listings.
+Expired tokens can no longer be used for authentication and are hidden from
+token listings by default. To include expired tokens, use the
+`--include-expired` flag:
+
+```console
+coder tokens list --include-expired
+```
 
 To hard-delete a token, use the `--delete` flag:
 

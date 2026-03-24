@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link, { type LinkProps } from "@mui/material/Link";
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	updateDeadline,
 	workspaceByOwnerAndNameKey,
@@ -8,7 +8,6 @@ import {
 import type { Template, Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	Tooltip,
 	TooltipContent,
@@ -21,6 +20,7 @@ import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -143,15 +143,20 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const updateDeadlineMutation = useMutation({
 		...updateDeadline(workspace),
 		onSuccess: (_, updatedDeadline) => {
-			displaySuccess("Workspace shutdown time has been successfully updated.");
+			toast.success(
+				`Shutdown time for "${workspace.name}" updated successfully.`,
+			);
 			lastStableDeadline.current = updatedDeadline;
 		},
 		onError: (error) => {
-			displayError(
+			toast.error(
 				getErrorMessage(
 					error,
-					"We couldn't update your workspace shutdown time. Please try again.",
+					`Failed to update shutdown time for "${workspace.name}". Please try again.`,
 				),
+				{
+					description: getErrorDetail(error),
+				},
 			);
 			updateWorkspaceDeadlineQueryData(lastStableDeadline.current);
 		},

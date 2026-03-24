@@ -4,11 +4,11 @@ import {
 } from "api/queries/settings";
 import type { UserQuietHoursScheduleResponse } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
 
@@ -50,7 +50,7 @@ const SchedulePage: FC = () => {
 				onSubmit={(values) => {
 					onSubmit(values, {
 						onSuccess: () => {
-							displaySuccess("Schedule updated successfully");
+							toast.success("Schedule updated successfully.");
 						},
 					});
 				}}

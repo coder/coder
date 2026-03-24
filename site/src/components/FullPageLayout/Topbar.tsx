@@ -56,7 +56,7 @@ export const TopbarDivider: FC<
 };
 
 export const TopbarAvatar: FC<AvatarProps> = (props) => {
-	return <Avatar {...props} variant="icon" size="md" />;
+	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
 type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {

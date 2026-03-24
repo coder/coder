@@ -1,3 +1,4 @@
+import { CheckIcon } from "components/AnimatedIcons/Check";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Tooltip,
@@ -5,7 +6,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useClipboard } from "hooks/useClipboard";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CopyIcon } from "lucide-react";
 import type { FC } from "react";
 
 type CopyButtonProps = ButtonProps & {

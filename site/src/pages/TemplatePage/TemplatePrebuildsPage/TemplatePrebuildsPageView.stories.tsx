@@ -1,5 +1,5 @@
 import { MockTemplate } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
+import { withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { spyOn, userEvent, within } from "storybook/test";
@@ -11,7 +11,7 @@ const meta: Meta<typeof TemplatePrebuildsPageView> = {
 	args: {
 		templateId: MockTemplate.id,
 	},
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 };
 
 export default meta;

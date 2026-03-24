@@ -20,15 +20,17 @@ import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
-import { Link } from "react-router";
+import { Link as RouterLink } from "react-router";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
+import { SeatUsageBarCard } from "./SeatUsageBarCard";
 
 type Props = {
 	showConfetti: boolean;
 	isLoading: boolean;
+	hasUserLimitEntitlementData: boolean;
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	licenses?: GetLicensesResponse[];
@@ -44,6 +46,7 @@ type Props = {
 const LicensesSettingsPageView: FC<Props> = ({
 	showConfetti,
 	isLoading,
+	hasUserLimitEntitlementData,
 	userLimitActual,
 	userLimitLimit,
 	licenses,
@@ -82,10 +85,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 
 				<Stack direction="row" spacing={2}>
 					<Button variant="outline" asChild>
-						<Link to="/deployment/licenses/add">
+						<RouterLink to="/deployment/licenses/add">
 							<PlusIcon />
 							Add a license
-						</Link>
+						</RouterLink>
 					</Button>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -127,6 +130,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 									license={license}
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
+									aiGovernanceUserFeature={aiGovernanceUserFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}
 								/>
@@ -134,7 +138,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 					</Stack>
 				)}
 
-				{!isLoading && licenses === null && (
+				{!isLoading && licenses?.length === 0 && (
 					<div css={styles.root}>
 						<Stack alignItems="center" spacing={1}>
 							<Stack alignItems="center" spacing={0.5}>
@@ -156,23 +160,33 @@ const LicensesSettingsPageView: FC<Props> = ({
 				)}
 
 				{licenses && licenses.length > 0 && (
-					<LicenseSeatConsumptionChart
-						limit={userLimitLimit}
-						data={activeUsers?.map((i) => ({
-							date: i.date,
-							users: i.count,
-							limit: 80,
-						}))}
-					/>
-				)}
-
-				{licenses && licenses.length > 0 && (
 					<>
+						<LicenseSeatConsumptionChart
+							limit={userLimitLimit}
+							data={activeUsers?.map((i) => ({
+								date: i.date,
+								users: i.count,
+								limit: 80,
+							}))}
+						/>
+
+						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+							{hasUserLimitEntitlementData && (
+								<SeatUsageBarCard
+									title="Seat usage"
+									actual={userLimitActual}
+									limit={userLimitLimit}
+									allowUnlimited
+								/>
+							)}
+							<AIGovernanceUsersConsumption
+								aiGovernanceUserFeature={aiGovernanceUserFeature}
+								licenses={licenses}
+							/>
+						</div>
+
 						<ManagedAgentsConsumption
 							managedAgentFeature={managedAgentFeature}
-						/>
-						<AIGovernanceUsersConsumption
-							aiGovernanceUserFeature={aiGovernanceUserFeature}
 						/>
 					</>
 				)}

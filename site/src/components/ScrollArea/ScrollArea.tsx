@@ -3,20 +3,67 @@
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+import { useCallback, useRef } from "react";
 import { cn } from "utils/cn";
 
-export const ScrollArea: React.FC<
-	React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root>
-> = ({ className, children, ...props }) => {
+interface ScrollAreaProps
+	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
+	scrollBarClassName?: string;
+	viewportClassName?: string;
+	/** Which scrollbar(s) to show. Defaults to "vertical". */
+	orientation?: "vertical" | "horizontal" | "both";
+}
+
+export const ScrollArea: React.FC<ScrollAreaProps> = ({
+	className,
+	scrollBarClassName,
+	viewportClassName,
+	orientation = "vertical",
+	children,
+	...props
+}) => {
+	const viewportRef = useRef<HTMLDivElement>(null);
+
+	// Translate vertical wheel events into horizontal scroll when the
+	// scroll area only scrolls horizontally. Without this, the mouse
+	// wheel does nothing on a horizontal-only container.
+	const handleWheel = useCallback(
+		(e: React.WheelEvent<HTMLDivElement>) => {
+			if (orientation !== "horizontal") return;
+			const el = viewportRef.current;
+			if (!el) return;
+			// Only redirect when the user is scrolling vertically.
+			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+			e.preventDefault();
+			el.scrollBy({ left: e.deltaY, behavior: "smooth" });
+		},
+		[orientation],
+	);
+
 	return (
 		<ScrollAreaPrimitive.Root
 			className={cn("relative overflow-hidden", className)}
 			{...props}
 		>
-			<ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+			<ScrollAreaPrimitive.Viewport
+				ref={viewportRef}
+				onWheel={handleWheel}
+				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
+			>
 				{children}
 			</ScrollAreaPrimitive.Viewport>
-			<ScrollBar className="z-10" />
+			{(orientation === "vertical" || orientation === "both") && (
+				<ScrollBar
+					orientation="vertical"
+					className={cn("z-10", scrollBarClassName)}
+				/>
+			)}
+			{(orientation === "horizontal" || orientation === "both") && (
+				<ScrollBar
+					orientation="horizontal"
+					className={cn("z-10", scrollBarClassName)}
+				/>
+			)}
 			<ScrollAreaPrimitive.Corner />
 		</ScrollAreaPrimitive.Root>
 	);

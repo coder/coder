@@ -70,7 +70,7 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 			Aliases: []string{"workspacesharing"},
 			Short:   "Workspace sharing settings for the organization.",
 			Patch: func(ctx context.Context, cli *codersdk.Client, org uuid.UUID, input json.RawMessage) (any, error) {
-				var req codersdk.WorkspaceSharingSettings
+				var req codersdk.UpdateWorkspaceSharingSettingsRequest
 				err := json.Unmarshal(input, &req)
 				if err != nil {
 					return nil, xerrors.Errorf("unmarshalling workspace sharing settings: %w", err)

@@ -154,6 +154,15 @@ export const me = (metadata: MetadataState<User>) => {
 	});
 };
 
+export const userKey = (usernameOrId: string) => ["user", usernameOrId];
+
+export const user = (usernameOrId: string) => {
+	return {
+		queryKey: userKey(usernameOrId),
+		queryFn: () => API.getUser(usernameOrId),
+	};
+};
+
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 	return {
 		queryKey: [...meKey, "apiKey"],
@@ -179,7 +188,7 @@ export const login = (
 		mutationFn: async (credentials: { email: string; password: string }) =>
 			loginFn({ ...credentials, authorization }),
 		onSuccess: async (data: Awaited<ReturnType<typeof loginFn>>) => {
-			queryClient.setQueryData(["me"], data.user);
+			queryClient.setQueryData(meKey, data.user);
 			queryClient.setQueryData(
 				getAuthorizationKey(authorization),
 				data.permissions,

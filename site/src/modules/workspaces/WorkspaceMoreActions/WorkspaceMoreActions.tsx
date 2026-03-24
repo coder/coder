@@ -1,5 +1,10 @@
 import { MissingBuildParameters, ParameterValidationError } from "api/api";
-import { type ApiError, getErrorMessage, isApiError } from "api/errors";
+import {
+	type ApiError,
+	getErrorDetail,
+	getErrorMessage,
+	isApiError,
+} from "api/errors";
 import {
 	changeVersion,
 	deleteWorkspace,
@@ -14,7 +19,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -27,6 +31,7 @@ import {
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
@@ -78,7 +83,15 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				error: error,
 			});
 		} else {
-			displayError(getErrorMessage(error, "Failed to delete workspace."));
+			toast.error(
+				getErrorMessage(
+					error,
+					`Failed to delete workspace "${workspace.name}".`,
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		}
 	};
 

@@ -192,7 +192,8 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAuditWS()
 
-	workspace, err := createWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, r, &createWorkspaceOptions{
+	workspace, err := createWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, &createWorkspaceOptions{
+		remoteAddr: r.RemoteAddr,
 		// Before creating the workspace, ensure that this task can be created.
 		preCreateInTX: func(ctx context.Context, tx database.Store) error {
 			// Create task record in the database before creating the workspace so that
@@ -314,6 +315,18 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 }
 
+// appStatusStateToTaskState converts a WorkspaceAppStatusState to a
+// TaskState. The two enums mostly share values but "failure" in the
+// app status maps to "failed" in the public task API.
+func appStatusStateToTaskState(s codersdk.WorkspaceAppStatusState) codersdk.TaskState {
+	switch s {
+	case codersdk.WorkspaceAppStatusStateFailure:
+		return codersdk.TaskStateFailed
+	default:
+		return codersdk.TaskState(s)
+	}
+}
+
 // deriveTaskCurrentState determines the current state of a task based on the
 // workspace's latest app status and initialization phase.
 // Returns nil if no valid state can be determined.
@@ -333,7 +346,7 @@ func deriveTaskCurrentState(
 		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
 			currentState = &codersdk.TaskStateEntry{
 				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				State:     appStatusStateToTaskState(ws.LatestAppStatus.State),
 				Message:   ws.LatestAppStatus.Message,
 				URI:       ws.LatestAppStatus.URI,
 			}
@@ -466,7 +479,6 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 
 	apiWorkspaces, err := convertWorkspaces(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		requesterID,
 		workspaces,
@@ -546,7 +558,6 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 
 	ws, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -762,7 +773,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if statusResp.Status != agentapisdk.StatusStable {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
 				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
@@ -1250,7 +1261,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 // @Summary Pause task
 // @ID pause-task
 // @Security CoderSessionToken
-// @Accept json
+// @Produce json
 // @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID" format(uuid)
@@ -1327,7 +1338,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 // @Summary Resume task
 // @ID resume-task
 // @Security CoderSessionToken
-// @Accept json
+// @Produce json
 // @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID" format(uuid)

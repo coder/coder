@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	Table,
 	TableBody,
@@ -87,4 +88,29 @@ const meta: Meta<typeof Table> = {
 export default meta;
 type Story = StoryObj<typeof Table>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const invoiceHeader = canvas.getByRole("columnheader", { name: "Invoice" });
+
+		expect(invoiceHeader).toHaveAttribute("scope", "col");
+	},
+};
+
+export const ScopeOverride: Story = {
+	args: {
+		children: (
+			<TableHeader>
+				<TableRow>
+					<TableHead scope="row">Invoice</TableHead>
+				</TableRow>
+			</TableHeader>
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const invoiceHeader = canvas.getByRole("rowheader", { name: "Invoice" });
+
+		expect(invoiceHeader).toHaveAttribute("scope", "row");
+	},
+};

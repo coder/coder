@@ -1899,7 +1899,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1937,7 +1936,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1975,7 +1973,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -2013,7 +2010,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -3678,6 +3674,113 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("second is for the build cancel", nil)
 }
 
+func TestWatchAllWorkspaceBuilds(t *testing.T) {
+	t.Parallel()
+
+	// Enable the workspace build updates experiment.
+	client, closer := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentWorkspaceBuildUpdates)}
+		}),
+	})
+	defer closer.Close()
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a simple template version.
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Subscribe to all workspace build updates via SSE BEFORE creating workspaces
+	// so we can use it to wait for the initial builds.
+	decoder, err := client.WatchAllWorkspaceBuilds(ctx)
+	require.NoError(t, err)
+	defer decoder.Close()
+
+	updates := decoder.Chan()
+	logger := testutil.Logger(t).Named(t.Name())
+
+	// Helper to wait for a specific update.
+	waitForUpdate := func(event string, workspaceID uuid.UUID, expectedTransition, expectedStatus string) codersdk.WorkspaceBuildUpdate {
+		t.Helper()
+		for {
+			select {
+			case <-ctx.Done():
+				require.FailNow(t, "timed out waiting for event", event)
+				return codersdk.WorkspaceBuildUpdate{}
+			case update, ok := <-updates:
+				if !ok {
+					require.FailNow(t, "updates channel closed", event)
+					return codersdk.WorkspaceBuildUpdate{}
+				}
+				logger.Info(ctx, "received workspace build update",
+					slog.F("event", event),
+					slog.F("workspace_id", update.WorkspaceID),
+					slog.F("build_id", update.BuildID),
+					slog.F("transition", update.Transition),
+					slog.F("job_status", update.JobStatus),
+					slog.F("build_number", update.BuildNumber))
+				if update.WorkspaceID == workspaceID && update.Transition == expectedTransition && update.JobStatus == expectedStatus {
+					return update
+				}
+				// Keep waiting if this isn't the update we're looking for.
+				logger.Info(ctx, "skipping update, not matching expected",
+					slog.F("expected_workspace_id", workspaceID),
+					slog.F("expected_transition", expectedTransition),
+					slog.F("expected_status", expectedStatus))
+			}
+		}
+	}
+
+	// Create two workspaces and wait for their initial builds via the SSE channel.
+	workspace1 := coderdtest.CreateWorkspace(t, client, template.ID)
+	update := waitForUpdate("workspace1 initial build", workspace1.ID, "start", "succeeded")
+	require.Equal(t, workspace1.ID, update.WorkspaceID)
+	require.Equal(t, int32(1), update.BuildNumber)
+
+	workspace2 := coderdtest.CreateWorkspace(t, client, template.ID)
+	update = waitForUpdate("workspace2 initial build", workspace2.ID, "start", "succeeded")
+	require.Equal(t, workspace2.ID, update.WorkspaceID)
+	require.Equal(t, int32(1), update.BuildNumber)
+
+	// Stop workspace 1.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace1, database.WorkspaceTransitionStop)
+	update = waitForUpdate("workspace1 stop", workspace1.ID, "stop", "succeeded")
+	require.Equal(t, workspace1.ID, update.WorkspaceID)
+
+	// Stop workspace 2.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
+	update = waitForUpdate("workspace2 stop", workspace2.ID, "stop", "succeeded")
+	require.Equal(t, workspace2.ID, update.WorkspaceID)
+
+	// Start workspace 1 again.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace1, database.WorkspaceTransitionStart)
+	update = waitForUpdate("workspace1 start", workspace1.ID, "start", "succeeded")
+	require.Equal(t, workspace1.ID, update.WorkspaceID)
+
+	// Start workspace 2 again.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStart)
+	update = waitForUpdate("workspace2 start", workspace2.ID, "start", "succeeded")
+	require.Equal(t, workspace2.ID, update.WorkspaceID)
+}
+
 func mustLocation(t *testing.T, location string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(location)
@@ -4269,9 +4372,7 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 		}},
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
-		request.UseClassicParameterFlow = ptr.Ref(true) // TODO: Remove this when dynamic parameters handles this case
-	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 	// Create workspace with default values
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
@@ -4383,7 +4484,7 @@ func TestWorkspaceDormant(t *testing.T) {
 		// The template doesn't have a time_til_dormant_autodelete set so this should be nil.
 		require.Nil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.DormantAt)
-		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second*10), time.Now())
+		require.WithinRange(t, *workspace.DormantAt, dbtime.Now().Add(-time.Second*10), dbtime.Now())
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
@@ -4437,7 +4538,7 @@ func TestWorkspaceDormant(t *testing.T) {
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch dormant workspace")
 		if assert.NotNil(t, workspace.DormantAt, "workspace must be dormant") {
-			require.WithinDuration(t, *workspace.DormantAt, time.Now(), 10*time.Second)
+			require.WithinDuration(t, *workspace.DormantAt, dbtime.Now(), 10*time.Second)
 		}
 		// Starting a dormant workspace should 'wake' it.
 		wb, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
@@ -5249,7 +5350,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5285,7 +5386,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5318,7 +5419,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5358,7 +5459,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5426,11 +5527,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-				}),
-			})
+			client, db                           = coderdtest.NewWithDatabase(t, nil)
 			admin                                = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 			_, toShareWithUser                   = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5461,11 +5558,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-				}),
-			})
+			client, db                           = coderdtest.NewWithDatabase(t, nil)
 			admin                                = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 			sharedUseClient, toShareWithUser     = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5504,11 +5597,7 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 	t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
 
 	var (
-		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-				dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-			}),
-		})
+		client, db                           = coderdtest.NewWithDatabase(t, nil)
 		admin                                = coderdtest.CreateFirstUser(t, client)
 		workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		sharedUserClientA, sharedUserA       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5558,7 +5647,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 					// DisableWorkspaceSharing is false (default)
 				}),
 			})
@@ -5589,10 +5677,13 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	})
 
 	t.Run("NoAccessWhenDisabled", func(t *testing.T) {
+		t.Cleanup(func() {
+			rbac.ReloadBuiltinRoles(nil)
+		})
+
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 					dv.DisableWorkspaceSharing = true
 				}),
 			})

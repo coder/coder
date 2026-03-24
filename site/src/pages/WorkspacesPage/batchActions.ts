@@ -1,7 +1,8 @@
 import { API } from "api/api";
+import { getErrorDetail } from "api/errors";
 import type { Workspace, WorkspaceBuild } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useMutation } from "react-query";
+import { toast } from "sonner";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
@@ -38,8 +39,10 @@ export function useBatchActions(
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to start workspaces");
+		onError: (error) => {
+			toast.error("Failed to start workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -48,8 +51,10 @@ export function useBatchActions(
 			return Promise.all(workspaces.map((w) => API.stopWorkspace(w.id)));
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to stop workspaces");
+		onError: (error) => {
+			toast.error("Failed to stop workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -58,8 +63,10 @@ export function useBatchActions(
 			return Promise.all(workspaces.map((w) => API.deleteWorkspace(w.id)));
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to delete some workspaces");
+		onError: (error) => {
+			toast.error("Failed to delete some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -73,8 +80,10 @@ export function useBatchActions(
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to update some workspaces");
+		onError: (error) => {
+			toast.error("Failed to update some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -92,8 +101,10 @@ export function useBatchActions(
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to favorite some workspaces");
+		onError: (error) => {
+			toast.error("Failed to favorite some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -106,8 +117,10 @@ export function useBatchActions(
 			);
 		},
 		onSuccess,
-		onError: () => {
-			displayError("Failed to unfavorite some workspaces");
+		onError: (error) => {
+			toast.error("Failed to unfavorite some workspaces.", {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 

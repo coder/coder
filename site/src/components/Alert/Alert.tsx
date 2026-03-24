@@ -97,9 +97,9 @@ export const Alert: FC<AlertProps> = ({
 			{...props}
 		>
 			<div className="flex items-center justify-between gap-4 text-sm">
-				<div className="flex flex-row items-start gap-3">
+				<div className="flex min-w-0 flex-1 flex-row items-start gap-3">
 					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
-					<div className="flex-1">{children}</div>
+					<div className="min-w-0 flex-1">{children}</div>
 				</div>
 				<div className="flex items-center gap-2">
 					{actions}
@@ -125,7 +125,7 @@ export const Alert: FC<AlertProps> = ({
 	);
 };
 
-export const AlertDetail: React.FC<React.PropsWithChildren> = ({
+export const AlertDescription: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => {
 	return (
@@ -135,11 +135,9 @@ export const AlertDetail: React.FC<React.PropsWithChildren> = ({
 	);
 };
 
-export const AlertTitle: React.FC<React.ComponentPropsWithRef<"h1">> = ({
+export const AlertTitle: React.FC<React.ComponentPropsWithRef<"h2">> = ({
 	className,
 	...props
 }) => {
-	return (
-		<h1 className={cn("m-0 mb-1 text-sm font-medium", className)} {...props} />
-	);
+	return <h2 className={cn("m-0 text-sm font-medium", className)} {...props} />;
 };

@@ -1,17 +1,28 @@
-import { workspaceSharingSettings } from "api/queries/organizations";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import {
+	workspaceByOwnerAndName,
+	workspacePermissions,
+} from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
-const WorkspaceSettings = createContext<Workspace | undefined>(undefined);
+type WorkspaceSettingsContext = {
+	owner: string;
+	workspace: Workspace;
+	permissions?: WorkspacePermissions;
+};
+
+const WorkspaceSettings = createContext<WorkspaceSettingsContext | undefined>(
+	undefined,
+);
 
 export function useWorkspaceSettings() {
 	const value = useContext(WorkspaceSettings);
@@ -31,22 +42,17 @@ export const WorkspaceSettingsLayout: FC = () => {
 	};
 	const workspaceName = params.workspace;
 	const username = params.username.replace("@", "");
-	const {
-		data: workspace,
-		error,
-		isLoading,
-		isError,
-	} = useQuery(workspaceByOwnerAndName(username, workspaceName));
+	const workspaceQuery = useQuery(
+		workspaceByOwnerAndName(username, workspaceName),
+	);
 
-	const sharingSettingsQuery = useQuery({
-		...workspaceSharingSettings(workspace?.organization_id ?? ""),
-		enabled: !!workspace,
-	});
-	const sharingDisabled = sharingSettingsQuery.data?.sharing_disabled ?? false;
+	const permissionsQuery = useQuery(workspacePermissions(workspaceQuery.data));
 
-	if (isLoading) {
+	if (workspaceQuery.isLoading) {
 		return <Loader />;
 	}
+
+	const error = workspaceQuery.error || permissionsQuery.error;
 
 	return (
 		<>
@@ -54,20 +60,22 @@ export const WorkspaceSettingsLayout: FC = () => {
 
 			<Margins>
 				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
-					{isError ? (
+					{error ? (
 						<ErrorAlert error={error} />
 					) : (
-						workspace && (
-							<WorkspaceSettings.Provider value={workspace}>
-								<Sidebar
-									workspace={workspace}
-									username={username}
-									sharingDisabled={sharingDisabled}
-								/>
+						workspaceQuery.data && (
+							<WorkspaceSettings.Provider
+								value={{
+									owner: username,
+									workspace: workspaceQuery.data,
+									permissions: permissionsQuery.data,
+								}}
+							>
+								<Sidebar />
 								<Suspense fallback={<Loader />}>
-									<main css={{ width: "100%" }}>
+									<div className="w-full">
 										<Outlet />
-									</main>
+									</div>
 								</Suspense>
 							</WorkspaceSettings.Provider>
 						)

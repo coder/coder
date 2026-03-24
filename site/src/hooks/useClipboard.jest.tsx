@@ -10,11 +10,9 @@
  * fail, it won't.
  */
 
-import { renderHook, screen } from "@testing-library/react";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
-import { ThemeOverride } from "contexts/ThemeProvider";
+import { renderHook } from "@testing-library/react";
 import { act } from "react";
-import themes, { DEFAULT_THEME } from "theme";
+import { toast } from "sonner";
 import {
 	COPY_FAILED_MESSAGE,
 	HTTP_FALLBACK_DATA_ID,
@@ -122,13 +120,6 @@ function renderUseClipboard(inputs?: UseClipboardInput) {
 		(props) => useClipboard(props),
 		{
 			initialProps: inputs,
-			wrapper: ({ children }) => (
-				// Need ThemeProvider because GlobalSnackbar uses theme
-				<ThemeOverride theme={themes[DEFAULT_THEME]}>
-					{children}
-					<GlobalSnackbar />
-				</ThemeOverride>
-			),
 		},
 	);
 }
@@ -232,21 +223,15 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	});
 
 	it("Should dispatch a new toast message to the global snackbar when errors happen while no error callback is provided to the hook", async () => {
+		const toastErrorSpy = jest.spyOn(toast, "error");
 		const textToCopy = "crow";
 		const { result } = renderUseClipboard();
 
-		/**
-		 * @todo Look into why deferring error-based state updates to the global
-		 * snackbar still kicks up act warnings, even after wrapping copyToClipboard
-		 * in act. copyToClipboard should be the main source of the state
-		 * transitions, but it looks like extra state changes are still getting
-		 * flushed through the GlobalSnackbar component afterwards
-		 */
 		setSimulateFailure(true);
 		await act(() => result.current.copyToClipboard(textToCopy));
 
-		const errorMessageNode = screen.queryByText(COPY_FAILED_MESSAGE);
-		expect(errorMessageNode).not.toBeNull();
+		expect(toastErrorSpy).toHaveBeenCalledWith(COPY_FAILED_MESSAGE);
+		toastErrorSpy.mockRestore();
 	});
 
 	it("Should expose the error as a value when a copy fails", async () => {

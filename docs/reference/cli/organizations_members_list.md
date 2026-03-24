@@ -13,10 +13,10 @@ coder organizations members list [flags]
 
 ### -c, --column
 
-|         |                                                                                                     |
-|---------|-----------------------------------------------------------------------------------------------------|
-| Type    | <code>[username\|name\|user id\|organization id\|created at\|updated at\|organization roles]</code> |
-| Default | <code>username,organization roles</code>                                                            |
+|         |                                                                                                                                                     |
+|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type    | <code>[username\|name\|last seen at\|user created at\|user updated at\|user id\|organization id\|created at\|updated at\|organization roles]</code> |
+| Default | <code>username,organization roles</code>                                                                                                            |
 
 Columns to display in table output.
 

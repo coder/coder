@@ -15,13 +15,13 @@ import {
 	DialogTitle,
 } from "components/Dialog/Dialog";
 import type { DialogProps } from "components/Dialogs/Dialog";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
 import { Textarea } from "components/Textarea/Textarea";
 import { useFormik } from "formik";
 import { FrownIcon, MehIcon, SmileIcon } from "lucide-react";
 import type { FC, HTMLProps, ReactNode } from "react";
 import { useMutation } from "react-query";
+import { toast } from "sonner";
 
 type TaskFeedbackFormValues = {
 	rate: TaskFeedbackRating | null;
@@ -44,7 +44,7 @@ export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 		mutationFn: (req: CreateTaskFeedbackRequest) =>
 			API.createTaskFeedback(taskId, req),
 		onSuccess: () => {
-			displaySuccess("Feedback submitted successfully");
+			toast.success("Feedback submitted successfully.");
 		},
 	});
 

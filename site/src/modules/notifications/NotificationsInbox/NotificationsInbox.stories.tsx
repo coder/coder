@@ -1,5 +1,5 @@
 import { MockNotifications, mockApiError } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
+import { withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { NotificationsInbox } from "./NotificationsInbox";
@@ -104,7 +104,7 @@ export const MarkAllAsRead: Story = {
 };
 
 export const MarkAllAsReadFailure: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	args: {
 		defaultOpen: true,
 		fetchNotifications: fn(async () => ({
@@ -158,7 +158,7 @@ export const MarkNotificationAsRead: Story = {
 };
 
 export const MarkNotificationAsReadFailure: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	args: {
 		defaultOpen: true,
 		fetchNotifications: fn(async () => ({

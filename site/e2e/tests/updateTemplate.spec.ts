@@ -57,7 +57,7 @@ test("add and remove a group", async ({ page }) => {
 	const menu = page.getByRole("menu");
 	await menu.getByText("Remove").click();
 
-	await expect(page.getByText("Group removed successfully!")).toBeVisible();
+	await expect(page.getByText(/removed successfully/)).toBeVisible();
 	await expect(row).not.toBeVisible();
 });
 

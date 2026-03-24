@@ -71,6 +71,7 @@ const WorkspaceProxyPage = lazy(
 const CreateUserPage = lazy(
 	() => import("./pages/CreateUserPage/CreateUserPage"),
 );
+const EditUserPage = lazy(() => import("./pages/EditUserPage/EditUserPage"));
 const WorkspaceBuildPage = lazy(
 	() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
 );
@@ -259,6 +260,9 @@ const CreateGroupPage = lazy(
 	() => import("./pages/GroupsPage/CreateGroupPage"),
 );
 const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"));
+const GroupMembersPage = lazy(
+	() => import("./pages/GroupsPage/GroupMembersPage"),
+);
 const GroupSettingsPage = lazy(
 	() => import("./pages/GroupsPage/GroupSettingsPage"),
 );
@@ -343,6 +347,24 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
+const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
+const AgentDetail = lazy(() => import("./pages/AgentsPage/AgentDetail"));
+const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const AgentCreatePage = lazy(
+	() => import("./pages/AgentsPage/AgentCreatePage"),
+);
+const AgentSettingsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsPage"),
+);
+const AgentAnalyticsPage = lazy(
+	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
+);
+
+import {
+	AgentDetailSkeleton,
+	AgentsPageSkeleton,
+} from "./pages/AgentsPage/components/AgentsSkeletons";
+
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
@@ -402,8 +424,10 @@ const groupsRouter = () => {
 				<Route index element={<GroupsPage />} />
 
 				<Route path="create" element={<CreateGroupPage />} />
-				<Route path=":groupName" element={<GroupPage />} />
-				<Route path=":groupName/settings" element={<GroupSettingsPage />} />
+				<Route path=":groupName" element={<GroupPage />}>
+					<Route index element={<GroupMembersPage />} />
+					<Route path="settings" element={<GroupSettingsPage />} />
+				</Route>
 			</Route>
 		</Route>
 	);
@@ -528,8 +552,11 @@ export const router = createBrowserRouter(
 							</Route>
 						</Route>
 
-						<Route path="users" element={<UsersPage />} />
-						<Route path="users/create" element={<CreateUserPage />} />
+						<Route path="users">
+							<Route index element={<UsersPage />} />
+							<Route path="create" element={<CreateUserPage />} />
+							<Route path=":user" element={<EditUserPage />} />
+						</Route>
 
 						{groupsRouter()}
 
@@ -623,6 +650,45 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				<Route
+					path="/agents"
+					element={
+						<Suspense fallback={<AgentsPageSkeleton />}>
+							<AgentsPage />
+						</Suspense>
+					}
+				>
+					<Route index element={<AgentCreatePage />} />
+					<Route path="settings" element={<AgentSettingsPage />} />
+					<Route path="settings/:section" element={<AgentSettingsPage />} />
+					<Route path="analytics" element={<AgentAnalyticsPage />} />{" "}
+					<Route
+						path=":agentId"
+						element={
+							<Suspense fallback={<AgentDetailSkeleton />}>
+								<AgentDetail />
+							</Suspense>
+						}
+					/>
+				</Route>
+			</Route>
+
+			<Route
+				path="/agents/:agentId/embed"
+				element={
+					<Suspense fallback={<AgentDetailSkeleton />}>
+						<AgentEmbedPage />
+					</Suspense>
+				}
+			>
+				<Route
+					index
+					element={
+						<Suspense fallback={<AgentDetailSkeleton />}>
+							<AgentDetail />
+						</Suspense>
+					}
+				/>
 			</Route>
 		</Route>,
 	),

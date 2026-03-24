@@ -18,6 +18,14 @@ import {
 import { cn } from "utils/cn";
 import { Section } from "../Section";
 
+// Display Geist Mono (the default monospace font) first, then the rest
+// alphabetically. TerminalFontNames is auto-generated in alphabetical
+// order, so we reorder here for a better UX.
+const sortedTerminalFontNames = [
+	"geist-mono" as TerminalFontName,
+	...TerminalFontNames.filter((name) => name !== "" && name !== "geist-mono"),
+];
+
 interface AppearanceFormProps {
 	isUpdating?: boolean;
 	error?: unknown;
@@ -107,7 +115,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						onChangeTerminalFont(toTerminalFontName(value))
 					}
 				>
-					{TerminalFontNames.filter((name) => name !== "").map((name) => (
+					{sortedTerminalFontNames.map((name) => (
 						<div key={name} className="flex items-center space-x-2">
 							<RadioGroupItem value={name} id={name} />
 							<Label

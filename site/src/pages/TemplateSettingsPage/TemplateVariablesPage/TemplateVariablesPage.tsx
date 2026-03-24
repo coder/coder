@@ -10,7 +10,6 @@ import type {
 	VariableValue,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback } from "react";
@@ -21,6 +20,7 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
@@ -67,9 +67,11 @@ const TemplateVariablesPage: FC = () => {
 	const publishVersion = useCallback(
 		async (versionId: string) => {
 			await sendUpdateActiveTemplateVersion(versionId);
-			displaySuccess("Template updated successfully");
+			toast.success(
+				`Template "${template.name}" variables updated successfully.`,
+			);
 		},
-		[sendUpdateActiveTemplateVersion],
+		[sendUpdateActiveTemplateVersion, template.name],
 	);
 
 	const buildVersion = useCallback(

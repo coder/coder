@@ -10,7 +10,6 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
@@ -58,8 +57,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAIBridge,
 	proxyContextValue,
 }) => {
-	const webPush = useWebpushNotifications();
-
 	return (
 		<div className="sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">
@@ -99,26 +96,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewAIBridge={canViewAIBridge}
 					/>
 				</div>
-
-				{webPush.enabled ? (
-					webPush.subscribed ? (
-						<Button
-							variant="outline"
-							disabled={webPush.loading}
-							onClick={webPush.unsubscribe}
-						>
-							Disable WebPush
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							disabled={webPush.loading}
-							onClick={webPush.subscribe}
-						>
-							Enable WebPush
-						</Button>
-					)
-				) : null}
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
@@ -187,6 +164,7 @@ const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 				Templates
 			</NavLink>
 			<TasksNavItem user={user} />
+			<AgentsNavItem />
 		</nav>
 	);
 };
@@ -250,6 +228,30 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
+
+const AgentsNavItem: FC = () => {
+	const { metadata } = useEmbeddedMetadata();
+	const canSeeAgents = Boolean(
+		metadata["agents-tab-visible"].value ||
+			process.env.NODE_ENV === "development" ||
+			process.env.STORYBOOK,
+	);
+
+	if (!canSeeAgents) {
+		return null;
+	}
+
+	return (
+		<NavLink
+			className={({ isActive }) => {
+				return cn(linkStyles.default, { [linkStyles.active]: isActive });
+			}}
+			to="/agents"
+		>
+			Agents
+		</NavLink>
+	);
+};
 
 function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";

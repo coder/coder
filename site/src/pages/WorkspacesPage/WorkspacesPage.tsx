@@ -4,7 +4,6 @@ import { templates, templateVersionRoot } from "api/queries/templates";
 import { workspaces } from "api/queries/workspaces";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
@@ -14,6 +13,7 @@ import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { type FC, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
@@ -197,10 +197,9 @@ const WorkspacesPage: FC = () => {
 					});
 				}}
 				onActionError={(error) => {
-					displayError(
-						getErrorMessage(error, "Failed to perform action"),
-						getErrorDetail(error),
-					);
+					toast.error(getErrorMessage(error, "Failed to perform action."), {
+						description: getErrorDetail(error),
+					});
 				}}
 			/>
 

@@ -1,12 +1,11 @@
 import { API } from "api/api";
-import { checkAuthorization } from "api/queries/authCheck";
+import { getErrorDetail } from "api/errors";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -20,6 +19,7 @@ import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSetti
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import {
@@ -28,28 +28,13 @@ import {
 } from "./formToRequest";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
-const permissionsToCheck = (workspace: TypesGen.Workspace) =>
-	({
-		updateWorkspace: {
-			object: {
-				resource_type: "workspace",
-				resource_id: workspace.id,
-				owner_id: workspace.owner_id,
-			},
-			action: "update",
-		},
-	}) as const;
-
 const WorkspaceSchedulePage: FC = () => {
 	const params = useParams() as { username: string; workspace: string };
 	const navigate = useNavigate();
 	const username = params.username.replace("@", "");
 	const workspaceName = params.workspace;
 	const queryClient = useQueryClient();
-	const workspace = useWorkspaceSettings();
-	const { data: permissions, error: checkPermissionsError } = useQuery(
-		checkAuthorization({ checks: permissionsToCheck(workspace) }),
-	);
+	const { permissions, workspace } = useWorkspaceSettings();
 	const { data: template, error: getTemplateError } = useQuery(
 		templateByName(workspace.organization_id, workspace.template_name),
 	);
@@ -62,12 +47,20 @@ const WorkspaceSchedulePage: FC = () => {
 					params.workspace,
 				),
 			});
-			displaySuccess("Workspace schedule updated");
+			toast.success(
+				`Schedule for workspace "${workspaceName}" updated successfully.`,
+			);
 		},
-		onError: () => displayError("Failed to update workspace schedule"),
+		onError: (error) =>
+			toast.error(
+				`Failed to update schedule for workspace "${workspaceName}".`,
+				{
+					description: getErrorDetail(error),
+				},
+			),
 	});
-	const error = checkPermissionsError || getTemplateError;
-	const isLoading = !template || !permissions;
+	const error = getTemplateError;
+	const isLoading = !template;
 
 	const [isConfirmingApply, setIsConfirmingApply] = useState(false);
 	const { mutate: updateWorkspace } = useMutation({

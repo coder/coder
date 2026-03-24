@@ -5,7 +5,6 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
@@ -21,6 +20,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { toast } from "sonner";
 import { cn } from "utils/cn";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
@@ -87,15 +87,18 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 				retries++;
 				if (retries >= maxSocketErrorRetryCount) {
-					displayError(
-						"Unexpected disconnect while watching Metadata changes. Please try refreshing the page.",
+					toast.error(
+						"Unexpected disconnect while watching Metadata changes.",
+						{
+							description: "Please try refreshing the page.",
+						},
 					);
 					return;
 				}
 
-				displayError(
-					"Unexpected disconnect while watching Metadata changes. Creating new connection...",
-				);
+				toast.error("Unexpected disconnect while watching Metadata changes.", {
+					description: "Creating new connection...",
+				});
 				timeoutId = window.setTimeout(() => {
 					createNewConnection();
 				}, 3_000);
@@ -103,9 +106,9 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 			socket.addEventListener("message", (e) => {
 				if (e.parseError) {
-					displayError(
-						"Unable to process newest response from server. Please try refreshing the page.",
-					);
+					toast.error("Unable to process newest response from server.", {
+						description: "Please try refreshing the page.",
+					});
 					return;
 				}
 

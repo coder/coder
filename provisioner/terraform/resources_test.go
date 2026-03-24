@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -368,6 +369,51 @@ func TestConvertResources(t *testing.T) {
 				Type: "coder_env",
 			}},
 		},
+		// Verifies that when multiple coder_env resources define the
+		// same key, the ordering is deterministic (sorted by Terraform
+		// address). This prevents a race condition where Go map
+		// iteration order could cause non-deterministic env values.
+		"duplicate-env-keys": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					ExtraEnvs: []*proto.Env{
+						{
+							Name:          "PATH",
+							Value:         "/a/bin",
+							MergeStrategy: "append",
+						},
+						{
+							Name:          "PATH",
+							Value:         "/b/bin",
+							MergeStrategy: "append",
+						},
+						{
+							Name:  "UNIQUE",
+							Value: "unique_value",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+				}},
+			}, {
+				Name: "path_a",
+				Type: "coder_env",
+			}, {
+				Name: "path_b",
+				Type: "coder_env",
+			}, {
+				Name: "unique_env",
+				Type: "coder_env",
+			}},
+		},
 		"multiple-agents-multiple-monitors": {
 			resources: []*proto.Resource{{
 				Name: "dev",
@@ -654,22 +700,22 @@ func TestConvertResources(t *testing.T) {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-2",
-				ValidationMin: terraform.PtrInt32(-3),
-				ValidationMax: terraform.PtrInt32(0),
+				ValidationMin: ptr.Ref(int32(-3)),
+				ValidationMax: ptr.Ref(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: ptr.Ref(int32(3)),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(0),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: ptr.Ref(int32(0)),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
@@ -738,34 +784,34 @@ func TestConvertResources(t *testing.T) {
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-3",
 				ValidationMin: nil,
-				ValidationMax: terraform.PtrInt32(0),
+				ValidationMax: ptr.Ref(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
+				ValidationMin: ptr.Ref(int32(3)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: ptr.Ref(int32(3)),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(0),
+				ValidationMin: ptr.Ref(int32(0)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}},

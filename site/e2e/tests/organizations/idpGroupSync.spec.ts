@@ -78,7 +78,7 @@ test.describe("IdpGroupSyncPage", () => {
 			row.getByRole("cell", { name: "idp-group-1" }),
 		).not.toBeVisible();
 		await expect(
-			page.getByText("IdP Group sync settings updated."),
+			page.getByText("IdP group sync settings updated."),
 		).toBeVisible();
 	});
 
@@ -102,7 +102,7 @@ test.describe("IdpGroupSyncPage", () => {
 		await page.getByRole("button", { name: /save/i }).click();
 
 		await expect(
-			page.getByText("IdP Group sync settings updated."),
+			page.getByText("IdP group sync settings updated."),
 		).toBeVisible();
 	});
 
@@ -119,7 +119,7 @@ test.describe("IdpGroupSyncPage", () => {
 		await toggle.click();
 
 		await expect(
-			page.getByText("IdP Group sync settings updated."),
+			page.getByText("IdP group sync settings updated."),
 		).toBeVisible();
 
 		await expect(toggle).toBeChecked();
@@ -184,7 +184,7 @@ test.describe("IdpGroupSyncPage", () => {
 		await expect(newRow.getByRole("cell", { name: "Everyone" })).toBeVisible();
 
 		await expect(
-			page.getByText("IdP Group sync settings updated."),
+			page.getByText("IdP group sync settings updated."),
 		).toBeVisible();
 
 		await deleteOrganization(orgName);

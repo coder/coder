@@ -43,7 +43,9 @@ func main() {
 				"version": r.Header.Get("X-Telemetry-Version"),
 				"data":    json.RawMessage(body),
 			}
-			_ = enc.Encode(output)
+			if err := enc.Encode(output); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Error encoding telemetry output: %v\n", err)
+			}
 
 			w.WriteHeader(http.StatusAccepted)
 		}

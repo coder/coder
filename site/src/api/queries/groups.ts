@@ -2,15 +2,21 @@ import { API } from "api/api";
 import type {
 	CreateGroupRequest,
 	Group,
+	GroupMembersResponse,
+	GroupRequest,
 	PatchGroupRequest,
+	UsersRequest,
 } from "api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type { QueryClient, UseQueryOptions } from "react-query";
+import { prepareQuery } from "utils/filters";
 
 type GroupSortOrder = "asc" | "desc";
 
 export const groupsQueryKey = ["groups"];
 
-const groups = () => {
+/** @public */
+export const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
@@ -30,19 +36,63 @@ export const groupsByOrganization = (organization: string) => {
 	} satisfies UseQueryOptions<Group[]>;
 };
 
-export const getGroupQueryKey = (organization: string, groupName: string) => [
+const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",
 	organization,
 	"group",
 	groupName,
 ];
 
-export const group = (organization: string, groupName: string) => {
+export const getGroupQueryKey = (
+	organization: string,
+	groupName: string,
+	req: GroupRequest,
+) => {
+	const base = getRootGroupQueryKey(organization, groupName);
+	return [...base, req];
+};
+
+export const group = (
+	organization: string,
+	groupName: string,
+	req: GroupRequest,
+): UseQueryOptions<Group> => {
 	return {
-		queryKey: getGroupQueryKey(organization, groupName),
-		queryFn: () => API.getGroup(organization, groupName),
+		queryKey: getGroupQueryKey(organization, groupName, req),
+		queryFn: ({ signal }) => API.getGroup(organization, groupName, req, signal),
 	};
 };
+
+export const getGroupMembersQueryKey = (
+	organization: string,
+	groupName: string,
+	req?: UsersRequest,
+) => {
+	const base = [...getRootGroupQueryKey(organization, groupName), "members"];
+	return req ? [...base, req] : base;
+};
+
+export function groupMembers(
+	organization: string,
+	groupName: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<GroupMembersResponse, UsersRequest> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: ({ payload }) =>
+			getGroupMembersQueryKey(organization, groupName, payload),
+		queryFn: ({ payload, signal }) =>
+			API.getGroupMembers(organization, groupName, payload, signal),
+	};
+}
 
 export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 
@@ -127,7 +177,7 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const patchGroup = (queryClient: QueryClient) => {
+export const patchGroup = (queryClient: QueryClient, organization: string) => {
 	return {
 		mutationFn: ({
 			groupId,
@@ -135,40 +185,46 @@ export const patchGroup = (queryClient: QueryClient) => {
 		}: PatchGroupRequest & { groupId: string }) =>
 			API.patchGroup(groupId, request),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 
-export const deleteGroup = (queryClient: QueryClient) => {
+export const deleteGroup = (queryClient: QueryClient, organization: string) => {
 	return {
-		mutationFn: API.deleteGroup,
-		onSuccess: async (_: unknown, groupId: string) =>
-			invalidateGroup(queryClient, "default", groupId),
+		mutationFn: ({ groupId }: { groupId: string; groupName: string }) =>
+			API.deleteGroup(groupId),
+		onSuccess: async (
+			_: unknown,
+			{ groupName }: { groupId: string; groupName: string },
+		) => invalidateGroup(queryClient, organization, groupName),
 	};
 };
 
-export const addMember = (queryClient: QueryClient) => {
+export const addMember = (queryClient: QueryClient, organization: string) => {
 	return {
 		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
 			API.addMember(groupId, userId),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 
-export const removeMember = (queryClient: QueryClient) => {
+export const removeMember = (
+	queryClient: QueryClient,
+	organization: string,
+) => {
 	return {
 		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
 			API.removeMember(groupId, userId),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 
 const invalidateGroup = (
 	queryClient: QueryClient,
 	organization: string,
-	groupId: string,
+	groupName: string,
 ) =>
 	Promise.all([
 		queryClient.invalidateQueries({ queryKey: groupsQueryKey }),
@@ -176,7 +232,7 @@ const invalidateGroup = (
 			queryKey: getGroupsByOrganizationQueryKey(organization),
 		}),
 		queryClient.invalidateQueries({
-			queryKey: getGroupQueryKey(organization, groupId),
+			queryKey: getRootGroupQueryKey(organization, groupName),
 		}),
 	]);
 

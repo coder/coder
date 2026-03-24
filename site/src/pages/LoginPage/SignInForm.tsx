@@ -37,7 +37,7 @@ export const SignInForm: FC<SignInFormProps> = ({
 
 			{Boolean(error) && (
 				<div className="mb-8">
-					<ErrorAlert error={error} />
+					<ErrorAlert error={error} showDebugDetail={false} />
 				</div>
 			)}
 

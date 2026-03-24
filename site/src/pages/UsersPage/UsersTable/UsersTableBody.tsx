@@ -33,6 +33,7 @@ import {
 	UserLockIcon,
 } from "lucide-react";
 import type { FC } from "react";
+import { useNavigate } from "react-router";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 
@@ -85,6 +86,8 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 	oidcRoleSyncEnabled,
 	groupsByUserId,
 }) => {
+	const navigate = useNavigate();
+
 	return (
 		<ChooseOne>
 			<Cond condition={Boolean(isLoading)}>
@@ -149,7 +152,9 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						<TableCell>
 							<AvatarData
 								title={user.username}
-								subtitle={user.email}
+								subtitle={
+									user.is_service_account ? "Service Account" : user.email
+								}
 								src={user.avatar_url}
 							/>
 						</TableCell>
@@ -221,6 +226,10 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 												View activity {!canViewActivity && <PremiumBadge />}
 											</DropdownMenuItem>
 										)}
+
+										<DropdownMenuItem onClick={() => navigate(user.username)}>
+											Edit
+										</DropdownMenuItem>
 
 										{user.login_type === "password" && (
 											<DropdownMenuItem

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -115,6 +116,45 @@ func TestStatusWriter(t *testing.T) {
 		_, _, err := w.Hijack()
 		require.Error(t, err)
 		require.Equal(t, "hijacked", err.Error())
+	})
+
+	t.Run("Unwrap", func(t *testing.T) {
+		t.Parallel()
+		rec := httptest.NewRecorder()
+		w := &tracing.StatusWriter{ResponseWriter: rec}
+
+		got := w.Unwrap()
+		require.Equal(t, rec, got, "Unwrap should return the inner ResponseWriter")
+	})
+
+	t.Run("SetWriteDeadlineThroughMiddleware", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a real HTTP server so the ResponseWriter is backed by
+		// a net.Conn that supports SetWriteDeadline.
+		// http.ResponseController reaches it by calling Unwrap() on
+		// each wrapper in the chain.
+		var setDeadlineErr error
+		handlerCalled := false
+		handler := tracing.StatusWriterMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			handlerCalled = true
+			rc := http.NewResponseController(w)
+			setDeadlineErr = rc.SetWriteDeadline(time.Now().Add(time.Minute))
+			w.WriteHeader(http.StatusNoContent)
+		}))
+
+		srv := httptest.NewServer(handler)
+		t.Cleanup(srv.Close)
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.True(t, handlerCalled, "handler must be invoked")
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		// Assert in the test goroutine, not the handler goroutine.
+		require.NoError(t, setDeadlineErr, "SetWriteDeadline should succeed through StatusWriter")
 	})
 
 	t.Run("Middleware", func(t *testing.T) {

@@ -2,6 +2,7 @@
 package db2sdk
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -19,12 +20,14 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -192,13 +195,14 @@ func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser 
 
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
-		MinimalUser: MinimalUser(user),
-		Email:       user.Email,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
-		LastSeenAt:  user.LastSeenAt,
-		Status:      codersdk.UserStatus(user.Status),
-		LoginType:   codersdk.LoginType(user.LoginType),
+		MinimalUser:      MinimalUser(user),
+		Email:            user.Email,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
+		LastSeenAt:       user.LastSeenAt,
+		Status:           codersdk.UserStatus(user.Status),
+		LoginType:        codersdk.LoginType(user.LoginType),
+		IsServiceAccount: user.IsServiceAccount,
 	}
 }
 
@@ -219,6 +223,7 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
 	}
 }
 
@@ -228,6 +233,35 @@ func ReducedUserFromGroupMember(member database.GroupMember) codersdk.ReducedUse
 
 func ReducedUsersFromGroupMembers(members []database.GroupMember) []codersdk.ReducedUser {
 	return slice.List(members, ReducedUserFromGroupMember)
+}
+
+func UserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow) database.User {
+	return database.User{
+		ID:                 member.UserID,
+		Email:              member.UserEmail,
+		Username:           member.UserUsername,
+		HashedPassword:     member.UserHashedPassword,
+		CreatedAt:          member.UserCreatedAt,
+		UpdatedAt:          member.UserUpdatedAt,
+		Status:             member.UserStatus,
+		RBACRoles:          member.UserRbacRoles,
+		LoginType:          member.UserLoginType,
+		AvatarURL:          member.UserAvatarUrl,
+		Deleted:            member.UserDeleted,
+		LastSeenAt:         member.UserLastSeenAt,
+		QuietHoursSchedule: member.UserQuietHoursSchedule,
+		Name:               member.UserName,
+		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
+	}
+}
+
+func ReducedUserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow) codersdk.ReducedUser {
+	return ReducedUser(UserFromGroupMemberRow(member))
+}
+
+func ReducedUsersFromGroupMemberRows(members []database.GetGroupMembersByGroupIDPaginatedRow) []codersdk.ReducedUser {
+	return slice.List(members, ReducedUserFromGroupMemberRow)
 }
 
 func ReducedUsers(users []database.User) []codersdk.ReducedUser {
@@ -987,6 +1021,44 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 	return intc
 }
 
+func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
+	session := codersdk.AIBridgeSession{
+		ID: row.SessionID,
+		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
+			ID:        row.UserID,
+			Username:  row.UserUsername,
+			Name:      row.UserName,
+			AvatarURL: row.UserAvatarUrl,
+		}),
+		Providers: row.Providers,
+		Models:    row.Models,
+		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt: row.StartedAt,
+		Threads:   row.Threads,
+		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
+			InputTokens:  row.InputTokens,
+			OutputTokens: row.OutputTokens,
+		},
+	}
+	// Ensure non-nil slices for JSON serialization.
+	if session.Providers == nil {
+		session.Providers = []string{}
+	}
+	if session.Models == nil {
+		session.Models = []string{}
+	}
+	if row.Client != "" {
+		session.Client = &row.Client
+	}
+	if !row.EndedAt.IsZero() {
+		session.EndedAt = &row.EndedAt
+	}
+	if row.LastPrompt != "" {
+		session.LastPrompt = &row.LastPrompt
+	}
+	return session
+}
+
 func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
 	return codersdk.AIBridgeTokenUsage{
 		ID:                 usage.ID,
@@ -1049,4 +1121,199 @@ func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
 		return map[string]any{}
 	}
 	return m
+}
+
+func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
+	modelConfigID := &m.ModelConfigID.UUID
+	if !m.ModelConfigID.Valid {
+		modelConfigID = nil
+	}
+	createdBy := &m.CreatedBy.UUID
+	if !m.CreatedBy.Valid {
+		createdBy = nil
+	}
+	msg := codersdk.ChatMessage{
+		ID:            m.ID,
+		ChatID:        m.ChatID,
+		CreatedBy:     createdBy,
+		ModelConfigID: modelConfigID,
+		CreatedAt:     m.CreatedAt,
+		Role:          codersdk.ChatMessageRole(m.Role),
+	}
+	if m.Content.Valid {
+		parts, err := chatMessageParts(m)
+		if err == nil {
+			msg.Content = parts
+		}
+	}
+	usage := chatMessageUsage(m)
+	if usage != nil {
+		msg.Usage = usage
+	}
+	return msg
+}
+
+// chatMessageUsage builds a ChatMessageUsage from the database row,
+// returning nil when no token fields are populated.
+func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
+	inputTokens := nullInt64Ptr(m.InputTokens)
+	outputTokens := nullInt64Ptr(m.OutputTokens)
+	totalTokens := nullInt64Ptr(m.TotalTokens)
+	reasoningTokens := nullInt64Ptr(m.ReasoningTokens)
+	cacheCreationTokens := nullInt64Ptr(m.CacheCreationTokens)
+	cacheReadTokens := nullInt64Ptr(m.CacheReadTokens)
+	contextLimit := nullInt64Ptr(m.ContextLimit)
+
+	if inputTokens == nil && outputTokens == nil && totalTokens == nil &&
+		reasoningTokens == nil && cacheCreationTokens == nil &&
+		cacheReadTokens == nil && contextLimit == nil {
+		return nil
+	}
+
+	return &codersdk.ChatMessageUsage{
+		InputTokens:         inputTokens,
+		OutputTokens:        outputTokens,
+		TotalTokens:         totalTokens,
+		ReasoningTokens:     reasoningTokens,
+		CacheCreationTokens: cacheCreationTokens,
+		CacheReadTokens:     cacheReadTokens,
+		ContextLimit:        contextLimit,
+	}
+}
+
+// ChatQueuedMessage converts a queued message to its SDK representation.
+func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
+	// Queued messages are always written by current code via
+	// MarshalParts, so they are always current content version.
+	parts, err := chatMessageParts(database.ChatMessage{
+		Role: database.ChatMessageRoleUser,
+		Content: pqtype.NullRawMessage{
+			RawMessage: message.Content,
+			Valid:      len(message.Content) > 0,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
+	if err != nil {
+		parts = nil
+	}
+
+	return codersdk.ChatQueuedMessage{
+		ID:        message.ID,
+		ChatID:    message.ChatID,
+		Content:   parts,
+		CreatedAt: message.CreatedAt,
+	}
+}
+
+// ChatQueuedMessages converts a slice of database queued messages
+// to their SDK representation.
+func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
+	out := make([]codersdk.ChatQueuedMessage, 0, len(messages))
+	for _, message := range messages {
+		out = append(out, ChatQueuedMessage(message))
+	}
+	return out
+}
+
+func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+	parts, err := chatprompt.ParseContent(m)
+	if err != nil {
+		return nil, err
+	}
+	// Strip internal-only fields before API responses.
+	for i := range parts {
+		parts[i].StripInternal()
+	}
+	return parts, nil
+}
+
+func nullInt64Ptr(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Int64
+	return &value
+}
+
+// ChatDiffStatus converts a database.ChatDiffStatus to a
+// codersdk.ChatDiffStatus. When status is nil an empty value
+// containing only the chatID is returned.
+func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.ChatDiffStatus {
+	result := codersdk.ChatDiffStatus{
+		ChatID: chatID,
+	}
+	if status == nil {
+		return result
+	}
+
+	result.ChatID = status.ChatID
+	if status.Url.Valid {
+		u := strings.TrimSpace(status.Url.String)
+		if u != "" {
+			result.URL = &u
+		}
+	}
+	if result.URL == nil {
+		// Try to build a branch URL from the stored origin.
+		// Since this function does not have access to the API
+		// instance, we construct a GitHub provider directly as
+		// a best-effort fallback.
+		// TODO: This uses the default github.com API base URL,
+		// so branch URLs for GitHub Enterprise instances will
+		// be incorrect. To fix this, this function would need
+		// access to the external auth configs.
+		gp := gitprovider.New("github", "", nil)
+		if gp != nil {
+			if owner, repo, _, ok := gp.ParseRepositoryOrigin(status.GitRemoteOrigin); ok {
+				branchURL := gp.BuildBranchURL(owner, repo, status.GitBranch)
+				if branchURL != "" {
+					result.URL = &branchURL
+				}
+			}
+		}
+	}
+	if status.PullRequestState.Valid {
+		pullRequestState := strings.TrimSpace(status.PullRequestState.String)
+		if pullRequestState != "" {
+			result.PullRequestState = &pullRequestState
+		}
+	}
+	result.PullRequestTitle = status.PullRequestTitle
+	result.PullRequestDraft = status.PullRequestDraft
+	result.ChangesRequested = status.ChangesRequested
+	result.Additions = status.Additions
+	result.Deletions = status.Deletions
+	result.ChangedFiles = status.ChangedFiles
+	if status.AuthorLogin.Valid {
+		result.AuthorLogin = &status.AuthorLogin.String
+	}
+	if status.AuthorAvatarUrl.Valid {
+		result.AuthorAvatarURL = &status.AuthorAvatarUrl.String
+	}
+	if status.BaseBranch.Valid {
+		result.BaseBranch = &status.BaseBranch.String
+	}
+	if status.HeadBranch.Valid {
+		result.HeadBranch = &status.HeadBranch.String
+	}
+	if status.PrNumber.Valid {
+		result.PRNumber = &status.PrNumber.Int32
+	}
+	if status.Commits.Valid {
+		result.Commits = &status.Commits.Int32
+	}
+	if status.Approved.Valid {
+		result.Approved = &status.Approved.Bool
+	}
+	if status.ReviewerCount.Valid {
+		result.ReviewerCount = &status.ReviewerCount.Int32
+	}
+	if status.RefreshedAt.Valid {
+		refreshedAt := status.RefreshedAt.Time
+		result.RefreshedAt = &refreshedAt
+	}
+	staleAt := status.StaleAt
+	result.StaleAt = &staleAt
+
+	return result
 }

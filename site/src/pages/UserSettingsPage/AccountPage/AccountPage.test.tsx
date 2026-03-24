@@ -44,7 +44,9 @@ describe("AccountPage", () => {
 			renderWithAuth(<AccountPage />);
 			await fillAndSubmitForm();
 
-			const successMessage = await screen.findByText("Updated settings.");
+			const successMessage = await screen.findByText(
+				"Profile updated successfully.",
+			);
 			expect(successMessage).toBeDefined();
 			expect(API.updateProfile).toBeCalledTimes(1);
 			expect(API.updateProfile).toBeCalledWith("me", newData);
@@ -65,10 +67,10 @@ describe("AccountPage", () => {
 			renderWithAuth(<AccountPage />);
 			await fillAndSubmitForm();
 
-			const errorMessage = await screen.findByText(
+			const errorMessages = await screen.findAllByText(
 				"Username is already in use",
 			);
-			expect(errorMessage).toBeDefined();
+			expect(errorMessages.length).toBeGreaterThanOrEqual(2);
 			expect(API.updateProfile).toBeCalledTimes(1);
 			expect(API.updateProfile).toBeCalledWith("me", newData);
 		});

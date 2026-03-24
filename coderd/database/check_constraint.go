@@ -6,17 +6,30 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
-	CheckAPIKeysAllowListNotEmpty                CheckConstraint = "api_keys_allow_list_not_empty"                // api_keys
-	CheckOrganizationIDNotZero                   CheckConstraint = "organization_id_not_zero"                     // custom_roles
-	CheckOneTimePasscodeSet                      CheckConstraint = "one_time_passcode_set"                        // users
-	CheckUsersUsernameMinLength                  CheckConstraint = "users_username_min_length"                    // users
-	CheckMaxProvisionerLogsLength                CheckConstraint = "max_provisioner_logs_length"                  // provisioner_jobs
-	CheckMaxLogsLength                           CheckConstraint = "max_logs_length"                              // workspace_agents
-	CheckSubsystemsNotNone                       CheckConstraint = "subsystems_not_none"                          // workspace_agents
-	CheckWorkspaceBuildsDeadlineBelowMaxDeadline CheckConstraint = "workspace_builds_deadline_below_max_deadline" // workspace_builds
-	CheckTelemetryLockEventTypeConstraint        CheckConstraint = "telemetry_lock_event_type_constraint"         // telemetry_locks
-	CheckValidationMonotonicOrder                CheckConstraint = "validation_monotonic_order"                   // template_version_parameters
-	CheckUsageEventTypeCheck                     CheckConstraint = "usage_event_type_check"                       // usage_events
-	CheckGroupAclIsObject                        CheckConstraint = "group_acl_is_object"                          // workspaces
-	CheckUserAclIsObject                         CheckConstraint = "user_acl_is_object"                           // workspaces
+	CheckAPIKeysAllowListNotEmpty                    CheckConstraint = "api_keys_allow_list_not_empty"                      // api_keys
+	CheckChatModelConfigsCompressionThresholdCheck   CheckConstraint = "chat_model_configs_compression_threshold_check"     // chat_model_configs
+	CheckChatModelConfigsContextLimitCheck           CheckConstraint = "chat_model_configs_context_limit_check"             // chat_model_configs
+	CheckChatProvidersProviderCheck                  CheckConstraint = "chat_providers_provider_check"                      // chat_providers
+	CheckChatUsageLimitConfigDefaultLimitMicrosCheck CheckConstraint = "chat_usage_limit_config_default_limit_micros_check" // chat_usage_limit_config
+	CheckChatUsageLimitConfigPeriodCheck             CheckConstraint = "chat_usage_limit_config_period_check"               // chat_usage_limit_config
+	CheckChatUsageLimitConfigSingletonCheck          CheckConstraint = "chat_usage_limit_config_singleton_check"            // chat_usage_limit_config
+	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
+	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
+	CheckOneTimePasscodeSet                          CheckConstraint = "one_time_passcode_set"                              // users
+	CheckUsersChatSpendLimitMicrosCheck              CheckConstraint = "users_chat_spend_limit_micros_check"                // users
+	CheckUsersEmailNotEmpty                          CheckConstraint = "users_email_not_empty"                              // users
+	CheckUsersServiceAccountLoginType                CheckConstraint = "users_service_account_login_type"                   // users
+	CheckUsersUsernameMinLength                      CheckConstraint = "users_username_min_length"                          // users
+	CheckMcpServerConfigsAuthTypeCheck               CheckConstraint = "mcp_server_configs_auth_type_check"                 // mcp_server_configs
+	CheckMcpServerConfigsAvailabilityCheck           CheckConstraint = "mcp_server_configs_availability_check"              // mcp_server_configs
+	CheckMcpServerConfigsTransportCheck              CheckConstraint = "mcp_server_configs_transport_check"                 // mcp_server_configs
+	CheckMaxProvisionerLogsLength                    CheckConstraint = "max_provisioner_logs_length"                        // provisioner_jobs
+	CheckMaxLogsLength                               CheckConstraint = "max_logs_length"                                    // workspace_agents
+	CheckSubsystemsNotNone                           CheckConstraint = "subsystems_not_none"                                // workspace_agents
+	CheckWorkspaceBuildsDeadlineBelowMaxDeadline     CheckConstraint = "workspace_builds_deadline_below_max_deadline"       // workspace_builds
+	CheckGroupAclIsObject                            CheckConstraint = "group_acl_is_object"                                // workspaces
+	CheckUserAclIsObject                             CheckConstraint = "user_acl_is_object"                                 // workspaces
+	CheckTelemetryLockEventTypeConstraint            CheckConstraint = "telemetry_lock_event_type_constraint"               // telemetry_locks
+	CheckValidationMonotonicOrder                    CheckConstraint = "validation_monotonic_order"                         // template_version_parameters
+	CheckUsageEventTypeCheck                         CheckConstraint = "usage_event_type_check"                             // usage_events
 )

@@ -16,7 +16,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,8 +38,11 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentdesktop"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -101,6 +103,7 @@ type Options struct {
 	Execer                       agentexec.Execer
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	GitAPIOptions                []agentgit.Option
 	Clock                        quartz.Clock
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
@@ -216,6 +219,7 @@ func New(options Options) Agent {
 
 		devcontainers:              options.Devcontainers,
 		containerAPIOptions:        options.DevcontainerAPIOptions,
+		gitAPIOptions:              options.GitAPIOptions,
 		socketPath:                 options.SocketPath,
 		socketServerEnabled:        options.SocketServerEnabled,
 		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
@@ -301,8 +305,12 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+	gitAPIOptions       []agentgit.Option
 
-	filesAPI *agentfiles.API
+	filesAPI   *agentfiles.API
+	gitAPI     *agentgit.API
+	processAPI *agentproc.API
+	desktopAPI *agentdesktop.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -374,8 +382,20 @@ func (a *agent) init() {
 
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
-
+	pathStore := agentgit.NewPathStore()
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore, func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	})
+	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
+	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
+	desktop := agentdesktop.NewPortableDesktop(
+		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
+	)
+	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -407,7 +427,7 @@ func (a *agent) initSocketServer() {
 		agentsocket.WithPath(a.socketPath),
 	)
 	if err != nil {
-		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
+		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
 		return
 	}
 
@@ -417,7 +437,12 @@ func (a *agent) initSocketServer() {
 
 // startBoundaryLogProxyServer starts the boundary log proxy socket server.
 func (a *agent) startBoundaryLogProxyServer() {
-	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath)
+	if a.boundaryLogProxySocketPath == "" {
+		a.logger.Warn(a.hardCtx, "boundary log proxy socket path not defined; not starting proxy")
+		return
+	}
+
+	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath, a.prometheusRegistry)
 	if err := proxy.Start(); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
 		return
@@ -1016,6 +1041,13 @@ func (a *agent) run() (retErr error) {
 			a.logger.Debug(a.hardCtx, "error closing drpc connection", slog.Error(cErr))
 		}
 	}()
+
+	// The socket server accepts requests from processes running inside the workspace and forwards
+	// some of the requests to Coderd over the DRPC connection.
+	if a.socketServer != nil {
+		a.socketServer.SetAgentAPI(aAPI)
+		defer a.socketServer.ClearAgentAPI()
+	}
 
 	// A lot of routines need the agent API / tailnet API connection.  We run them in their own
 	// goroutines in parallel, but errors in any routine will cause them all to exit so we can
@@ -1844,7 +1876,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		}()
 	}
 	wg.Wait()
-	sort.Float64s(durations)
+	slices.Sort(durations)
 	durationsLength := len(durations)
 	switch {
 	case durationsLength == 0:
@@ -2028,6 +2060,14 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+
+	if err := a.processAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
+	}
+
+	if err := a.desktopAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

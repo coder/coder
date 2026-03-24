@@ -5,7 +5,7 @@ import {
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
-import { withGlobalSnackbar, withProxyProvider } from "testHelpers/storybook";
+import { withProxyProvider, withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { AppLink } from "./AppLink";
@@ -65,7 +65,7 @@ export const ExternalApp: Story = {
 };
 
 export const ExternalAppNotInstalled: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	args: {
 		workspace: MockWorkspace,
 		app: {

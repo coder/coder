@@ -2,7 +2,7 @@ import { MockAuthMethodsAll, MockUserOwner } from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
+	withToaster,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -71,7 +71,7 @@ const meta: Meta<typeof UsersPage> = {
 	title: "pages/UsersPage",
 	component: UsersPage,
 	parameters,
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	args: {
 		defaultNewPassword: "edWbqYiaVpEiEWwI",
 	},
@@ -105,7 +105,7 @@ export const SuspendUserSuccess: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Suspend" }));
-		await within(document.body).findByText("Successfully suspended the user.");
+		await within(document.body).findByText(/suspended successfully/);
 	},
 };
 
@@ -124,7 +124,7 @@ export const SuspendUserError: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Suspend" }));
-		await within(document.body).findByText("Error suspending user.");
+		await within(document.body).findByText(/Error suspending user/);
 	},
 };
 
@@ -153,7 +153,7 @@ export const DeleteUserSuccess: Story = {
 		const input = within(dialog).getByLabelText("Name of the user to delete");
 		await user.type(input, MockUsers[0].username);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-		await within(document.body).findByText("Successfully deleted the user.");
+		await within(document.body).findByText(/deleted successfully/);
 	},
 };
 
@@ -174,7 +174,7 @@ export const DeleteUserError: Story = {
 		const input = within(dialog).getByLabelText("Name of the user to delete");
 		await user.type(input, MockUsers[0].username);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-		await within(document.body).findByText("Error deleting user.");
+		await within(document.body).findByText(/Error deleting user/);
 	},
 };
 
@@ -218,7 +218,7 @@ export const ActivateUserSuccess: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await within(document.body).findByText("Successfully activated the user.");
+		await within(document.body).findByText(/activated successfully/);
 	},
 };
 
@@ -238,7 +238,7 @@ export const ActivateUserError: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await within(document.body).findByText("Error activating user.");
+		await within(document.body).findByText(/Error activating user/);
 	},
 };
 
@@ -277,9 +277,7 @@ export const ResetUserPasswordSuccess: Story = {
 		await user.click(
 			within(dialog).getByRole("button", { name: "Reset password" }),
 		);
-		await within(document.body).findByText(
-			"Successfully updated the user password.",
-		);
+		await within(document.body).findByText(/password .* updated successfully/i);
 	},
 };
 
@@ -303,9 +301,7 @@ export const ResetUserPasswordError: Story = {
 		await user.click(
 			within(dialog).getByRole("button", { name: "Reset password" }),
 		);
-		await within(document.body).findByText(
-			"Error on resetting the user password.",
-		);
+		await within(document.body).findByText(/Error resetting password/i);
 	},
 };
 
@@ -355,7 +351,7 @@ export const UpdateUserRoleSuccess: Story = {
 
 		await user.click(within(userRow).getByLabelText("Edit user roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
-		await screen.findByText("Successfully updated the user roles.");
+		await screen.findByText(/roles updated successfully/);
 	},
 };
 
@@ -371,7 +367,7 @@ export const UpdateUserRoleError: Story = {
 
 		await user.click(within(userRow).getByLabelText("Edit user roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
-		await screen.findByText("Error on updating the user roles.");
+		await screen.findByText(/Error updating user roles/);
 	},
 };
 

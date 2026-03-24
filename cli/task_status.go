@@ -90,7 +90,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				return err
 			}
 
-			tsr := toStatusRow(task)
+			tsr := toStatusRow(task, r.clock.Now())
 			out, err := formatter.Format(ctx, []taskStatusRow{tsr})
 			if err != nil {
 				return xerrors.Errorf("format task status: %w", err)
@@ -112,7 +112,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				}
 
 				// Only print if something changed
-				newStatusRow := toStatusRow(task)
+				newStatusRow := toStatusRow(task, r.clock.Now())
 				if !taskStatusRowEqual(lastStatusRow, newStatusRow) {
 					out, err := formatter.Format(ctx, []taskStatusRow{newStatusRow})
 					if err != nil {
@@ -166,10 +166,10 @@ func taskStatusRowEqual(r1, r2 taskStatusRow) bool {
 		taskStateEqual(r1.CurrentState, r2.CurrentState)
 }
 
-func toStatusRow(task codersdk.Task) taskStatusRow {
+func toStatusRow(task codersdk.Task, now time.Time) taskStatusRow {
 	tsr := taskStatusRow{
 		Task:       task,
-		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
+		ChangedAgo: now.Sub(task.UpdatedAt).Truncate(time.Second).String() + " ago",
 	}
 	tsr.Healthy = task.WorkspaceAgentHealth != nil &&
 		task.WorkspaceAgentHealth.Healthy &&
@@ -178,7 +178,7 @@ func toStatusRow(task codersdk.Task) taskStatusRow {
 		!task.WorkspaceAgentLifecycle.ShuttingDown()
 
 	if task.CurrentState != nil {
-		tsr.ChangedAgo = time.Since(task.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
+		tsr.ChangedAgo = now.Sub(task.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
 	}
 	return tsr
 }

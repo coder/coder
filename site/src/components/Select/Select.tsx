@@ -39,7 +39,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	>
 		{children}
 		<SelectPrimitive.Icon asChild>
-			<ChevronDownIcon className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
+			<ChevronDownIcon className="size-icon-sm cursor-pointer text-content-secondary transition-colors hover:text-content-primary group-hover:text-content-primary" />
 		</SelectPrimitive.Icon>
 	</SelectPrimitive.Trigger>
 );

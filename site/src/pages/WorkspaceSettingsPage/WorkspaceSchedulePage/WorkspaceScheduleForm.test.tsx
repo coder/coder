@@ -289,8 +289,7 @@ describe("templateInheritance", () => {
 		expect(startTimeInput).toBeDisabled();
 
 		const timezoneInput = await screen.findByLabelText("Timezone");
-		// MUI's input is wrapped in a div so we look at the aria-attribute instead
-		expect(timezoneInput).toHaveAttribute("aria-disabled");
+		expect(timezoneInput).toBeDisabled();
 
 		for (const label of autoStartDayLabels) {
 			const checkbox = await screen.findByLabelText(label);
@@ -323,8 +322,7 @@ describe("templateInheritance", () => {
 		expect(startTimeInput).toBeEnabled();
 
 		const timezoneInput = await screen.findByLabelText("Timezone");
-		// MUI's input is wrapped in a div so we look at the aria-attribute instead
-		expect(timezoneInput).not.toHaveAttribute("aria-disabled");
+		expect(timezoneInput).toBeEnabled();
 
 		for (const label of enabledDayLabels) {
 			const checkbox = await screen.findByLabelText(label);
@@ -375,8 +373,7 @@ describe("templateInheritance", () => {
 		expect(startTimeInput).toBeDisabled();
 
 		const timezoneInput = await screen.findByLabelText("Timezone");
-		// MUI's input is wrapped in a div so we look at the aria-attribute instead
-		expect(timezoneInput).toHaveAttribute("aria-disabled");
+		expect(timezoneInput).toBeDisabled();
 
 		for (const label of autoStartDayLabels) {
 			const checkbox = await screen.findByLabelText(label);

@@ -1,3 +1,4 @@
+import { getErrorDetail } from "api/errors";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -12,7 +13,6 @@ import {
 	updatePreferenceSettings,
 } from "api/queries/users";
 import type { NotificationTemplate } from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Switch } from "components/Switch/Switch";
 import {
@@ -33,6 +33,7 @@ import type { Permissions } from "modules/permissions";
 import { type FC, Fragment, useEffect } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
@@ -81,10 +82,12 @@ const NotificationsPage: FC = () => {
 		disableMutation
 			.mutateAsync(disabledId)
 			.then(() => {
-				displaySuccess("Notification has been disabled");
+				toast.success("Notification has been disabled.");
 			})
-			.catch(() => {
-				displayError("Error disabling notification");
+			.catch((error) => {
+				toast.error("Error disabling notification.", {
+					description: getErrorDetail(error),
+				});
 			});
 	}, [searchParams.delete, disabledId, disableMutation]);
 
@@ -146,13 +149,16 @@ const NotificationsPage: FC = () => {
 															},
 															{
 																onSuccess: () => {
-																	displaySuccess(
-																		"Notification preferences updated",
+																	toast.success(
+																		"Notification preferences updated.",
 																	);
 																},
-																onError: () => {
-																	displayError(
-																		"Error updating notification preferences",
+																onError: (error) => {
+																	toast.error(
+																		"Error updating notification preferences.",
+																		{
+																			description: getErrorDetail(error),
+																		},
 																	);
 																},
 															},
@@ -193,13 +199,16 @@ const NotificationsPage: FC = () => {
 																		},
 																		{
 																			onSuccess: () => {
-																				displaySuccess(
-																					"Notification preferences updated",
+																				toast.success(
+																					"Notification preferences updated.",
 																				);
 																			},
-																			onError: () => {
-																				displayError(
-																					"Error updating notification preferences",
+																			onError: (error) => {
+																				toast.error(
+																					"Error updating notification preferences.",
+																					{
+																						description: getErrorDetail(error),
+																					},
 																				);
 																			},
 																		},

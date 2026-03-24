@@ -1,0 +1,458 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type * as TypesGen from "api/typesGenerated";
+import type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+import { useEffect, useRef } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { AgentChatInput, type UploadState } from "./AgentChatInput";
+
+const defaultModelOptions = [
+	{
+		id: "openai:gpt-4o",
+		provider: "openai",
+		model: "gpt-4o",
+		displayName: "GPT-4o",
+	},
+] as const;
+
+const meta: Meta<typeof AgentChatInput> = {
+	title: "pages/AgentsPage/AgentChatInput",
+	component: AgentChatInput,
+	args: {
+		onSend: fn(),
+		onContentChange: fn(),
+		onModelChange: fn(),
+		initialValue: "",
+		isDisabled: false,
+		isLoading: false,
+		selectedModel: defaultModelOptions[0].id,
+		modelOptions: [...defaultModelOptions],
+		modelSelectorPlaceholder: "Select model",
+		hasModelOptions: true,
+		inputStatusText: null,
+		modelCatalogStatusMessage: null,
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof AgentChatInput>;
+
+export const Default: Story = {};
+
+export const DisablesSendUntilInput: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+
+		expect(sendButton).toBeDisabled();
+	},
+};
+
+export const SendsAndClearsInput: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Lexical editor to initialize and render the
+		// initial value text into the DOM before interacting.
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => {
+			expect(sendButton).toBeEnabled();
+		});
+
+		await userEvent.click(sendButton);
+
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
+export const DisabledInput: Story = {
+	args: {
+		isDisabled: true,
+		initialValue: "Should not send",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+
+		// The editor should be non-editable so users cannot click
+		// into it and type (e.g. archived chats).
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor).toHaveAttribute("contenteditable", "false");
+		});
+	},
+};
+
+export const NoModelOptions: Story = {
+	args: {
+		isDisabled: false,
+		hasModelOptions: false,
+		initialValue: "Model required",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const LoadingSpinner: Story = {
+	args: {
+		isDisabled: true,
+		isLoading: true,
+		initialValue: "Sending...",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		expect(sendButton).toBeDisabled();
+		// The Spinner component renders an SVG with a "Loading spinner"
+		// title when isLoading is true.
+		const spinnerSvg = sendButton.querySelector("svg");
+		expect(spinnerSvg).toBeTruthy();
+		expect(spinnerSvg?.querySelector("title")?.textContent).toBe(
+			"Loading spinner",
+		);
+	},
+};
+
+export const LoadingDisablesSend: Story = {
+	args: {
+		isDisabled: false,
+		isLoading: true,
+		initialValue: "Another message",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		// The send button should be disabled while a previous send is
+		// in-flight, even though the textarea has content.
+		expect(sendButton).toBeDisabled();
+	},
+};
+
+export const Streaming: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: false,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingInterruptPending: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: true,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+};
+
+const longContent = Array.from(
+	{ length: 60 },
+	(_, i) =>
+		`Line ${i + 1}: This is a long line of text used to test overflow and scrollability of the chat input editor.`,
+).join("\n");
+
+export const LongContentScrollable: Story = {
+	args: {
+		initialValue: longContent,
+	},
+};
+
+// Tiny 1x1 transparent PNG as data URI for attachment previews.
+const TINY_PNG =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+const createMockFile = (name: string, type: string) =>
+	new File(["mock-data"], name, { type });
+
+export const WithAttachments: Story = {
+	args: (() => {
+		const file1 = createMockFile("screenshot.png", "image/png");
+		const file2 = createMockFile("diagram.jpg", "image/jpeg");
+		const attachments = [file1, file2];
+		return {
+			attachments,
+			uploadStates: new Map<File, UploadState>([
+				[file1, { status: "uploaded", fileId: "f1" }],
+				[file2, { status: "uploaded", fileId: "f2" }],
+			]),
+			previewUrls: new Map<File, string>([
+				[file1, TINY_PNG],
+				[file2, TINY_PNG],
+			]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Here are the images",
+		};
+	})(),
+};
+
+export const WithUploadingAttachment: Story = {
+	args: (() => {
+		const file = createMockFile("uploading.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Waiting for upload",
+		};
+	})(),
+};
+
+export const UploadingDisablesSend: Story = {
+	args: (() => {
+		const file = createMockFile("uploading.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Message with uploading image",
+		};
+	})(),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		// Send should be disabled while an upload is still in progress,
+		// even though the editor has text content.
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		expect(sendButton).toBeDisabled();
+		// Enter key should not trigger send while uploading.
+		const editor = canvas.getByRole("textbox");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onSend).not.toHaveBeenCalled();
+	},
+};
+
+export const WithAttachmentError: Story = {
+	args: (() => {
+		const file = createMockFile("broken.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "error", error: "Upload failed: server error" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Upload had an error",
+		};
+	})(),
+};
+
+/** File reference chip rendered inline with text in the editor. */
+export const WithFileReference: Story = {
+	render: (args) => {
+		const ref = useRef<ChatMessageInputRef>(null);
+
+		useEffect(() => {
+			const handle = ref.current;
+			if (!handle) return;
+			handle.addFileReference({
+				fileName: "site/src/components/Button.tsx",
+				startLine: 42,
+				endLine: 42,
+				content: "export const Button = ...",
+			});
+		}, []);
+
+		return <AgentChatInput {...args} inputRef={ref} />;
+	},
+	args: {
+		initialValue: "Can you refactor ",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
+		});
+	},
+};
+
+/** Multiple file reference chips rendered inline with text. */
+export const WithMultipleFileReferences: Story = {
+	render: (args) => {
+		const ref = useRef<ChatMessageInputRef>(null);
+
+		useEffect(() => {
+			const handle = ref.current;
+			if (!handle) return;
+			handle.addFileReference({
+				fileName: "api/handler.go",
+				startLine: 1,
+				endLine: 50,
+				content: "...",
+			});
+			handle.insertText(" and ");
+			handle.addFileReference({
+				fileName: "api/handler_test.go",
+				startLine: 10,
+				endLine: 30,
+				content: "...",
+			});
+		}, []);
+
+		return <AgentChatInput {...args} inputRef={ref} />;
+	},
+	args: {
+		initialValue: "Compare ",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
+			expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
+		});
+	},
+};
+
+export const AttachmentsOnly: Story = {
+	args: (() => {
+		const file = createMockFile("photo.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "f-only" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "",
+		};
+	})(),
+};
+
+// ── MCP server fixtures ────────────────────────────────────────
+
+const now = "2026-03-19T12:00:00.000Z";
+
+const makeMCPServer = (
+	overrides: Partial<TypesGen.MCPServerConfig> &
+		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
+): TypesGen.MCPServerConfig => ({
+	id: overrides.id,
+	display_name: overrides.display_name,
+	slug: overrides.slug,
+	description: overrides.description ?? "",
+	icon_url: overrides.icon_url ?? "",
+	transport: overrides.transport ?? "streamable_http",
+	url: overrides.url ?? "https://mcp.example.com/sse",
+	auth_type: overrides.auth_type ?? "none",
+	oauth2_client_id: overrides.oauth2_client_id,
+	has_oauth2_secret: overrides.has_oauth2_secret ?? false,
+	oauth2_auth_url: overrides.oauth2_auth_url,
+	oauth2_token_url: overrides.oauth2_token_url,
+	oauth2_scopes: overrides.oauth2_scopes,
+	api_key_header: overrides.api_key_header,
+	has_api_key: overrides.has_api_key ?? false,
+	has_custom_headers: overrides.has_custom_headers ?? false,
+	tool_allow_list: overrides.tool_allow_list ?? [],
+	tool_deny_list: overrides.tool_deny_list ?? [],
+	availability: overrides.availability ?? "default_on",
+	enabled: overrides.enabled ?? true,
+	created_at: overrides.created_at ?? now,
+	updated_at: overrides.updated_at ?? now,
+	auth_connected: overrides.auth_connected ?? false,
+});
+
+const sentryMCP = makeMCPServer({
+	id: "mcp-sentry",
+	display_name: "Sentry",
+	slug: "sentry",
+	icon_url: "/icon/widgets.svg",
+	availability: "force_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
+
+const linearMCP = makeMCPServer({
+	id: "mcp-linear",
+	display_name: "Linear",
+	slug: "linear",
+	availability: "default_on",
+	auth_type: "api_key",
+	enabled: true,
+});
+
+const githubMCP = makeMCPServer({
+	id: "mcp-github",
+	display_name: "GitHub",
+	slug: "github",
+	icon_url: "/icon/github.svg",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: false,
+	enabled: true,
+});
+
+const githubMCPConnected = { ...githubMCP, auth_connected: true };
+
+const mcpDefaults = {
+	onMCPSelectionChange: fn(),
+	onMCPAuthComplete: fn(),
+};
+
+// ── MCP stories ────────────────────────────────────────────────
+
+/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
+export const WithMCPServers: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+	},
+};
+
+/** MCP server needing OAuth — shows Auth button instead of toggle. */
+export const WithMCPNeedingAuth: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, githubMCP],
+		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+};
+
+/** No MCP servers active — shows only "MCP" label with chevron. */
+export const WithMCPNoneActive: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			{
+				...sentryMCP,
+				availability: "default_off",
+				auth_connected: false,
+			},
+			{
+				...linearMCP,
+				availability: "default_off",
+				auth_type: "oauth2",
+				auth_connected: false,
+			},
+		],
+		selectedMCPServerIds: [],
+	},
+};

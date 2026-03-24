@@ -70,6 +70,22 @@ Use the following `make` commands and scripts in development:
 - `make build` compiles binaries and release packages
 - `make install` installs binaries to `$GOPATH/bin`
 - `make test`
+- `make pre-commit` runs gen, fmt, lint, typos, and builds a slim binary
+- `make pre-commit-light` runs fmt and lint for shell, terraform, markdown,
+  helm, actions, and typos (skips gen, Go/TS lint+fmt, and binary build)
+- `make pre-push` runs heavier CI checks including tests (allowlisted)
+
+Install the git hooks to run these automatically:
+
+```sh
+git config core.hooksPath scripts/githooks
+```
+
+The hooks classify staged/changed files and select the appropriate target.
+Commits that only touch docs, shell, terraform, or other lightweight files
+run `make pre-commit-light` instead of the full `make pre-commit`, and
+`pre-push` is skipped entirely. Changes to Go, TypeScript, SQL, proto, or
+the Makefile trigger the full targets as before.
 
 ### Running Coder on development mode
 
@@ -239,8 +255,13 @@ characters long (no more than 72).
 
 Examples:
 
-- Good: `feat(api): add feature X`
-- Bad: `feat(api): added feature X` (past tense)
+- Good: `feat(coderd): add feature X`
+- Bad: `feat(coderd): added feature X` (past tense)
+
+Scopes must reference a real path in the repository (a directory or file stem)
+and must contain all changed files. For example, use `coderd/database` if all
+changes are within that directory. If changes span multiple top-level
+directories, omit the scope.
 
 A good rule of thumb for writing good commit messages is to recite:
 [If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
@@ -255,7 +276,7 @@ to use the original commit title instead of the PR title.
 Breaking changes can be triggered in two ways:
 
 - Add `!` to the commit message title, e.g.
-  `feat(api)!: remove deprecated endpoint /test`
+  `feat(coderd)!: remove deprecated endpoint /test`
 - Add the
   [`release/breaking`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fbreaking)
   label to a PR that has, or will be, merged into `main`.

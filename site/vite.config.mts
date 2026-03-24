@@ -1,12 +1,24 @@
 import * as path from "node:path";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
+import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
 const plugins: PluginOption[] = [
-	react(),
+	react({
+		babel: {
+			plugins: [],
+			overrides: [
+				{
+					test: /src\/(pages\/AgentsPage|components\/ai-elements)\//,
+					plugins: ["babel-plugin-react-compiler"],
+				},
+			],
+		},
+	}),
 	checker({
 		typescript: true,
 	}),
@@ -23,6 +35,9 @@ if (process.env.STATS !== undefined) {
 
 export default defineConfig({
 	plugins,
+	worker: {
+		format: "es",
+	},
 	publicDir: path.resolve(__dirname, "./static"),
 	build: {
 		outDir: path.resolve(__dirname, "./out"),
@@ -87,6 +102,14 @@ export default defineConfig({
 				target: process.env.CODER_HOST || "http://localhost:3000",
 				secure: process.env.NODE_ENV === "production",
 				configure: (proxy) => {
+					if (process.env.CODER_SESSION_TOKEN) {
+						proxy.on("proxyReq", (proxyReq) => {
+							proxyReq.setHeader(
+								"Coder-Session-Token",
+								process.env.CODER_SESSION_TOKEN!,
+							);
+						});
+					}
 					// Vite does not catch socket errors, and stops the webserver.
 					// As /logs endpoint can return HTTP 4xx status, we need to embrace
 					// Vite with a custom error handler to prevent from quitting.
@@ -96,6 +119,12 @@ export default defineConfig({
 								"origin",
 								process.env.CODER_HOST || "http://localhost:3000",
 							);
+							if (process.env.CODER_SESSION_TOKEN) {
+								proxyReq.setHeader(
+									"Coder-Session-Token",
+									process.env.CODER_SESSION_TOKEN!,
+								);
+							}
 						}
 
 						socket.on("error", (error) => {
@@ -135,7 +164,6 @@ export default defineConfig({
 			"@mui/material/CardActionArea",
 			"@mui/material/CardContent",
 			"@mui/material/Checkbox",
-			"@mui/material/Chip",
 			"@mui/material/CircularProgress",
 			"@mui/material/Collapse",
 			"@mui/material/CssBaseline",
@@ -162,7 +190,6 @@ export default defineConfig({
 			"@mui/material/Menu",
 			"@mui/material/MenuItem",
 			"@mui/material/MenuList",
-			"@mui/material/Paper",
 			"@mui/material/Radio",
 			"@mui/material/RadioGroup",
 			"@mui/material/Select",
@@ -170,7 +197,6 @@ export default defineConfig({
 			"@mui/material/Snackbar",
 			"@mui/material/Stack",
 			"@mui/material/SvgIcon",
-			"@mui/material/Switch",
 			"@mui/material/TableRow",
 			"@mui/material/TextField",
 			"@mui/material/ToggleButton",
@@ -196,10 +222,42 @@ export default defineConfig({
 		},
 	},
 	test: {
-		include: ["src/**/*.test.?(m)ts?(x)"],
-		globals: true,
-		environment: "jsdom",
-		setupFiles: ["@testing-library/jest-dom/vitest", "./test/vitestSetup.ts"],
-		silent: "passed-only",
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					include: ["src/**/*.test.?(m)ts?(x)"],
+					globals: true,
+					environment: "jsdom",
+					setupFiles: [
+						"@testing-library/jest-dom/vitest",
+						"./test/vitestSetup.ts",
+					],
+					silent: "passed-only",
+				},
+			},
+			// Storybook story tests via Playwright browser mode.
+			// Discovery handled by the storybookTest plugin via
+			// .storybook/main.ts `stories` config.
+			{
+				extends: true,
+				plugins: [
+					storybookTest({
+						configDir: path.join(__dirname, ".storybook"),
+					}),
+				],
+				test: {
+					name: "storybook",
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright(),
+						instances: [{ browser: "chromium" }],
+					},
+					setupFiles: [".storybook/vitest.setup.ts"],
+				},
+			},
+		],
 	},
 });

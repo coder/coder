@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
@@ -357,7 +356,7 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		}
 
-		defOrg, err := db.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+		defOrg, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 		SetupOrganization(t, s, db, user, defOrg.ID, def)
 		asserts = append(asserts, func(t *testing.T) {
@@ -555,7 +554,6 @@ func TestApplyGroupDifference(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			ctx = dbauthz.AsSystemRestricted(ctx)
 
 			org := dbgen.Organization(t, db, database.Organization{})
 			_, err := db.InsertAllUsersGroup(ctx, org.ID)

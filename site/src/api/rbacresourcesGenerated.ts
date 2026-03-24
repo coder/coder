@@ -41,6 +41,12 @@ export const RBACResourceActions: Partial<
 		read: "read boundary usage statistics",
 		update: "upsert boundary usage statistics",
 	},
+	chat: {
+		create: "create a new chat",
+		delete: "delete a chat",
+		read: "read chat messages and metadata",
+		update: "update chat title or settings",
+	},
 	connection_log: {
 		read: "read connection logs",
 		update: "upsert connection log entries",

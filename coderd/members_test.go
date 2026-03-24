@@ -1,12 +1,14 @@
 package coderd_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -132,6 +134,67 @@ func TestListMembers(t *testing.T) {
 	})
 }
 
+func TestGetOrgMembersFilter(t *testing.T) {
+	t.Parallel()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		OIDCConfig: &coderd.OIDCConfig{
+			AllowSignups: true,
+		},
+	})
+	first := coderdtest.CreateFirstUser(t, client)
+
+	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	coderdtest.UsersFilter(setupCtx, t, client, api.Database, nil, func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
+		res, err := client.OrganizationMembersPaginated(testCtx, first.OrganizationID, req)
+		require.NoError(t, err)
+		reduced := make([]codersdk.ReducedUser, len(res.Members))
+		for i, user := range res.Members {
+			reduced[i] = orgMemberToReducedUser(user)
+		}
+		return reduced
+	})
+}
+
+func TestGetOrgMembersPagination(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	coderdtest.UsersPagination(ctx, t, client, nil, func(req codersdk.UsersRequest) ([]codersdk.ReducedUser, int) {
+		res, err := client.OrganizationMembersPaginated(ctx, first.OrganizationID, req)
+		require.NoError(t, err)
+		reduced := make([]codersdk.ReducedUser, len(res.Members))
+		for i, user := range res.Members {
+			reduced[i] = orgMemberToReducedUser(user)
+		}
+		return reduced, res.Count
+	})
+}
+
 func onlyIDs(u codersdk.OrganizationMemberWithUserData) uuid.UUID {
 	return u.UserID
+}
+
+func orgMemberToReducedUser(user codersdk.OrganizationMemberWithUserData) codersdk.ReducedUser {
+	return codersdk.ReducedUser{
+		MinimalUser: codersdk.MinimalUser{
+			ID:        user.UserID,
+			Username:  user.Username,
+			Name:      user.Name,
+			AvatarURL: user.AvatarURL,
+		},
+		Email:      user.Email,
+		CreatedAt:  user.UserCreatedAt,
+		UpdatedAt:  user.UserUpdatedAt,
+		LastSeenAt: user.LastSeenAt,
+		Status:     user.Status,
+		LoginType:  user.LoginType,
+	}
 }

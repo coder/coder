@@ -7,6 +7,7 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getWorkspaceSharingSettingsKey } from "api/queries/organizations";
 import type {
 	WorkspaceACL,
 	WorkspaceGroup,
@@ -63,6 +64,14 @@ const aclWithUsersAndGroups: WorkspaceACL = {
 const meta: Meta<typeof WorkspaceSharingPageView> = {
 	title: "pages/WorkspaceSharingPageView",
 	component: WorkspaceSharingPageView,
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: { sharing_disabled: false },
+			},
+		],
+	},
 	args: {
 		workspace: MockWorkspace,
 		workspaceACL: emptyACL,

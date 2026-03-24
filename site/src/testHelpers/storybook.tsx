@@ -3,7 +3,7 @@ import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { Toaster } from "components/Toaster/Toaster";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import {
 	getPreferredProxy,
@@ -74,28 +74,64 @@ export const withDashboardProvider = (
 type MessageEvent = Record<"data", string>;
 type CallbackFn = (ev?: MessageEvent) => void;
 
+// parameters.webSocket accepts two formats:
+//
+//   Array — events are delivered to every socket (backward-compatible):
+//     webSocket: [{ event: "message", data: "..." }]
+//
+//   Record keyed by URL substring — events are delivered only to
+//   sockets whose URL contains the key:
+//     webSocket: {
+//       "/api/experimental/chats/": [{ event: "message", data: "..." }],
+//       "/api/experimental/workspaceagents/": [{ event: "message", data: "..." }],
+//     }
 export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
-	const events = parameters.webSocket;
+	const param = parameters.webSocket;
 
-	if (!events) {
+	if (!param) {
 		console.warn("You forgot to add `parameters.webSocket` to your story");
 		return <Story />;
 	}
 
-	const listeners = new Map<string, CallbackFn>();
-	let callEventsDelay: number;
+	const isRouted = !Array.isArray(param);
+	const broadcastEvents = isRouted ? [] : param;
+	const routedEvents = isRouted ? param : {};
 
 	window.WebSocket = class WebSocket {
 		public readyState = 1;
+		public binaryType = "blob";
+
+		#listeners = new Map<string, CallbackFn>();
+		#callEventsDelay: number | undefined;
+		#url: string;
+
+		constructor(url?: string) {
+			this.#url = url ?? "";
+		}
+
+		send() {}
 
 		addEventListener(type: string, callback: CallbackFn) {
-			listeners.set(type, callback);
+			this.#listeners.set(type, callback);
+
+			// Determine which events this socket should receive.
+			let events = broadcastEvents;
+			if (isRouted) {
+				const matchingKey = Object.keys(routedEvents).find((key) =>
+					this.#url.includes(key),
+				);
+				events = matchingKey ? routedEvents[matchingKey] : [];
+			}
+
+			if (events.length === 0) {
+				return;
+			}
 
 			// Runs when the last event listener is added
-			clearTimeout(callEventsDelay);
-			callEventsDelay = window.setTimeout(() => {
+			clearTimeout(this.#callEventsDelay);
+			this.#callEventsDelay = window.setTimeout(() => {
 				for (const entry of events) {
-					const callback = listeners.get(entry.event);
+					const callback = this.#listeners.get(entry.event);
 
 					if (callback) {
 						entry.event === "message"
@@ -139,10 +175,10 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-export const withGlobalSnackbar = (Story: FC) => (
+export const withToaster = (Story: FC) => (
 	<>
 		<Story />
-		<GlobalSnackbar />
+		<Toaster />
 	</>
 );
 

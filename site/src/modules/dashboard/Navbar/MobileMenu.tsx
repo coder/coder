@@ -13,7 +13,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import {
@@ -24,6 +23,7 @@ import {
 } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
+import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 
@@ -151,7 +151,9 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 									e.preventDefault();
 
 									if (!p.healthy) {
-										displayError("Please select a healthy workspace proxy.");
+										toast.error("Failed to select proxy.", {
+											description: "Please select a healthy workspace proxy.",
+										});
 										return;
 									}
 

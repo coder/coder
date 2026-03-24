@@ -8,7 +8,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
+	withToaster,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -48,7 +48,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: { createTemplates: true, createUser: true },
 	},
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
 
 export default meta;
@@ -156,7 +156,7 @@ export const DisableValidTemplate: Story = {
 		},
 	],
 	play: async ({ canvasElement }) => {
-		await within(document.body).findByText("Notification has been disabled");
+		await within(document.body).findByText("Notification has been disabled.");
 		const switchEl = await within(canvasElement).findByLabelText(
 			templateToDisable.name,
 		);
@@ -182,7 +182,7 @@ export const DisableInvalidTemplate: Story = {
 		},
 	],
 	play: async () => {
-		await within(document.body).findByText("Error disabling notification");
+		await within(document.body).findByText("Error disabling notification.");
 	},
 };
 

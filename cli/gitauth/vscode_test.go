@@ -61,4 +61,31 @@ func TestOverrideVSCodeConfigs(t *testing.T) {
 			require.Equal(t, "something", mapping["hotdogs"])
 		}
 	})
+	t.Run("NoOverwrite", func(t *testing.T) {
+		t.Parallel()
+		fs := afero.NewMemMapFs()
+		mapping := map[string]interface{}{
+			"git.useIntegratedAskPass": true,
+			"github.gitAuthentication": true,
+			"other.setting":            "preserved",
+		}
+		data, err := json.Marshal(mapping)
+		require.NoError(t, err)
+		for _, configPath := range configPaths {
+			err = afero.WriteFile(fs, configPath, data, 0o600)
+			require.NoError(t, err)
+		}
+		err = gitauth.OverrideVSCodeConfigs(fs)
+		require.NoError(t, err)
+		for _, configPath := range configPaths {
+			data, err := afero.ReadFile(fs, configPath)
+			require.NoError(t, err)
+			mapping := map[string]interface{}{}
+			err = json.Unmarshal(data, &mapping)
+			require.NoError(t, err)
+			require.Equal(t, true, mapping["git.useIntegratedAskPass"])
+			require.Equal(t, true, mapping["github.gitAuthentication"])
+			require.Equal(t, "preserved", mapping["other.setting"])
+		}
+	})
 }
