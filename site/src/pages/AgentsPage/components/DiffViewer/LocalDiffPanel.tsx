@@ -1,3 +1,4 @@
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import type { FC, RefObject } from "react";
@@ -18,16 +19,19 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 	diffStyle,
 	chatInputRef,
 }) => {
-	const parsedFiles = (() => {
+	const { parsedFiles, parseError } = (() => {
 		const diff = repo.unified_diff;
 		if (!diff) {
-			return [];
+			return { parsedFiles: [] as FileDiffMetadata[], parseError: undefined };
 		}
 		try {
 			const patches = parsePatchFiles(diff);
-			return patches.flatMap((p) => p.files);
-		} catch {
-			return [];
+			return {
+				parsedFiles: patches.flatMap((p) => p.files),
+				parseError: undefined,
+			};
+		} catch (e) {
+			return { parsedFiles: [] as FileDiffMetadata[], parseError: e };
 		}
 	})();
 
@@ -38,6 +42,13 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 			emptyMessage="No file changes."
 			diffStyle={diffStyle}
 			chatInputRef={chatInputRef}
+			error={
+				parseError
+					? new Error(
+							"Failed to parse local diff data. The diff output may be malformed.",
+						)
+					: undefined
+			}
 		/>
 	);
 };

@@ -16,6 +16,7 @@ import { FileIcon } from "components/FileIcon/FileIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ChevronRightIcon } from "lucide-react";
+import { FileDiffFallback, isFileDiffValid } from "./FileDiffErrorBoundary";
 import {
 	type ComponentProps,
 	type FC,
@@ -849,15 +850,21 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 											: undefined
 									}
 								>
-									<LazyFileDiff
-										fileDiff={fileDiff}
-										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
-										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
-										renderAnnotation={renderAnnotation}
-										selectedLines={
-											perFileSelectedLines?.get(fileDiff.name) ?? null
-										}
-									/>
+									{isFileDiffValid(fileDiff) ? (
+										<LazyFileDiff
+											fileDiff={fileDiff}
+											options={
+												perFileOptions?.get(fileDiff.name) ?? fileOptions
+											}
+											lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
+											renderAnnotation={renderAnnotation}
+											selectedLines={
+												perFileSelectedLines?.get(fileDiff.name) ?? null
+											}
+										/>
+									) : (
+										<FileDiffFallback fileName={fileDiff.name} />
+									)}
 									{isLast && (
 										<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
 											{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}

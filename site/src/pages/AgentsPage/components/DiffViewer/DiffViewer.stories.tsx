@@ -402,3 +402,68 @@ export const CrossSideAdditionsToDeletions: Story = {
 	},
 	play: expectAnnotationTextarea,
 };
+
+// -------------------------------------------------------------------
+// Corrupted file validation story
+// -------------------------------------------------------------------
+
+// Three-file diff where the middle file is corrupted to trigger the
+// pre-render validation fallback. The renderer never sees the bad
+// data — isFileDiffValid() catches it and shows FileDiffFallback.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const threeFileDiff = [
+"diff --git a/src/alpha.ts b/src/alpha.ts",
+"index abc1234..def5678 100644",
+"--- a/src/alpha.ts",
+"+++ b/src/alpha.ts",
+"@@ -1,3 +1,4 @@",
+" const a = 1;",
+"+const b = 2;",
+" const c = 3;",
+" export { a };",
+"diff --git a/src/beta.ts b/src/beta.ts",
+"index abc1234..def5678 100644",
+"--- a/src/beta.ts",
+"+++ b/src/beta.ts",
+"@@ -1,3 +1,4 @@",
+" const x = 10;",
+"+const y = 20;",
+" const z = 30;",
+" export { x };",
+"diff --git a/src/gamma.ts b/src/gamma.ts",
+"index abc1234..def5678 100644",
+"--- a/src/gamma.ts",
+"+++ b/src/gamma.ts",
+"@@ -1,3 +1,4 @@",
+" const p = 100;",
+"+const q = 200;",
+" const r = 300;",
+" export { p };",
+].join("\n");
+
+const threeFiles = parsePatchFiles(threeFileDiff).flatMap((p) => p.files);
+// Corrupt the second file by emptying its additionLines while
+// leaving hunk metadata intact. This makes the hunk indices
+// point past the end of the line arrays — exactly the mismatch
+// that causes DiffHunksRenderer.processDiffResult to throw.
+const corruptedFiles = threeFiles.map((f, i) => {
+	if (i !== 1) return f;
+	return { ...f, additionLines: [] };
+});
+
+export const FileRenderError: Story = {
+	args: {
+		parsedFiles: corruptedFiles,
+	},
+	play: async ({ canvasElement }) => {
+		// The corrupted file should show a validation fallback while
+		// the other two files render their diffs normally.
+		await waitFor(() => {
+			const fallback = canvasElement.querySelector(
+				"[data-testid='file-diff-fallback']",
+			);
+			expect(fallback).not.toBeNull();
+			expect(fallback?.textContent).toContain("src/beta.ts");
+		});
+	},
+};

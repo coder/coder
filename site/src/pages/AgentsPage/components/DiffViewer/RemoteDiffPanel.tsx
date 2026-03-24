@@ -98,9 +98,9 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		setDiffVersion((v) => v + 1);
 	}
 
-	const parsedFiles = (() => {
+	const { parsedFiles, parseError } = (() => {
 		if (!diffContent) {
-			return [] as FileDiffMetadata[];
+			return { parsedFiles: [] as FileDiffMetadata[], parseError: undefined };
 		}
 		try {
 			// The cacheKeyPrefix enables the worker pool's LRU cache
@@ -117,9 +117,12 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 				diffContent,
 				`chat-${chatId}-v${diffVersion}`,
 			);
-			return patches.flatMap((p) => p.files);
-		} catch {
-			return [] as FileDiffMetadata[];
+			return {
+				parsedFiles: patches.flatMap((p) => p.files),
+				parseError: undefined,
+			};
+		} catch (e) {
+			return { parsedFiles: [] as FileDiffMetadata[], parseError: e };
 		}
 	})();
 
@@ -203,7 +206,15 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
 				isLoading={diffContentsQuery.isLoading}
-				error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
+				error={
+					diffContentsQuery.isError
+						? diffContentsQuery.error
+						: parseError
+							? new Error(
+									"Failed to parse diff data. The upstream response may be malformed or truncated \u2014 try refreshing.",
+								)
+							: undefined
+				}
 				chatInputRef={chatInputRef}
 				scrollToFile={scrollTarget}
 				onScrollToFileComplete={handleScrollComplete}
