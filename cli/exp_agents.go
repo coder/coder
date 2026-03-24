@@ -144,6 +144,7 @@ func (r *RootCmd) agentsCommand() *serpent.Command {
 				inv.Stdout,
 				termenv.WithProfile(termenv.TrueColor),
 			))
+			lipgloss.SetHasDarkBackground(true)
 
 			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID)
 			program := tea.NewProgram(
