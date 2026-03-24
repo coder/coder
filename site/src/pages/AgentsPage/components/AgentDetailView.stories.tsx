@@ -1,6 +1,6 @@
 import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
@@ -453,25 +453,44 @@ const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
 	return messages;
 };
 
+const scrollStoryDecorators: Decorator[] = [
+	(Story) => (
+		<div
+			style={{
+				height: "600px",
+				display: "flex",
+				flexDirection: "column",
+			}}
+		>
+			<Story />
+		</div>
+	),
+];
+
+const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
+	await waitFor(() => {
+		expect(scrollContainer.scrollHeight).toBeGreaterThan(
+			scrollContainer.clientHeight,
+		);
+	});
+};
+
+const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
+	const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+	scrollContainer.scrollTop = -maxScroll;
+	if (Math.abs(scrollContainer.scrollTop) < 100) {
+		scrollContainer.scrollTop = maxScroll;
+	}
+	scrollContainer.dispatchEvent(new Event("scroll"));
+};
+
 /** Scroll-to-bottom button appears after scrolling up in a long
  *  conversation, and clicking it returns to the bottom. */
 export const ScrollToBottomButton: Story = {
 	args: {
 		store: buildStoreWithMessages(buildLongConversation(40)),
 	},
-	decorators: [
-		(Story) => (
-			<div
-				style={{
-					height: "600px",
-					display: "flex",
-					flexDirection: "column",
-				}}
-			>
-				<Story />
-			</div>
-		),
-	],
+	decorators: scrollStoryDecorators,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
@@ -485,23 +504,13 @@ export const ScrollToBottomButton: Story = {
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
 		// Wait for content to render and create overflow.
-		await waitFor(() => {
-			expect(scrollContainer.scrollHeight).toBeGreaterThan(
-				scrollContainer.clientHeight,
-			);
-		});
+		await waitForScrollOverflow(scrollContainer);
 
 		// Scroll up. In flex-col-reverse containers, Chrome uses
 		// negative scrollTop values when scrolled away from the
 		// bottom. Try negative first, fall back to positive for
 		// other engines.
-		const maxScroll =
-			scrollContainer.scrollHeight - scrollContainer.clientHeight;
-		scrollContainer.scrollTop = -maxScroll;
-		if (Math.abs(scrollContainer.scrollTop) < 100) {
-			scrollContainer.scrollTop = maxScroll;
-		}
-		scrollContainer.dispatchEvent(new Event("scroll"));
+		scrollAwayFromBottom(scrollContainer);
 
 		// Button should become visible (enters the accessibility tree).
 		const button = await waitFor(() => {
@@ -520,5 +529,131 @@ export const ScrollToBottomButton: Story = {
 				canvas.queryByRole("button", { name: "Scroll to bottom" }),
 			).toBeNull();
 		});
+	},
+};
+
+/** When scrolled away from bottom, new content preserves scroll position. */
+export const ScrollPositionPreservedOnNewContent: Story = {
+	args: {
+		store: buildStoreWithMessages(buildLongConversation(30)),
+	},
+	decorators: scrollStoryDecorators,
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Scroll away from bottom.
+		scrollAwayFromBottom(scrollContainer);
+
+		// Wait for the button to confirm we are away from the bottom.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: "Scroll to bottom" }),
+				).toBeVisible();
+			},
+			{ timeout: 2000 },
+		);
+
+		// Record position while clearly away from the bottom.
+		const scrollTopBefore = scrollContainer.scrollTop;
+		expect(Math.abs(scrollTopBefore)).toBeGreaterThan(50);
+
+		const store = args?.store;
+		if (!store) {
+			throw new Error("Expected store in args");
+		}
+
+		const snapshot = store.getSnapshot();
+		const existing: TypesGen.ChatMessage[] = [];
+		for (const id of snapshot.orderedMessageIDs) {
+			const message = snapshot.messagesByID.get(id);
+			if (message) {
+				existing.push(message);
+			}
+		}
+
+		const newMessages = [
+			buildMessage(31, "user", "Follow-up question about the implementation."),
+			buildMessage(
+				32,
+				"assistant",
+				"Here is a detailed response about the implementation details you asked about.",
+			),
+		];
+		store.replaceMessages(existing.concat(newMessages));
+
+		// Wait for ResizeObserver + RAF compensation to settle.
+		// We should remain significantly away from the bottom.
+		await waitFor(
+			() => {
+				expect(Math.abs(scrollContainer.scrollTop)).toBeGreaterThan(50);
+			},
+			{ timeout: 2000 },
+		);
+
+		expect(
+			canvas.getByRole("button", { name: "Scroll to bottom" }),
+		).toBeVisible();
+	},
+};
+
+/** When at bottom, new content keeps the user pinned to bottom. */
+export const ScrollPinnedToBottomOnNewContent: Story = {
+	args: {
+		store: buildStoreWithMessages(buildLongConversation(30)),
+	},
+	decorators: scrollStoryDecorators,
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Verify the starting position is pinned to the bottom.
+		expect(Math.abs(scrollContainer.scrollTop)).toBeLessThan(5);
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+
+		const store = args?.store;
+		if (!store) {
+			throw new Error("Expected store in args");
+		}
+
+		const snapshot = store.getSnapshot();
+		const existing: TypesGen.ChatMessage[] = [];
+		for (const id of snapshot.orderedMessageIDs) {
+			const message = snapshot.messagesByID.get(id);
+			if (message) {
+				existing.push(message);
+			}
+		}
+
+		const newMessages = [
+			buildMessage(31, "user", "Another question."),
+			buildMessage(32, "assistant", "Here is the answer with full details."),
+			buildMessage(33, "user", "Thanks, one more thing."),
+			buildMessage(
+				34,
+				"assistant",
+				"Sure, here is the additional information you requested.",
+			),
+		];
+		store.replaceMessages(existing.concat(newMessages));
+
+		// Wait for the double-RAF pin to complete.
+		await waitFor(
+			() => {
+				expect(Math.abs(scrollContainer.scrollTop)).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
 	},
 };
