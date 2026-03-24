@@ -43,9 +43,18 @@ See [Models](../models.md) for setup instructions.
 
 ### System prompt
 
-Administrators can set a system prompt that applies to all agent sessions. This
-is useful for establishing organizational conventions — coding standards,
-commit message formats, preferred libraries, or repository-specific context.
+Administrators can configure deployment-wide system instructions that apply to
+all agent sessions. Coder Agents includes a built-in default system prompt,
+which is enabled by default, and administrators can choose whether to include
+it.
+
+Administrators can also add an additional system prompt that is appended after
+that built-in default prompt. This is useful for establishing organizational
+conventions — coding standards, commit message formats, preferred libraries, or
+repository-specific context.
+
+If administrators disable the built-in default prompt, they must provide an
+additional system prompt so sessions still have system instructions.
 
 The system prompt configuration is only accessible to administrators in the
 dashboard. Developers do not see or interact with it.

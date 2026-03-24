@@ -123,10 +123,16 @@ dedicated test or staging deployment to avoid disruption to production
 developer workflows. See [Early Access](./early-access.md) for the full
 set of expectations and limitations.
 
-### Set a deployment-wide system prompt
+### Set deployment-wide system instructions
 
-Administrators can set a system prompt that applies to all chats across the
-deployment. Use this to encode organizational conventions:
+Administrators can configure deployment-wide system instructions that apply to
+all chats across the deployment. Coder Agents includes a built-in default
+system prompt, and administrators can choose whether to include that default
+prompt for all chats.
+
+Administrators can also add an additional system prompt that is appended after
+that built-in default prompt. Use these controls to encode organizational
+conventions such as:
 
 - Coding standards and style guidelines.
 - Commit message formats.
@@ -134,9 +140,12 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from the **Admin** dialog on the Agents page
-or via the API at `PUT /api/experimental/chats/config/system-prompt`.
-See [Platform Controls](./platform-controls/index.md) for details.
+If you disable the built-in default prompt, you must provide an additional
+system prompt so chats still have system instructions.
+
+Configure these settings from the **Admin** dialog on the Agents page or via
+the API at `PUT /api/experimental/chats/config/system-prompt`. See
+[Platform Controls](./platform-controls/index.md) for details.
 
 ### Understand the security model
 
