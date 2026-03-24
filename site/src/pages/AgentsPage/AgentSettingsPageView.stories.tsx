@@ -753,3 +753,87 @@ export const UsageUserDrillInAndBack: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+// ── Invisible Unicode warning stories ──────────────────────────
+
+export const InvisibleUnicodeWarningSystemPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt:
+				"Normal prompt text\u200b\u200b\u200b\u200bhidden instruction",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the System Instructions section to render.
+		await canvas.findByText("System Instructions");
+
+		// The warning alert should appear with the correct count.
+		const alert = await canvas.findByText(/invisible Unicode/);
+		expect(alert).toBeInTheDocument();
+		expect(alert.textContent).toContain("4");
+	},
+};
+
+export const InvisibleUnicodeWarningUserPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "My custom prompt\u200b\u200c\u200dhidden",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Personal Instructions section to render.
+		await canvas.findByText("Personal Instructions");
+
+		// The warning alert should appear.
+		const alert = await canvas.findByText(/invisible Unicode/);
+		expect(alert).toBeInTheDocument();
+		expect(alert.textContent).toContain("3");
+	},
+};
+
+export const InvisibleUnicodeWarningOnPaste: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Personal Instructions textarea to render.
+		const textarea = await canvas.findByPlaceholderText(
+			"Additional behavior, style, and tone preferences",
+		);
+
+		// No warning should be present initially.
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+
+		// Type a string containing a ZWS character.
+		await userEvent.type(textarea, "hello\u200bworld");
+
+		// The warning alert should appear dynamically.
+		await waitFor(() => {
+			expect(canvas.getByText(/invisible Unicode/)).toBeInTheDocument();
+		});
+	},
+};
+
+export const NoWarningForCleanPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "You are a helpful coding assistant.",
+		});
+		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "Be concise and use TypeScript.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for both sections to render.
+		await canvas.findByText("Personal Instructions");
+		await canvas.findByText("System Instructions");
+
+		// No invisible Unicode warning should be present.
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+	},
+};

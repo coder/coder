@@ -3925,11 +3925,11 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 		// sql.ErrNoRows is the normal "not set" case.
 		return ""
 	}
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+	sanitized := SanitizePromptText(raw)
+	if sanitized == "" {
 		return ""
 	}
-	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+	return "<user-instructions>\n" + sanitized + "\n</user-instructions>"
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {

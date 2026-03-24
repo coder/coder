@@ -14,6 +14,7 @@ import {
 } from "api/queries/chats";
 import { user } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
 import { DurationField } from "components/DurationField/DurationField";
@@ -52,6 +53,7 @@ import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
+import { countInvisibleCharacters } from "utils/invisibleUnicode";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 import {
@@ -548,6 +550,9 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 
+	const systemInvisibleCount = countInvisibleCharacters(systemPromptDraft);
+	const userInvisibleCount = countInvisibleCharacters(userPromptDraft);
+
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
@@ -649,6 +654,13 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								disabled={isPromptSaving}
 								minRows={1}
 							/>
+							{userInvisibleCount > 0 && (
+								<Alert severity="warning">
+									This text contains {userInvisibleCount} invisible Unicode
+									character{userInvisibleCount !== 1 ? "s" : ""} that could hide
+									content from reviewers. These will be stripped on save.
+								</Alert>
+							)}
 							<div className="flex justify-end gap-2">
 								<Button
 									size="sm"
@@ -707,6 +719,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										disabled={isPromptSaving}
 										minRows={1}
 									/>
+									{systemInvisibleCount > 0 && (
+										<Alert severity="warning">
+											This text contains {systemInvisibleCount} invisible
+											Unicode character
+											{systemInvisibleCount !== 1 ? "s" : ""} that could hide
+											content from reviewers. These will be stripped on save.
+										</Alert>
+									)}
 									<div className="flex justify-end gap-2">
 										<Button
 											size="sm"
