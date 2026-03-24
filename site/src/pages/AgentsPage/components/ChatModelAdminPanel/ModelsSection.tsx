@@ -359,32 +359,31 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											disabled
 										</Badge>
 									)}
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												size="icon-lg"
-												variant="subtle"
-												aria-label="Model actions"
-												onClick={(e) => e.stopPropagation()}
-											>
-												<EllipsisVertical aria-hidden="true" />
-												<span className="sr-only">Model actions</span>
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end">
-											<DropdownMenuItem
-												onClick={() => openEditModel(modelConfig.id)}
-											>
-												Edit model
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												onClick={() => openDuplicateModel(modelConfig.id)}
-											>
-												Duplicate model
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
 								</button>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="icon-lg"
+											variant="subtle"
+											aria-label="Model actions"
+										>
+											<EllipsisVertical aria-hidden="true" />
+											<span className="sr-only">Model actions</span>
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										<DropdownMenuItem
+											onClick={() => openEditModel(modelConfig.id)}
+										>
+											Edit model
+										</DropdownMenuItem>
+										<DropdownMenuItem
+											onClick={() => openDuplicateModel(modelConfig.id)}
+										>
+											Duplicate model
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>{" "}
 							</div>
 						);
 					})}
