@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
@@ -196,14 +197,25 @@ func renderModelPicker(styles tuiStyles, catalog codersdk.ChatModelsResponse, se
 }
 
 //nolint:revive // Signature is dictated by the chat TUI view code.
-func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, expandedBlocks map[int]bool, composerFocused bool, width int) string {
+func renderChatBlocks(styles tuiStyles, blocks []chatBlock, selectedBlock int, expandedBlocks map[int]bool, composerFocused bool, width int, renderers ...*glamour.TermRenderer) string {
 	if len(blocks) == 0 {
 		return ""
 	}
 
+	var renderer *glamour.TermRenderer
+	if len(renderers) > 0 {
+		renderer = renderers[0]
+	}
+
 	rendered := make([]string, 0, len(blocks))
-	for i, block := range blocks {
-		blockView := renderBlock(styles, block, expandedBlocks[i], width)
+	for i := range blocks {
+		blockView := blocks[i].cachedRender
+		if blockView == "" || blocks[i].cachedWidth != width || blocks[i].cachedExpanded != expandedBlocks[i] {
+			blockView = renderBlock(styles, blocks[i], expandedBlocks[i], width, renderer)
+			blocks[i].cachedRender = blockView
+			blocks[i].cachedWidth = width
+			blocks[i].cachedExpanded = expandedBlocks[i]
+		}
 		if !composerFocused && i == selectedBlock {
 			blockView = styles.selectedItem.Render(blockView)
 		}
@@ -308,14 +320,19 @@ func messagesToBlocks(messages []codersdk.ChatMessage) []chatBlock {
 }
 
 //nolint:revive // Signature keeps block expansion state explicit at the callsite.
-func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int) string {
+func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int, renderers ...*glamour.TermRenderer) string {
+	var renderer *glamour.TermRenderer
+	if len(renderers) > 0 {
+		renderer = renderers[0]
+	}
+
 	switch block.kind {
 	case blockText:
 		switch block.role {
 		case codersdk.ChatMessageRoleUser:
 			return renderPrefixedBlock(styles.userMessage.Render("You: "), block.text, width)
 		case codersdk.ChatMessageRoleAssistant:
-			return renderAssistantMarkdown(styles, block.text, width)
+			return renderAssistantMarkdown(styles, block.text, width, renderer)
 		case codersdk.ChatMessageRoleTool:
 			return styles.dimmedText.Render(wrapPreservingNewlines(block.text, width))
 		default:
@@ -360,19 +377,46 @@ func renderBlock(styles tuiStyles, block chatBlock, expanded bool, width int) st
 	}
 }
 
-func renderAssistantMarkdown(styles tuiStyles, text string, width int) string {
+var fallbackMarkdownRenderers sync.Map
+
+func getFallbackMarkdownRenderer(width int) *glamour.TermRenderer {
 	wrapWidth := width
 	if wrapWidth <= 0 {
 		wrapWidth = 80
 	}
+	if cachedRenderer, ok := fallbackMarkdownRenderers.Load(wrapWidth); ok {
+		renderer, ok := cachedRenderer.(*glamour.TermRenderer)
+		if ok {
+			return renderer
+		}
+	}
 
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(wrapWidth),
 	)
-	if err == nil {
-		rendered, renderErr := renderer.Render(text)
-		if renderErr == nil {
+	if err != nil {
+		return nil
+	}
+	cachedRenderer, _ := fallbackMarkdownRenderers.LoadOrStore(wrapWidth, renderer)
+	storedRenderer, ok := cachedRenderer.(*glamour.TermRenderer)
+	if !ok {
+		return nil
+	}
+	return storedRenderer
+}
+
+func renderAssistantMarkdown(styles tuiStyles, text string, width int, renderers ...*glamour.TermRenderer) string {
+	var renderer *glamour.TermRenderer
+	if len(renderers) > 0 {
+		renderer = renderers[0]
+	}
+	if renderer == nil {
+		renderer = getFallbackMarkdownRenderer(width)
+	}
+	if renderer != nil {
+		rendered, err := renderer.Render(text)
+		if err == nil {
 			return styles.assistantMsg.Render(strings.TrimRight(rendered, "\n"))
 		}
 	}

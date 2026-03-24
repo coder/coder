@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -35,6 +36,10 @@ type chatBlock struct {
 	args     string
 	result   string
 	isError  bool
+
+	cachedRender   string
+	cachedWidth    int
+	cachedExpanded bool
 }
 
 type streamAccumulator struct {
@@ -98,18 +103,21 @@ func (a streamAccumulator) isPending() bool {
 }
 
 type chatViewModel struct {
-	styles      tuiStyles
-	chat        *codersdk.Chat
-	messages    []codersdk.ChatMessage
-	blocks      []chatBlock
-	loading     bool
-	err         error
-	draft       bool
-	composer    textinput.Model
-	viewport    viewport.Model
-	accumulator streamAccumulator
-	width       int
-	height      int
+	styles              tuiStyles
+	chat                *codersdk.Chat
+	messages            []codersdk.ChatMessage
+	blocks              []chatBlock
+	loading             bool
+	err                 error
+	draft               bool
+	composer            textinput.Model
+	viewport            viewport.Model
+	accumulator         streamAccumulator
+	width               int
+	height              int
+	cachedRenderer      *glamour.TermRenderer
+	cachedRendererWidth int
+	lastTranscript      string
 
 	ctx           context.Context
 	client        *codersdk.ExperimentalClient
@@ -237,11 +245,13 @@ func (m chatViewModel) startStream() (chatViewModel, tea.Cmd) {
 	m.streamCloser = closer
 	m.streamEventCh = eventCh
 	m.reconnecting = false
+	(&m).syncViewportContent()
 	return m, listenToStream(m.streamEventCh)
 }
 
 // rebuildBlocks merges persisted messages + accumulator into renderable blocks.
 func (m *chatViewModel) rebuildBlocks() {
+	oldBlocks := m.blocks
 	m.blocks = messagesToBlocks(m.messages)
 
 	if m.accumulator.isPending() {
@@ -263,9 +273,79 @@ func (m *chatViewModel) rebuildBlocks() {
 		}
 	}
 
+	for i := range m.blocks {
+		if i >= len(oldBlocks) || !blockPayloadEqual(m.blocks[i], oldBlocks[i]) {
+			continue
+		}
+		m.blocks[i].cachedRender = oldBlocks[i].cachedRender
+		m.blocks[i].cachedWidth = oldBlocks[i].cachedWidth
+		m.blocks[i].cachedExpanded = oldBlocks[i].cachedExpanded
+	}
+
 	if m.selectedBlock >= len(m.blocks) {
 		m.selectedBlock = max(len(m.blocks)-1, 0)
 	}
+
+	m.syncViewportContent()
+}
+
+func (m *chatViewModel) getOrCreateMarkdownRenderer(width int) *glamour.TermRenderer {
+	if m.cachedRenderer != nil && m.cachedRendererWidth == width {
+		return m.cachedRenderer
+	}
+
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithStandardStyle("dark"),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		return nil
+	}
+
+	m.cachedRenderer = renderer
+	m.cachedRendererWidth = width
+	return m.cachedRenderer
+}
+
+func (m *chatViewModel) syncViewportContent() {
+	wrapWidth := m.width
+	if wrapWidth <= 0 {
+		wrapWidth = 80
+	}
+
+	transcript := renderChatBlocks(
+		m.styles,
+		m.blocks,
+		m.selectedBlock,
+		m.expandedBlocks,
+		m.composerFocused,
+		m.width,
+		m.getOrCreateMarkdownRenderer(wrapWidth),
+	)
+
+	if m.accumulator.isPending() || m.reconnecting {
+		indicator := "▍"
+		if m.reconnecting {
+			indicator = "reconnecting…"
+		}
+		transcript += "\n" + m.styles.dimmedText.Render(indicator)
+	}
+
+	if transcript != m.lastTranscript {
+		m.lastTranscript = transcript
+		m.viewport.SetContent(transcript)
+	}
+}
+
+func blockPayloadEqual(a, b chatBlock) bool {
+	return a.kind == b.kind &&
+		a.role == b.role &&
+		a.text == b.text &&
+		a.toolName == b.toolName &&
+		a.toolID == b.toolID &&
+		a.args == b.args &&
+		a.result == b.result &&
+		a.isError == b.isError
 }
 
 func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) chatBlock {
@@ -344,6 +424,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		m.viewport.Width = m.width
 		m.viewport.Height = viewportHeight
+		(&m).syncViewportContent()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -354,6 +435,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			} else {
 				m.composer.Blur()
 			}
+			(&m).syncViewportContent()
 			return m, nil
 		}
 
@@ -389,16 +471,19 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			if m.selectedBlock > 0 {
 				m.selectedBlock--
 			}
+			(&m).syncViewportContent()
 			return m, nil
 		case "down", "j":
 			if m.selectedBlock < len(m.blocks)-1 {
 				m.selectedBlock++
 			}
+			(&m).syncViewportContent()
 			return m, nil
 		case "enter", " ":
 			if m.selectedBlock >= 0 && m.selectedBlock < len(m.blocks) {
 				m.expandedBlocks[m.selectedBlock] = !m.expandedBlocks[m.selectedBlock]
 			}
+			(&m).syncViewportContent()
 			return m, nil
 		}
 
@@ -486,6 +571,7 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 			m.streamEventCh = nil
 			if m.isInterruptible() && m.chat != nil {
 				m.reconnecting = true
+				(&m).syncViewportContent()
 				return m.startStream()
 			}
 			return m, nil
@@ -558,6 +644,7 @@ func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatVi
 
 	case codersdk.ChatStreamEventTypeRetry:
 		m.reconnecting = true
+		(&m).syncViewportContent()
 
 	case codersdk.ChatStreamEventTypeError:
 		if event.Error != nil {
@@ -594,25 +681,6 @@ func (m chatViewModel) View() string {
 	if m.chat != nil {
 		statusLine = "Status: " + m.styles.statusColor(m.chatStatus).Render(string(m.chatStatus))
 	}
-
-	transcript := renderChatBlocks(
-		m.styles,
-		m.blocks,
-		m.selectedBlock,
-		m.expandedBlocks,
-		m.composerFocused,
-		m.width,
-	)
-
-	if m.accumulator.isPending() || m.reconnecting {
-		indicator := "▍"
-		if m.reconnecting {
-			indicator = "reconnecting…"
-		}
-		transcript += "\n" + m.styles.dimmedText.Render(indicator)
-	}
-
-	m.viewport.SetContent(transcript)
 
 	statusBar := renderStatusBar(
 		m.styles,
