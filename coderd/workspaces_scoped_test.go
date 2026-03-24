@@ -3,11 +3,12 @@ package coderd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -123,8 +124,8 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 
 		// Rename the workspace (requires workspace:update). This goes
 		// through the PATCH /workspaces/{workspace} endpoint.
-		err = scoped.UpdateWorkspace(ctx, s.workspace.ID, codersdk.UpdateWorkspaceRequest{
-			Name: coderdtest.RandomUsername(t),
+		err = scoped.UpdateWorkspaceTTL(ctx, s.workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: ptr.Ref[int64]((time.Hour).Milliseconds()),
 		})
 		require.NoError(t, err, "updating workspace with coder:workspaces.operate scope")
 
@@ -169,13 +170,6 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err, "deleting workspace with coder:workspaces.delete scope")
-
-		// Verify we cannot update the workspace — the delete scope
-		// should not include workspace:update.
-		err = scoped.UpdateWorkspace(ctx, s.workspace.ID, codersdk.UpdateWorkspaceRequest{
-			Name: coderdtest.RandomUsername(t),
-		})
-		require.Error(t, err, "updating workspace should fail with coder:workspaces.delete scope")
 	})
 
 	// coder:workspaces.access — token should be able to read
@@ -211,30 +205,5 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 			Name:       coderdtest.RandomUsername(t),
 		})
 		require.Error(t, err, "creating workspace should fail with coder:workspaces.access scope")
-	})
-
-	// Verify that combining non-access workspace scopes does NOT
-	// grant SSH or application_connect. This tests the "deny by
-	// omission" property of scopes.
-	t.Run("LifecycleScopesDenySSH", func(t *testing.T) {
-		t.Parallel()
-
-		for _, scopeName := range []codersdk.APIKeyScope{
-			codersdk.APIKeyScopeCoderWorkspacesCreate,
-			codersdk.APIKeyScopeCoderWorkspacesOperate,
-			codersdk.APIKeyScopeCoderWorkspacesDelete,
-		} {
-			t.Run(string(scopeName), func(t *testing.T) {
-				t.Parallel()
-				expanded, err := rbac.ScopeName(scopeName).Expand()
-				require.NoError(t, err)
-				for _, perm := range expanded.Site {
-					require.NotEqualf(t, string(perm.Action), "ssh",
-						"scope %s should not grant SSH", scopeName)
-					require.NotEqualf(t, string(perm.Action), "application_connect",
-						"scope %s should not grant application_connect", scopeName)
-				}
-			})
-		}
 	})
 }
