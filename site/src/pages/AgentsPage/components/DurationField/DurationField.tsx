@@ -1,20 +1,20 @@
-import { Input } from "components/Input/Input";
+import dayjs from "dayjs";
+import { type FC, type ReactNode, useState } from "react";
+import { Input } from "#/components/Input/Input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
-import dayjs from "dayjs";
-import { type FC, type ReactNode, useState } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Select/Select";
+import { cn } from "#/utils/cn";
 import {
 	durationInDays,
 	durationInHours,
 	suggestedTimeUnit,
 	type TimeUnit,
-} from "utils/time";
+} from "#/utils/time";
 
 type DurationFieldProps = {
 	valueMs: number;
