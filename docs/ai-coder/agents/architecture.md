@@ -219,7 +219,7 @@ Because state lives in the database:
 
 ## Security implications
 
-The control plane architecture has direct consequences for how you secure AI
+The control plane architecture provides several security advantages for AI
 coding workflows.
 
 ### No API keys in workspaces
