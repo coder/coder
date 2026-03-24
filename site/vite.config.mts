@@ -43,7 +43,7 @@ export default defineConfig({
 		outDir: path.resolve(__dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
 		sourcemap: "hidden",
-		rollupOptions: {
+		rolldownOptions: {
 			input: {
 				index: path.resolve(__dirname, "./index.html"),
 				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
@@ -54,17 +54,15 @@ export default defineConfig({
 						? "[name].js"
 						: "assets/[name]-[hash].js";
 				},
-				manualChunks(id) {
-					if (!id.includes("node_modules")) {
-						return;
-					}
-
-					if (id.includes("@mui")) return "mui";
-					if (id.includes("@emotion")) return "emotion";
-					if (id.includes("monaco-editor")) return "monaco";
-					if (id.includes("@xterm")) return "xterm";
-					if (id.includes("emoji-mart")) return "emoji-mart";
-					if (id.includes("radix-ui")) return "radix-ui";
+				codeSplitting: {
+					groups: [
+						{ name: "mui", test: /@mui/ },
+						{ name: "emotion", test: /@emotion/ },
+						{ name: "monaco", test: /monaco-editor/ },
+						{ name: "xterm", test: /@xterm/ },
+						{ name: "emoji-mart", test: /emoji-mart/ },
+						{ name: "radix-ui", test: /radix-ui/ },
+					],
 				},
 			},
 		},
