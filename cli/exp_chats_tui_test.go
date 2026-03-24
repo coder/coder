@@ -82,6 +82,36 @@ func TestExpChatsTUI(t *testing.T) {
 			require.NotNil(t, cmd)
 		})
 
+		t.Run("EscFromSearchClearsFilterBeforeQuit", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewList
+			model.list.loading = false
+			model.list.searching = true
+			model.list.search.SetValue("test")
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.False(t, updated.quitting)
+			require.True(t, updated.list.searching)
+			require.Empty(t, updated.list.search.Value())
+		})
+
+		t.Run("EscFromEmptySearchClosesSearchBeforeQuit", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewList
+			model.list.loading = false
+			model.list.searching = true
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.False(t, updated.quitting)
+			require.False(t, updated.list.searching)
+		})
+
 		t.Run("EscFromListQuits", func(t *testing.T) {
 			t.Parallel()
 

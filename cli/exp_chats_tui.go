@@ -7,7 +7,9 @@ import (
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
+	"github.com/muesli/termenv"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -109,6 +111,14 @@ func (r *RootCmd) chatsTUI() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
+			// Set an explicit color profile before Bubble Tea acquires the
+			// terminal so lipgloss/termenv don't send OSC color queries that
+			// can leak back into stdin as literal input in some terminals.
+			lipgloss.SetDefaultRenderer(lipgloss.NewRenderer(
+				inv.Stdout,
+				termenv.WithProfile(termenv.TrueColor),
+			))
 
 			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID)
 			program := tea.NewProgram(

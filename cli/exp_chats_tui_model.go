@@ -108,6 +108,11 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.overlay = overlayNone
 				return m, nil
 			}
+			if m.currentView == viewList && m.list.searching {
+				var cmd tea.Cmd
+				m.list, cmd = m.list.Update(msg)
+				return m, cmd
+			}
 			if m.currentView == viewChat {
 				m.currentView = viewList
 				m.list.loading = true
