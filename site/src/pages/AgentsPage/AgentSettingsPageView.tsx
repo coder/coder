@@ -1055,8 +1055,10 @@ const TemplateAllowlistSection: FC = () => {
 					onSubmit={(event) => void handleSave(event)}
 				>
 					<MultiSelectCombobox
+						key={serverSelection.map((o) => o.value).join(",")}
 						inputProps={{ "aria-label": "Select allowed templates" }}
 						options={allOptions}
+						defaultOptions={currentSelection}
 						value={currentSelection}
 						onChange={setLocalSelection}
 						placeholder="Select templates..."
