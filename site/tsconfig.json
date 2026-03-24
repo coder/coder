@@ -15,7 +15,7 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"target": "es2020",
+		"target": "esnext",
 		"types": [
 			"node",
 			"react",
@@ -32,6 +32,6 @@
 		// in progress.
 		"ignoreDeprecations": "6.0"
 	},
-	"include": ["**/*.ts", "**/*.tsx"],
+	"include": ["**/*"],
 	"exclude": ["node_modules/"]
 }

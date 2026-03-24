@@ -222,6 +222,7 @@ export default defineConfig({
 		},
 	},
 	test: {
+		silent: "passed-only",
 		projects: [
 			{
 				extends: true,
@@ -234,7 +235,6 @@ export default defineConfig({
 						"@testing-library/jest-dom/vitest",
 						"./test/vitestSetup.ts",
 					],
-					silent: "passed-only",
 				},
 			},
 			// Storybook story tests via Playwright browser mode.
