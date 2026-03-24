@@ -121,21 +121,11 @@ jobs:
 
           # 2.10.2 -> release/2.10
           version="$(./scripts/version.sh)"
-          # Strip any pre-release suffix (e.g. 2.32.0-rc.0 -> 2.32.0)
-          # before extracting the release branch name.
-          base_version="${version%%-*}"
-          release_branch=release/${base_version%.*}
-
-          # RC tags (pre-release versions) are tagged directly from
-          # main and are not expected to exist on a release branch.
-          if [[ "${version}" == *-* ]]; then
-            echo "Pre-release version detected (${version}), skipping branch check."
-          else
-            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
-            if [[ -z "${branch_contains_tag}" ]]; then
-              echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
-              exit 1
-            fi
+          release_branch=release/${version%.*}
+          branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+          if [[ -z "${branch_contains_tag}" ]]; then
+            echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
+            exit 1
           fi
 
           if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
