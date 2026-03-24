@@ -184,7 +184,7 @@ export const UserCompactionThresholdSettings: FC<
 					models before compaction thresholds can be set.
 				</p>
 			) : (
-				<div className="space-y-3">
+				<div className="divide-y divide-border">
 					{enabledModelConfigs.map((modelConfig) => {
 						const existingOverride = overridesByModelID.get(modelConfig.id);
 						const hasOverride = overridesByModelID.has(modelConfig.id);
@@ -200,27 +200,24 @@ export const UserCompactionThresholdSettings: FC<
 							isThisModelMutating;
 
 						return (
-							<div
-								key={modelConfig.id}
-								className="space-y-2 rounded-lg border border-border bg-surface-secondary/40 p-4"
-							>
-								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-									<div className="flex-1">
-										<span className="text-sm font-medium text-content-primary">
+							<div key={modelConfig.id} className="py-2 first:pt-0 last:pb-0">
+								<div className="flex items-center justify-between gap-3">
+									<div className="min-w-0 flex-1">
+										<span className="text-[13px] font-medium text-content-primary">
 											{modelConfig.display_name || modelConfig.model}
 										</span>
 										<span className="ml-2 text-xs text-content-secondary">
-											System default: {modelConfig.compression_threshold}%
+											{modelConfig.compression_threshold}%
 										</span>
 									</div>
-									<div className="flex flex-wrap items-center gap-2 sm:justify-end">
+									<div className="flex items-center gap-1.5">
 										<Input
 											aria-label={`${modelConfig.display_name || modelConfig.model} compaction threshold`}
 											type="number"
 											min={0}
 											max={100}
 											inputMode="numeric"
-											className="h-9 w-20 text-[13px]"
+											className="h-7 w-16 px-2 text-xs"
 											value={draftValue}
 											placeholder={String(modelConfig.compression_threshold)}
 											onChange={(event) => {
@@ -275,20 +272,20 @@ export const UserCompactionThresholdSettings: FC<
 									</div>
 								</div>
 								{draftValue.length > 0 && parsedDraftValue === null && (
-									<p className="m-0 text-xs text-content-destructive">
+									<p className="m-0 mt-1 text-xs text-content-destructive">
 										Enter a whole number between 0 and 100.
 									</p>
 								)}
 								{rowErrors[modelConfig.id] && (
 									<p
 										aria-live="polite"
-										className="m-0 text-xs text-content-destructive"
+										className="m-0 mt-1 text-xs text-content-destructive"
 									>
 										{rowErrors[modelConfig.id]}
 									</p>
 								)}
 								{draftValue === "100" && (
-									<p className="m-0 text-xs text-content-secondary">
+									<p className="m-0 mt-1 text-xs text-content-secondary">
 										⚠ Setting 100% will disable auto-compaction for this model.
 									</p>
 								)}
