@@ -19,6 +19,8 @@ import {
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
+	ChevronLeftIcon,
+	ChevronRightIcon,
 	CircleAlertIcon,
 	CloudDownloadIcon,
 	CloudUploadIcon,
@@ -31,11 +33,14 @@ import prettyBytes from "pretty-bytes";
 import {
 	type FC,
 	type PropsWithChildren,
+	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
+import { cn } from "utils/cn";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 
 interface DeploymentBannerViewProps {
@@ -100,11 +105,80 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	const healthErrors = health ? getHealthErrors(health) : [];
 	const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
 
+	// ── Slide navigation state ──────────────────────────────
+	const wrapperRef = useRef<HTMLDivElement>(null);
+	const trackRef = useRef<HTMLDivElement>(null);
+	const [offset, setOffset] = useState(0);
+	const [canSlide, setCanSlide] = useState({ left: false, right: false });
+
+	const recalc = useCallback((nextOffset: number) => {
+		const wrapper = wrapperRef.current;
+		const track = trackRef.current;
+		if (!wrapper || !track) return nextOffset;
+		const max = Math.max(0, track.scrollWidth - wrapper.clientWidth);
+		const clamped = Math.max(0, Math.min(max, nextOffset));
+		setCanSlide({ left: clamped > 0, right: clamped < max - 1 });
+		return clamped;
+	}, []);
+
+	// Snap to the nearest section boundary so we never land mid-label.
+	const snap = useCallback((raw: number) => {
+		const track = trackRef.current;
+		if (!track) return raw;
+		const sections = track.querySelectorAll<HTMLElement>(
+			"[data-banner-section]",
+		);
+		let best = raw;
+		let bestDist = Number.POSITIVE_INFINITY;
+		for (const el of sections) {
+			const boundary = el.offsetLeft;
+			const dist = Math.abs(boundary - raw);
+			if (dist < bestDist) {
+				bestDist = dist;
+				best = boundary;
+			}
+		}
+		return best;
+	}, []);
+
+	const slideTo = useCallback(
+		(px: number) => {
+			const clamped = recalc(px);
+			setOffset(clamped);
+		},
+		[recalc],
+	);
+
+	const slideNext = useCallback(() => {
+		const step = Math.round((wrapperRef.current?.clientWidth ?? 400) * 0.9);
+		slideTo(snap(offset + step));
+	}, [offset, snap, slideTo]);
+
+	const slidePrev = useCallback(() => {
+		const step = Math.round((wrapperRef.current?.clientWidth ?? 400) * 0.9);
+		slideTo(snap(offset - step));
+	}, [offset, snap, slideTo]);
+
+	// Recalculate on mount and resize.
+	useEffect(() => {
+		const onResize = () => slideTo(offset);
+		onResize();
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	}, [offset, slideTo]);
+
+	// Recalculate whenever stats change (content may reflow).
+	// biome-ignore lint/correctness/useExhaustiveDependencies(stats): content may reflow when stats change
+	// biome-ignore lint/correctness/useExhaustiveDependencies(health): content may reflow when health changes
+	useEffect(() => {
+		slideTo(offset);
+	}, [stats, health, offset, slideTo]);
+
 	return (
 		<div
-			className="sticky bottom-0 z-[1] flex h-9 w-full items-center gap-8
-		 		overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid border-border
-				bg-surface-primary pr-4 font-mono text-xs leading-none [scrollbar-width:thin]"
+			className="sticky bottom-0 z-[1] flex h-9 w-full items-center
+				whitespace-nowrap border-0 border-t border-solid border-border
+				bg-surface-primary font-mono text-xs leading-none"
 		>
 			<TooltipProvider delayDuration={100}>
 				<Tooltip>
@@ -124,7 +198,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 							</Link>
 						) : (
 							<div
-								className="flex h-full items-center justify-center pl-3"
+								className="flex h-full items-center justify-center px-3"
 								data-testid="deployment-health-trigger"
 							>
 								<RocketIcon className="size-icon-sm" />
@@ -153,201 +227,266 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				</Tooltip>
 			</TooltipProvider>
 
-			<div className="flex items-center">
-				<div className="mr-4 text-content-primary">Workspaces</div>
-				<div className="flex gap-2 text-content-secondary">
-					<WorkspaceBuildValue
-						status="pending"
-						count={stats?.workspaces.pending}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="starting"
-						count={stats?.workspaces.building}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="running"
-						count={stats?.workspaces.running}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="stopped"
-						count={stats?.workspaces.stopped}
-					/>
-					<ValueSeparator />
-					<WorkspaceBuildValue
-						status="failed"
-						count={stats?.workspaces.failed}
-					/>
+			{/* ── Sliding track ─────────────────────── */}
+			<div ref={wrapperRef} className="relative flex-1 overflow-hidden h-full">
+				{/* Left edge fade */}
+				<div
+					className={cn(
+						"pointer-events-none absolute inset-y-0 left-0 z-10 w-12 transition-opacity duration-300",
+						"bg-gradient-to-r from-surface-primary to-transparent",
+						canSlide.left ? "opacity-100" : "opacity-0",
+					)}
+				/>
+				{/* Right edge fade */}
+				<div
+					className={cn(
+						"pointer-events-none absolute inset-y-0 right-0 z-10 w-12 transition-opacity duration-300",
+						"bg-gradient-to-l from-surface-primary to-transparent",
+						canSlide.right ? "opacity-100" : "opacity-0",
+					)}
+				/>
+
+				<div
+					ref={trackRef}
+					className="flex h-full items-center gap-8 pr-4 transition-transform duration-[400ms] ease-[cubic-bezier(.4,0,.2,1)]"
+					style={{ transform: `translateX(-${offset}px)` }}
+				>
+					<div className="flex items-center" data-banner-section>
+						<div className="mr-4 text-content-primary">Workspaces</div>
+						<div className="flex gap-2 text-content-secondary">
+							<WorkspaceBuildValue
+								status="pending"
+								count={stats?.workspaces.pending}
+							/>
+							<ValueSeparator />
+							<WorkspaceBuildValue
+								status="starting"
+								count={stats?.workspaces.building}
+							/>
+							<ValueSeparator />
+							<WorkspaceBuildValue
+								status="running"
+								count={stats?.workspaces.running}
+							/>
+							<ValueSeparator />
+							<WorkspaceBuildValue
+								status="stopped"
+								count={stats?.workspaces.stopped}
+							/>
+							<ValueSeparator />
+							<WorkspaceBuildValue
+								status="failed"
+								count={stats?.workspaces.failed}
+							/>
+						</div>
+					</div>
+
+					<div className="flex items-center" data-banner-section>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="mr-4 text-content-primary">Transmission</div>
+								</TooltipTrigger>
+								<TooltipContent>
+									{`Activity in the last ~${aggregatedMinutes} minutes`}
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+						<div className="flex gap-2 text-content-secondary">
+							<TooltipProvider delayDuration={100}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-1">
+											<CloudDownloadIcon className="size-icon-xs" />
+											{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>Data sent to workspaces</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<ValueSeparator />
+							<TooltipProvider delayDuration={100}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-1">
+											<CloudUploadIcon className="size-icon-xs" />
+											{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>Data sent from workspaces</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<ValueSeparator />
+							<TooltipProvider delayDuration={100}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-1">
+											<GaugeIcon className="size-icon-xs" />
+											{displayLatency > 0
+												? `${displayLatency?.toFixed(2)} ms`
+												: "-"}
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										{displayLatency < 0
+											? "No recent workspace connections have been made"
+											: "The average latency of user connections to workspaces"}
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+					</div>
+
+					<div className="flex items-center" data-banner-section>
+						<div className="mr-4 text-content-primary">Active Connections</div>
+
+						<div className="flex gap-2 text-content-secondary">
+							<TooltipProvider delayDuration={100}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-1">
+											<VSCodeIcon className="size-icon-xs [&_*]:fill-current" />
+											{typeof stats?.session_count.vscode === "undefined"
+												? "-"
+												: stats?.session_count.vscode}
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										VS Code Editors with the Coder Remote Extension
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<ValueSeparator />
+							<TooltipProvider delayDuration={100}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-1">
+											<JetBrainsIcon className="size-icon-xs [&_*]:fill-current" />
+											{typeof stats?.session_count.jetbrains === "undefined"
+												? "-"
+												: stats?.session_count.jetbrains}
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>JetBrains Editors</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<ValueSeparator />
+							<TooltipProvider delayDuration={100}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-1">
+											<TerminalIcon className="size-icon-xs" />
+											{typeof stats?.session_count.ssh === "undefined"
+												? "-"
+												: stats?.session_count.ssh}
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>SSH Sessions</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<ValueSeparator />
+							<TooltipProvider delayDuration={100}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="flex items-center gap-1">
+											<AppWindowIcon className="size-icon-xs" />
+											{typeof stats?.session_count.reconnecting_pty ===
+											"undefined"
+												? "-"
+												: stats?.session_count.reconnecting_pty}
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>Web Terminal Sessions</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+					</div>
+
+					<div
+						className="ml-auto flex mr-3 items-center gap-8 text-content-primary"
+						data-banner-section
+					>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="flex items-center gap-1">
+										<GitCompareArrowsIcon className="size-icon-xs" />
+										{lastAggregated}
+									</div>
+								</TooltipTrigger>
+								<TooltipContent
+									className="max-w-xs"
+									collisionPadding={{ right: 20 }}
+								>
+									The last time stats were aggregated. Workspaces report
+									statistics periodically, so it may take a bit for these to
+									update!
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										className="font-mono [&_svg]:mr-1"
+										onClick={() => {
+											if (fetchStats) {
+												fetchStats();
+											}
+										}}
+										variant="subtle"
+										size="icon"
+									>
+										<RotateCwIcon />
+										{timeUntilRefresh}s
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent
+									className="max-w-xs"
+									collisionPadding={{ right: 20 }}
+								>
+									A countdown until stats are fetched again. Click to refresh!
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
 				</div>
 			</div>
 
-			<div className="flex items-center">
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<div className="mr-4 text-content-primary">Transmission</div>
-						</TooltipTrigger>
-						<TooltipContent>
-							{`Activity in the last ~${aggregatedMinutes} minutes`}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-				<div className="flex gap-2 text-content-secondary">
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<CloudDownloadIcon className="size-icon-xs" />
-									{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>Data sent to workspaces</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<CloudUploadIcon className="size-icon-xs" />
-									{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>Data sent from workspaces</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<GaugeIcon className="size-icon-xs" />
-									{displayLatency > 0
-										? `${displayLatency?.toFixed(2)} ms`
-										: "-"}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>
-								{displayLatency < 0
-									? "No recent workspace connections have been made"
-									: "The average latency of user connections to workspaces"}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+			{/* ── Chevron navigation ────────────────── */}
+			{(canSlide.left || canSlide.right) && (
+				<div className="flex items-center gap-0.5 px-1.5 h-full shrink-0 border-0 border-l border-solid border-border">
+					<button
+						type="button"
+						aria-label="Scroll left"
+						disabled={!canSlide.left}
+						onClick={slidePrev}
+						className={cn(
+							"flex items-center justify-center size-6 rounded border-none bg-transparent cursor-pointer",
+							"text-content-secondary transition-colors duration-150",
+							"hover:bg-surface-tertiary hover:text-content-primary",
+							"disabled:opacity-20 disabled:pointer-events-none",
+						)}
+					>
+						<ChevronLeftIcon className="size-3.5" />
+					</button>
+					<button
+						type="button"
+						aria-label="Scroll right"
+						disabled={!canSlide.right}
+						onClick={slideNext}
+						className={cn(
+							"flex items-center justify-center size-6 rounded border-none bg-transparent cursor-pointer",
+							"text-content-secondary transition-colors duration-150",
+							"hover:bg-surface-tertiary hover:text-content-primary",
+							"disabled:opacity-20 disabled:pointer-events-none",
+						)}
+					>
+						<ChevronRightIcon className="size-3.5" />
+					</button>
 				</div>
-			</div>
-
-			<div className="flex items-center">
-				<div className="mr-4 text-content-primary">Active Connections</div>
-
-				<div className="flex gap-2 text-content-secondary">
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<VSCodeIcon className="size-icon-xs [&_*]:fill-current" />
-									{typeof stats?.session_count.vscode === "undefined"
-										? "-"
-										: stats?.session_count.vscode}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>
-								VS Code Editors with the Coder Remote Extension
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<JetBrainsIcon className="size-icon-xs [&_*]:fill-current" />
-									{typeof stats?.session_count.jetbrains === "undefined"
-										? "-"
-										: stats?.session_count.jetbrains}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>JetBrains Editors</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<TerminalIcon className="size-icon-xs" />
-									{typeof stats?.session_count.ssh === "undefined"
-										? "-"
-										: stats?.session_count.ssh}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>SSH Sessions</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<AppWindowIcon className="size-icon-xs" />
-									{typeof stats?.session_count.reconnecting_pty === "undefined"
-										? "-"
-										: stats?.session_count.reconnecting_pty}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>Web Terminal Sessions</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</div>
-			</div>
-
-			<div className="ml-auto flex mr-3 items-center gap-8 text-content-primary">
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<div className="flex items-center gap-1">
-								<GitCompareArrowsIcon className="size-icon-xs" />
-								{lastAggregated}
-							</div>
-						</TooltipTrigger>
-						<TooltipContent
-							className="max-w-xs"
-							collisionPadding={{ right: 20 }}
-						>
-							The last time stats were aggregated. Workspaces report statistics
-							periodically, so it may take a bit for these to update!
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								className="font-mono [&_svg]:mr-1"
-								onClick={() => {
-									if (fetchStats) {
-										fetchStats();
-									}
-								}}
-								variant="subtle"
-								size="icon"
-							>
-								<RotateCwIcon />
-								{timeUntilRefresh}s
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent
-							className="max-w-xs"
-							collisionPadding={{ right: 20 }}
-						>
-							A countdown until stats are fetched again. Click to refresh!
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</div>
+			)}
 		</div>
 	);
 };
