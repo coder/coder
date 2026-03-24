@@ -203,9 +203,11 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 // the DISTINCT ON + post-filter bug where the sole candidate is
 // silently dropped when the caller can't read it.
 //
-// TODO: move aggregation to a SQL view with proper in-query authz
-// so we can return a single row per workspace without this two-pass
-// approach.
+// TODO:
+//  1. move aggregation to a SQL view with proper in-query authz so we
+//     can return a single row per workspace without this two-pass approach.
+//  2. Restore the below router annotation and un-skip docs gen
+//     <at>Router /experimental/chats/by-workspace [post]
 //
 // @Summary Get latest chats by workspace IDs
 // @ID get-latest-chats-by-workspace-ids
@@ -214,7 +216,6 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Success 200
-// @Router /experimental/chats/by-workspace [post]
 // @x-apidocgen {"skip": true}
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
