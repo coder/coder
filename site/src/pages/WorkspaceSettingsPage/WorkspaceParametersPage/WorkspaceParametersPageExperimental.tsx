@@ -149,7 +149,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		workspace.owner_id,
 	]);
 
-	const updateParameters = useMutation({
+	const startWithParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
@@ -157,6 +157,28 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				rich_parameter_values: buildParameters,
 				reason: "dashboard",
 			}),
+		onSuccess: () => {
+			navigate(`/@${workspace.owner_name}/${workspace.name}`);
+		},
+	});
+
+	const restartWithParameters = useMutation({
+		mutationFn: async (buildParameters: WorkspaceBuildParameter[]) => {
+			const stopBuild = await API.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await API.waitForBuild(stopBuild);
+
+			// If the restart is canceled halfway through, make sure we bail
+			if (awaitedStopBuild?.status === "canceled") {
+				return;
+			}
+
+			return API.postWorkspaceBuild(workspace.id, {
+				transition: "start",
+				template_version_id: templateVersionId,
+				rich_parameter_values: buildParameters,
+				reason: "dashboard",
+			});
+		},
 		onSuccess: () => {
 			navigate(`/@${workspace.owner_name}/${workspace.name}`);
 		},
@@ -190,7 +212,15 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				return value;
 			});
 
-		updateParameters.mutate(onlyMutableValues);
+		// We only enable the button to navigate to this page if the workspace can
+		// accept new jobs, but if the workspace is in any pending state (user
+		// manually loaded the page or workspace state changed after load) then we
+		// could still submit a build that will fail.
+		if (workspace.latest_build.status === "running") {
+			restartWithParameters.mutate(onlyMutableValues);
+		} else {
+			startWithParameters.mutate(onlyMutableValues);
+		}
 	};
 
 	const sortedParams = useMemo(() => {
@@ -200,7 +230,8 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
-	const error = wsError || updateParameters.error;
+	const error =
+		wsError || startWithParameters.error || restartWithParameters.error;
 
 	if (
 		latestBuildParametersLoading ||
@@ -252,7 +283,9 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					canChangeVersions={canChangeVersions}
 					parameters={sortedParams}
 					diagnostics={latestResponse?.diagnostics ?? []}
-					isSubmitting={updateParameters.isPending}
+					isSubmitting={
+						startWithParameters.isPending || restartWithParameters.isPending
+					}
 					onSubmit={handleSubmit}
 					onCancel={() =>
 						navigate(`/@${workspace.owner_name}/${workspace.name}`)
