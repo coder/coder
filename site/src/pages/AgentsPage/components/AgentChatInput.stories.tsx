@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 import { AgentChatInput, type UploadState } from "./AgentChatInput";
 
@@ -561,5 +561,20 @@ export const WithMCPNoneActive: Story = {
 			},
 		],
 		selectedMCPServerIds: [],
+	},
+};
+
+/** Plus menu open showing attach, MCP servers, and workspace placeholder. */
+export const PlusMenuOpen: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 	},
 };
