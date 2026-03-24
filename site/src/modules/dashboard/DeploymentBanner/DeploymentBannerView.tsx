@@ -174,8 +174,41 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		slideTo(offset);
 	}, [stats, health, offset, slideTo]);
 
+	// When a keyboard user tabs to an element that's been translated
+	// off-screen, auto-slide so the focused element is visible.
+	// This satisfies WCAG 2.4.7 (Focus Visible).
+	useEffect(() => {
+		const wrapper = wrapperRef.current;
+		if (!wrapper) return;
+
+		const onFocusIn = (e: FocusEvent) => {
+			const target = e.target as HTMLElement;
+			const track = trackRef.current;
+			if (!track || !wrapper.contains(target)) return;
+
+			// Position of the focused element relative to the track.
+			const elLeft = target.offsetLeft;
+			const elRight = elLeft + target.offsetWidth;
+			const visibleLeft = offset;
+			const visibleRight = offset + wrapper.clientWidth;
+
+			if (elLeft < visibleLeft) {
+				// Element is clipped on the left — slide back.
+				slideTo(snap(elLeft));
+			} else if (elRight > visibleRight) {
+				// Element is clipped on the right — slide forward.
+				slideTo(snap(elRight - wrapper.clientWidth));
+			}
+		};
+
+		wrapper.addEventListener("focusin", onFocusIn);
+		return () => wrapper.removeEventListener("focusin", onFocusIn);
+	}, [offset, snap, slideTo]);
+
 	return (
 		<div
+			role="region"
+			aria-label="Deployment statistics"
 			className="sticky bottom-0 z-[1] flex h-9 w-full items-center
 				whitespace-nowrap border-0 border-t border-solid border-border
 				bg-surface-primary font-mono text-xs leading-none"
@@ -229,23 +262,24 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 			{/* ── Sliding track ─────────────────────── */}
 			<div ref={wrapperRef} className="relative flex-1 overflow-hidden h-full">
-				{/* Left edge fade */}
+				{/* Left edge fade — decorative */}
 				<div
+					aria-hidden="true"
 					className={cn(
 						"pointer-events-none absolute inset-y-0 left-0 z-10 w-12 transition-opacity duration-300",
 						"bg-gradient-to-r from-surface-primary to-transparent",
 						canSlide.left ? "opacity-100" : "opacity-0",
 					)}
 				/>
-				{/* Right edge fade */}
+				{/* Right edge fade — decorative */}
 				<div
+					aria-hidden="true"
 					className={cn(
 						"pointer-events-none absolute inset-y-0 right-0 z-10 w-12 transition-opacity duration-300",
 						"bg-gradient-to-l from-surface-primary to-transparent",
 						canSlide.right ? "opacity-100" : "opacity-0",
 					)}
 				/>
-
 				<div
 					ref={trackRef}
 					className="flex h-full items-center gap-8 pr-4 transition-transform duration-[400ms] ease-[cubic-bezier(.4,0,.2,1)]"
@@ -456,7 +490,11 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 			{/* ── Chevron navigation ────────────────── */}
 			{(canSlide.left || canSlide.right) && (
-				<div className="flex items-center gap-0.5 px-1.5 h-full shrink-0 border-0 border-l border-solid border-border">
+				<nav
+					aria-label="Scroll deployment banner"
+					className="flex items-center gap-0.5 px-1.5 h-full shrink-0 border-0 border-l border-solid border-border"
+				>
+					{" "}
 					<button
 						type="button"
 						aria-label="Scroll left"
@@ -485,12 +523,11 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					>
 						<ChevronRightIcon className="size-3.5" />
 					</button>
-				</div>
+				</nav>
 			)}
 		</div>
 	);
 };
-
 interface WorkspaceBuildValueProps {
 	status: WorkspaceStatus;
 	count?: number;
