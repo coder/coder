@@ -184,7 +184,7 @@ export const UserCompactionThresholdSettings: FC<
 					models before compaction thresholds can be set.
 				</p>
 			) : (
-				<div className="divide-y divide-border">
+				<div className="space-y-2">
 					{enabledModelConfigs.map((modelConfig) => {
 						const existingOverride = overridesByModelID.get(modelConfig.id);
 						const hasOverride = overridesByModelID.has(modelConfig.id);
@@ -200,7 +200,7 @@ export const UserCompactionThresholdSettings: FC<
 							isThisModelMutating;
 
 						return (
-							<div key={modelConfig.id} className="py-2 first:pt-0 last:pb-0">
+							<div key={modelConfig.id} className="space-y-1">
 								<div className="flex items-center justify-between gap-3">
 									<div className="min-w-0 flex-1">
 										<span className="text-[13px] font-medium text-content-primary">
@@ -230,11 +230,10 @@ export const UserCompactionThresholdSettings: FC<
 											disabled={isThisModelMutating}
 										/>
 										<span className="text-xs text-content-secondary">%</span>
-										<Button
-											size="sm"
-											type="button"
-											disabled={isSaveDisabled}
-											onClick={() => {
+											<Button
+												size="xs"
+												type="button"
+												disabled={isSaveDisabled}											onClick={() => {
 												if (parsedDraftValue === null) {
 													return;
 												}
@@ -253,12 +252,11 @@ export const UserCompactionThresholdSettings: FC<
 											Save
 										</Button>
 										{hasOverride && (
-											<Button
-												size="sm"
-												variant="outline"
-												type="button"
-												disabled={isThisModelMutating}
-												onClick={() => {
+												<Button
+													size="xs"
+													variant="outline"
+													type="button"
+													disabled={isThisModelMutating}												onClick={() => {
 													clearRowError(modelConfig.id);
 													setPendingModels((currentPendingModels) =>
 														new Set(currentPendingModels).add(modelConfig.id),
@@ -272,20 +270,20 @@ export const UserCompactionThresholdSettings: FC<
 									</div>
 								</div>
 								{draftValue.length > 0 && parsedDraftValue === null && (
-									<p className="m-0 mt-1 text-xs text-content-destructive">
+									<p className="m-0 text-xs text-content-destructive">
 										Enter a whole number between 0 and 100.
 									</p>
 								)}
 								{rowErrors[modelConfig.id] && (
 									<p
 										aria-live="polite"
-										className="m-0 mt-1 text-xs text-content-destructive"
+										className="m-0 text-xs text-content-destructive"
 									>
 										{rowErrors[modelConfig.id]}
 									</p>
 								)}
 								{draftValue === "100" && (
-									<p className="m-0 mt-1 text-xs text-content-secondary">
+									<p className="m-0 text-xs text-content-secondary">
 										⚠ Setting 100% will disable auto-compaction for this model.
 									</p>
 								)}
