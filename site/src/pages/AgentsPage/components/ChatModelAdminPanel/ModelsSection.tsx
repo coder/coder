@@ -14,7 +14,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import {
 	ChevronDownIcon,
-	ChevronRightIcon,
+	EllipsisVertical,
 	PlusIcon,
 	StarIcon,
 	TriangleAlertIcon,
@@ -31,7 +31,8 @@ import { hasCustomPricing } from "./pricingFields";
 type ModelView =
 	| { mode: "list" }
 	| { mode: "add"; provider: string }
-	| { mode: "edit"; model: TypesGen.ChatModelConfig };
+	| { mode: "edit"; model: TypesGen.ChatModelConfig }
+	| { mode: "duplicate"; model: TypesGen.ChatModelConfig };
 
 interface ModelsSectionProps {
 	sectionLabel?: string;
@@ -92,18 +93,23 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			const model = modelConfigs.find((m) => m.id === editModelId);
 			return model ? { mode: "edit", model } : { mode: "list" };
 		}
+		const duplicateModelId = searchParams.get("duplicateModel");
+		if (duplicateModelId) {
+			const model = modelConfigs.find((m) => m.id === duplicateModelId);
+			return model ? { mode: "duplicate", model } : { mode: "list" };
+		}
 		const addProvider = searchParams.get("newModel");
 		if (addProvider) {
 			return { mode: "add", provider: addProvider };
 		}
 		return { mode: "list" };
 	})();
-
 	// Clear model-related search params and return to the list.
 	const clearModelView = () => {
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
 			next.delete("model");
+			next.delete("duplicateModel");
 			next.delete("newModel");
 			return next;
 		});
@@ -121,6 +127,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				(prev) => {
 					const next = new URLSearchParams(prev);
 					next.delete("model");
+					next.delete("duplicateModel");
 					next.delete("newModel");
 					return next;
 				},
@@ -130,8 +137,14 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	};
 
 	// When the form is open it takes over the full panel.
-	if (view.mode === "add" || view.mode === "edit") {
+	if (
+		view.mode === "add" ||
+		view.mode === "edit" ||
+		view.mode === "duplicate"
+	) {
 		const editingModel = view.mode === "edit" ? view.model : undefined;
+		const duplicateFromModel =
+			view.mode === "duplicate" ? view.model : undefined;
 
 		const getEffectiveProvider = () => {
 			if (editingModel) {
@@ -139,6 +152,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			}
 			if (view.mode === "add") {
 				return view.provider;
+			}
+			if (duplicateFromModel) {
+				return duplicateFromModel.provider;
 			}
 			return selectedProvider;
 		};
@@ -150,8 +166,14 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 		return (
 			<ModelForm
-				key={editingModel?.id ?? effectiveProvider ?? "new"}
+				key={
+					editingModel?.id ??
+					duplicateFromModel?.id ??
+					effectiveProvider ??
+					"new"
+				}
 				editingModel={editingModel}
+				duplicateFromModel={duplicateFromModel}
 				providerStates={providerStates}
 				selectedProvider={effectiveProvider}
 				selectedProviderState={effectiveProviderState}
@@ -222,6 +244,16 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		void onUpdateModel(modelConfig.id, { is_default: true });
 	};
 
+	const openEditModel = (modelConfigId: string) => {
+		setSearchParams({ model: modelConfigId }, { state: { pushed: true } });
+	};
+
+	const openDuplicateModel = (modelConfigId: string) => {
+		setSearchParams(
+			{ duplicateModel: modelConfigId },
+			{ state: { pushed: true } },
+		);
+	};
 	return (
 		<>
 			{sectionLabel && (
@@ -295,15 +327,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											: "Set as default for new chats"}
 									</TooltipContent>
 								</Tooltip>
-								{/* Clickable row content */}
 								<button
 									type="button"
-									onClick={() =>
-										setSearchParams(
-											{ model: modelConfig.id },
-											{ state: { pushed: true } },
-										)
-									}
+									onClick={() => openEditModel(modelConfig.id)}
 									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 text-left transition-colors hover:opacity-80"
 								>
 									<ProviderIcon
@@ -333,7 +359,31 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											disabled
 										</Badge>
 									)}
-									<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon-lg"
+												variant="subtle"
+												aria-label="Model actions"
+												onClick={(e) => e.stopPropagation()}
+											>
+												<EllipsisVertical aria-hidden="true" />
+												<span className="sr-only">Model actions</span>
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem
+												onClick={() => openEditModel(modelConfig.id)}
+											>
+												Edit model
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												onClick={() => openDuplicateModel(modelConfig.id)}
+											>
+												Duplicate model
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								</button>
 							</div>
 						);

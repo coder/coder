@@ -392,6 +392,21 @@ const openAddModelForm = async (
 	});
 };
 
+const openModelActionsMenu = async (
+	body: ReturnType<typeof within>,
+	modelName: string,
+) => {
+	const editButton = await body.findByRole("button", { name: modelName });
+	const row = editButton.parentElement;
+	if (!row) {
+		throw new Error(`Could not find row for model ${modelName}`);
+	}
+	const actionsButton = within(row).getByRole("button", {
+		name: "Model actions",
+	});
+	await userEvent.click(actionsButton);
+};
+
 export const NoModelConfigByDefault: Story = {
 	args: { section: "models" as ChatModelAdminSection },
 	beforeEach: () => {
@@ -923,6 +938,154 @@ export const ProviderDeleteConfirmed: Story = {
 		expect(API.experimental.deleteChatProviderConfig).toHaveBeenCalledWith(
 			"provider-openai",
 		);
+	},
+};
+
+export const ModelActionsAndDuplicateFlow: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-openai-1",
+					provider: "openai",
+					model: "gpt-5",
+					display_name: "GPT 5",
+					is_default: true,
+					context_limit: 123456,
+					compression_threshold: 61,
+					model_config: {
+						max_output_tokens: 32000,
+						provider_options: {
+							openai: {
+								reasoning_effort: "high",
+							},
+						},
+					},
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await openModelActionsMenu(body, "GPT 5");
+		await expect(
+			await body.findByRole("menuitem", { name: "Edit model" }),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("menuitem", { name: "Duplicate model" }),
+		).toBeInTheDocument();
+
+		await userEvent.click(body.getByRole("menuitem", { name: "Edit model" }));
+		await expect(await body.findByText("Edit Model")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("gpt-5")).toBeInTheDocument();
+		await userEvent.click(body.getByRole("button", { name: "Back" }));
+
+		await openModelActionsMenu(body, "GPT 5");
+		await userEvent.click(
+			body.getByRole("menuitem", { name: "Duplicate model" }),
+		);
+		await expect(await body.findByText("Add Model")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("gpt-5")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("GPT 5 copy")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("123456")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("61")).toBeInTheDocument();
+		const submitButton = body.getByRole("button", { name: "Add model" });
+		await expect(submitButton).toBeInTheDocument();
+		await userEvent.click(submitButton);
+
+		await waitFor(() => {
+			expect(API.experimental.createChatModelConfig).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.updateChatModelConfig).not.toHaveBeenCalled();
+		expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: "openai",
+				model: "gpt-5",
+				display_name: "GPT 5 copy",
+				context_limit: 123456,
+				compression_threshold: 61,
+				model_config: expect.objectContaining({
+					max_output_tokens: 32000,
+					provider_options: {
+						openai: {
+							reasoning_effort: "high",
+						},
+					},
+				}),
+			}),
+		);
+		const callArgs = (
+			API.experimental.createChatModelConfig as unknown as ReturnType<
+				typeof spyOn
+			>
+		).mock.calls[0][0] as Record<string, unknown>;
+		expect(callArgs.is_default).toBeUndefined();
+	},
+};
+
+export const DuplicateModelWithoutProviderApiKey: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: false,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-openai-no-key",
+					provider: "openai",
+					model: "gpt-5-mini",
+					display_name: "GPT 5 Mini",
+					context_limit: 64000,
+					compression_threshold: 77,
+					model_config: {
+						max_output_tokens: 16000,
+					},
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await openModelActionsMenu(body, "GPT 5 Mini");
+		await userEvent.click(
+			body.getByRole("menuitem", { name: "Duplicate model" }),
+		);
+
+		await expect(await body.findByText("Add Model")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("gpt-5-mini")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("GPT 5 Mini copy")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("64000")).toBeInTheDocument();
+		await expect(body.getByDisplayValue("77")).toBeInTheDocument();
+		await expect(
+			body.getByText(/Create a managed provider config or set an API key/i),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Set an API key" }),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Add model" }),
+		).toBeDisabled();
 	},
 };
 

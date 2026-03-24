@@ -219,20 +219,43 @@ export const extractModelConfigFormState = (
 
 // ── Build initial model form values ────────────────────────────
 
+const duplicateModelDisplayNameSuffix = "copy";
+
+const buildDuplicateModelDisplayName = (
+	sourceModel: TypesGen.ChatModelConfig,
+): string => {
+	const baseName = sourceModel.display_name || sourceModel.model;
+	const normalizedBaseName = baseName.endsWith(
+		` ${duplicateModelDisplayNameSuffix}`,
+	)
+		? baseName
+		: `${baseName} ${duplicateModelDisplayNameSuffix}`;
+	return normalizedBaseName;
+};
+
 export const buildInitialModelFormValues = (
 	editingModel?: TypesGen.ChatModelConfig,
-): ModelFormValues => ({
-	model: editingModel?.model ?? "",
-	displayName: editingModel?.display_name ?? "",
-	contextLimit: editingModel ? String(editingModel.context_limit) : "",
-	compressionThreshold: editingModel
-		? String(editingModel.compression_threshold)
-		: "",
-	isDefault: editingModel?.is_default ?? false,
-	config: editingModel
-		? extractModelConfigFormState(editingModel)
-		: structuredClone(emptyModelConfigFormState),
-});
+	duplicateFromModel?: TypesGen.ChatModelConfig,
+): ModelFormValues => {
+	const sourceModel = editingModel ?? duplicateFromModel;
+	const isDuplicate = Boolean(duplicateFromModel) && !editingModel;
+
+	return {
+		model: sourceModel?.model ?? "",
+		displayName:
+			isDuplicate && sourceModel
+				? buildDuplicateModelDisplayName(sourceModel)
+				: (sourceModel?.display_name ?? ""),
+		contextLimit: sourceModel ? String(sourceModel.context_limit) : "",
+		compressionThreshold: sourceModel
+			? String(sourceModel.compression_threshold)
+			: "",
+		isDefault: isDuplicate ? false : (sourceModel?.is_default ?? false),
+		config: sourceModel
+			? extractModelConfigFormState(sourceModel)
+			: structuredClone(emptyModelConfigFormState),
+	};
+};
 
 function isNonNegativePricingField(field: FieldSchema): boolean {
 	return pricingFieldNames.has(field.json_name);

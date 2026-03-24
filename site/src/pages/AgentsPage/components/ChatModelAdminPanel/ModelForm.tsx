@@ -61,6 +61,7 @@ const validationSchema = Yup.object({
 interface ModelFormProps {
 	/** When set, the form is in "edit" mode for the given model. */
 	editingModel?: TypesGen.ChatModelConfig;
+	duplicateFromModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
@@ -81,6 +82,7 @@ interface ModelFormProps {
 
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,
+	duplicateFromModel,
 	providerStates,
 	selectedProvider,
 	selectedProviderState,
@@ -104,7 +106,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 	);
 
 	const form = useFormik<ModelFormValues>({
-		initialValues: buildInitialModelFormValues(editingModel),
+		initialValues: buildInitialModelFormValues(
+			editingModel,
+			duplicateFromModel,
+		),
 		validationSchema,
 		validateOnMount: true,
 		validateOnBlur: false,
