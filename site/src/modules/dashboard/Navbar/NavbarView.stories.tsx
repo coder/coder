@@ -15,6 +15,7 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: {
 		chromatic: chromaticWithTablet,
 		layout: "fullscreen",
+		experiments: ["agents"],
 		queries: [
 			{
 				key: ["tasks", tasksFilter],

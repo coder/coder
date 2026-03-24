@@ -11,10 +11,12 @@ import {
 } from "components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
+import { isDevBuild } from "utils/buildInfo";
 import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
@@ -230,12 +232,8 @@ function idleTasksLabel(count: number) {
 }
 
 const AgentsNavItem: FC = () => {
-	const { metadata } = useEmbeddedMetadata();
-	const canSeeAgents = Boolean(
-		metadata["agents-tab-visible"].value ||
-			process.env.NODE_ENV === "development" ||
-			process.env.STORYBOOK,
-	);
+	const { experiments, buildInfo } = useDashboard();
+	const canSeeAgents = experiments.includes("agents") || isDevBuild(buildInfo);
 
 	if (!canSeeAgents) {
 		return null;
