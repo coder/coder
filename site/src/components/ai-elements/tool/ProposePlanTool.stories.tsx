@@ -141,7 +141,7 @@ export const FileIDLoading: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Loading plan/)).toBeInTheDocument();
+		expect(await canvas.findByText(/Loading plan/)).toBeInTheDocument();
 	},
 };
 

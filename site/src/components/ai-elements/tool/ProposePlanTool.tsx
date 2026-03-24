@@ -6,7 +6,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { CircleAlertIcon, LoaderIcon } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { Response } from "../response";
 import type { ToolStatus } from "./utils";
@@ -26,49 +26,28 @@ export const ProposePlanTool: React.FC<{
 	isError,
 	errorMessage,
 }) => {
-	const [fetchedContent, setFetchedContent] = useState<string | undefined>();
-	const [fetchError, setFetchError] = useState<string | undefined>();
-	const [fetchLoading, setFetchLoading] = useState(false);
-
 	const hasInlineContent = (inlineContent?.trim().length ?? 0) > 0;
+	const fileQuery = useQuery({
+		queryKey: ["chatFile", fileID],
+		queryFn: async () => {
+			if (!fileID) {
+				throw new Error("Missing file ID");
+			}
 
-	useEffect(() => {
-		setFetchedContent(undefined);
-		setFetchError(undefined);
+			return API.experimental.getChatFileText(fileID);
+		},
+		enabled: Boolean(fileID) && !hasInlineContent,
+	});
 
-		if (!fileID || hasInlineContent) {
-			setFetchLoading(false);
-			return;
-		}
-
-		let cancelled = false;
-		setFetchLoading(true);
-
-		API.experimental
-			.getChatFileText(fileID)
-			.then((text) => {
-				if (!cancelled) {
-					setFetchedContent(text);
-					setFetchLoading(false);
-				}
-			})
-			.catch((err) => {
-				if (!cancelled) {
-					setFetchError(
-						err instanceof Error ? err.message : "Failed to load plan",
-					);
-					setFetchLoading(false);
-				}
-			});
-
-		return () => {
-			cancelled = true;
-		};
-	}, [fileID, hasInlineContent]);
-
+	const fetchError = fileQuery.isError
+		? fileQuery.error instanceof Error
+			? fileQuery.error.message
+			: "Failed to load plan"
+		: undefined;
+	const fetchLoading = fileQuery.isLoading;
 	const displayContent = hasInlineContent
-		? inlineContent || ""
-		: fetchedContent || "";
+		? (inlineContent ?? "")
+		: (fileQuery.data ?? "");
 	const isRunning = status === "running";
 	const filename = (path || "PLAN.md").split("/").pop() || "PLAN.md";
 	const effectiveError = isError || Boolean(fetchError);
