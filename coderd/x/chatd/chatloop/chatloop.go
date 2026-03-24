@@ -386,7 +386,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				Content:            result.content,
 				Usage:              result.usage,
 				ContextLimit:       contextLimit,
-				ProviderResponseID: extractOpenAIResponseID(result.providerMetadata),
+				ProviderResponseID: extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 				Runtime:            time.Since(stepStart),
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
@@ -399,11 +399,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 			lastProviderMetadata = result.providerMetadata
 
 			// When chain mode is active (PreviousResponseID set), exit
-			// it after persisting the first chained step. If the
-			// model needs local tool results to continue, keep replaying
-			// only the current turn until we reach a non-continuing
-			// step; reloading full history immediately would replay older
-			// provider-executed outputs on the continuation step.
+			// it after persisting the first chained step. Continuation
+			// steps include tool-result messages, which fantasy rejects
+			// when previous_response_id is set, so we must leave chain
+			// mode and reload the full history before the next call.
 			stepMessages := result.toResponseMessages()
 			if hasPreviousResponseID(opts.ProviderOptions) {
 				clearPreviousResponseID(opts.ProviderOptions)
@@ -411,9 +410,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 					opts.DisableChainMode()
 				}
 				switch {
-				case result.shouldContinue:
-					messages = append(messages, stepMessages...)
-					needsFullHistoryReload = true
 				case opts.ReloadMessages != nil:
 					if err := reloadFullHistory("after chain mode exit"); err != nil {
 						return err
@@ -421,6 +417,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 					needsFullHistoryReload = false
 				default:
 					messages = append(messages, stepMessages...)
+					needsFullHistoryReload = false
 				}
 			} else {
 				messages = append(messages, stepMessages...)
@@ -1069,6 +1066,37 @@ func extractOpenAIResponseID(metadata fantasy.ProviderMetadata) string {
 	}
 
 	return ""
+}
+
+// extractOpenAIResponseIDIfStored returns the OpenAI response ID
+// only when the provider options indicate store=true. Response IDs
+// from store=false turns are not persisted server-side and cannot
+// be used for chaining.
+func extractOpenAIResponseIDIfStored(
+	providerOptions fantasy.ProviderOptions,
+	metadata fantasy.ProviderMetadata,
+) string {
+	if !isResponsesStoreEnabled(providerOptions) {
+		return ""
+	}
+
+	return extractOpenAIResponseID(metadata)
+}
+
+// isResponsesStoreEnabled checks whether the OpenAI Responses
+// provider options explicitly enable store=true.
+func isResponsesStoreEnabled(providerOptions fantasy.ProviderOptions) bool {
+	if providerOptions == nil {
+		return false
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			return options.Store != nil && *options.Store
+		}
+	}
+
+	return false
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {
