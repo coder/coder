@@ -17,7 +17,12 @@ import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
+import {
+	ArrowDownIcon,
+	ArrowUpIcon,
+	ChevronLeftIcon,
+	ShieldIcon,
+} from "lucide-react";
 import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
@@ -127,7 +132,7 @@ const UserRow: FC<{
 			{...clickableRowProps}
 			aria-label={`View details for ${user.name || user.username}`}
 		>
-			<TableCell className="min-w-[220px] px-4 py-3">
+			<TableCell className="px-4 py-3">
 				<AvatarData
 					title={user.name || user.username}
 					subtitle={`@${user.username}`}
@@ -145,16 +150,43 @@ const UserRow: FC<{
 				{user.chat_count.toLocaleString()}
 			</TableCell>
 			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_input_tokens)}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_output_tokens)}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_cache_read_tokens)}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_cache_creation_tokens)}
+				<TooltipProvider delayDuration={0}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="inline-flex items-center gap-1 whitespace-nowrap">
+								<span className="inline-flex items-center gap-0.5">
+									<ArrowDownIcon className="h-3 w-3" />
+									{formatTokenCount(user.total_input_tokens)}
+								</span>
+								<span className="text-content-secondary">/</span>
+								<span className="inline-flex items-center gap-0.5">
+									<ArrowUpIcon className="h-3 w-3" />
+									{formatTokenCount(user.total_output_tokens)}
+								</span>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="top">
+							<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
+								<span className="text-content-secondary">Input</span>
+								<span className="text-right font-mono">
+									{user.total_input_tokens.toLocaleString()}
+								</span>
+								<span className="text-content-secondary">Output</span>
+								<span className="text-right font-mono">
+									{user.total_output_tokens.toLocaleString()}
+								</span>
+								<span className="text-content-secondary">Cache read</span>
+								<span className="text-right font-mono">
+									{user.total_cache_read_tokens.toLocaleString()}
+								</span>
+								<span className="text-content-secondary">Cache write</span>
+								<span className="text-right font-mono">
+									{user.total_cache_creation_tokens.toLocaleString()}
+								</span>
+							</div>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</TableCell>
 		</TableRow>
 	);
@@ -443,21 +475,11 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 												Chats
 											</TableHead>
 											<TableHead className="px-4 py-3 text-right">
-												Input Tokens
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Output Tokens
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Cache Read
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Cache Write
+												Tokens
 											</TableHead>
 										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{usersQuery.data.users.map((user) => (
+										</TableHeader>
+										<TableBody>										{usersQuery.data.users.map((user) => (
 											<UserRow
 												key={user.user_id}
 												user={user}
