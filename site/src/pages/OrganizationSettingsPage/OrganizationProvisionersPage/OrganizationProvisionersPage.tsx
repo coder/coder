@@ -1,4 +1,3 @@
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams, useSearchParams } from "react-router";
@@ -6,6 +5,7 @@ import { pageTitle } from "utils/page";
 import { buildInfo } from "#/api/queries/buildInfo";
 import { provisionerDaemons } from "#/api/queries/organizations";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";

@@ -5,7 +5,6 @@ import {
 	MockUserOwner,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import type { ComponentProps } from "react";
 import {
 	getDefaultFilterProps,
@@ -15,6 +14,7 @@ import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];

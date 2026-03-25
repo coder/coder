@@ -1,4 +1,3 @@
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
@@ -14,6 +13,7 @@ import type { Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 const WorkspacePage: FC = () => {

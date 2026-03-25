@@ -1,5 +1,4 @@
 import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
@@ -21,6 +20,7 @@ import type {
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Stack } from "#/components/Stack/Stack";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";

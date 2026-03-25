@@ -1,4 +1,3 @@
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
@@ -8,6 +7,7 @@ import {
 	experiments,
 	isKnownExperiment,
 } from "#/api/queries/experiments";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
 import { OverviewPageView } from "./OverviewPageView";
 

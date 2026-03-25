@@ -1,4 +1,3 @@
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
@@ -8,6 +7,7 @@ import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { entitlements, refreshEntitlements } from "#/api/queries/entitlements";
 import { insightsUserStatusCounts } from "#/api/queries/insights";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const LicensesSettingsPage: FC = () => {

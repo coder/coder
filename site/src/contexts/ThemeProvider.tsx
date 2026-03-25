@@ -11,7 +11,6 @@ import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
 } from "@mui/material/styles";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -23,6 +22,7 @@ import {
 import { useQuery } from "react-query";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { appearanceSettings } from "#/api/queries/users";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 
 /**
  *

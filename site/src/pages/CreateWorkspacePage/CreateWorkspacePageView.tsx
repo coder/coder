@@ -1,6 +1,4 @@
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
@@ -43,6 +41,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { WorkspaceUserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
 import {
 	Diagnostics,

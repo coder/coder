@@ -1,10 +1,10 @@
 import { useProxy } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { buildInfo } from "#/api/queries/buildInfo";
 import type { LinkConfig } from "#/api/typesGenerated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canViewDeploymentSettings } from "#/modules/permissions";
 import { useFeatureVisibility } from "../useFeatureVisibility";

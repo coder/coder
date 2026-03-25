@@ -1,5 +1,4 @@
 import isChromatic from "chromatic/isChromatic";
-import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
 	PauseIcon,
@@ -46,6 +45,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { getAllAppsWithAgent } from "#/modules/tasks/apps";

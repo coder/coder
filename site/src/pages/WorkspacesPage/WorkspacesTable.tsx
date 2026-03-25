@@ -1,6 +1,5 @@
 import Skeleton from "@mui/material/Skeleton";
 import { useAuthenticated } from "hooks";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
 import {
 	BanIcon,
 	CloudIcon,
@@ -67,6 +66,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,
 	getVSCodeHref,

@@ -1,4 +1,3 @@
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
@@ -28,6 +27,7 @@ import {
 import { Stack } from "#/components/Stack/Stack";
 import { Stats, StatsItem } from "#/components/Stats/Stats";
 import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { BuildAvatar } from "#/modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";

@@ -1,6 +1,4 @@
 import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { usePagination } from "hooks/usePagination";
 import { type FC, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
@@ -12,6 +10,8 @@ import { templates, templateVersionRoot } from "#/api/queries/templates";
 import { workspaces } from "#/api/queries/workspaces";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { usePagination } from "#/hooks/usePagination";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";

@@ -1,5 +1,4 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type { TemplateVersion } from "#/api/typesGenerated";
@@ -10,6 +9,7 @@ import { Pill } from "#/components/Pill/Pill";
 import { Stack } from "#/components/Stack/Stack";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
 interface VersionRowProps {
 	version: TemplateVersion;

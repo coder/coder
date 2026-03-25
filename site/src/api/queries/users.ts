@@ -1,8 +1,3 @@
-import {
-	defaultMetadataManager,
-	type MetadataState,
-} from "hooks/useEmbeddedMetadata";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type {
 	MutationOptions,
 	QueryClient,
@@ -26,6 +21,11 @@ import type {
 	UserPreferenceSettings,
 	UsersRequest,
 } from "#/api/typesGenerated";
+import {
+	defaultMetadataManager,
+	type MetadataState,
+} from "#/hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 

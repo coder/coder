@@ -1,5 +1,3 @@
-import type { MetadataState } from "hooks/useEmbeddedMetadata";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type { QueryClient, UseQueryOptions } from "react-query";
 import {
 	API,
@@ -16,6 +14,8 @@ import type {
 	UpdateOrganizationRequest,
 	UpdateWorkspaceSharingSettingsRequest,
 } from "#/api/typesGenerated";
+import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
 	type OrganizationPermissionName,
 	type OrganizationPermissions,

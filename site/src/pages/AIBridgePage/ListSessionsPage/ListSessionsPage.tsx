@@ -1,11 +1,11 @@
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import type { FC } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { paginatedSessions } from "#/api/queries/aiBridge";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";

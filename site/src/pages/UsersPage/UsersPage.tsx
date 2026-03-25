@@ -1,5 +1,4 @@
 import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -25,6 +24,7 @@ import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { UsersPageView } from "./UsersPageView";

@@ -1,7 +1,7 @@
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { API } from "#/api/api";
 import type { ConnectionLogResponse } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 export function paginatedConnectionLogs(
 	searchParams: URLSearchParams,

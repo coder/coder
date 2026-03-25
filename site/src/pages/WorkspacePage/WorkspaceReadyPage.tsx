@@ -1,4 +1,3 @@
-import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -25,6 +24,7 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";

@@ -1,5 +1,4 @@
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
@@ -16,6 +15,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
 import { DeploymentDropdown } from "./DeploymentDropdown";

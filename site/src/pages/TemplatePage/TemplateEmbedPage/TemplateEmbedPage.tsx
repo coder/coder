@@ -1,8 +1,6 @@
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import { useDebouncedFunction } from "hooks/debounce";
-import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useId, useState } from "react";
@@ -20,6 +18,8 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import { useClipboard } from "#/hooks/useClipboard";
 
 type ButtonValues = Record<string, string>;
 

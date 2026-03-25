@@ -1,4 +1,3 @@
-import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
@@ -37,6 +36,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 

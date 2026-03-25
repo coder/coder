@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
 import type { Breakpoint } from "@mui/system/createTheme";
-import { useDebouncedFunction } from "hooks/debounce";
 import { ExternalLinkIcon, SlidersHorizontal } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import {
@@ -20,6 +19,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { SearchField } from "#/components/SearchField/SearchField";
+import { useDebouncedFunction } from "#/hooks/debounce";
 
 type PresetFilter = {
 	name: string;

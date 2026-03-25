@@ -1,9 +1,9 @@
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { buildInfo } from "#/api/queries/buildInfo";
 import { experiments } from "#/api/queries/experiments";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 
 interface WebpushNotifications {
 	readonly enabled: boolean;

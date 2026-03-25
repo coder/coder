@@ -1,5 +1,4 @@
 import { useAuthContext } from "contexts/auth/AuthProvider";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate } from "react-router";
@@ -8,6 +7,7 @@ import { sendDeploymentEvent } from "utils/telemetry";
 import { buildInfo } from "#/api/queries/buildInfo";
 import { authMethods, createFirstUser } from "#/api/queries/users";
 import { Loader } from "#/components/Loader/Loader";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
