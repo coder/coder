@@ -567,11 +567,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									{!chat.archived && (
 										<DropdownMenuItem
 											onSelect={() =>
-												chat.pinned ? onUnpinChat(chat.id) : onPinChat(chat.id)
+												chat.pin_order > 0 ? onUnpinChat(chat.id) : onPinChat(chat.id)
 											}
 										>
-											{chat.pinned ? (
-												<>
+												{chat.pin_order > 0 ? (												<>
 													<PinOffIcon className="h-3.5 w-3.5" />
 													Unpin agent
 												</>
@@ -729,7 +728,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	const pinnedChats = visibleRootIDs
 		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => chat?.pinned === true)
+		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
 	// Local override for pinned order during drag — applied
@@ -806,11 +805,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					return (
 						chat !== undefined &&
 						getTimeGroup(chat.updated_at) === group &&
-						!chat.pinned
-					);
-				}),
-			);
-
+							chat.pin_order === 0
+						);
+					}),
+				);
 	const filterDropdown = (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -1055,7 +1053,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															(chat): chat is Chat =>
 																chat !== undefined &&
 																getTimeGroup(chat.updated_at) === group &&
-																!chat.pinned,
+																chat.pin_order === 0,
 														);
 													if (groupChats.length === 0) return null;
 													return (

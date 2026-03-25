@@ -322,7 +322,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 
 export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
-		API.experimental.updateChat(chatId, { pinned: true }),
+		API.experimental.updateChat(chatId, { pin_order: 1 }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
@@ -342,13 +342,13 @@ export const pinChat = (queryClient: QueryClient) => ({
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pinned: true } : chat,
+				chat.id === chatId ? { ...chat, pin_order: 1 } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				pinned: true,
+				pin_order: 1,
 			});
 		}
 		return { previousChat };
@@ -382,7 +382,7 @@ export const pinChat = (queryClient: QueryClient) => ({
 
 export const unpinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
-		API.experimental.updateChat(chatId, { pinned: false }),
+		API.experimental.updateChat(chatId, { pin_order: 0 }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
@@ -402,13 +402,13 @@ export const unpinChat = (queryClient: QueryClient) => ({
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pinned: false } : chat,
+				chat.id === chatId ? { ...chat, pin_order: 0 } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				pinned: false,
+				pin_order: 0,
 			});
 		}
 		return { previousChat };

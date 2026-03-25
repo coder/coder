@@ -59,7 +59,6 @@ export const WithParentChat: Story = {
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
-			pinned: false,
 			pin_order: 0,
 		},
 	},

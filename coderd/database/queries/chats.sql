@@ -6,13 +6,13 @@ WHERE id = @id OR root_chat_id = @id;
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
 -- name: PinChatByID :exec
-UPDATE chats SET pinned = true, pin_order = COALESCE((SELECT MAX(c2.pin_order) FROM chats c2 WHERE c2.owner_id = (SELECT c3.owner_id FROM chats c3 WHERE c3.id = @id) AND c2.pinned = true), 0) + 1 WHERE chats.id = @id;
+UPDATE chats SET pin_order = COALESCE((SELECT MAX(c2.pin_order) FROM chats c2 WHERE c2.owner_id = (SELECT c3.owner_id FROM chats c3 WHERE c3.id = @id) AND c2.pin_order > 0), 0) + 1 WHERE chats.id = @id;
 
 -- name: UnpinChatByID :exec
-UPDATE chats SET pinned = false, pin_order = 0 WHERE id = @id;
+UPDATE chats SET pin_order = 0 WHERE id = @id;
 
 -- name: UpdateChatPinOrder :exec
-UPDATE chats SET pin_order = @pin_order::integer WHERE id = @id AND pinned = true;
+UPDATE chats SET pin_order = @pin_order::integer WHERE id = @id AND pin_order > 0;
 
 -- name: SoftDeleteChatMessagesAfterID :exec
 UPDATE

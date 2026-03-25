@@ -45,7 +45,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
-	pinned: false,
 	pin_order: 0,
 	last_error: null,
 	...overrides,
@@ -750,7 +749,7 @@ export const PinnedChatsSection: Story = {
 				id: "pinned-1",
 				title: "My pinned agent",
 				updated_at: todayTimestamp,
-				pinned: true,
+				pin_order: 1,
 			}),
 			buildChat({
 				id: "unpinned-1",

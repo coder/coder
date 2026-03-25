@@ -1643,33 +1643,28 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.Pinned != nil {
-		pinned := *req.Pinned
-		if pinned == chat.Pinned {
-			state := "pinned"
-			if !pinned {
-				state = "not pinned"
-			}
+	if req.PinOrder != nil {
+		pinOrder := *req.PinOrder
+		if pinOrder < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Chat is already %s.", state),
+				Message: "Pin order must be non-negative.",
 			})
 			return
 		}
 
 		var err error
-		if pinned {
-			err = api.Database.PinChatByID(ctx, chat.ID)
-		} else {
+		if pinOrder == 0 {
 			err = api.Database.UnpinChatByID(ctx, chat.ID)
+		} else {
+			err = api.Database.PinChatByID(ctx, chat.ID)
 		}
 		if err != nil {
 			action := "pin"
-			if !pinned {
+			if pinOrder == 0 {
 				action = "unpin"
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Failed to %s chat.", action),
-				Detail:  err.Error(),
 			})
 			return
 		}
