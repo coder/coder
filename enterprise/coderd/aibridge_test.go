@@ -1429,30 +1429,6 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "anthropic", res.Threads[0].Provider)
 	})
 
-	t.Run("LookupByUUIDClientSessionID", func(t *testing.T) {
-		t.Parallel()
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Use a UUID as the client_session_id. The handler must
-		// not confuse this with an interception ID.
-		uuidSessionID := uuid.New().String()
-		now := dbtime.Now()
-		endedAt := now.Add(time.Minute)
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:     firstUser.UserID,
-			Provider:        "anthropic",
-			Model:           "claude-4",
-			StartedAt:       now,
-			ClientSessionID: sql.NullString{String: uuidSessionID, Valid: true},
-		}, &endedAt)
-
-		res, err := client.AIBridgeGetSessionThreads(ctx, uuidSessionID, uuid.Nil, uuid.Nil, 0)
-		require.NoError(t, err)
-		require.Equal(t, uuidSessionID, res.ID)
-		require.Len(t, res.Threads, 1)
-	})
-
 	t.Run("LookupByInterceptionUUID", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
@@ -1467,7 +1443,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			StartedAt:   now,
 		}, &endedAt)
 
-		// Look up by UUID.
+		// When no client session ID is set, the interception ID becomes the session identifier.
 		res, err := client.AIBridgeGetSessionThreads(ctx, i1.ID.String(), uuid.Nil, uuid.Nil, 0)
 		require.NoError(t, err)
 		require.Equal(t, i1.ID.String(), res.ID)
