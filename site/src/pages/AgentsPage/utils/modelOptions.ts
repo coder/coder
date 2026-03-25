@@ -95,6 +95,36 @@ const getAvailableProviders = (
 	return availableProviders;
 };
 
+/**
+ * Resolves a stored model reference (config ID or legacy
+ * "provider:model" string) to the ID of a matching model option.
+ * Returns the matched option ID, or an empty string if no match is
+ * found.
+ */
+export const resolveModelOptionId = (
+	storedRef: string | null | undefined,
+	modelOptions: readonly ModelSelectorOption[],
+): string => {
+	const normalized = asString(storedRef).trim();
+	if (!normalized) {
+		return "";
+	}
+
+	const directMatch = modelOptions.find((option) => option.id === normalized);
+	if (directMatch) {
+		return directMatch.id;
+	}
+
+	const legacyMatch = modelOptions.find(
+		(option) => `${option.provider}:${option.model}` === normalized,
+	);
+	if (legacyMatch) {
+		return legacyMatch.id;
+	}
+
+	return "";
+};
+
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,

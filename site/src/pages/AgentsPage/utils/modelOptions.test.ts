@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	getModelOptionsFromConfigs,
 	getNormalizedModelRef,
+	resolveModelOptionId,
 } from "./modelOptions";
 
 const createConfig = (
@@ -55,6 +56,59 @@ describe("getNormalizedModelRef", () => {
 		expect(
 			getNormalizedModelRef({ provider: " OpenAI ", model: " gpt-4o " }),
 		).toEqual({ provider: "openai", model: "gpt-4o" });
+	});
+});
+
+describe("resolveModelOptionId", () => {
+	const modelOptions = [
+		{
+			id: "config-1",
+			provider: "openai",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+		},
+		{
+			id: "config-2",
+			provider: "anthropic",
+			model: "claude-sonnet-4-20250514",
+			displayName: "Claude Sonnet",
+		},
+	] as const;
+
+	it("returns an empty string for nullish and blank input", () => {
+		expect(resolveModelOptionId(undefined, modelOptions)).toBe("");
+		expect(resolveModelOptionId(null, modelOptions)).toBe("");
+		expect(resolveModelOptionId("   ", modelOptions)).toBe("");
+	});
+
+	it("returns the config ID for a direct match", () => {
+		expect(resolveModelOptionId("config-2", modelOptions)).toBe("config-2");
+	});
+
+	it("returns the config ID for a legacy provider:model match", () => {
+		expect(resolveModelOptionId("openai:gpt-4o", modelOptions)).toBe(
+			"config-1",
+		);
+	});
+
+	it("returns an empty string when no option matches", () => {
+		expect(resolveModelOptionId("openai:gpt-5", modelOptions)).toBe("");
+	});
+
+	it("returns the first duplicate legacy match deterministically", () => {
+		const duplicateModelOptions = [
+			...modelOptions,
+			{
+				id: "config-3",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o duplicate",
+			},
+		] as const;
+
+		expect(resolveModelOptionId("openai:gpt-4o", duplicateModelOptions)).toBe(
+			"config-1",
+		);
 	});
 });
 

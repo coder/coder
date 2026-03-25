@@ -66,6 +66,7 @@ import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	resolveModelOptionId,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
@@ -549,15 +550,22 @@ const AgentDetail: FC = () => {
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
 	const effectiveSelectedModel = (() => {
-		if (selectedModel && modelOptions.some((o) => o.id === selectedModel)) {
-			return selectedModel;
+		const resolvedSelectedModel = resolveModelOptionId(
+			selectedModel,
+			modelOptions,
+		);
+		if (resolvedSelectedModel) {
+			return resolvedSelectedModel;
 		}
-		if (
-			chatLastModelConfigID &&
-			modelOptions.some((o) => o.id === chatLastModelConfigID)
-		) {
-			return chatLastModelConfigID;
+
+		const resolvedChatModel = resolveModelOptionId(
+			chatLastModelConfigID,
+			modelOptions,
+		);
+		if (resolvedChatModel) {
+			return resolvedChatModel;
 		}
+
 		return modelOptions[0]?.id ?? "";
 	})();
 
