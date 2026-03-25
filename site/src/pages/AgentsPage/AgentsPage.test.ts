@@ -180,7 +180,7 @@ describe("useFileAttachments persistence", () => {
 		vi.restoreAllMocks();
 	});
 
-	const renderAttachments = () =>
+	const renderFileAttachments = () =>
 		renderHook(() => useFileAttachments("org-1", { persist: true }));
 
 	const makePersistedEntry = (
@@ -205,7 +205,7 @@ describe("useFileAttachments persistence", () => {
 			JSON.stringify([entry]),
 		);
 
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 
 		expect(result.current.attachments).toHaveLength(1);
 		expect(result.current.attachments[0].name).toBe("photo.png");
@@ -230,7 +230,7 @@ describe("useFileAttachments persistence", () => {
 			JSON.stringify([entry]),
 		);
 
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 
 		expect(result.current.attachments).toHaveLength(1);
 		const file = result.current.attachments[0];
@@ -243,7 +243,7 @@ describe("useFileAttachments persistence", () => {
 	});
 
 	it("returns empty state when nothing is persisted", () => {
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 
 		expect(result.current.attachments).toHaveLength(0);
 		expect(result.current.uploadStates.size).toBe(0);
@@ -286,7 +286,7 @@ describe("useFileAttachments persistence", () => {
 			JSON.stringify([entry]),
 		);
 
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 
 		act(() => {
 			result.current.resetAttachments();
@@ -307,7 +307,7 @@ describe("useFileAttachments persistence", () => {
 			JSON.stringify(entries),
 		);
 
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 		expect(result.current.attachments).toHaveLength(2);
 
 		act(() => {
@@ -328,7 +328,7 @@ describe("useFileAttachments persistence", () => {
 	it("handles corrupt localStorage gracefully", () => {
 		localStorage.setItem(persistedAttachmentsStorageKey, "not-valid-json");
 
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 
 		expect(result.current.attachments).toHaveLength(0);
 		unmount();
@@ -341,7 +341,7 @@ describe("useFileAttachments persistence", () => {
 		});
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response());
 
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 
 		const file = new File(["hello"], "test.png", { type: "image/png" });
 
@@ -370,7 +370,7 @@ describe("useFileAttachments persistence", () => {
 			new Error("server error"),
 		);
 
-		const { result, unmount } = renderAttachments();
+		const { result, unmount } = renderFileAttachments();
 
 		const file = new File(["hello"], "test.png", { type: "image/png" });
 
@@ -384,6 +384,32 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
+		unmount();
+	});
+
+	it("preserves attachments and localStorage when resetAttachments is not called", () => {
+		const entry = makePersistedEntry();
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([entry]),
+		);
+
+		const { result, unmount } = renderFileAttachments();
+
+		// Verify attachments were restored.
+		expect(result.current.attachments).toHaveLength(1);
+
+		// Simulate a failed send: the caller does NOT call
+		// resetAttachments because the mutation rejected.
+		// Attachments and localStorage must remain intact.
+		expect(result.current.attachments).toHaveLength(1);
+		expect(result.current.attachments[0].name).toBe("photo.png");
+
+		const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+		expect(stored).not.toBeNull();
+		const parsed = JSON.parse(stored!);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].fileId).toBe("file-1");
 		unmount();
 	});
 });

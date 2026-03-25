@@ -29,42 +29,43 @@ interface PersistedAttachment {
  * and populates the corresponding Maps so the UI can render them.
  */
 function restorePersistedAttachments(): {
-	files: File[];
+	attachments: File[];
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 } {
 	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
 	if (!stored) {
 		return {
-			files: [],
+			attachments: [],
 			uploadStates: new Map(),
 			previewUrls: new Map(),
 		};
 	}
 	try {
 		const persisted: PersistedAttachment[] = JSON.parse(stored);
-		const files: File[] = [];
+		const attachments: File[] = [];
 		const uploadStates = new Map<File, UploadState>();
 		const previewUrls = new Map<File, string>();
 
 		for (const p of persisted) {
-			// Synthetic File used as a Map key only — its content is
+			if (!p.fileId || !p.fileName) continue;
+			// Synthetic File used as a Map key only. Its content is
 			// never read because the existing file_id is reused at
 			// send time.
 			const file = new File([], p.fileName, {
 				type: p.fileType,
 				lastModified: p.lastModified,
 			});
-			files.push(file);
+			attachments.push(file);
 			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
 			if (p.fileType.startsWith("image/")) {
 				previewUrls.set(file, `/api/experimental/chats/files/${p.fileId}`);
 			}
 		}
-		return { files, uploadStates, previewUrls };
+		return { attachments, uploadStates, previewUrls };
 	} catch {
 		return {
-			files: [],
+			attachments: [],
 			uploadStates: new Map(),
 			previewUrls: new Map(),
 		};
@@ -142,13 +143,13 @@ export function useFileAttachments(
 		persist
 			? restorePersistedAttachments()
 			: {
-					files: [] as File[],
+					attachments: [] as File[],
 					uploadStates: new Map<File, UploadState>(),
 					previewUrls: new Map<File, string>(),
 				},
 	);
 
-	const [attachments, setAttachments] = useState<File[]>(restored.files);
+	const [attachments, setAttachments] = useState<File[]>(restored.attachments);
 	const [uploadStates, setUploadStates] = useState(restored.uploadStates);
 	const [previewUrls, setPreviewUrls] = useState(restored.previewUrls);
 	const [textContents, setTextContents] = useState(
@@ -332,7 +333,7 @@ export function useFileAttachments(
 		resetAttachments,
 		// Raw setters exposed for AgentDetailContent to pre-populate
 		// attachments from existing chat messages. These bypass
-		// localStorage persistence — only use when persist is false.
+		// localStorage persistence. Only use when persist is false.
 		setAttachments,
 		setPreviewUrls,
 		setUploadStates,
