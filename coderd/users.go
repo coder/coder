@@ -1755,12 +1755,7 @@ func (api *API) enrichUserAISeat(ctx context.Context, user *codersdk.User) {
 		return
 	}
 
-	for _, uid := range aiSeatUserIDs {
-		if uid == user.ID {
-			user.HasAISeat = true
-			return
-		}
-	}
+	user.HasAISeat = len(aiSeatUserIDs) > 0
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID, aiSeatSet map[uuid.UUID]struct{}) []codersdk.User {
