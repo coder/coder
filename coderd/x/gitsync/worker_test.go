@@ -818,6 +818,7 @@ func TestWorker(t *testing.T) {
 		Provider:    "openai",
 		DisplayName: "OpenAI",
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 

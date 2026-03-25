@@ -2478,6 +2478,7 @@ func seedChatDependenciesWithProvider(
 		BaseUrl:     baseURL,
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
@@ -2558,6 +2559,8 @@ func setOpenAIProviderBaseURL(
 		BaseUrl:     baseURL,
 		ApiKeyKeyID: provider.ApiKeyKeyID,
 		Enabled:     provider.Enabled,
+		CustomHeaders:      "{}",
+		CustomHeadersKeyID: sql.NullString{},
 	})
 	require.NoError(t, err)
 }
@@ -3137,6 +3140,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		BaseUrl:     anthropicSrv.URL,
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 

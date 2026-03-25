@@ -723,10 +723,11 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("InsertChatProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertChatProviderParams{
-			Provider:    "test-provider",
-			DisplayName: "Test Provider",
-			APIKey:      "test-api-key",
-			Enabled:     true,
+			Provider:      "test-provider",
+			DisplayName:   "Test Provider",
+			APIKey:        "test-api-key",
+			Enabled:       true,
+			CustomHeaders: "{}",
 		}
 		provider := testutil.Fake(s.T(), faker, database.ChatProvider{Provider: arg.Provider, DisplayName: arg.DisplayName, APIKey: arg.APIKey, Enabled: arg.Enabled})
 		dbm.EXPECT().InsertChatProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
@@ -801,10 +802,11 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpdateChatProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.ChatProvider{})
 		arg := database.UpdateChatProviderParams{
-			ID:          provider.ID,
-			DisplayName: "Updated Provider",
-			APIKey:      "updated-api-key",
-			Enabled:     true,
+			ID:            provider.ID,
+			DisplayName:   "Updated Provider",
+			APIKey:        "updated-api-key",
+			Enabled:       true,
+			CustomHeaders: "{}",
 		}
 		dbm.EXPECT().UpdateChatProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(provider)

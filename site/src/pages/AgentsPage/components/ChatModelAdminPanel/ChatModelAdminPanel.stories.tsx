@@ -21,6 +21,7 @@ const createProviderConfig = (
 	display_name: overrides.display_name ?? "",
 	enabled: overrides.enabled ?? true,
 	has_api_key: overrides.has_api_key ?? false,
+	has_custom_headers: overrides.has_custom_headers ?? false,
 	base_url: overrides.base_url ?? "",
 	source: overrides.source ?? "database",
 	created_at: overrides.created_at ?? now,
@@ -71,14 +72,16 @@ const setupChatSpies = (state: {
 	spyOn(API.experimental, "createChatProviderConfig").mockImplementation(
 		async (req) => {
 			const created = createProviderConfig({
-				id: `provider-${Date.now()}`,
-				provider: req.provider,
-				display_name: req.display_name ?? "",
-				has_api_key: (req.api_key ?? "").trim().length > 0,
-				base_url: req.base_url ?? "",
-				source: "database",
-			});
-			state.providerConfigs = [
+					id: `provider-${Date.now()}`,
+					provider: req.provider,
+					display_name: req.display_name ?? "",
+					has_api_key: (req.api_key ?? "").trim().length > 0,
+					has_custom_headers:
+						req.custom_headers !== undefined &&
+						Object.keys(req.custom_headers).length > 0,
+					base_url: req.base_url ?? "",
+					source: "database",
+				});			state.providerConfigs = [
 				...state.providerConfigs.filter((p) => p.provider !== req.provider),
 				created,
 			];
@@ -96,20 +99,23 @@ const setupChatSpies = (state: {
 			}
 			const current = state.providerConfigs[idx];
 			const updated: TypesGen.ChatProviderConfig = {
-				...current,
-				display_name:
-					typeof req.display_name === "string"
-						? req.display_name
-						: current.display_name,
-				has_api_key:
-					typeof req.api_key === "string"
-						? req.api_key.trim().length > 0
-						: current.has_api_key,
-				base_url:
-					typeof req.base_url === "string" ? req.base_url : current.base_url,
-				updated_at: now,
-			};
-			state.providerConfigs = state.providerConfigs.map((p, i) =>
+					...current,
+					display_name:
+						typeof req.display_name === "string"
+							? req.display_name
+							: current.display_name,
+					has_api_key:
+						typeof req.api_key === "string"
+							? req.api_key.trim().length > 0
+							: current.has_api_key,
+					has_custom_headers:
+						req.custom_headers !== undefined
+							? Object.keys(req.custom_headers).length > 0
+							: current.has_custom_headers,
+					base_url:
+						typeof req.base_url === "string" ? req.base_url : current.base_url,
+					updated_at: now,
+				};			state.providerConfigs = state.providerConfigs.map((p, i) =>
 				i === idx ? updated : p,
 			);
 			return updated;
@@ -884,6 +890,108 @@ export const ProviderDeleteCancelled: Story = {
 		await expect(
 			await body.findByRole("button", { name: "Save changes" }),
 		).toBeInTheDocument();
+	},
+};
+
+export const CustomHeadersCreateProvider: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: nilProviderConfigID,
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "supported",
+					enabled: false,
+					has_api_key: false,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to the OpenAI detail view.
+		await userEvent.click(
+			await body.findByRole("button", { name: /OpenAI/i }),
+		);
+
+		// Fill in the API key.
+		await userEvent.type(
+			await body.findByLabelText(/API key/i),
+			"sk-test-key",
+		);
+
+		// Add custom headers.
+		await userEvent.click(body.getByText("Add header"));
+		const headerNameInputs = body.getAllByPlaceholderText("Header name");
+		const headerValueInputs = body.getAllByPlaceholderText("Value");
+		await userEvent.type(headerNameInputs[0], "X-Custom-Auth");
+		await userEvent.type(headerValueInputs[0], "Bearer token123");
+
+		// Add a second header.
+		await userEvent.click(body.getByText("Add header"));
+		const updatedNameInputs = body.getAllByPlaceholderText("Header name");
+		const updatedValueInputs = body.getAllByPlaceholderText("Value");
+		await userEvent.type(updatedNameInputs[1], "X-Org-ID");
+		await userEvent.type(updatedValueInputs[1], "org-456");
+
+		// Submit.
+		await userEvent.click(
+			body.getByRole("button", { name: "Create provider config" }),
+		);
+
+		await waitFor(() => {
+			expect(
+				API.experimental.createChatProviderConfig,
+			).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.createChatProviderConfig).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: "openai",
+				api_key: "sk-test-key",
+				custom_headers: {
+					"X-Custom-Auth": "Bearer token123",
+					"X-Org-ID": "org-456",
+				},
+			}),
+		);
+	},
+};
+
+export const CustomHeadersExistingProvider: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+					has_custom_headers: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to OpenAI detail view.
+		await userEvent.click(
+			await body.findByRole("button", { name: /OpenAI/i }),
+		);
+
+		// The custom headers section should show a masked placeholder row.
+		await expect(body.getByText("Custom Headers")).toBeInTheDocument();
+		// The Add header button should be visible.
+		await expect(body.getByText("Add header")).toBeInTheDocument();
 	},
 };
 

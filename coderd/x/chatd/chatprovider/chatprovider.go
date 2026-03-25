@@ -2,6 +2,7 @@ package chatprovider
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 
@@ -75,17 +76,19 @@ func ProviderDisplayName(provider string) string {
 
 // ProviderAPIKeys contains API keys for provider calls.
 type ProviderAPIKeys struct {
-	OpenAI            string
-	Anthropic         string
-	ByProvider        map[string]string
-	BaseURLByProvider map[string]string
+	OpenAI                  string
+	Anthropic               string
+	ByProvider              map[string]string
+	BaseURLByProvider       map[string]string
+	CustomHeadersByProvider map[string]map[string]string
 }
 
 // ConfiguredProvider is an enabled provider loaded from database config.
 type ConfiguredProvider struct {
-	Provider string
-	APIKey   string
-	BaseURL  string
+	Provider      string
+	APIKey        string
+	BaseURL       string
+	CustomHeaders string
 }
 
 // ConfiguredModel is an enabled model loaded from database config.
@@ -132,13 +135,23 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
 }
 
+// CustomHeaders returns the configured custom headers for a provider.
+func (k ProviderAPIKeys) CustomHeaders(provider string) map[string]string {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" || k.CustomHeadersByProvider == nil {
+		return nil
+	}
+	return k.CustomHeadersByProvider[normalized]
+}
+
 // MergeProviderAPIKeys overlays configured provider keys over fallback keys.
 func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
-		OpenAI:            strings.TrimSpace(fallback.OpenAI),
-		Anthropic:         strings.TrimSpace(fallback.Anthropic),
-		ByProvider:        map[string]string{},
-		BaseURLByProvider: map[string]string{},
+		OpenAI:                  strings.TrimSpace(fallback.OpenAI),
+		Anthropic:               strings.TrimSpace(fallback.Anthropic),
+		ByProvider:              map[string]string{},
+		BaseURLByProvider:       map[string]string{},
+		CustomHeadersByProvider: map[string]map[string]string{},
 	}
 	for provider, apiKey := range fallback.ByProvider {
 		normalizedProvider := NormalizeProvider(provider)
@@ -156,6 +169,15 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		}
 		if url := strings.TrimSpace(baseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+	}
+	for provider, headers := range fallback.CustomHeadersByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if len(headers) > 0 {
+			merged.CustomHeadersByProvider[normalizedProvider] = headers
 		}
 	}
 
@@ -177,6 +199,12 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		}
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+		if provider.CustomHeaders != "" && provider.CustomHeaders != "{}" {
+			var headers map[string]string
+			if err := json.Unmarshal([]byte(provider.CustomHeaders), &headers); err == nil && len(headers) > 0 {
+				merged.CustomHeadersByProvider[normalizedProvider] = headers
+			}
 		}
 
 		switch normalizedProvider {
@@ -966,6 +994,21 @@ func ModelFromConfig(
 		return nil, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
+
+	// Merge provider-level custom headers with the caller's extra headers.
+	providerCustomHeaders := providerKeys.CustomHeaders(provider)
+	if len(providerCustomHeaders) > 0 {
+		mergedHeaders := make(map[string]string, len(providerCustomHeaders)+len(extraHeaders))
+		for k, v := range providerCustomHeaders {
+			mergedHeaders[k] = v
+		}
+		// Caller's extra headers (e.g. Coder identity headers) take
+		// precedence.
+		for k, v := range extraHeaders {
+			mergedHeaders[k] = v
+		}
+		extraHeaders = mergedHeaders
+	}
 
 	var providerClient fantasy.Provider
 	switch provider {

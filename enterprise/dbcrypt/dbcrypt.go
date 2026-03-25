@@ -393,6 +393,9 @@ func (db *dbCrypt) GetChatProviderByID(ctx context.Context, id uuid.UUID) (datab
 	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
 		return database.ChatProvider{}, err
 	}
+	if err := db.decryptField(&provider.CustomHeaders, provider.CustomHeadersKeyID); err != nil {
+		return database.ChatProvider{}, err
+	}
 	return provider, nil
 }
 
@@ -402,6 +405,9 @@ func (db *dbCrypt) GetChatProviderByProvider(ctx context.Context, providerName s
 		return database.ChatProvider{}, err
 	}
 	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
+		return database.ChatProvider{}, err
+	}
+	if err := db.decryptField(&provider.CustomHeaders, provider.CustomHeadersKeyID); err != nil {
 		return database.ChatProvider{}, err
 	}
 	return provider, nil
@@ -415,6 +421,9 @@ func (db *dbCrypt) GetChatProviders(ctx context.Context) ([]database.ChatProvide
 
 	for i := range providers {
 		if err := db.decryptField(&providers[i].APIKey, providers[i].ApiKeyKeyID); err != nil {
+			return nil, err
+		}
+		if err := db.decryptField(&providers[i].CustomHeaders, providers[i].CustomHeadersKeyID); err != nil {
 			return nil, err
 		}
 	}
@@ -432,6 +441,9 @@ func (db *dbCrypt) GetEnabledChatProviders(ctx context.Context) ([]database.Chat
 		if err := db.decryptField(&providers[i].APIKey, providers[i].ApiKeyKeyID); err != nil {
 			return nil, err
 		}
+		if err := db.decryptField(&providers[i].CustomHeaders, providers[i].CustomHeadersKeyID); err != nil {
+			return nil, err
+		}
 	}
 
 	return providers, nil
@@ -443,12 +455,20 @@ func (db *dbCrypt) InsertChatProvider(ctx context.Context, params database.Inser
 	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
 		return database.ChatProvider{}, err
 	}
+	if strings.TrimSpace(params.CustomHeaders) == "" || params.CustomHeaders == "{}" {
+		params.CustomHeadersKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.CustomHeaders, &params.CustomHeadersKeyID); err != nil {
+		return database.ChatProvider{}, err
+	}
 
 	provider, err := db.Store.InsertChatProvider(ctx, params)
 	if err != nil {
 		return database.ChatProvider{}, err
 	}
 	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
+		return database.ChatProvider{}, err
+	}
+	if err := db.decryptField(&provider.CustomHeaders, provider.CustomHeadersKeyID); err != nil {
 		return database.ChatProvider{}, err
 	}
 	return provider, nil
@@ -460,12 +480,20 @@ func (db *dbCrypt) UpdateChatProvider(ctx context.Context, params database.Updat
 	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
 		return database.ChatProvider{}, err
 	}
+	if strings.TrimSpace(params.CustomHeaders) == "" || params.CustomHeaders == "{}" {
+		params.CustomHeadersKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.CustomHeaders, &params.CustomHeadersKeyID); err != nil {
+		return database.ChatProvider{}, err
+	}
 
 	provider, err := db.Store.UpdateChatProvider(ctx, params)
 	if err != nil {
 		return database.ChatProvider{}, err
 	}
 	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
+		return database.ChatProvider{}, err
+	}
+	if err := db.decryptField(&provider.CustomHeaders, provider.CustomHeadersKeyID); err != nil {
 		return database.ChatProvider{}, err
 	}
 	return provider, nil

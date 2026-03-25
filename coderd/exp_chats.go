@@ -437,9 +437,10 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	for _, provider := range enabledProviders {
 		configuredProviders = append(
 			configuredProviders, chatprovider.ConfiguredProvider{
-				Provider: provider.Provider,
-				APIKey:   provider.APIKey,
-				BaseURL:  provider.BaseUrl,
+				Provider:      provider.Provider,
+				APIKey:        provider.APIKey,
+				BaseURL:       provider.BaseUrl,
+				CustomHeaders: provider.CustomHeaders,
 			},
 		)
 	}
@@ -3743,9 +3744,10 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		provider.Provider = normalizedProvider
 		providersByName[normalizedProvider] = provider
 		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
-			Provider: normalizedProvider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
+			Provider:      normalizedProvider,
+			APIKey:        provider.APIKey,
+			BaseURL:       provider.BaseUrl,
+			CustomHeaders: provider.CustomHeaders,
 		})
 	}
 	if api.chatDaemon == nil {
@@ -3773,9 +3775,10 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	for _, provider := range enabledProviders {
 		enabledConfiguredProviders = append(
 			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
-				Provider: provider.Provider,
-				APIKey:   provider.APIKey,
-				BaseURL:  provider.BaseUrl,
+				Provider:      provider.Provider,
+				APIKey:        provider.APIKey,
+				BaseURL:       provider.BaseUrl,
+				CustomHeaders: provider.CustomHeaders,
 			},
 		)
 	}
@@ -3784,9 +3787,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		enabledConfiguredProviders,
 	)
-	effectiveKeys = chatprovider.MergeProviderAPIKeys(
-		effectiveKeys, configuredProviders,
-	)
+	effectiveKeys = chatprovider.MergeProviderAPIKeys(effectiveKeys, configuredProviders)
 
 	supportedProviders := chatprovider.SupportedProviders()
 	resp := make([]codersdk.ChatProviderConfig, 0, len(supportedProviders))
@@ -3861,14 +3862,25 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	customHeadersJSON, err := marshalChatProviderCustomHeaders(req.CustomHeaders)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid custom headers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	inserted, err := api.Database.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    provider,
-		DisplayName: strings.TrimSpace(req.DisplayName),
-		APIKey:      strings.TrimSpace(req.APIKey),
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: sql.NullString{},
-		CreatedBy:   uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
-		Enabled:     enabled,
+		Provider:           provider,
+		DisplayName:        strings.TrimSpace(req.DisplayName),
+		APIKey:             strings.TrimSpace(req.APIKey),
+		BaseUrl:            baseURL,
+		ApiKeyKeyID:        sql.NullString{},
+		CreatedBy:          uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		Enabled:            enabled,
+		CustomHeaders:      customHeadersJSON,
+		CustomHeadersKeyID: sql.NullString{},
 	})
 	if err != nil {
 		switch {
@@ -3963,13 +3975,29 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	customHeaders := existing.CustomHeaders
+	customHeadersKeyID := existing.CustomHeadersKeyID
+	if req.CustomHeaders != nil {
+		customHeaders, err = marshalChatProviderCustomHeaders(*req.CustomHeaders)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid custom headers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		customHeadersKeyID = sql.NullString{}
+	}
+
 	updated, err := api.Database.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		DisplayName: displayName,
-		APIKey:      apiKey,
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: apiKeyKeyID,
-		Enabled:     enabled,
-		ID:          existing.ID,
+		DisplayName:        displayName,
+		APIKey:             apiKey,
+		BaseUrl:            baseURL,
+		ApiKeyKeyID:        apiKeyKeyID,
+		Enabled:            enabled,
+		CustomHeaders:      customHeaders,
+		CustomHeadersKeyID: customHeadersKeyID,
+		ID:                 existing.ID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4570,16 +4598,31 @@ func convertChatProviderConfig(
 	}
 
 	return codersdk.ChatProviderConfig{
-		ID:          provider.ID,
-		Provider:    provider.Provider,
-		DisplayName: displayName,
-		Enabled:     provider.Enabled,
-		HasAPIKey:   hasAPIKey,
-		BaseURL:     strings.TrimSpace(provider.BaseUrl),
-		Source:      source,
-		CreatedAt:   provider.CreatedAt,
-		UpdatedAt:   provider.UpdatedAt,
+		ID:               provider.ID,
+		Provider:         provider.Provider,
+		DisplayName:      displayName,
+		Enabled:          provider.Enabled,
+		HasAPIKey:        hasAPIKey,
+		HasCustomHeaders: provider.CustomHeaders != "" && provider.CustomHeaders != "{}",
+		BaseURL:          strings.TrimSpace(provider.BaseUrl),
+		Source:           source,
+		CreatedAt:        provider.CreatedAt,
+		UpdatedAt:        provider.UpdatedAt,
 	}
+}
+
+// marshalChatProviderCustomHeaders encodes a map of custom headers
+// to JSON for database storage. A nil map produces an empty JSON
+// object.
+func marshalChatProviderCustomHeaders(headers map[string]string) (string, error) {
+	if headers == nil {
+		return "{}", nil
+	}
+	encoded, err := json.Marshal(headers)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
 }
 
 func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
@@ -4780,16 +4823,16 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	for _, configured := range enabledProviders {
 		enabledConfiguredProviders = append(
 			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
-				Provider: configured.Provider,
-				APIKey:   configured.APIKey,
-				BaseURL:  configured.BaseUrl,
+				Provider:      configured.Provider,
+				APIKey:        configured.APIKey,
+				BaseURL:       configured.BaseUrl,
+				CustomHeaders: configured.CustomHeaders,
 			},
 		)
 	}
 
 	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
-		enabledConfiguredProviders,
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues), enabledConfiguredProviders,
 	)
 	return effectiveKeys.APIKey(provider.Provider) != ""
 }

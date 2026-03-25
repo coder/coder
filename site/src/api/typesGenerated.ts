@@ -1726,6 +1726,7 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
+	readonly has_custom_headers: boolean;
 	readonly base_url?: string;
 	readonly source: ChatProviderConfigSource;
 	readonly created_at?: string;
@@ -2235,6 +2236,7 @@ export interface CreateChatProviderConfigRequest {
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
+	readonly custom_headers?: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -7002,6 +7004,7 @@ export interface UpdateChatProviderConfigRequest {
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
+	readonly custom_headers?: Record<string, string>;
 }
 
 // From codersdk/chats.go

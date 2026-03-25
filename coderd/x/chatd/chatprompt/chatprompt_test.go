@@ -1464,6 +1464,7 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		APIKey:      "test-key",
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 
@@ -1947,6 +1948,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		APIKey:      "test-key",
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 

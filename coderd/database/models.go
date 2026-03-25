@@ -4257,12 +4257,14 @@ type ChatProvider struct {
 	DisplayName string    `db:"display_name" json:"display_name"`
 	APIKey      string    `db:"api_key" json:"api_key"`
 	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
-	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
-	BaseUrl     string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID        sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy          uuid.NullUUID  `db:"created_by" json:"created_by"`
+	Enabled            bool           `db:"enabled" json:"enabled"`
+	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
+	BaseUrl            string         `db:"base_url" json:"base_url"`
+	CustomHeaders      string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
 }
 
 type ChatQueuedMessage struct {

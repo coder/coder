@@ -1257,15 +1257,15 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:      "openai",
+		DisplayName:   "OpenAI",
+		APIKey:        "test-key",
+		Enabled:       true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{Provider: "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -9447,15 +9447,15 @@ func TestInsertChatMessages(t *testing.T) {
 		provider := "openai"
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    provider,
-			DisplayName: "OpenAI",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:      provider,
+			DisplayName:   "OpenAI",
+			APIKey:        "test-key",
+			Enabled:       true,
+			CustomHeaders: "{}",
 		})
 		require.NoError(t, err)
 
-		modelConfigA := insertModelConfig(
-			t,
+		modelConfigA := insertModelConfig(t,
 			store,
 			ctx,
 			user.ID,
@@ -9611,16 +9611,16 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// A chat_providers row is required as a FK for model configs.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:      "openai",
+		DisplayName:   "OpenAI",
+		APIKey:        "test-key",
+		Enabled:       true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "test-model",
+		Provider: "openai", Model: "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -9981,13 +9981,13 @@ func TestGetPRInsights(t *testing.T) {
 		user := dbgen.User(t, store, database.User{})
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    "anthropic",
-			DisplayName: "Anthropic",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:      "anthropic",
+			DisplayName:   "Anthropic",
+			APIKey:        "test-key",
+			Enabled:       true,
+			CustomHeaders: "{}",
 		})
 		require.NoError(t, err)
-
 		mc, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 			Provider:             "anthropic",
 			Model:                "claude-4",
@@ -10502,10 +10502,11 @@ func TestChatLabels(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:      "openai",
+		DisplayName:   "OpenAI",
+		APIKey:        "test-key",
+		Enabled:       true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 
