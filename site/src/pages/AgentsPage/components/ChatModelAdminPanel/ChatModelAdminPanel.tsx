@@ -1,3 +1,4 @@
+import { getErrorStatus } from "#/api/errors";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
@@ -26,7 +27,7 @@ import { ProvidersSection } from "./ProvidersSection";
 export type ProviderState = {
 	provider: string;
 	label: string;
-	providerConfig: TypesGen.ChatProviderConfig | undefined;
+	providerConfigs?: readonly TypesGen.ChatProviderConfig[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
 	hasManagedAPIKey: boolean;
@@ -34,6 +35,9 @@ export type ProviderState = {
 	hasEffectiveAPIKey: boolean;
 	isEnvPreset: boolean;
 	baseURL: string;
+	// TODO: Remove this legacy compatibility field after stories stop
+	// constructing ProviderState objects manually.
+	providerConfig?: TypesGen.ChatProviderConfig | undefined;
 };
 
 export type ChatModelAdminSection = "providers" | "models";
@@ -50,12 +54,6 @@ const hasProviderAPIKey = (
 ): boolean => {
 	if (!providerConfig) return false;
 	return providerConfig.has_api_key;
-};
-
-const getProviderConfigSource = (
-	providerConfig: TypesGen.ChatProviderConfig | undefined,
-): TypesGen.ChatProviderConfigSource | undefined => {
-	return providerConfig?.source;
 };
 
 const isDatabaseProviderConfig = (
@@ -126,12 +124,17 @@ const useProviderStates = (
 
 	const providerConfigsByProvider = new Map<
 		string,
-		TypesGen.ChatProviderConfig
+		TypesGen.ChatProviderConfig[]
 	>();
 	for (const pc of providerConfigsData ?? []) {
 		const normalized = normalizeProvider(pc.provider);
 		if (!normalized) continue;
-		providerConfigsByProvider.set(normalized, pc);
+		const existing = providerConfigsByProvider.get(normalized);
+		if (existing) {
+			existing.push(pc);
+		} else {
+			providerConfigsByProvider.set(normalized, [pc]);
+		}
 	}
 
 	const modelConfigsByProvider = new Map<string, TypesGen.ChatModelConfig[]>();
@@ -147,47 +150,48 @@ const useProviderStates = (
 	}
 
 	return orderedProviders.map((provider) => {
-		const providerConfigEntry = providerConfigsByProvider.get(provider);
-		const providerConfigSource = getProviderConfigSource(providerConfigEntry);
-		const providerConfig = isDatabaseProviderConfig(
-			providerConfigEntry,
-			providerConfigSource,
-		)
-			? providerConfigEntry
-			: undefined;
+		const providerConfigsForFamily =
+			providerConfigsByProvider.get(provider) ?? [];
+		const databaseConfigs = providerConfigsForFamily.filter((config) =>
+			isDatabaseProviderConfig(config, config.source),
+		);
+		const effectiveProviderConfig =
+			databaseConfigs.find((config) => config.enabled) ?? databaseConfigs[0];
+		const firstProviderEntry = providerConfigsForFamily[0];
+
 		const catalogProvider = catalogProvidersByProvider.get(provider);
 		const catalogProviderSource = readOptionalString(
 			(catalogProvider as CatalogProvider & { source?: string })?.source,
 		);
-		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
-		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
+		const hasManagedAPIKey = hasProviderAPIKey(effectiveProviderConfig);
+		const hasProviderEntryAPIKey = hasProviderAPIKey(firstProviderEntry);
 		const hasCatalogAPIKey = catalogProvider
 			? providerHasCatalogAPIKey(catalogProvider)
 			: false;
 		const label =
-			readOptionalString(providerConfigEntry?.display_name) ??
+			readOptionalString(firstProviderEntry?.display_name) ??
 			formatProviderLabel(provider);
 		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
 		const isCatalogEnvPreset =
-			!providerConfig &&
+			databaseConfigs.length === 0 &&
 			envPresetProviders.has(provider) &&
 			(catalogProviderSource === "env" || hasCatalogAPIKey);
 		const isEnvPreset =
-			providerConfigSource === "env_preset" || isCatalogEnvPreset;
+			firstProviderEntry?.source === "env_preset" || isCatalogEnvPreset;
 
 		return {
 			provider,
 			label,
-			providerConfig,
+			providerConfigs: providerConfigsForFamily,
 			modelConfigs: modelConfigsForProvider,
 			catalogModelCount: getProviderModels(catalogProvider).length,
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
-			hasEffectiveAPIKey: providerConfigEntry
+			hasEffectiveAPIKey: firstProviderEntry
 				? hasProviderEntryAPIKey
 				: hasManagedAPIKey || hasCatalogAPIKey,
 			isEnvPreset,
-			baseURL: getProviderBaseURL(providerConfigEntry),
+			baseURL: getProviderBaseURL(effectiveProviderConfig),
 		};
 	});
 };
@@ -347,7 +351,19 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			{modelCatalogQuery.isError && (
 				<ErrorAlert error={modelCatalogQuery.error} />
 			)}
-			{providerMutationError && <ErrorAlert error={providerMutationError} />}
+			{providerMutationError &&
+				(getErrorStatus(providerMutationError) === 409 ? (
+					<Alert severity="warning">
+						<AlertTitle>Provider conflict</AlertTitle>
+						<AlertDescription>
+							Another provider config in this family is already enabled. Disable
+							it first, or the backend will reject enabling a second config in
+							the same provider family.
+						</AlertDescription>
+					</Alert>
+				) : (
+					<ErrorAlert error={providerMutationError} />
+				))}
 			{modelMutationError && <ErrorAlert error={modelMutationError} />}
 
 			{providerConfigsUnavailable && (
