@@ -1020,6 +1020,7 @@ export interface AutomationTrigger {
 	readonly automation_id: string;
 	readonly type: AutomationTriggerType;
 	readonly webhook_url?: string;
+	readonly webhook_secret?: string;
 	readonly cron_schedule?: string;
 	readonly filter: Record<string, string>;
 	readonly label_paths: Record<string, string>;
@@ -2308,6 +2309,7 @@ export interface ConvertLoginRequest {
  * CreateAutomationRequest is the request body for creating an automation.
  */
 export interface CreateAutomationRequest {
+	readonly organization_id: string;
 	readonly name: string;
 	readonly description?: string;
 	readonly instructions?: string;
@@ -7049,6 +7051,17 @@ export const TerminalFontNames: TerminalFontName[] = [
 	"",
 ];
 
+// From codersdk/automations.go
+/**
+ * TestAutomationRequest is the request body for testing an
+ * automation's filter and session resolution logic.
+ */
+export interface TestAutomationRequest {
+	readonly payload: Record<string, string>;
+	readonly filter?: Record<string, string>;
+	readonly label_paths?: Record<string, string>;
+}
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -7126,17 +7139,6 @@ export interface UpdateAutomationRequest {
 	readonly status?: AutomationStatus;
 	readonly max_chat_creates_per_hour?: number;
 	readonly max_messages_per_hour?: number;
-}
-
-// From codersdk/automations.go
-/**
- * UpdateAutomationTriggerRequest is the request body for updating a
- * trigger.
- */
-export interface UpdateAutomationTriggerRequest {
-	readonly cron_schedule?: string;
-	readonly filter?: Record<string, string>;
-	readonly label_paths?: Record<string, string>;
 }
 
 // From codersdk/chats.go

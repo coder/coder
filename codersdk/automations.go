@@ -29,7 +29,7 @@ type Automation struct {
 	Description           string           `json:"description"`
 	Instructions          string           `json:"instructions"`
 	ModelConfigID         *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs          []uuid.UUID      `json:"mcp_server_ids"`
+	MCPServerIDs          []uuid.UUID      `json:"mcp_server_ids" format:"uuid"`
 	AllowedTools          []string         `json:"allowed_tools"`
 	Status                AutomationStatus `json:"status"`
 	MaxChatCreatesPerHour int32            `json:"max_chat_creates_per_hour"`
@@ -45,7 +45,7 @@ type CreateAutomationRequest struct {
 	Description           string      `json:"description,omitempty"`
 	Instructions          string      `json:"instructions,omitempty"`
 	ModelConfigID         *uuid.UUID  `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs          []uuid.UUID `json:"mcp_server_ids,omitempty"`
+	MCPServerIDs          []uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
 	AllowedTools          []string    `json:"allowed_tools,omitempty"`
 	MaxChatCreatesPerHour *int32      `json:"max_chat_creates_per_hour,omitempty"`
 	MaxMessagesPerHour    *int32      `json:"max_messages_per_hour,omitempty"`
@@ -57,7 +57,7 @@ type UpdateAutomationRequest struct {
 	Description           *string           `json:"description,omitempty"`
 	Instructions          *string           `json:"instructions,omitempty"`
 	ModelConfigID         *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs          *[]uuid.UUID      `json:"mcp_server_ids,omitempty"`
+	MCPServerIDs          *[]uuid.UUID      `json:"mcp_server_ids,omitempty" format:"uuid"`
 	AllowedTools          *[]string         `json:"allowed_tools,omitempty"`
 	Status                *AutomationStatus `json:"status,omitempty"`
 	MaxChatCreatesPerHour *int32            `json:"max_chat_creates_per_hour,omitempty"`
@@ -74,16 +74,16 @@ const (
 
 // AutomationTrigger represents a trigger attached to an automation.
 type AutomationTrigger struct {
-	ID           uuid.UUID             `json:"id" format:"uuid"`
-	AutomationID uuid.UUID             `json:"automation_id" format:"uuid"`
-	Type         AutomationTriggerType `json:"type"`
+	ID            uuid.UUID             `json:"id" format:"uuid"`
+	AutomationID  uuid.UUID             `json:"automation_id" format:"uuid"`
+	Type          AutomationTriggerType `json:"type"`
 	WebhookURL    string                `json:"webhook_url,omitempty"`
 	WebhookSecret string                `json:"webhook_secret,omitempty"`
 	CronSchedule  *string               `json:"cron_schedule,omitempty"`
-	Filter       json.RawMessage       `json:"filter"`
-	LabelPaths   json.RawMessage       `json:"label_paths"`
-	CreatedAt    time.Time             `json:"created_at" format:"date-time"`
-	UpdatedAt    time.Time             `json:"updated_at" format:"date-time"`
+	Filter        json.RawMessage       `json:"filter"`
+	LabelPaths    json.RawMessage       `json:"label_paths"`
+	CreatedAt     time.Time             `json:"created_at" format:"date-time"`
+	UpdatedAt     time.Time             `json:"updated_at" format:"date-time"`
 }
 
 // CreateAutomationTriggerRequest is the request body for creating a

@@ -101,6 +101,11 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 				Message: "An automation with this name already exists.",
 				Detail:  err.Error(),
 			})
+		case database.IsForeignKeyViolation(err):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid organization_id or model_config_id.",
+				Detail:  err.Error(),
+			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to create automation.",
@@ -110,7 +115,7 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Automation(automation, api.AccessURL.String()))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Automation(automation))
 }
 
 // listAutomations returns all automations visible to the user.
@@ -131,7 +136,7 @@ func (api *API) listAutomations(rw http.ResponseWriter, r *http.Request) {
 
 	result := make([]codersdk.Automation, 0, len(dbAutomations))
 	for _, a := range dbAutomations {
-		result = append(result, db2sdk.Automation(a, api.AccessURL.String()))
+		result = append(result, db2sdk.Automation(a))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
@@ -140,7 +145,7 @@ func (api *API) listAutomations(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	automation := httpmw.AutomationParam(r)
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(automation, api.AccessURL.String()))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(automation))
 }
 
 // patchAutomation updates an automation's configuration.
@@ -241,7 +246,7 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(updated, api.AccessURL.String()))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(updated))
 }
 
 // deleteAutomation deletes an automation.
@@ -292,11 +297,7 @@ func (api *API) testAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	automation := httpmw.AutomationParam(r)
 
-	var body struct {
-		Payload    json.RawMessage `json:"payload"`
-		Filter     json.RawMessage `json:"filter,omitempty"`
-		LabelPaths json.RawMessage `json:"label_paths,omitempty"`
-	}
+	var body codersdk.TestAutomationRequest
 	if !httpapi.Read(ctx, rw, r, &body) {
 		return
 	}
@@ -391,9 +392,25 @@ func (api *API) postAutomationTrigger(rw http.ResponseWriter, r *http.Request) {
 		arg.CronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
 	}
 	if len(req.Filter) > 0 {
+		var filterObj map[string]any
+		if err := json.Unmarshal(req.Filter, &filterObj); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "filter must be a JSON object mapping gjson paths to expected values.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		arg.Filter = pqtype.NullRawMessage{RawMessage: req.Filter, Valid: true}
 	}
 	if len(req.LabelPaths) > 0 {
+		var labelPathsObj map[string]string
+		if err := json.Unmarshal(req.LabelPaths, &labelPathsObj); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "label_paths must be a JSON object mapping label names to gjson paths.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		arg.LabelPaths = pqtype.NullRawMessage{RawMessage: req.LabelPaths, Valid: true}
 	}
 
@@ -672,23 +689,32 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 
 // safePayload ensures the payload is valid JSON before storing
 // it in the jsonb column. If the payload is not valid JSON, it
-// is base64-encoded and wrapped in a valid JSON envelope so
-// the event audit trail is preserved.
+// is wrapped in a valid JSON envelope so the event audit trail
+// is preserved. The inner body is truncated before wrapping to
+// ensure the envelope fits within the storage limit.
 func safePayload(payload []byte) json.RawMessage {
 	if json.Valid(payload) {
 		return truncatePayload(payload)
 	}
-	// Wrap non-JSON payloads in a valid envelope. We use the
-	// raw string rather than base64 to keep it readable when
-	// the content is plaintext (form-encoded, XML, etc.).
+	// Reserve space for the JSON envelope keys and structure.
+	// {"_raw_body":"...","_content_note":"Original payload was not valid JSON."}
+	const envelopeOverhead = 128
+	const maxPayloadSize = 64 * 1024
+	innerLimit := maxPayloadSize - envelopeOverhead
+	body := string(payload)
+	if len(body) > innerLimit {
+		body = body[:innerLimit]
+	}
 	wrapped, err := json.Marshal(map[string]any{
-		"_raw_body":     string(payload),
+		"_raw_body":     body,
 		"_content_note": "Original payload was not valid JSON.",
 	})
 	if err != nil {
-		// Fallback: this should never fail.
 		return json.RawMessage(`{"_error":"failed to encode payload"}`)
 	}
+	// The wrapped result should fit within maxPayloadSize, but
+	// JSON string escaping can expand the body. Apply truncation
+	// as a safety net.
 	return truncatePayload(wrapped)
 }
 

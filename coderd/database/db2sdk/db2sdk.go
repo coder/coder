@@ -1319,7 +1319,7 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 }
 
 // Automation converts a database Automation to a codersdk Automation.
-func Automation(a database.Automation, accessURL string) codersdk.Automation {
+func Automation(a database.Automation) codersdk.Automation {
 	result := codersdk.Automation{
 		ID:                    a.ID,
 		OwnerID:               a.OwnerID,
