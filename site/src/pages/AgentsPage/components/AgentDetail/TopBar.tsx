@@ -1,5 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus } from "api/typesGenerated";
 import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
@@ -19,6 +17,8 @@ import type { FC } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,

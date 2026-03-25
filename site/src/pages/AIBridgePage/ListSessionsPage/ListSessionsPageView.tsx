@@ -1,4 +1,3 @@
-import type { AIBridgeSession } from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import {
@@ -25,6 +24,7 @@ import { InfoIcon } from "lucide-react";
 import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { docs } from "utils/docs";
 import { DATE_FORMAT, formatDateTime } from "utils/time";
+import type { AIBridgeSession } from "#/api/typesGenerated";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 import { ListSessionsRow } from "./ListSessionsRow";
 

@@ -1,17 +1,17 @@
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { useMutation } from "react-query";
+import { docs } from "utils/docs";
+import { API } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 import type {
 	AuthMethods,
 	LoginType,
 	OIDCAuthMethod,
 	UserLoginType,
-} from "api/typesGenerated";
-import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { useMutation } from "react-query";
-import { docs } from "utils/docs";
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";

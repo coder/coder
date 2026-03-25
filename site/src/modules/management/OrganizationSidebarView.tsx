@@ -1,9 +1,9 @@
-import type { Organization } from "api/typesGenerated";
 import { Check, Plus } from "lucide-react";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
+import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";

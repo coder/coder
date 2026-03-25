@@ -1,7 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { workspaceQuota } from "api/queries/workspaceQuota";
-import type * as TypesGen from "api/typesGenerated";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -11,6 +9,8 @@ import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { displayDormantDeletion } from "utils/dormant";
 import { formatDate } from "utils/time";
+import { workspaceQuota } from "#/api/queries/workspaceQuota";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { CopyButton } from "#/components/CopyButton/CopyButton";

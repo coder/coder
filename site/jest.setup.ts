@@ -3,9 +3,9 @@ import "jest-location-mock";
 import { server } from "testHelpers/server";
 import crypto from "node:crypto";
 import { cleanup } from "@testing-library/react";
-import type { Region } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { useMemo } from "react";
+import type { Region } from "#/api/typesGenerated";
 
 // useProxyLatency does some http requests to determine latency.
 // This would fail unit testing, or at least make it very slow with

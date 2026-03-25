@@ -1,10 +1,10 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../utils/usageLimitMessage";

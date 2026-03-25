@@ -1,13 +1,13 @@
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
 import {
 	chatModelConfigs,
 	chatModels,
 	createChat,
 	mcpServerConfigs,
-} from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+} from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,

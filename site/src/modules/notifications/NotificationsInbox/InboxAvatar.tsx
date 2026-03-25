@@ -1,10 +1,4 @@
 import {
-	InboxNotificationFallbackIconAccount,
-	InboxNotificationFallbackIconOther,
-	InboxNotificationFallbackIconTemplate,
-	InboxNotificationFallbackIconWorkspace,
-} from "api/typesGenerated";
-import {
 	InfoIcon,
 	LaptopIcon,
 	LayoutTemplateIcon,
@@ -12,6 +6,12 @@ import {
 } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
+import {
+	InboxNotificationFallbackIconAccount,
+	InboxNotificationFallbackIconOther,
+	InboxNotificationFallbackIconTemplate,
+	InboxNotificationFallbackIconWorkspace,
+} from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 
 const InboxNotificationFallbackIcons = [

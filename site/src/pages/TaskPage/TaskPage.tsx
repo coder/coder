@@ -1,19 +1,3 @@
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
-import { pauseTask, resumeTask, taskLogs } from "api/queries/tasks";
-import { template as templateQueryOptions } from "api/queries/templates";
-import {
-	workspaceByOwnerAndName,
-	workspaceByOwnerAndNameKey,
-	workspacePermissions,
-} from "api/queries/workspaces";
-import type {
-	Task,
-	TaskLogEntry,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceStatus,
-} from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
@@ -48,6 +32,22 @@ import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
+import { pauseTask, resumeTask, taskLogs } from "#/api/queries/tasks";
+import { template as templateQueryOptions } from "#/api/queries/templates";
+import {
+	workspaceByOwnerAndName,
+	workspaceByOwnerAndNameKey,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
+import type {
+	Task,
+	TaskLogEntry,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Loader } from "#/components/Loader/Loader";

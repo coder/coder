@@ -1,20 +1,20 @@
-import { appearance } from "api/queries/appearance";
-import { buildInfo } from "api/queries/buildInfo";
-import { entitlements } from "api/queries/entitlements";
-import { experiments } from "api/queries/experiments";
-import { organizations } from "api/queries/organizations";
+import { useAuthenticated } from "hooks";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { canViewAnyOrganization } from "modules/permissions";
+import { createContext, type FC, type PropsWithChildren } from "react";
+import { useQuery } from "react-query";
+import { appearance } from "#/api/queries/appearance";
+import { buildInfo } from "#/api/queries/buildInfo";
+import { entitlements } from "#/api/queries/entitlements";
+import { experiments } from "#/api/queries/experiments";
+import { organizations } from "#/api/queries/organizations";
 import type {
 	AppearanceConfig,
 	BuildInfoResponse,
 	Entitlements,
 	Experiment,
 	Organization,
-} from "api/typesGenerated";
-import { useAuthenticated } from "hooks";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { canViewAnyOrganization } from "modules/permissions";
-import { createContext, type FC, type PropsWithChildren } from "react";
-import { useQuery } from "react-query";
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { selectFeatureVisibility } from "./entitlements";

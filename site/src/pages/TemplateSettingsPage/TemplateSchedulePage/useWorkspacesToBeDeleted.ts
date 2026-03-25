@@ -1,7 +1,7 @@
-import { workspaces } from "api/queries/workspaces";
-import type { Template, Workspace } from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useQuery } from "react-query";
+import { workspaces } from "#/api/queries/workspaces";
+import type { Template, Workspace } from "#/api/typesGenerated";
 import type { TemplateScheduleFormValues } from "./formHelpers";
 
 export const useWorkspacesToGoDormant = (

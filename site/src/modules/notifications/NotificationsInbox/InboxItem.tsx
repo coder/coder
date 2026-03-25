@@ -1,9 +1,9 @@
-import type { InboxNotification } from "api/typesGenerated";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router";
 import { relativeTime } from "utils/time";
+import type { InboxNotification } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { InboxAvatar } from "./InboxAvatar";

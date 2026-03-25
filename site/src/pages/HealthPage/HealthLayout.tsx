@@ -1,7 +1,5 @@
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
-import { health, refreshHealth } from "api/queries/debug";
-import type { HealthSeverity } from "api/typesGenerated";
 import kebabCase from "lodash/fp/kebabCase";
 import { BellOffIcon, RotateCcwIcon } from "lucide-react";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
@@ -11,6 +9,8 @@ import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
+import { health, refreshHealth } from "#/api/queries/debug";
+import type { HealthSeverity } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import {

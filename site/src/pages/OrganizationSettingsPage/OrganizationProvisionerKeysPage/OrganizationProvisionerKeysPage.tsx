@@ -1,4 +1,3 @@
-import { provisionerDaemonGroups } from "api/queries/organizations";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -6,6 +5,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { provisionerDaemonGroups } from "#/api/queries/organizations";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { OrganizationProvisionerKeysPageView } from "./OrganizationProvisionerKeysPageView";
 

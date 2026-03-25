@@ -1,8 +1,8 @@
-import type { BuildInfoResponse, Experiment } from "api/typesGenerated";
 import { ArrowUpRight } from "lucide-react";
 import type { Permissions } from "modules/permissions";
 import type { FC } from "react";
 import { isDevBuild } from "utils/buildInfo";
+import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,

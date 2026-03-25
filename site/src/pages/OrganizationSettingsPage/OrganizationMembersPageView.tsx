@@ -1,15 +1,15 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-	SlimRole,
-	User,
-} from "api/typesGenerated";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import type {
+	Group,
+	OrganizationMemberWithUserData,
+	SlimRole,
+	User,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";

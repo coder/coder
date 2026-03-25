@@ -1,10 +1,10 @@
-import type { SerpentOption } from "api/typesGenerated";
 import type { JSX } from "react";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
 } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Badges,
 	DisabledBadge,

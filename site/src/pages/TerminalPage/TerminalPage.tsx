@@ -6,12 +6,6 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import { deploymentConfig } from "api/queries/deployment";
-import { appearanceSettings } from "api/queries/users";
-import {
-	workspaceByOwnerAndName,
-	workspaceUsage,
-} from "api/queries/workspaces";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useClipboard } from "hooks/useClipboard";
@@ -33,6 +27,12 @@ import {
 	WebsocketBuilder,
 	WebsocketEvent,
 } from "websocket-ts";
+import { deploymentConfig } from "#/api/queries/deployment";
+import { appearanceSettings } from "#/api/queries/users";
+import {
+	workspaceByOwnerAndName,
+	workspaceUsage,
+} from "#/api/queries/workspaces";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 

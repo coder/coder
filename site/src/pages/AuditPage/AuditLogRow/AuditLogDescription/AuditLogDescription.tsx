@@ -1,6 +1,6 @@
-import type { AuditLog } from "api/typesGenerated";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import type { AuditLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import { BuildAuditDescription } from "./BuildAuditDescription";
 

@@ -1,6 +1,6 @@
-import type { AIBridgeInterception } from "api/typesGenerated";
 import type { ComponentProps, FC } from "react";
 import { docs } from "utils/docs";
+import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import {

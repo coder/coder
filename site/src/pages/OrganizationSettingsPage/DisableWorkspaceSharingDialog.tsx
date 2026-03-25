@@ -1,7 +1,7 @@
-import { API } from "api/api";
-import type { ShareableWorkspaceOwners } from "api/typesGenerated";
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { API } from "#/api/api";
+import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,

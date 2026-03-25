@@ -1,8 +1,3 @@
-import {
-	type TerminalFontName,
-	TerminalFontNames,
-	type UpdateUserAppearanceSettingsRequest,
-} from "api/typesGenerated";
 import type { FC } from "react";
 import { DEFAULT_THEME } from "theme";
 import {
@@ -11,6 +6,11 @@ import {
 	terminalFonts,
 } from "theme/constants";
 import { cn } from "utils/cn";
+import {
+	type TerminalFontName,
+	TerminalFontNames,
+	type UpdateUserAppearanceSettingsRequest,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { PreviewBadge } from "#/components/Badges/Badges";
 import { Label } from "#/components/Label/Label";

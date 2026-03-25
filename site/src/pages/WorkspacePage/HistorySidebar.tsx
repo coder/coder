@@ -1,5 +1,3 @@
-import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
-import type { Workspace } from "api/typesGenerated";
 import { ArrowDownIcon } from "lucide-react";
 import {
 	WorkspaceBuildData,
@@ -7,6 +5,8 @@ import {
 } from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
+import { infiniteWorkspaceBuilds } from "#/api/queries/workspaceBuilds";
+import type { Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Sidebar,

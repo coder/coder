@@ -1,4 +1,4 @@
-import type { Group, GroupSource, User } from "api/typesGenerated";
+import type { Group, GroupSource, User } from "#/api/typesGenerated";
 import { MockUsers } from "./users";
 
 function findMockedUserById(id: string): User | undefined {

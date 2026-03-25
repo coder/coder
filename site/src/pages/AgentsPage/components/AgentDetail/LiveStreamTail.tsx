@@ -1,6 +1,6 @@
-import type * as TypesGen from "api/typesGenerated";
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";

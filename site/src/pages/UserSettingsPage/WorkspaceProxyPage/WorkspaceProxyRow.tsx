@@ -1,8 +1,8 @@
-import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
+import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import {

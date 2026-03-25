@@ -1,11 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
-import type {
-	Template,
-	TemplateVersion,
-	Workspace,
-	WorkspaceBuild,
-} from "api/typesGenerated";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
@@ -13,6 +6,13 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { getAgentHealthIssue } from "modules/workspaces/health";
 import { type FC, useEffect, useState } from "react";
+import { workspaceResolveAutostart } from "#/api/queries/workspaceQuota";
+import type {
+	Template,
+	TemplateVersion,
+	Workspace,
+	WorkspaceBuild,
+} from "#/api/typesGenerated";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 
 dayjs.extend(relativeTime);

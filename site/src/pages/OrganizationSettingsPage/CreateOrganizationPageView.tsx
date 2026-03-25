@@ -1,6 +1,4 @@
 import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
-import type { CreateOrganizationRequest } from "api/typesGenerated";
 import { useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
 import type { FC } from "react";
@@ -13,6 +11,8 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";

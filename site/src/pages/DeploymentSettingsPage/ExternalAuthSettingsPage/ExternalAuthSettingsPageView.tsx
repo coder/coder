@@ -1,7 +1,10 @@
 import { css } from "@emotion/react";
-import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import type {
+	DeploymentValues,
+	ExternalAuthConfig,
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { PremiumBadge } from "#/components/Badges/Badges";
 import {

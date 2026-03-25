@@ -1,14 +1,14 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
+import { type FC, useState } from "react";
 import type {
 	AgentConnectionTiming,
 	AgentScriptTiming,
 	ProvisionerTiming,
-} from "api/typesGenerated";
-import sortBy from "lodash/sortBy";
-import uniqBy from "lodash/uniqBy";
-import { type FC, useState } from "react";
+} from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {

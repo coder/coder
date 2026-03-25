@@ -1,9 +1,9 @@
 import { MockOrganization, MockProvisionerJob } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ProvisionerJob } from "api/typesGenerated";
 import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { daysAgo } from "utils/time";
+import type { ProvisionerJob } from "#/api/typesGenerated";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
 
 const MockProvisionerJobs: ProvisionerJob[] = Array.from(

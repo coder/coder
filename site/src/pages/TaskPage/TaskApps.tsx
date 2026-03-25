@@ -1,4 +1,3 @@
-import type { Task, Workspace } from "api/typesGenerated";
 import { ChevronDownIcon, LayoutGridIcon, TerminalIcon } from "lucide-react";
 import { getTerminalHref } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
@@ -10,6 +9,7 @@ import { type FC, useState } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
+import type { Task, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,

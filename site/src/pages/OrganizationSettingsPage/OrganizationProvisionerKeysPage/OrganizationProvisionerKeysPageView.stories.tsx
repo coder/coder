@@ -9,7 +9,7 @@ import {
 	ProvisionerKeyIDBuiltIn,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import { OrganizationProvisionerKeysPageView } from "./OrganizationProvisionerKeysPageView";
 
 const mockProvisionerKeyDaemons: ProvisionerKeyDaemons[] = [

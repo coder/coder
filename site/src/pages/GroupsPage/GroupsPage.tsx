@@ -1,6 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { groupsByOrganization } from "api/queries/groups";
-import { organizationsPermissions } from "api/queries/organizations";
 import { PlusIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -9,6 +6,9 @@ import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { groupsByOrganization } from "#/api/queries/groups";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";

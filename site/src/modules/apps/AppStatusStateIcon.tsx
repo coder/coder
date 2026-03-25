@@ -1,4 +1,3 @@
-import type { WorkspaceAppStatusState } from "api/typesGenerated";
 import {
 	BanIcon,
 	CircleAlertIcon,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "utils/cn";
+import type { WorkspaceAppStatusState } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 
 type AppStatusStateIconProps = {

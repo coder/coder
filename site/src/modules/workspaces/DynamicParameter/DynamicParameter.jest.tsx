@@ -1,7 +1,7 @@
 import { render } from "testHelpers/renderHelpers";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { PreviewParameter } from "api/typesGenerated";
+import type { PreviewParameter } from "#/api/typesGenerated";
 import { DynamicParameter } from "./DynamicParameter";
 
 const createMockParameter = (

@@ -3,8 +3,6 @@ import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { countries } from "api/countriesGenerated";
-import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
@@ -14,6 +12,8 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { countries } from "#/api/countriesGenerated";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";

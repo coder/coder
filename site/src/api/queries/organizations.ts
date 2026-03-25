@@ -1,18 +1,3 @@
-import {
-	API,
-	type GetProvisionerDaemonsParams,
-	type GetProvisionerJobsParams,
-} from "api/api";
-import type {
-	CreateOrganizationRequest,
-	GroupSyncSettings,
-	Organization,
-	PaginatedMembersRequest,
-	PaginatedMembersResponse,
-	RoleSyncSettings,
-	UpdateOrganizationRequest,
-	UpdateWorkspaceSharingSettingsRequest,
-} from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import {
@@ -26,6 +11,21 @@ import {
 	workspacePermissionChecks,
 } from "modules/permissions/workspaces";
 import type { QueryClient, UseQueryOptions } from "react-query";
+import {
+	API,
+	type GetProvisionerDaemonsParams,
+	type GetProvisionerJobsParams,
+} from "#/api/api";
+import type {
+	CreateOrganizationRequest,
+	GroupSyncSettings,
+	Organization,
+	PaginatedMembersRequest,
+	PaginatedMembersResponse,
+	RoleSyncSettings,
+	UpdateOrganizationRequest,
+	UpdateWorkspaceSharingSettingsRequest,
+} from "#/api/typesGenerated";
 import { meKey } from "./users";
 import { cachedQuery } from "./util";
 

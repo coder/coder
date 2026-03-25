@@ -1,13 +1,13 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { getErrorDetail } from "api/errors";
-import { agentLogs, buildLogs } from "api/queries/workspaces";
-import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
 import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
+import { agentLogs, buildLogs } from "#/api/queries/workspaces";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import {
 	ConfirmDialog,

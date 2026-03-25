@@ -341,27 +341,4 @@ user.click(screen.getByRole("button"));
 const form = screen.getByTestId("form");
 user.click(within(form).getByRole("button"));
 ```
-
-❌ Does not work
-
-```ts
-import { getUpdateCheck } from "api/api"
-
-createMachine({ ... }, {
-  services: {
-    getUpdateCheck,
-  },
-})
-```
-
-✅ It works
-
-```ts
-import { getUpdateCheck } from "api/api"
-
-createMachine({ ... }, {
-  services: {
-    getUpdateCheck: () => getUpdateCheck(),
-  },
-})
-```
+from "#/api/from "#/api/

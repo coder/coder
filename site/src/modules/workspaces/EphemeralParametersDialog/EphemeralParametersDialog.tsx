@@ -1,6 +1,6 @@
-import type { TemplateVersionParameter } from "api/typesGenerated";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type { TemplateVersionParameter } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,

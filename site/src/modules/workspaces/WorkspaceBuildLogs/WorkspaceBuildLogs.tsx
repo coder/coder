@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -10,6 +9,7 @@ import {
 } from "react";
 import { BODY_FONT_FAMILY } from "theme/constants";
 import { cn } from "utils/cn";
+import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
 

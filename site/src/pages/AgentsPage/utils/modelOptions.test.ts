@@ -1,5 +1,5 @@
-import type { ChatModelConfig, ChatModelsResponse } from "api/typesGenerated";
 import { describe, expect, it } from "vitest";
+import type { ChatModelConfig, ChatModelsResponse } from "#/api/typesGenerated";
 import {
 	getModelOptionsFromConfigs,
 	getNormalizedModelRef,

@@ -1,24 +1,3 @@
-import { API, watchWorkspace } from "api/api";
-
-import { isApiError } from "api/errors";
-import {
-	chat,
-	chatDesktopEnabled,
-	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
-	chatModels,
-	createChatMessage,
-	deleteChatQueuedMessage,
-	editChatMessage,
-	interruptChat,
-	mcpServerConfigs,
-	promoteChatQueuedMessage,
-	userCompactionThresholds,
-} from "api/queries/chats";
-import { deploymentSSHConfig } from "api/queries/deployment";
-import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatMessagePart } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	getTerminalHref,
@@ -38,6 +17,26 @@ import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
 import { rewriteLocalhostURL } from "utils/portForward";
+import { API, watchWorkspace } from "#/api/api";
+import { isApiError } from "#/api/errors";
+import {
+	chat,
+	chatDesktopEnabled,
+	chatMessagesForInfiniteScroll,
+	chatModelConfigs,
+	chatModels,
+	createChatMessage,
+	deleteChatQueuedMessage,
+	editChatMessage,
+	interruptChat,
+	mcpServerConfigs,
+	promoteChatQueuedMessage,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {

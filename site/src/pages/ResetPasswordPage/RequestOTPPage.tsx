@@ -1,4 +1,3 @@
-import { requestOneTimePassword } from "api/queries/users";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useMutation } from "react-query";
@@ -7,6 +6,7 @@ import { getApplicationName } from "utils/appearance";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import { pageTitle } from "utils/page";
 import * as Yup from "yup";
+import { requestOneTimePassword } from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CustomLogo } from "#/components/CustomLogo/CustomLogo";

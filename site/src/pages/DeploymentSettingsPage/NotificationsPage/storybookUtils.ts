@@ -15,8 +15,8 @@ import {
 	customNotificationTemplatesKey,
 	notificationDispatchMethodsKey,
 	systemNotificationTemplatesKey,
-} from "api/queries/notifications";
-import type { DeploymentValues, SerpentOption } from "api/typesGenerated";
+} from "#/api/queries/notifications";
+import type { DeploymentValues, SerpentOption } from "#/api/typesGenerated";
 import type NotificationsPage from "./NotificationsPage";
 
 // Extracted from a real API response

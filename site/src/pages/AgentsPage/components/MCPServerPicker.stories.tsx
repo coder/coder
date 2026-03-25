@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
 import { fn } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
 import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
 
 // ── Helpers ────────────────────────────────────────────────────

@@ -1,9 +1,9 @@
 import TextField from "@mui/material/TextField";
-import { getErrorDetail } from "api/errors";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FileUpload } from "#/components/FileUpload/FileUpload";

@@ -1,15 +1,15 @@
-import { MissingBuildParameters, ParameterValidationError } from "api/api";
-import { updateWorkspace } from "api/queries/workspaces";
+import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
+import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
+import { type FC, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { MissingBuildParameters, ParameterValidationError } from "#/api/api";
+import { updateWorkspace } from "#/api/queries/workspaces";
 import type {
 	TemplateVersion,
 	Workspace,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
-import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
-import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+} from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 

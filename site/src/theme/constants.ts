@@ -1,4 +1,4 @@
-import type { TerminalFontName } from "api/typesGenerated";
+import type { TerminalFontName } from "#/api/typesGenerated";
 
 export const borderRadius = 8;
 

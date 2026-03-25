@@ -1,18 +1,3 @@
-import { getErrorDetail } from "api/errors";
-import {
-	customNotificationTemplates,
-	disableNotification,
-	notificationDispatchMethods,
-	selectTemplatesByGroup,
-	systemNotificationTemplates,
-	updateUserNotificationPreferences,
-	userNotificationPreferences,
-} from "api/queries/notifications";
-import {
-	preferenceSettings,
-	updatePreferenceSettings,
-} from "api/queries/users";
-import type { NotificationTemplate } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import {
 	castNotificationMethod,
@@ -28,6 +13,21 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { getErrorDetail } from "#/api/errors";
+import {
+	customNotificationTemplates,
+	disableNotification,
+	notificationDispatchMethods,
+	selectTemplatesByGroup,
+	systemNotificationTemplates,
+	updateUserNotificationPreferences,
+	userNotificationPreferences,
+} from "#/api/queries/notifications";
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "#/api/queries/users";
+import type { NotificationTemplate } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { Switch } from "#/components/Switch/Switch";
 import {

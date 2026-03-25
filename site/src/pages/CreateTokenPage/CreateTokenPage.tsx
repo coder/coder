@@ -1,11 +1,11 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
