@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -2870,13 +2871,17 @@ func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	ids, parseErr := parseChatTemplateAllowlist(raw)
+	parsed, parseErr := xjson.ParseUUIDList(raw)
 	if parseErr != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Stored template allowlist is corrupt.",
 			Detail:  parseErr.Error(),
 		})
 		return
+	}
+	ids := make([]string, len(parsed))
+	for i, id := range parsed {
+		ids[i] = id.String()
 	}
 	resp := codersdk.ChatTemplateAllowlist{
 		TemplateIDs: ids,
@@ -2981,24 +2986,6 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-// parseChatTemplateAllowlist parses the raw JSON string from the
-// database into a list of template ID strings. Returns an empty
-// slice when the value is empty. Returns an error when the stored
-// JSON is corrupt or otherwise cannot be unmarshalled.
-func parseChatTemplateAllowlist(raw string) ([]string, error) {
-	if raw == "" {
-		return []string{}, nil
-	}
-	var ids []string
-	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
-		return nil, xerrors.Errorf("unmarshal template allowlist: %w", err)
-	}
-	if ids == nil {
-		return []string{}, nil
-	}
-	return ids, nil
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

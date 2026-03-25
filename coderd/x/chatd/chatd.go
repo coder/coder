@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
@@ -119,6 +120,36 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
+}
+
+// chatTemplateAllowlist returns the deployment-wide template
+// allowlist as a set of permitted template IDs. The callback
+// signature matches what the chat tools expect. When the
+// allowlist is empty or cannot be loaded the function returns
+// nil, which the tools interpret as "all templates allowed".
+func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
+	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
+	// access for reading deployment config.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	//nolint:gocritic // AsChatd provides narrowly-scoped read
+	// access to deployment config (the template allowlist).
+	ctx = dbauthz.AsChatd(ctx)
+	raw, err := p.db.GetChatTemplateAllowlist(ctx)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load chat template allowlist", slog.Error(err))
+		return nil
+	}
+	ids, err := xjson.ParseUUIDList(raw)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to parse chat template allowlist", slog.Error(err))
+		return nil
+	}
+	m := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		m[id] = true
+	}
+	return m
 }
 
 type turnWorkspaceContext struct {
@@ -3413,12 +3444,14 @@ func (p *Server) runChat(
 		// Workspace provisioning tools.
 		tools = append(tools,
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
-				DB:      p.db,
-				OwnerID: chat.OwnerID,
+				DB:                 p.db,
+				OwnerID:            chat.OwnerID,
+				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
 			chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:      p.db,
-				OwnerID: chat.OwnerID,
+				DB:                 p.db,
+				OwnerID:            chat.OwnerID,
+				AllowedTemplateIDs: p.chatTemplateAllowlist,
 			}),
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 				DB:                             p.db,
@@ -3429,6 +3462,7 @@ func (p *Server) runChat(
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
 				Logger:                         p.logger,
+				AllowedTemplateIDs:             p.chatTemplateAllowlist,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,
