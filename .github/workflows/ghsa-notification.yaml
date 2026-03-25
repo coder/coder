@@ -1,0 +1,27 @@
+name: ghsa-notification
+
+on:
+  security_advisory:
+    types: [published, updated]
+
+permissions:
+  contents: read
+
+jobs:
+  slack-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        with:
+          egress-policy: audit
+
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_SECURITY_ADVISORY_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            {
+              "text": ${{ toJSON(format('🚨 Security Advisory {0}: {1}', github.event.action, github.event.security_advisory.summary)) }}
+            }
