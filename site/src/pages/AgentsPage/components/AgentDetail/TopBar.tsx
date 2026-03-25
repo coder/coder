@@ -12,6 +12,7 @@ import {
 	PanelRightOpenIcon,
 	TerminalIcon,
 	Trash2Icon,
+	WandSparklesIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
@@ -53,6 +54,9 @@ type AgentDetailTopBarProps = {
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
+	onRegenerateTitle?: () => void;
+	isRegeneratingTitle?: boolean;
+	isRegenerateTitleDisabled?: boolean;
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
@@ -68,6 +72,9 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
+	onRegenerateTitle,
+	isRegeneratingTitle,
+	isRegenerateTitleDisabled,
 	hasWorkspace,
 	isArchived,
 	isSidebarCollapsed,
@@ -226,6 +233,11 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							>
 								<MonitorIcon className="h-3.5 w-3.5" />
 								View Workspace
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem onSelect={onRegenerateTitle}>
+								<WandSparklesIcon className="h-3.5 w-3.5" />
+								Generate new title
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							{isArchived ? (

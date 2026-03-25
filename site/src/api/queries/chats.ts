@@ -476,6 +476,36 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 	},
 });
 
+export const regenerateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.regenerateChatTitle(chatId),
+
+	onSuccess: (updatedChat: TypesGen.Chat) => {
+		queryClient.setQueryData<TypesGen.Chat>(
+			chatKey(updatedChat.id),
+			updatedChat,
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === updatedChat.id
+					? { ...chat, title: updatedChat.title }
+					: chat,
+			),
+		);
+	},
+
+	onSettled: async (
+		_data: TypesGen.Chat | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),

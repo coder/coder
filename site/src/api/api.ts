@@ -3126,6 +3126,13 @@ class ExperimentalApiMethods {
 		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
 
+	regenerateChatTitle = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/title/regenerate`,
+		);
+		return response.data;
+	};
+
 	createChatMessage = async (
 		chatId: string,
 		req: TypesGen.CreateChatMessageRequest,

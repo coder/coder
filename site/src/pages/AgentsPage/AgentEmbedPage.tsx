@@ -232,7 +232,13 @@ const AgentEmbedPage: FC = () => {
 		requestUnarchiveAgent,
 		requestPinAgent: () => {},
 		requestUnpinAgent: () => {},
+<<<<<<< HEAD
 		requestArchiveAndDeleteWorkspace,
+=======
+		onRegenerateTitle: () => {},
+		isRegeneratingTitle: false,
+		regeneratingTitleChatId: null,
+>>>>>>> 75ef33a9b1 (feat(site/src): add regenerate chat title actions)
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

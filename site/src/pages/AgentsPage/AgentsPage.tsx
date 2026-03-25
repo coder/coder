@@ -23,6 +23,7 @@ import {
 	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	reorderPinnedChat,
+	regenerateChatTitle,
 	unarchiveChat,
 	unpinChat,
 	updateInfiniteChatsCache,
@@ -218,6 +219,16 @@ const AgentsPage: FC = () => {
 		...reorderPinnedChat(queryClient),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+			},
+		});
+		const regenerateTitleBase = regenerateChatTitle(queryClient);
+	const regenerateTitleMutation = useMutation({
+		...regenerateTitleBase,
+		onSuccess: (updatedChat) => {
+			regenerateTitleBase.onSuccess(updatedChat);
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -358,6 +369,9 @@ const AgentsPage: FC = () => {
 	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
+		};
+		const requestRegenerateTitle = (chatId: string) => {
+		regenerateTitleMutation.mutate(chatId);
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -609,6 +623,9 @@ const AgentsPage: FC = () => {
 				requestPinAgent={requestPinAgent}
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
+				onRegenerateTitle={requestRegenerateTitle}
+				isRegeneratingTitle={regenerateTitleMutation.isPending}
+				regeneratingTitleChatId={regenerateTitleMutation.variables ?? null}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}

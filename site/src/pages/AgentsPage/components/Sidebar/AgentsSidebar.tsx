@@ -72,6 +72,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -123,10 +124,13 @@ interface AgentsSidebarProps {
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle: (chatId: string) => void;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
+	isRegeneratingTitle?: boolean;
+	regeneratingTitleChatId?: string | null;
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -367,6 +371,8 @@ interface ChatTreeContextValue {
 	readonly chatErrorReasons: Record<string, string>;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
+	readonly isRegeneratingTitle: boolean;
+	readonly regeneratingTitleChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
@@ -376,6 +382,7 @@ interface ChatTreeContextValue {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onRegenerateTitle: (chatId: string) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -405,12 +412,15 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		chatErrorReasons,
 		isArchiving,
 		archivingChatId,
+		isRegeneratingTitle,
+		regeneratingTitleChatId,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onRegenerateTitle,
 	} = useChatTree();
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
@@ -599,6 +609,17 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									) : (
 										<>
 											<DropdownMenuItem
+												disabled={
+													isRegeneratingTitle &&
+													regeneratingTitleChatId === chat.id
+												}
+												onSelect={() => onRegenerateTitle(chat.id)}
+											>
+												<WandSparklesIcon className="h-3.5 w-3.5" />
+												Generate new title
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
 												onSelect={() => onArchiveAgent(chat.id)}
@@ -710,10 +731,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onPinAgent,
 		onUnpinAgent,
 		onReorderPinnedAgent,
+		onRegenerateTitle,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
+		isRegeneratingTitle = false,
+		regeneratingTitleChatId = null,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -910,12 +934,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatErrorReasons,
 		isArchiving,
 		archivingChatId,
+		isRegeneratingTitle,
+		regeneratingTitleChatId,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onRegenerateTitle,
 	};
 
 	const subNavTitle = "Settings";

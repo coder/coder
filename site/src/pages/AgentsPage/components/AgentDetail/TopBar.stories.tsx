@@ -1,26 +1,27 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { AgentDetailTopBar } from "./TopBar";
 
 const defaultProps = {
 	chatTitle: "Build authentication feature",
 	panel: {
 		showSidebarPanel: false,
-		onToggleSidebar: () => {},
+		onToggleSidebar: fn(),
 	},
 	workspace: {
 		canOpenEditors: true,
 		canOpenWorkspace: true,
-		onOpenInEditor: () => {},
-		onViewWorkspace: () => {},
-		onOpenTerminal: () => {},
+		onOpenInEditor: fn(),
+		onViewWorkspace: fn(),
+		onOpenTerminal: fn(),
 		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
-	onArchiveAgent: () => {},
-	onArchiveAndDeleteWorkspace: () => {},
-	onUnarchiveAgent: () => {},
+	onArchiveAgent: fn(),
+	onArchiveAndDeleteWorkspace: fn(),
+	onRegenerateTitle: fn(),
+	onUnarchiveAgent: fn(),
 	isSidebarCollapsed: false,
-	onToggleSidebarCollapsed: () => {},
+	onToggleSidebarCollapsed: fn(),
 } satisfies React.ComponentProps<typeof AgentDetailTopBar>;
 
 const meta: Meta<typeof AgentDetailTopBar> = {
@@ -227,10 +228,22 @@ export const MobileWithClosedPR: Story = {
 	},
 };
 
+export const GenerateTitle: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Generate new title")).toBeInTheDocument();
+		});
+	},
+};
+
 export const ArchivedWithUnarchive: Story = {
 	args: {
 		isArchived: true,
-		onUnarchiveAgent: () => {},
+		onUnarchiveAgent: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
