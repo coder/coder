@@ -32,11 +32,6 @@ var supportedProviderNames = []string{
 	fantasyvercel.Name,
 }
 
-var envPresetProviderNames = []string{
-	fantasyopenai.Name,
-	fantasyanthropic.Name,
-}
-
 var providerDisplayNameByName = map[string]string{
 	fantasyanthropic.Name:    "Anthropic",
 	fantasyazure.Name:        "Azure OpenAI",
@@ -51,17 +46,6 @@ var providerDisplayNameByName = map[string]string{
 // SupportedProviders returns all chat providers supported by Fantasy.
 func SupportedProviders() []string {
 	return append([]string(nil), supportedProviderNames...)
-}
-
-// IsEnvPresetProvider reports whether provider supports env presets.
-func IsEnvPresetProvider(provider string) bool {
-	normalized := NormalizeProvider(provider)
-	for _, candidate := range envPresetProviderNames {
-		if candidate == normalized {
-			return true
-		}
-	}
-	return false
 }
 
 // ProviderDisplayName returns a default display name for a provider.

@@ -413,7 +413,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	keys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		chatprovider.ProviderAPIKeys{},
 		configuredProviders,
 	)
 	catalog := chatprovider.NewModelCatalog(keys)
@@ -3552,7 +3552,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		chatprovider.ProviderAPIKeys{},
 		enabledConfiguredProviders,
 	)
 	effectiveKeys = chatprovider.MergeProviderAPIKeys(
@@ -3575,22 +3575,14 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		source := codersdk.ChatProviderConfigSourceSupported
-		hasAPIKey := effectiveKeys.APIKey(provider) != ""
-		enabled := false
-		if chatprovider.IsEnvPresetProvider(provider) && hasAPIKey {
-			source = codersdk.ChatProviderConfigSourceEnvPreset
-			enabled = true
-		}
-
 		resp = append(resp, codersdk.ChatProviderConfig{
 			ID:          uuid.Nil,
 			Provider:    provider,
 			DisplayName: chatprovider.ProviderDisplayName(provider),
-			Enabled:     enabled,
-			HasAPIKey:   hasAPIKey,
+			Enabled:     false,
+			HasAPIKey:   effectiveKeys.APIKey(provider) != "",
 			BaseURL:     effectiveKeys.BaseURL(provider),
-			Source:      source,
+			Source:      codersdk.ChatProviderConfigSourceSupported,
 		})
 	}
 
@@ -4508,21 +4500,6 @@ func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
 }
 
-func chatProviderAPIKeysFromDeploymentValues(
-	deploymentValues *codersdk.DeploymentValues,
-) chatprovider.ProviderAPIKeys {
-	_ = deploymentValues
-	// For now, we'll just manage configs in the UI.
-	// We should probably not be reusing the AI bridge configs anyways.
-	return chatprovider.ProviderAPIKeys{
-		// OpenAI:    deploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
-		// Anthropic: deploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
-		// BaseURLByProvider: map[string]string{
-		// 	"openai":    deploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
-		// 	"anthropic": deploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
-		// },
-	}
-}
 
 func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
 	if strings.TrimSpace(provider.APIKey) != "" {
@@ -4559,7 +4536,7 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	}
 
 	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		chatprovider.ProviderAPIKeys{},
 		enabledConfiguredProviders,
 	)
 	return effectiveKeys.APIKey(provider.Provider) != ""

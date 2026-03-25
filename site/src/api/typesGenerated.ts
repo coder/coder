@@ -1707,11 +1707,10 @@ export interface ChatProviderConfig {
 }
 
 // From codersdk/chats.go
-export type ChatProviderConfigSource = "database" | "env_preset" | "supported";
+export type ChatProviderConfigSource = "database" | "supported";
 
 export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
 	"database",
-	"env_preset",
 	"supported",
 ];
 
