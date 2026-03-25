@@ -543,8 +543,11 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        stale_at = NOW() + INTERVAL '5 minutes',
-        updated_at = NOW()
+        -- NOTE: updated_at is intentionally NOT touched here so
+        -- the worker can read it as "when was this row last
+        -- externally changed" (by MarkStale or a successful
+        -- refresh).
+        stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
         chat_id IN (
             SELECT
@@ -579,8 +582,11 @@ INNER JOIN
 UPDATE
     chat_diff_statuses
 SET
-    stale_at = @stale_at::timestamptz,
-    updated_at = NOW()
+    -- NOTE: updated_at is intentionally NOT touched here so
+    -- the worker can read it as "when was this row last
+    -- externally changed" (by MarkStale or a successful
+    -- refresh).
+    stale_at = @stale_at::timestamptz
 WHERE
     chat_id = @chat_id::uuid;
 

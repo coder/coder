@@ -221,30 +221,81 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 	assert.Equal(t, int32(numRows), upsertCount.Load())
 }
 
-func TestWorker_RefresherReturnsNilNil_SkipsUpsert(t *testing.T) {
+func TestWorker_NoPR_RecentMarkStale_BacksOffShort(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	chatID := uuid.New()
 	ownerID := uuid.New()
 
-	// When the Refresher returns (nil, nil) the worker skips the
-	// upsert and publish. We signal tickDone from the refresher
-	// mock since that is the last operation before the tick
-	// returns.
+	// When the Refresher returns (nil, nil) AND the row was
+	// recently marked stale (updated_at within NoPRRetryWindow),
+	// the worker should call BackoffChatDiffStatus with NoPRBackoff
+	// so the row is retried quickly.
 	tickDone := make(chan struct{})
 
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 
-	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		Return([]database.AcquireStaleChatDiffStatusesRow{makeAcquiredRowWithBranch(chatID, ownerID, "feature")}, nil)
-
 	mClock := quartz.NewMock(t)
+
+	row := makeAcquiredRowWithBranch(chatID, ownerID, "feature")
+	row.UpdatedAt = mClock.Now() // recently marked stale
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+			assert.Equal(t, chatID, arg.ChatID)
+			expected := mClock.Now().UTC().Add(gitsync.NoPRBackoff)
+			assert.WithinDuration(t, expected, arg.StaleAt, time.Second,
+				"stale_at should be NoPRBackoff from now")
+			close(tickDone)
+			return nil
+		})
+
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	// ResolveBranchPullRequest returns nil → Refresher returns
 	// (nil, nil).
+	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
+		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			return nil, nil
+		},
+	))
+
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+}
+
+func TestWorker_NoPR_OldRow_Skips(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	// When the Refresher returns (nil, nil) but the row's
+	// updated_at is outside the NoPRRetryWindow, the worker should
+	// skip the row entirely (no backoff call) and let the 5-minute
+	// acquisition lock serve as the natural retry interval.
+	tickDone := make(chan struct{})
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	mClock := quartz.NewMock(t)
+
+	row := makeAcquiredRowWithBranch(chatID, ownerID, "feature")
+	row.UpdatedAt = mClock.Now().Add(-5 * time.Minute) // old row
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
+	// BackoffChatDiffStatus should NOT be called.
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
 	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
 		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
 			close(tickDone)
