@@ -328,7 +328,7 @@ const AgentsPage: FC = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
-		if (typeof window !== "undefined" && !agentId) {
+		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate("/agents");

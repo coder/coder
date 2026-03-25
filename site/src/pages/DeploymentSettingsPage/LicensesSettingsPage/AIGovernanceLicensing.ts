@@ -76,7 +76,7 @@ function aiGovernanceLimitFromLicenses(
 }
 
 /**
- * Resolves the displayed AI governance user limit for summary charts.
+ * Resolves the displayed AI Governance user limit for summary charts.
  *
  * When the feature is not entitled yet, JWT claims can still carry the
  * purchased add-on seat limit while entitlements may report limit 0.

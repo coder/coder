@@ -1676,11 +1676,13 @@ func TestActivateDormantUser(t *testing.T) {
 func TestGetUser(t *testing.T) {
 	t.Parallel()
 
+	// Single instance shared across all sub-tests. All lookups
+	// are read-only against the first user.
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
 	t.Run("ByMe", func(t *testing.T) {
 		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1694,9 +1696,6 @@ func TestGetUser(t *testing.T) {
 	t.Run("ByID", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -1708,9 +1707,6 @@ func TestGetUser(t *testing.T) {
 
 	t.Run("ByUsername", func(t *testing.T) {
 		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1785,11 +1781,14 @@ func TestPostTokens(t *testing.T) {
 func TestUserTerminalFont(t *testing.T) {
 	t.Parallel()
 
+	// Single instance shared across all sub-tests. Each sub-test
+	// creates its own non-admin user for isolation.
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
 	t.Run("valid font", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1814,8 +1813,6 @@ func TestUserTerminalFont(t *testing.T) {
 	t.Run("unsupported font", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1839,8 +1836,6 @@ func TestUserTerminalFont(t *testing.T) {
 	t.Run("undefined font is not ok", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1865,11 +1860,14 @@ func TestUserTerminalFont(t *testing.T) {
 func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 	t.Parallel()
 
+	// Single instance shared across all sub-tests. Each sub-test
+	// creates its own non-admin user for isolation.
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
 	t.Run("defaults to false", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1886,8 +1884,6 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 	t.Run("update to true", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1906,8 +1902,6 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 	t.Run("update to false", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

@@ -487,6 +487,7 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 			string(fantasyopenai.ReasoningEffortLow),
 			string(fantasyopenai.ReasoningEffortMedium),
 			string(fantasyopenai.ReasoningEffortHigh),
+			string(fantasyopenai.ReasoningEffortXHigh),
 		)
 	case fantasyanthropic.Name:
 		return normalizedEnumValue(
