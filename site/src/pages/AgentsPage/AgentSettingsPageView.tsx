@@ -53,7 +53,8 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import {
 	ChatCostSummaryView,
-	TokensCell,
+	InputTokensCell,
+	OutputTokensCell,
 } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 import {
@@ -141,10 +142,14 @@ const UserRow: FC<{
 			<TableCell>{user.message_count.toLocaleString()}</TableCell>
 			<TableCell>{user.chat_count.toLocaleString()}</TableCell>
 			<TableCell>
-				<TokensCell
+				<InputTokensCell
 					inputTokens={user.total_input_tokens}
-					outputTokens={user.total_output_tokens}
 					cacheReadTokens={user.total_cache_read_tokens}
+				/>
+			</TableCell>
+			<TableCell>
+				<OutputTokensCell
+					outputTokens={user.total_output_tokens}
 					cacheWriteTokens={user.total_cache_creation_tokens}
 				/>
 			</TableCell>
@@ -428,7 +433,8 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 											<TableHead>Cost</TableHead>
 											<TableHead>Messages</TableHead>
 											<TableHead>Chats</TableHead>
-											<TableHead>Tokens</TableHead>
+											<TableHead>Input</TableHead>
+											<TableHead>Output</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>

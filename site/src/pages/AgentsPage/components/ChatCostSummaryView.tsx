@@ -1,7 +1,7 @@
 import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
-import { ArrowDownIcon, ArrowUpIcon, TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
@@ -22,26 +22,14 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-export const TokensCell: FC<{
+export const InputTokensCell: FC<{
 	inputTokens: number;
-	outputTokens: number;
 	cacheReadTokens: number;
-	cacheWriteTokens: number;
-}> = ({ inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens }) => (
+}> = ({ inputTokens, cacheReadTokens }) => (
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className="inline-grid grid-cols-[1fr_auto_1fr] items-center gap-1 whitespace-nowrap">
-					<span className="inline-flex items-center justify-end gap-0.5">
-						<ArrowDownIcon className="h-3 w-3" />
-						{formatTokenCount(inputTokens)}
-					</span>
-					<span className="text-content-secondary">/</span>
-					<span className="inline-flex items-center gap-0.5">
-						<ArrowUpIcon className="h-3 w-3" />
-						{formatTokenCount(outputTokens)}
-					</span>
-				</span>
+				<span>{formatTokenCount(inputTokens)}</span>
 			</TooltipTrigger>
 			<TooltipContent side="top">
 				<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
@@ -49,13 +37,30 @@ export const TokensCell: FC<{
 					<span className="text-right font-mono">
 						{inputTokens.toLocaleString()}
 					</span>
-					<span className="text-content-secondary">Output</span>
-					<span className="text-right font-mono">
-						{outputTokens.toLocaleString()}
-					</span>
 					<span className="text-content-secondary">Cache read</span>
 					<span className="text-right font-mono">
 						{cacheReadTokens.toLocaleString()}
+					</span>
+				</div>
+			</TooltipContent>
+		</Tooltip>
+	</TooltipProvider>
+);
+
+export const OutputTokensCell: FC<{
+	outputTokens: number;
+	cacheWriteTokens: number;
+}> = ({ outputTokens, cacheWriteTokens }) => (
+	<TooltipProvider delayDuration={0}>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span>{formatTokenCount(outputTokens)}</span>
+			</TooltipTrigger>
+			<TooltipContent side="top">
+				<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
+					<span className="text-content-secondary">Output</span>
+					<span className="text-right font-mono">
+						{outputTokens.toLocaleString()}
 					</span>
 					<span className="text-content-secondary">Cache write</span>
 					<span className="text-right font-mono">
@@ -292,7 +297,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</p>
 			) : (
 				<div className="flex flex-col gap-6">
-					{" "}
 					<div className="overflow-x-auto rounded-lg border border-border-default">
 						<Table className="text-sm" aria-label="Cost breakdown by model">
 							<TableHeader>
@@ -301,7 +305,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									<TableHead>Provider</TableHead>
 									<TableHead>Cost</TableHead>
 									<TableHead>Messages</TableHead>
-									<TableHead>Tokens</TableHead>
+									<TableHead>Input</TableHead>
+									<TableHead>Output</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -321,10 +326,14 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 											{model.message_count.toLocaleString()}
 										</TableCell>
 										<TableCell>
-											<TokensCell
+											<InputTokensCell
 												inputTokens={model.total_input_tokens}
-												outputTokens={model.total_output_tokens}
 												cacheReadTokens={model.total_cache_read_tokens}
+											/>
+										</TableCell>
+										<TableCell>
+											<OutputTokensCell
+												outputTokens={model.total_output_tokens}
 												cacheWriteTokens={model.total_cache_creation_tokens}
 											/>
 										</TableCell>
@@ -340,7 +349,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									<TableHead>Chat</TableHead>
 									<TableHead>Cost</TableHead>
 									<TableHead>Messages</TableHead>
-									<TableHead>Tokens</TableHead>
+									<TableHead>Input</TableHead>
+									<TableHead>Output</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -361,10 +371,14 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										</TableCell>
 										<TableCell>{chat.message_count.toLocaleString()}</TableCell>
 										<TableCell>
-											<TokensCell
+											<InputTokensCell
 												inputTokens={chat.total_input_tokens}
-												outputTokens={chat.total_output_tokens}
 												cacheReadTokens={chat.total_cache_read_tokens}
+											/>
+										</TableCell>
+										<TableCell>
+											<OutputTokensCell
+												outputTokens={chat.total_output_tokens}
 												cacheWriteTokens={chat.total_cache_creation_tokens}
 											/>
 										</TableCell>

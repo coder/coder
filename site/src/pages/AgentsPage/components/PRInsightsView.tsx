@@ -328,9 +328,8 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 							label="Cost / merge"
 							value={formatCostMicros(summary.cost_per_merged_pr_micros)}
 							detail={`${formatCostMicros(summary.total_cost_micros)} total`}
-						/>{" "}
+						/>
 					</div>
-
 					{/* ── Activity chart ── */}
 					<section>
 						<div className="mb-4 flex items-center justify-between">
@@ -355,7 +354,7 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 					</section>
 
 					{/* ── Model breakdown + Recent PRs side by side ── */}
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+					<div className="grid grid-cols-1 gap-6">
 						{/* ── Model performance (simplified) ── */}
 						{by_model.length > 0 && (
 							<section>
@@ -365,15 +364,11 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 								<div className="overflow-hidden rounded-lg border border-border-default">
 									<Table className="text-sm">
 										<TableHeader>
-											<TableRow className="text-left text-xs text-content-secondary [&>th]:font-normal">
-												<TableHead className="px-4 py-3">Model</TableHead>
-												<TableHead className="px-4 py-3 text-right">
-													Merged
-												</TableHead>
-												<TableHead className="px-4 py-3">Merge rate</TableHead>
-												<TableHead className="px-4 py-3 text-right">
-													Cost / merge
-												</TableHead>
+											<TableRow>
+												<TableHead>Model</TableHead>
+												<TableHead>Merged</TableHead>
+												<TableHead>Merge rate</TableHead>
+												<TableHead>Cost / merge</TableHead>
 											</TableRow>
 										</TableHeader>
 										<TableBody>
@@ -382,21 +377,21 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 													key={m.model_config_id}
 													className="border-t border-border-default"
 												>
-													<TableCell className="px-4 py-3">
+													<TableCell>
 														<span className="font-medium text-content-primary">
 															{m.display_name}
 														</span>
 													</TableCell>
-													<TableCell className="px-4 py-3 text-right tabular-nums text-content-primary">
+													<TableCell className="tabular-nums text-content-primary">
 														<span>{m.merged_prs}</span>
 														<span className="text-content-disabled">
 															/{m.total_prs}
 														</span>
 													</TableCell>
-													<TableCell className="px-4 py-3">
+													<TableCell>
 														<InlineMergeBar rate={m.merge_rate} />
 													</TableCell>
-													<TableCell className="px-4 py-3 text-right tabular-nums text-content-primary">
+													<TableCell className="tabular-nums text-content-primary">
 														{m.merged_prs > 0
 															? formatCostMicros(m.cost_per_merged_pr_micros)
 															: "—"}
@@ -424,25 +419,20 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 											<col style={{ width: 72 }} />
 										</colgroup>
 										<TableHeader>
-											<TableRow className="text-left text-xs text-content-secondary [&>th]:font-normal">
-												<TableHead className="px-4 py-3">Title</TableHead>
-												<TableHead className="px-4 py-3">Status</TableHead>
-												<TableHead className="px-4 py-3 text-right">
-													Cost
-												</TableHead>
-												<TableHead className="px-4 py-3 text-right">
-													Created
-												</TableHead>
+											<TableRow>
+												<TableHead>Title</TableHead>
+												<TableHead>Status</TableHead>
+												<TableHead>Cost</TableHead>
+												<TableHead>Created</TableHead>
 											</TableRow>
-										</TableHeader>{" "}
+										</TableHeader>
 										<TableBody>
 											{recent_prs.map((pr) => (
 												<TableRow
 													key={pr.chat_id}
 													className="border-t border-border-default transition-colors hover:bg-surface-secondary/50"
 												>
-													<TableCell className="overflow-hidden px-4 py-3">
-														{" "}
+													<TableCell className="overflow-hidden">
 														<a
 															href={pr.pr_url}
 															target="_blank"
@@ -455,7 +445,6 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 															<ExternalLinkIcon className="mt-0.5 size-3 shrink-0 text-content-disabled opacity-0 transition-opacity group-hover:opacity-100" />
 														</a>
 														<div className="mt-1 flex items-center gap-1.5 truncate text-xs text-content-disabled">
-															{" "}
 															<img
 																src={pr.author_avatar_url}
 																alt=""
@@ -466,13 +455,13 @@ export const PRInsightsView: FC<PRInsightsViewProps> = ({
 															<span className="font-mono">#{pr.pr_number}</span>
 														</div>
 													</TableCell>
-													<TableCell className="px-4 py-3">
+													<TableCell>
 														<PRStateBadge state={pr.state} draft={pr.draft} />
 													</TableCell>
-													<TableCell className="px-4 py-3 text-right tabular-nums text-content-secondary">
+													<TableCell className="tabular-nums text-content-secondary">
 														{formatCostMicros(pr.cost_micros)}
 													</TableCell>
-													<TableCell className="whitespace-nowrap px-4 py-3 text-right text-xs text-content-disabled">
+													<TableCell className="whitespace-nowrap text-xs text-content-disabled">
 														{dayjs(pr.created_at).format("MMM D")}
 													</TableCell>
 												</TableRow>
