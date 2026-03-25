@@ -10,10 +10,8 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
-import { Alert } from "#/components/Alert/Alert";
 import {
 	ConversationItem,
 	Message,
@@ -23,7 +21,6 @@ import {
 	Tool,
 } from "#/components/ai-elements";
 import { WebSearchSources } from "#/components/ai-elements/tool";
-import { Button } from "#/components/Button/Button";
 import { FileReferenceChip } from "#/components/ChatMessageInput/FileReferenceNode";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -998,20 +995,8 @@ const StickyUserMessage: FC<{
 	);
 };
 
-const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
-	liveStatus.phase === "streaming" ||
-	hasTransientLiveStatus(liveStatus) ||
-	liveStatus.hasAccumulatedOutput;
-
 interface ConversationTimelineProps {
-	isEmpty: boolean;
 	parsedMessages: readonly ParsedMessageEntry[];
-	streamState: StreamState | null;
-	streamTools: readonly MergedTool[];
-	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
-	subagentTitles: Map<string, string>;
-	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -1024,26 +1009,16 @@ interface ConversationTimelineProps {
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
-	isEmpty,
 	parsedMessages,
-	streamState,
-	streamTools,
-	liveStatus,
-	startingResetKey,
-	subagentTitles,
-	subagentStatusOverrides,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
 	mcpServers,
 }) => {
-	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
-	const shouldRenderStreamAfterMessages =
-		shouldRenderStreamSection && parsedMessages.length > 0;
-	const terminalStatus = liveStatus.phase === "failed" ? liveStatus : null;
-	const usageLimitStatus =
-		terminalStatus?.kind === "usage-limit" ? terminalStatus : null;
+	if (parsedMessages.length === 0) {
+		return null;
+	}
 
 	// Build a set of message IDs that appear after the message
 	// currently being edited so they can be visually faded.
@@ -1062,77 +1037,30 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-3xl py-6 flex flex-col gap-3">
-			{isEmpty && !shouldRenderStreamSection ? (
-				<div className="py-12 text-center text-content-secondary">
-					<p className="text-sm">Start a conversation with your agent.</p>
-				</div>
-			) : (
-				<div className="flex flex-col gap-3">
-					{parsedMessages.map(({ message, parsed }) =>
-						message.role === "user" ? (
-							<StickyUserMessage
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
-								savingMessageId={savingMessageId}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
-						) : (
-							<ChatMessageItem
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								savingMessageId={savingMessageId}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								mcpServers={mcpServers}
-							/>
-						),
-					)}
-					{shouldRenderStreamAfterMessages && (
-						<StreamingOutput
-							streamState={streamState}
-							streamTools={streamTools}
-							liveStatus={liveStatus}
-							startingResetKey={startingResetKey}
-							subagentTitles={subagentTitles}
-							subagentStatusOverrides={subagentStatusOverrides}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-						/>
-					)}
-					{shouldRenderStreamSection && parsedMessages.length === 0 && (
-						<StreamingOutput
-							streamState={streamState}
-							streamTools={streamTools}
-							liveStatus={liveStatus}
-							startingResetKey={startingResetKey}
-							subagentTitles={subagentTitles}
-							subagentStatusOverrides={subagentStatusOverrides}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-						/>
-					)}
-				</div>
+		<div className="flex flex-col gap-3">
+			{parsedMessages.map(({ message, parsed }) =>
+				message.role === "user" ? (
+					<StickyUserMessage
+						key={message.id}
+						message={message}
+						parsed={parsed}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						savingMessageId={savingMessageId}
+						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+					/>
+				) : (
+					<ChatMessageItem
+						key={message.id}
+						message={message}
+						parsed={parsed}
+						savingMessageId={savingMessageId}
+						urlTransform={urlTransform}
+						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+						mcpServers={mcpServers}
+					/>
+				),
 			)}
-			{usageLimitStatus ? (
-				<Alert
-					severity="info"
-					className="py-2"
-					actions={
-						<Button asChild variant="subtle" size="sm">
-							<Link to="/agents/analytics">View Usage</Link>
-						</Button>
-					}
-				>
-					{usageLimitStatus.message}
-				</Alert>
-			) : terminalStatus ? (
-				<ChatStatusCallout status={terminalStatus} />
-			) : null}
 		</div>
 	);
 };

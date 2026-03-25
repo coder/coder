@@ -14,26 +14,19 @@ import {
 import {
 	selectChatStatus,
 	selectHasStreamState,
-	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
-	selectReconnectState,
-	selectRetryState,
-	selectStreamError,
-	selectStreamState,
-	selectSubagentStatusOverrides,
 	useChatSelector,
 	type useChatStore,
 } from "./AgentDetail/ChatContext";
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import { getLatestContextUsage } from "./AgentDetail/chatHelpers";
-import { deriveLiveStatus } from "./AgentDetail/liveStatusModel";
+import { LiveStreamTail } from "./AgentDetail/LiveStreamTail";
 import {
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
-import { buildStreamTools } from "./AgentDetail/streamState";
 import { useOnRenderProfiler } from "./AgentDetail/useOnRenderProfiler";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -69,52 +62,35 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const streamState = useChatSelector(store, selectStreamState);
-	const streamError = useChatSelector(store, selectStreamError);
-	const retryState = useChatSelector(store, selectRetryState);
-	const reconnectState = useChatSelector(store, selectReconnectState);
-	const isAwaitingFirstStreamChunk = useChatSelector(
-		store,
-		selectIsAwaitingFirstStreamChunk,
-	);
-	const subagentStatusOverrides = useChatSelector(
-		store,
-		selectSubagentStatusOverrides,
-	);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
-	const streamTools = buildStreamTools(streamState);
-	const liveStatus = deriveLiveStatus({
-		streamState,
-		retryState,
-		reconnectState,
-		streamError,
-		persistedError: persistedError ?? null,
-		isAwaitingFirstStreamChunk,
-	});
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<ConversationTimeline
-				isEmpty={messages.length === 0}
-				parsedMessages={parsedMessages}
-				streamState={streamState}
-				streamTools={streamTools}
-				liveStatus={liveStatus}
-				startingResetKey={chatID}
-				subagentTitles={subagentTitles}
-				subagentStatusOverrides={subagentStatusOverrides}
-				onEditUserMessage={onEditUserMessage}
-				editingMessageId={editingMessageId}
-				savingMessageId={savingMessageId}
-				urlTransform={urlTransform}
-				mcpServers={mcpServers}
-			/>
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-6">
+				<ConversationTimeline
+					parsedMessages={parsedMessages}
+					onEditUserMessage={onEditUserMessage}
+					editingMessageId={editingMessageId}
+					savingMessageId={savingMessageId}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+				/>
+				<LiveStreamTail
+					store={store}
+					persistedError={persistedError}
+					startingResetKey={chatID}
+					isTranscriptEmpty={parsedMessages.length === 0}
+					subagentTitles={subagentTitles}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+				/>
+			</div>
 		</Profiler>
 	);
 };
