@@ -1,4 +1,5 @@
 import { isApiError } from "api/errors";
+import { CoderIcon } from "components/Icons/CoderIcon";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -364,6 +365,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				{workspacesQuery.isError && (
 					<ErrorAlert error={workspacesQuery.error} />
 				)}
+
+				<div className="flex items-center justify-center gap-3 pb-2">
+					<CoderIcon className="h-7 w-7 fill-content-primary" />
+					<h1 className="text-2xl font-semibold text-content-primary">
+						Let&apos;s build.
+					</h1>
+				</div>
 
 				<AgentChatInput
 					onSend={handleSendWithAttachments}

@@ -69,8 +69,8 @@ export const AgentsPageSkeleton: FC = () => (
 				</div>
 			</div>
 		</div>
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col order-1 md:order-none md:p-2">
-			<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-secondary md:rounded-xl" />
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col order-1 md:order-none md:p-3">
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-tertiary md:rounded-xl" />
 		</div>
 	</div>
 );
@@ -111,7 +111,7 @@ export const ChatConversationSkeleton: FC = () => (
  * a few content lines.
  */
 export const RightPanelSkeleton: FC = () => (
-	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-secondary">
+	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-tertiary">
 		{/* Skeleton tab bar */}
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
 			<Skeleton className="h-6 w-12 rounded-md" />

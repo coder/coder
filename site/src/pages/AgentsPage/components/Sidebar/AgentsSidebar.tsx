@@ -13,6 +13,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -124,6 +125,84 @@ const statusConfig = {
 	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
+
+type StatusCategory =
+	| "waiting"
+	| "working"
+	| "pr_drafted"
+	| "pr_created"
+	| "pr_merged"
+	| "pr_closed"
+	| "other";
+
+const STATUS_CATEGORY_ORDER: StatusCategory[] = [
+	"waiting",
+	"working",
+	"pr_drafted",
+	"pr_created",
+	"pr_merged",
+	"pr_closed",
+	"other",
+];
+
+const STATUS_CATEGORY_CONFIG: Record<
+	StatusCategory,
+	{
+		label: string;
+		icon: typeof CheckIcon;
+		className: string;
+	}
+> = {
+	waiting: {
+		label: "Waiting for input",
+		icon: Loader2Icon,
+		className: "text-content-secondary",
+	},
+	working: {
+		label: "Agent working",
+		icon: BoxesIcon,
+		className: "text-content-link",
+	},
+	pr_drafted: {
+		label: "PR drafted",
+		icon: GitPullRequestDraftIcon,
+		className: "text-content-secondary",
+	},
+	pr_created: {
+		label: "PR created",
+		icon: GitPullRequestArrowIcon,
+		className: "text-git-added-bright",
+	},
+	pr_merged: {
+		label: "PR merged",
+		icon: GitMergeIcon,
+		className: "text-git-merged-bright",
+	},
+	pr_closed: {
+		label: "PR closed",
+		icon: GitPullRequestClosedIcon,
+		className: "text-git-deleted-bright",
+	},
+	other: {
+		label: "Completed",
+		icon: CheckIcon,
+		className: "text-content-secondary",
+	},
+};
+
+function getStatusCategory(chat: Chat): StatusCategory {
+	if (chat.status === "waiting") return "waiting";
+	if (chat.status === "running" || chat.status === "pending") return "working";
+
+	const prState = chat.diff_status?.pull_request_state;
+	if (prState === "open") {
+		return chat.diff_status?.pull_request_draft ? "pr_drafted" : "pr_created";
+	}
+	if (prState === "merged") return "pr_merged";
+	if (prState === "closed") return "pr_closed";
+
+	return "other";
+}
 
 type ChatTree = {
 	readonly rootIds: readonly string[];
@@ -482,10 +561,10 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											<span className="text-git-added-bright">
+											<span className="rounded-sm bg-git-added-bright/20 px-1 py-0.5 text-[11px] font-medium leading-none text-git-added-bright">
 												+{additions}
 											</span>
-											<span className="text-git-deleted-bright">
+											<span className="rounded-sm bg-git-deleted-bright/20 px-1 py-0.5 text-[11px] font-medium leading-none text-git-deleted-bright">
 												&minus;{deletions}
 											</span>
 										</span>
@@ -512,6 +591,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 					) : (
 						<>
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+								{" "}
 								{shortRelativeTime(chat.updated_at)}
 							</span>
 							<DropdownMenu>
@@ -697,75 +777,56 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			>
 				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 					<div className="mb-2.5 flex items-center justify-between">
-						<NavLink to="/workspaces" className="inline-flex">
-							{logoUrl ? (
-								<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-							) : (
-								<CoderIcon className="h-6 w-6 fill-content-primary" />
-							)}
-						</NavLink>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<button
+									type="button"
+									className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent p-0 cursor-pointer text-content-primary hover:text-content-secondary transition-colors"
+								>
+									{logoUrl ? (
+										<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+									) : (
+										<CoderIcon className="h-6 w-6 fill-content-primary" />
+									)}
+									<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />
+								</button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="start">
+								<DropdownMenuItem asChild>
+									<Link
+										to="/agents/settings"
+										state={{ from: location.pathname }}
+									>
+										<SettingsIcon className="h-3.5 w-3.5" />
+										Settings
+									</Link>
+								</DropdownMenuItem>
+								<DropdownMenuItem asChild>
+									<Link to="/agents/analytics">
+										<BarChart3Icon className="h-3.5 w-3.5" />
+										Analytics
+									</Link>
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("active")}
+								>
+									Active
+									{archivedFilter === "active" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("archived")}
+								>
+									Archived
+									{archivedFilter === "archived" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 						<div className="flex items-center gap-0.5 -mr-1.5">
-							<Button
-								asChild
-								variant="subtle"
-								size="icon"
-								aria-label="Settings"
-								className={cn(
-									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-									sidebarView.panel === "settings" && "text-content-primary",
-								)}
-							>
-								<Link to="/agents/settings" state={{ from: location.pathname }}>
-									<SettingsIcon />
-								</Link>
-							</Button>
-							<Button
-								asChild
-								variant="subtle"
-								size="icon"
-								aria-label="Analytics"
-								className={cn(
-									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-									sidebarView.panel === "analytics" && "text-content-primary",
-								)}
-							>
-								<Link to="/agents/analytics">
-									<BarChart3Icon />
-								</Link>
-							</Button>{" "}
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										variant="subtle"
-										size="icon"
-										aria-label="Filter agents"
-										className={cn(
-											"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-											archivedFilter === "archived" && "text-content-primary",
-										)}
-									>
-										<FilterIcon />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
-									<DropdownMenuItem
-										onSelect={() => onArchivedFilterChange?.("active")}
-									>
-										Active
-										{archivedFilter === "active" && (
-											<CheckIcon className="ml-auto h-3.5 w-3.5" />
-										)}
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										onSelect={() => onArchivedFilterChange?.("archived")}
-									>
-										Archived
-										{archivedFilter === "archived" && (
-											<CheckIcon className="ml-auto h-3.5 w-3.5" />
-										)}
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
 							{onCollapse && (
 								<Button
 									variant="subtle"
@@ -846,6 +907,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																getTimeGroup(chat.updated_at) === group,
 														);
 													if (groupChats.length === 0) return null;
+
+													// Group chats by status category.
+													const chatsByCategory = new Map<
+														StatusCategory,
+														Chat[]
+													>();
+													for (const chat of groupChats) {
+														const cat = getStatusCategory(chat);
+														if (!chatsByCategory.has(cat)) {
+															chatsByCategory.set(cat, []);
+														}
+														chatsByCategory.get(cat)!.push(chat);
+													}
+
 													return (
 														<div
 															key={group}
@@ -855,17 +930,57 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																<span>{group}</span>
 															</div>
 															<div className="flex flex-col gap-0.5">
-																{groupChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
-																))}
+																{STATUS_CATEGORY_ORDER.map((cat) => {
+																	const catChats = chatsByCategory.get(cat);
+																	if (!catChats || catChats.length === 0)
+																		return null;
+																	const catConfig = STATUS_CATEGORY_CONFIG[cat];
+																	const CatIcon = catConfig.icon;
+																	const groupKey = `group:${group}:${cat}`;
+																	const isCatExpanded =
+																		expandedById[groupKey] ?? false;
+
+																	return (
+																		<div key={cat}>
+																			<button
+																				type="button"
+																				onClick={() => toggleExpanded(groupKey)}
+																				className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-[13px] text-content-secondary transition-none hover:bg-surface-tertiary/50 hover:text-content-primary cursor-pointer border-0 bg-transparent"
+																			>
+																				<CatIcon
+																					className={cn(
+																						"h-3.5 w-3.5 shrink-0",
+																						catConfig.className,
+																					)}
+																				/>
+																				<span className="flex-1 truncate">
+																					{catConfig.label}
+																				</span>
+																				<ChevronRightIcon
+																					className={cn(
+																						"h-3 w-3 shrink-0 text-content-secondary/50 transition-transform",
+																						isCatExpanded && "rotate-90",
+																					)}
+																				/>
+																			</button>
+																			{isCatExpanded && (
+																				<div className="flex flex-col gap-0.5 pl-1">
+																					{catChats.map((chat) => (
+																						<ChatTreeNode
+																							key={chat.id}
+																							chat={chat}
+																							isChildNode={false}
+																						/>
+																					))}
+																				</div>
+																			)}
+																		</div>
+																	);
+																})}
 															</div>
 														</div>
 													);
-												})}
+												})}{" "}
 											</div>
 										)}
 									</div>

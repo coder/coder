@@ -168,10 +168,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 						!isSettingsDetail &&
 						sidebarView.panel === "chats" &&
 						"order-1 md:order-none flex-none md:flex-1",
-					"md:p-2",
+					"md:p-3",
 				)}
 			>
-				<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-secondary md:rounded-xl">
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-tertiary md:rounded-xl">
 					<Outlet context={outletContextValue} />
 				</div>
 			</div>
