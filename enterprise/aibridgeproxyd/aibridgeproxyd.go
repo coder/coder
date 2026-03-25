@@ -878,7 +878,7 @@ func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string
 
 // handleRequest intercepts HTTP requests after MITM decryption.
 //   - Requests to known AI providers are rewritten to point at aibridged.
-//     In centralized mode the Coder session token is already in the
+//     In centralized mode the Coder token is already in the
 //     Authorization header. For BYOK clients that cannot set custom
 //     headers (e.g. Copilot), the proxy injects the BYOK header.
 //   - Unknown hosts are passed through to the original upstream.
