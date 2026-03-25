@@ -184,11 +184,13 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 		expectAbsent  []string          // headers that must be gone
 	}{
 		{
-			// Direct centralized: client sends Coder token as
-			// Authorization: Bearer. All auth headers are stripped.
+			// Centralized: the client sets Authorization and X-Api-Key,
+			// but does not include HeaderCoderBYOKToken.
+			// All auth headers are stripped.
 			name: "direct centralized",
 			reqHeaders: map[string]string{
 				"Authorization": "Bearer coder-token",
+				"X-Api-Key":     "sk-ant-api03-user-key",
 			},
 			expectAbsent: []string{
 				"Authorization",
