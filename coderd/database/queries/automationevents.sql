@@ -49,7 +49,7 @@ WHERE automation_id = @automation_id::uuid
 SELECT COUNT(*)
 FROM automation_events
 WHERE automation_id = @automation_id::uuid
-    AND status = 'continued'
+    AND status IN ('created', 'continued')
     AND received_at > @window_start::timestamptz;
 
 -- name: PurgeOldAutomationEvents :exec

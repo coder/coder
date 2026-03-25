@@ -1173,10 +1173,12 @@ func (s *MethodTestSuite) TestAutomations() {
 		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns()
 	}))
 	s.Run("InsertAutomationEvent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.InsertAutomationEventParams{})
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		arg := testutil.Fake(s.T(), faker, database.InsertAutomationEventParams{AutomationID: automation.ID})
 		event := testutil.Fake(s.T(), faker, database.AutomationEvent{})
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
 		dbm.EXPECT().InsertAutomationEvent(gomock.Any(), arg).Return(event, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAutomation, policy.ActionUpdate).Returns(event)
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(event)
 	}))
 	s.Run("GetAutomationEvents", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.Automation{})
@@ -1186,14 +1188,18 @@ func (s *MethodTestSuite) TestAutomations() {
 		check.Args(arg).Asserts(automation, policy.ActionRead).Returns([]database.AutomationEvent{})
 	}))
 	s.Run("CountAutomationChatCreatesInWindow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.CountAutomationChatCreatesInWindowParams{})
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		arg := testutil.Fake(s.T(), faker, database.CountAutomationChatCreatesInWindowParams{AutomationID: automation.ID})
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
 		dbm.EXPECT().CountAutomationChatCreatesInWindow(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAutomation, policy.ActionRead).Returns(int64(0))
+		check.Args(arg).Asserts(automation, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("CountAutomationMessagesInWindow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.CountAutomationMessagesInWindowParams{})
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		arg := testutil.Fake(s.T(), faker, database.CountAutomationMessagesInWindowParams{AutomationID: automation.ID})
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
 		dbm.EXPECT().CountAutomationMessagesInWindow(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAutomation, policy.ActionRead).Returns(int64(0))
+		check.Args(arg).Asserts(automation, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("PurgeOldAutomationEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().PurgeOldAutomationEvents(gomock.Any()).Return(nil).AnyTimes()
@@ -1244,7 +1250,7 @@ func (s *MethodTestSuite) TestAutomations() {
 		dbm.EXPECT().GetAutomationTriggerByID(gomock.Any(), trigger.ID).Return(trigger, nil).AnyTimes()
 		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
 		dbm.EXPECT().DeleteAutomationTriggerByID(gomock.Any(), trigger.ID).Return(nil).AnyTimes()
-		check.Args(trigger.ID).Asserts(automation, policy.ActionDelete).Returns()
+		check.Args(trigger.ID).Asserts(automation, policy.ActionUpdate).Returns()
 	}))
 	s.Run("GetAuthorizedAutomations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		params := database.GetAutomationsParams{}

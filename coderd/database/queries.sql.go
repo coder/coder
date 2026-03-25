@@ -2541,7 +2541,7 @@ const countAutomationMessagesInWindow = `-- name: CountAutomationMessagesInWindo
 SELECT COUNT(*)
 FROM automation_events
 WHERE automation_id = $1::uuid
-    AND status = 'continued'
+    AND status IN ('created', 'continued')
     AND received_at > $2::timestamptz
 `
 
@@ -3019,6 +3019,7 @@ INSERT INTO automation_triggers (
     automation_id,
     type,
     webhook_secret,
+    webhook_secret_key_id,
     cron_schedule,
     filter,
     label_paths
@@ -3027,18 +3028,20 @@ INSERT INTO automation_triggers (
     $2::text,
     $3::text,
     $4::text,
-    $5::jsonb,
-    $6::jsonb
+    $5::text,
+    $6::jsonb,
+    $7::jsonb
 ) RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
 `
 
 type InsertAutomationTriggerParams struct {
-	AutomationID  uuid.UUID             `db:"automation_id" json:"automation_id"`
-	Type          string                `db:"type" json:"type"`
-	WebhookSecret sql.NullString        `db:"webhook_secret" json:"webhook_secret"`
-	CronSchedule  sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
-	Filter        pqtype.NullRawMessage `db:"filter" json:"filter"`
-	LabelPaths    pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+	AutomationID       uuid.UUID             `db:"automation_id" json:"automation_id"`
+	Type               string                `db:"type" json:"type"`
+	WebhookSecret      sql.NullString        `db:"webhook_secret" json:"webhook_secret"`
+	WebhookSecretKeyID sql.NullString        `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
+	CronSchedule       sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
+	Filter             pqtype.NullRawMessage `db:"filter" json:"filter"`
+	LabelPaths         pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
 }
 
 func (q *sqlQuerier) InsertAutomationTrigger(ctx context.Context, arg InsertAutomationTriggerParams) (AutomationTrigger, error) {
@@ -3046,6 +3049,7 @@ func (q *sqlQuerier) InsertAutomationTrigger(ctx context.Context, arg InsertAuto
 		arg.AutomationID,
 		arg.Type,
 		arg.WebhookSecret,
+		arg.WebhookSecretKeyID,
 		arg.CronSchedule,
 		arg.Filter,
 		arg.LabelPaths,
@@ -3109,18 +3113,20 @@ func (q *sqlQuerier) UpdateAutomationTrigger(ctx context.Context, arg UpdateAuto
 const updateAutomationTriggerWebhookSecret = `-- name: UpdateAutomationTriggerWebhookSecret :one
 UPDATE automation_triggers SET
     webhook_secret = $1::text,
+    webhook_secret_key_id = $2::text,
     updated_at = NOW()
-WHERE id = $2::uuid
+WHERE id = $3::uuid
 RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
 `
 
 type UpdateAutomationTriggerWebhookSecretParams struct {
-	WebhookSecret sql.NullString `db:"webhook_secret" json:"webhook_secret"`
-	ID            uuid.UUID      `db:"id" json:"id"`
+	WebhookSecret      sql.NullString `db:"webhook_secret" json:"webhook_secret"`
+	WebhookSecretKeyID sql.NullString `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg UpdateAutomationTriggerWebhookSecretParams) (AutomationTrigger, error) {
-	row := q.db.QueryRowContext(ctx, updateAutomationTriggerWebhookSecret, arg.WebhookSecret, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateAutomationTriggerWebhookSecret, arg.WebhookSecret, arg.WebhookSecretKeyID, arg.ID)
 	var i AutomationTrigger
 	err := row.Scan(
 		&i.ID,

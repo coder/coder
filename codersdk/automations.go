@@ -93,14 +93,6 @@ type CreateAutomationTriggerRequest struct {
 	LabelPaths   json.RawMessage       `json:"label_paths,omitempty"`
 }
 
-// UpdateAutomationTriggerRequest is the request body for updating a
-// trigger.
-type UpdateAutomationTriggerRequest struct {
-	CronSchedule *string         `json:"cron_schedule,omitempty"`
-	Filter       json.RawMessage `json:"filter,omitempty"`
-	LabelPaths   json.RawMessage `json:"label_paths,omitempty"`
-}
-
 // AutomationEventStatus represents the outcome of an automation event.
 type AutomationEventStatus string
 
@@ -126,6 +118,14 @@ type AutomationEvent struct {
 	CreatedChatID  *uuid.UUID            `json:"created_chat_id,omitempty" format:"uuid"`
 	Status         AutomationEventStatus `json:"status"`
 	Error          *string               `json:"error,omitempty"`
+}
+
+// TestAutomationRequest is the request body for testing an
+// automation's filter and session resolution logic.
+type TestAutomationRequest struct {
+	Payload    json.RawMessage `json:"payload"`
+	Filter     json.RawMessage `json:"filter,omitempty"`
+	LabelPaths json.RawMessage `json:"label_paths,omitempty"`
 }
 
 // AutomationTestResult is the result of a dry-run test against an
@@ -214,8 +214,8 @@ func (c *ExperimentalClient) ListAutomationEvents(ctx context.Context, id uuid.U
 	return events, json.NewDecoder(res.Body).Decode(&events)
 }
 
-func (c *ExperimentalClient) TestAutomation(ctx context.Context, id uuid.UUID, payload json.RawMessage) (AutomationTestResult, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/automations/%s/test", id), payload)
+func (c *ExperimentalClient) TestAutomation(ctx context.Context, id uuid.UUID, req TestAutomationRequest) (AutomationTestResult, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/automations/%s/test", id), req)
 	if err != nil {
 		return AutomationTestResult{}, err
 	}

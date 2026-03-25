@@ -1518,8 +1518,6 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
-
-
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -1736,14 +1734,22 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 }
 
 func (q *querier) CountAutomationChatCreatesInWindow(ctx context.Context, arg database.CountAutomationChatCreatesInWindowParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAutomation); err != nil {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
 		return 0, err
 	}
 	return q.db.CountAutomationChatCreatesInWindow(ctx, arg)
 }
 
 func (q *querier) CountAutomationMessagesInWindow(ctx context.Context, arg database.CountAutomationMessagesInWindowParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAutomation); err != nil {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
 		return 0, err
 	}
 	return q.db.CountAutomationMessagesInWindow(ctx, arg)
@@ -1873,7 +1879,7 @@ func (q *querier) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID)
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, automation); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
 		return err
 	}
 	return q.db.DeleteAutomationTriggerByID(ctx, id)
@@ -4808,7 +4814,11 @@ func (q *querier) InsertAutomation(ctx context.Context, arg database.InsertAutom
 }
 
 func (q *querier) InsertAutomationEvent(ctx context.Context, arg database.InsertAutomationEventParams) (database.AutomationEvent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAutomation); err != nil {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return database.AutomationEvent{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
 		return database.AutomationEvent{}, err
 	}
 	return q.db.InsertAutomationEvent(ctx, arg)

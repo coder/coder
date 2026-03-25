@@ -3,6 +3,7 @@ INSERT INTO automation_triggers (
     automation_id,
     type,
     webhook_secret,
+    webhook_secret_key_id,
     cron_schedule,
     filter,
     label_paths
@@ -10,6 +11,7 @@ INSERT INTO automation_triggers (
     @automation_id::uuid,
     @type::text,
     sqlc.narg('webhook_secret')::text,
+    sqlc.narg('webhook_secret_key_id')::text,
     sqlc.narg('cron_schedule')::text,
     sqlc.narg('filter')::jsonb,
     sqlc.narg('label_paths')::jsonb
@@ -35,6 +37,7 @@ RETURNING *;
 -- name: UpdateAutomationTriggerWebhookSecret :one
 UPDATE automation_triggers SET
     webhook_secret = sqlc.narg('webhook_secret')::text,
+    webhook_secret_key_id = sqlc.narg('webhook_secret_key_id')::text,
     updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING *;

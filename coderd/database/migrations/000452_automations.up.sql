@@ -70,3 +70,9 @@ CREATE TABLE automation_events (
 CREATE INDEX idx_automation_events_automation_id_received_at ON automation_events (automation_id, received_at DESC);
 
 ALTER TABLE chats ADD COLUMN automation_id uuid REFERENCES automations(id) ON DELETE SET NULL;
+
+CREATE INDEX idx_chats_automation_id ON chats (automation_id);
+
+CREATE UNIQUE INDEX idx_automations_owner_org_name ON automations (owner_id, organization_id, name);
+
+CREATE INDEX idx_automation_events_received_at ON automation_events (received_at);

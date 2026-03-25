@@ -3768,11 +3768,15 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_automation_events_automation_id_received_at ON automation_events USING btree (automation_id, received_at DESC);
 
+CREATE INDEX idx_automation_events_received_at ON automation_events USING btree (received_at);
+
 CREATE INDEX idx_automation_triggers_automation_id ON automation_triggers USING btree (automation_id);
 
 CREATE INDEX idx_automations_organization_id ON automations USING btree (organization_id);
 
 CREATE INDEX idx_automations_owner_id ON automations USING btree (owner_id);
+
+CREATE UNIQUE INDEX idx_automations_owner_org_name ON automations USING btree (owner_id, organization_id, name);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
@@ -3801,6 +3805,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
+CREATE INDEX idx_chats_automation_id ON chats USING btree (automation_id);
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 

@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -133,6 +135,24 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.UpdateAutomationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	if req.Name != nil && *req.Name == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Name cannot be empty.",
+		})
+		return
+	}
+	if req.Status != nil {
+		switch *req.Status {
+		case codersdk.AutomationStatusDisabled, codersdk.AutomationStatusPreview, codersdk.AutomationStatusActive:
+			// Valid.
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid status %q.", *req.Status),
+			})
+			return
+		}
 	}
 
 	// Merge: start from current values, apply updates.
@@ -300,6 +320,12 @@ func (api *API) postAutomationTrigger(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if req.Type != codersdk.AutomationTriggerTypeWebhook && req.Type != codersdk.AutomationTriggerTypeCron {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid trigger type %q. Must be %q or %q.", req.Type, codersdk.AutomationTriggerTypeWebhook, codersdk.AutomationTriggerTypeCron),
+		})
+		return
+	}
 
 	arg := database.InsertAutomationTriggerParams{
 		AutomationID: automation.ID,
@@ -365,13 +391,21 @@ func (api *API) listAutomationTriggers(rw http.ResponseWriter, r *http.Request) 
 // deleteAutomationTrigger deletes a trigger from an automation.
 func (api *API) deleteAutomationTrigger(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	automation := httpmw.AutomationParam(r)
 
 	triggerID, parsed := httpmw.ParseUUIDParam(rw, r, "trigger")
 	if !parsed {
 		return
 	}
 
-	err := api.Database.DeleteAutomationTriggerByID(ctx, triggerID)
+	// Verify the trigger belongs to this automation.
+	trigger, err := api.Database.GetAutomationTriggerByID(ctx, triggerID)
+	if err != nil || trigger.AutomationID != automation.ID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	err = api.Database.DeleteAutomationTriggerByID(ctx, triggerID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete trigger.",
@@ -387,9 +421,17 @@ func (api *API) deleteAutomationTrigger(rw http.ResponseWriter, r *http.Request)
 // a trigger.
 func (api *API) regenerateAutomationTriggerSecret(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	automation := httpmw.AutomationParam(r)
 
 	triggerID, parsed := httpmw.ParseUUIDParam(rw, r, "trigger")
 	if !parsed {
+		return
+	}
+
+	// Verify the trigger belongs to this automation.
+	trigger, err := api.Database.GetAutomationTriggerByID(ctx, triggerID)
+	if err != nil || trigger.AutomationID != automation.ID {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -423,8 +465,10 @@ func (api *API) regenerateAutomationTriggerSecret(rw http.ResponseWriter, r *htt
 func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	triggerID, parsed := httpmw.ParseUUIDParam(rw, r, "trigger_id")
-	if !parsed {
+	triggerIDStr := chi.URLParam(r, "trigger_id")
+	triggerID, err := uuid.Parse(triggerIDStr)
+	if err != nil {
+		rw.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -440,6 +484,11 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // Webhook handler must bypass auth to look up automation.
 	automation, err := api.Database.GetAutomationByID(dbauthz.AsSystemRestricted(ctx), trigger.AutomationID)
 	if err != nil {
+		rw.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if trigger.Type != "webhook" {
 		rw.WriteHeader(http.StatusOK)
 		return
 	}
@@ -551,11 +600,18 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-// truncatePayload limits the stored payload to 64 KB.
+// truncatePayload limits the stored payload to 64 KB. If the
+// payload exceeds the limit, a valid JSON stub is returned
+// instead of slicing the original bytes (which would produce
+// syntactically broken JSON).
 func truncatePayload(payload []byte) json.RawMessage {
 	const maxPayloadSize = 64 * 1024
-	if len(payload) > maxPayloadSize {
-		payload = payload[:maxPayloadSize]
+	if len(payload) <= maxPayloadSize {
+		return json.RawMessage(payload)
 	}
-	return json.RawMessage(payload)
+	// Produce valid JSON indicating the payload was truncated.
+	return json.RawMessage(fmt.Sprintf(
+		`{"_truncated":true,"_original_size":%d}`,
+		len(payload),
+	))
 }
