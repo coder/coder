@@ -7,18 +7,14 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { AIBridgeClientIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
 import type { FC } from "react";
 import { DATE_FORMAT, formatDateTime } from "utils/time";
 import type { AIBridgeSession } from "#/api/typesGenerated";
-import {
-	getProviderDisplayName,
-	getProviderIconName,
-	roundTokenDisplay,
-} from "../utils";
 import { TokenBadges } from "../TokenBadges";
+import { getProviderDisplayName, getProviderIconName } from "../utils";
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
