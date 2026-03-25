@@ -23,35 +23,23 @@ export const ToolIcon: React.FC<{
 	const base = cn("h-4 w-4 shrink-0", color);
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
+	// On error the image is desaturated to white with CSS filters and
+	// a destructive-colored overlay is composited on top via
+	// mix-blend-multiply so the final colour matches the design token
+	// exactly. `isolate` scopes the blend to this container.
 	if (iconUrl && !imgError) {
-		// On error, use the image as a CSS mask so the fill color is
-		// exactly bg-content-destructive, matching the lucide icons.
-		if (isError) {
-			return (
-				<div
-					role="img"
-					aria-label={`${name} icon`}
-					className="h-4 w-4 shrink-0 bg-content-destructive"
-					style={{
-						WebkitMaskImage: `url(${iconUrl})`,
-						maskImage: `url(${iconUrl})`,
-						WebkitMaskSize: "contain",
-						maskSize: "contain",
-						WebkitMaskRepeat: "no-repeat",
-						maskRepeat: "no-repeat",
-						WebkitMaskPosition: "center",
-						maskPosition: "center",
-					}}
-				/>
-			);
-		}
 		return (
-			<ExternalImage
-				src={iconUrl}
-				alt={`${name} icon`}
-				className="block h-4 w-4 shrink-0"
-				onError={() => setImgError(true)}
-			/>
+			<div className={cn("relative h-4 w-4 shrink-0", isError && "isolate")}>
+				<ExternalImage
+					src={iconUrl}
+					alt={`${name} icon`}
+					className={cn("block h-4 w-4", isError && "brightness-0 invert")}
+					onError={() => setImgError(true)}
+				/>
+				{isError && (
+					<div className="absolute inset-0 bg-content-destructive mix-blend-multiply" />
+				)}
+			</div>
 		);
 	}
 
