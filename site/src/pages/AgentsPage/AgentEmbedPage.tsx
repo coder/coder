@@ -13,7 +13,10 @@ import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
 } from "./components/EmbedContext";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -78,14 +81,7 @@ const AgentEmbedPage: FC = () => {
 		};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
-			if (
-				existing &&
-				existing.kind === nextReason.kind &&
-				existing.message === nextReason.message &&
-				existing.provider === nextReason.provider &&
-				existing.retryable === nextReason.retryable &&
-				existing.statusCode === nextReason.statusCode
-			) {
+			if (chatDetailErrorsEqual(existing, nextReason)) {
 				return current;
 			}
 			return {

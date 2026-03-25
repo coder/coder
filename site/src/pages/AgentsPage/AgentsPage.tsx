@@ -38,7 +38,10 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { getModelOptionsFromCatalog } from "./utils/modelOptions";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./utils/usageLimitMessage";
 
 // Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
@@ -210,14 +213,7 @@ const AgentsPage: FC = () => {
 		};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
-			if (
-				existing &&
-				existing.kind === nextReason.kind &&
-				existing.message === nextReason.message &&
-				existing.provider === nextReason.provider &&
-				existing.retryable === nextReason.retryable &&
-				existing.statusCode === nextReason.statusCode
-			) {
+			if (chatDetailErrorsEqual(existing, nextReason)) {
 				return current;
 			}
 			return {

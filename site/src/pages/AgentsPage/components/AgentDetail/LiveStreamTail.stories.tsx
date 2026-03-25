@@ -44,7 +44,7 @@ export const EmptyConversationPrompt: Story = {
 	},
 };
 
-/** Usage-limit failures keep the empty-state layout and show the analytics CTA. */
+/** Usage-limit failures replace the idle prompt with the analytics CTA. */
 export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
@@ -107,6 +107,9 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 			canvas.getByRole("heading", { name: /request failed/i }),
 		).toBeVisible();
 		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
+		expect(
+			canvas.queryByText(/start a conversation with your agent/i),
+		).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();

@@ -7,7 +7,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "../../utils/usageLimitMessage";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
@@ -140,25 +143,6 @@ const chatQueuedMessagesEqualByID = (
 	return true;
 };
 
-const chatDetailErrorsEqual = (
-	left: ChatDetailError | null,
-	right: ChatDetailError | null,
-): boolean => {
-	if (left === right) {
-		return true;
-	}
-	if (!left || !right) {
-		return false;
-	}
-	return (
-		left.kind === right.kind &&
-		left.message === right.message &&
-		left.provider === right.provider &&
-		left.retryable === right.retryable &&
-		left.statusCode === right.statusCode
-	);
-};
-
 const retryStatesEqual = (
 	left: RetryState | null,
 	right: RetryState | null,
@@ -242,6 +226,7 @@ type ChatStore = {
 	setReconnectState: (state: ReconnectState | null) => void;
 	clearReconnectState: () => void;
 	clearStreamState: () => void;
+	resetTransportReplayState: () => void;
 	setSubagentStatusOverride: (
 		chatID: string,
 		status: TypesGen.ChatStatus,
@@ -539,6 +524,21 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				streamState: null,
+			}));
+		},
+		resetTransportReplayState: () => {
+			if (
+				state.reconnectState === null &&
+				state.streamState === null &&
+				state.streamError === null
+			) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				reconnectState: null,
+				streamState: null,
+				streamError: null,
 			}));
 		},
 		setSubagentStatusOverride: (chatID, status) => {
@@ -1070,14 +1070,12 @@ export const useChatStore = (
 				return socket;
 			},
 			onOpen() {
-				// Connection succeeded — clear any previous reconnect
-				// banner and stale stream state. Clearing stream
-				// state is critical for reconnections: the server
-				// replays all buffered message_part events, so we
-				// must start from a clean slate to avoid duplicating
-				// text.
-				store.clearReconnectState();
-				store.clearStreamState();
+				// Connection succeeded. Before the socket replays any
+				// buffered message_part events, drop transport-scoped
+				// state from the previous socket attempt so stale
+				// partial output or failures do not leak into the new
+				// stream.
+				store.resetTransportReplayState();
 			},
 			onDisconnect(reconnectState) {
 				// Only surface reconnecting when the disconnect

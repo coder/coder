@@ -57,7 +57,7 @@ export const LiveStreamTailContent = ({
 	const usageLimitStatus =
 		terminalStatus?.kind === "usage-limit" ? terminalStatus : null;
 	const shouldRenderEmptyState =
-		isTranscriptEmpty && !shouldRenderStreamSection;
+		isTranscriptEmpty && liveStatus.phase === "idle";
 
 	if (
 		!shouldRenderEmptyState &&

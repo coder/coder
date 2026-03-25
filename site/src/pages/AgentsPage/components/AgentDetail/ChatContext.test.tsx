@@ -1970,6 +1970,84 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("clears stale streamError when a reconnected socket opens", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-reconnect-clear-error";
+		const watchMock = vi.mocked(watchChat);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					store,
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		const socket1 = sockets[0]!;
+		act(() => {
+			socket1.emitOpen();
+			result.current.store.setStreamError({
+				kind: "generic",
+				message: "Stale transport failure.",
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Stale transport failure.",
+			});
+		});
+
+		act(() => {
+			socket1.emitClose();
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+
+		expect(watchMock).toHaveBeenCalledTimes(2);
+		const socket2 = sockets[1]!;
+
+		act(() => {
+			socket2.emitOpen();
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toBeNull();
+		});
+	});
+
 	it("keeps terminal streamError when a WebSocket disconnect follows it", async () => {
 		immediateAnimationFrame();
 
@@ -2301,7 +2379,7 @@ describe("useChatStore", () => {
 		const socket2 = sockets[1]!;
 
 		// Simulate the reconnected socket opening. This is
-		// where onOpen fires clearStreamState().
+		// where onOpen fires resetTransportReplayState().
 		act(() => socket2.emitOpen());
 
 		// Replay the same parts the server would send on the
@@ -2325,8 +2403,9 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Without clearStreamState() in onOpen the replayed
-		// parts would append to the stale accumulator, producing
+		// Without resetTransportReplayState() in onOpen the
+		// replayed parts would append to the stale accumulator,
+		// producing
 		// "Hello worldHello world". The fix ensures a clean
 		// slate so we get the correct single copy.
 		await waitFor(() => {

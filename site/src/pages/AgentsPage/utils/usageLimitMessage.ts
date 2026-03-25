@@ -31,6 +31,28 @@ export type ChatDetailError = {
 };
 
 /**
+ * Compare two chat-detail errors by their user-visible fields.
+ */
+export const chatDetailErrorsEqual = (
+	left: ChatDetailError | null | undefined,
+	right: ChatDetailError | null | undefined,
+): boolean => {
+	if (left === right) {
+		return true;
+	}
+	if (!left || !right) {
+		return false;
+	}
+	return (
+		left.kind === right.kind &&
+		left.message === right.message &&
+		left.provider === right.provider &&
+		left.retryable === right.retryable &&
+		left.statusCode === right.statusCode
+	);
+};
+
+/**
  * Format a resets_at RFC3339 timestamp into a user-friendly string.
  * Example: "2026-03-16T00:00:00Z" → "Mar 16, 2026 at 12:00 AM"
  */
