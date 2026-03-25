@@ -72,6 +72,7 @@ export const ExecuteTool: React.FC<{
 					commandExpanded ? "items-start" : "items-center",
 				)}
 			>
+				{/* biome-ignore lint/a11y/useKeyWithClickEvents: Click toggles for mouse users; keyboard users use the chevron button. */}
 				<div
 					className={cn(
 						"flex min-w-0 flex-1 gap-2",
@@ -81,18 +82,6 @@ export const ExecuteTool: React.FC<{
 					onClick={
 						canToggleCommand ? () => setCommandExpanded((v) => !v) : undefined
 					}
-					onKeyDown={
-						canToggleCommand
-							? (e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										e.preventDefault();
-										setCommandExpanded((v) => !v);
-									}
-								}
-							: undefined
-					}
-					role={canToggleCommand ? "button" : undefined}
-					tabIndex={canToggleCommand ? 0 : undefined}
 				>
 					<span className="shrink-0 font-mono text-xs leading-5 text-content-secondary">
 						$
@@ -113,13 +102,12 @@ export const ExecuteTool: React.FC<{
 							type="button"
 							onClick={() => setCommandExpanded((v) => !v)}
 							className={cn(
-								"border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors transition-opacity",
+								"border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
 								commandExpanded
 									? "opacity-100"
 									: "opacity-0 group-hover/exec:opacity-100",
 							)}
-							tabIndex={commandExpanded ? undefined : -1}
-							aria-hidden={!commandExpanded || undefined}
+							aria-expanded={commandExpanded}
 							aria-label={
 								commandExpanded ? "Collapse command" : "Expand command"
 							}

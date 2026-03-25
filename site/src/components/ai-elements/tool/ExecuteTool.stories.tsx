@@ -38,11 +38,11 @@ export const LongCommand: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Query by the command text content to target the command
-		// area specifically, not the copy or chevron buttons.
-		const commandArea = canvas.getByRole("button", { name: /\$/ });
-		await userEvent.click(commandArea);
-		// Hover the component so the chevron is visible.
+		const chevron = canvas.getByRole("button", {
+			name: /expand command/i,
+		});
+		await userEvent.click(chevron);
+		// Hover the component so the chevron stays visible.
 		await userEvent.hover(canvasElement.firstElementChild!);
 	},
 };
