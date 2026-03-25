@@ -958,22 +958,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = aiBridgeParsedURL
 	req.Host = aiBridgeParsedURL.Host
 
-	// If Authorization carries a bearer token that differs from the Coder
-	// token set during CONNECT, the client is using its own LLM credentials (e.g.
-	// Copilot's per-user GitHub token). Set the BYOK header to indicate
-	// that this request is using BYOK mode. Clients that support custom
-	// headers (Claude Code, Codex) set the BYOK header themselves; this
-	// handles clients that cannot.
-	//
-	// In centralized mode, Authorization carries the Coder token
-	// itself (sent by the client as ANTHROPIC_AUTH_TOKEN), so aibridged
-	// discovers it via ExtractAuthToken without any extra header.
-	if auth := req.Header.Get("Authorization"); auth != "" {
-		bearer := extractCoderTokenFromBearerAuth(auth)
-		if bearer != "" && bearer != reqCtx.CoderToken {
-			req.Header.Set(agplaibridge.HeaderCoderBYOKToken, reqCtx.CoderToken)
-		}
-	}
+	injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
 
 	// Set custom header for cross-service log correlation.
 	// This allows correlating aibridgeproxyd logs with aibridged logs.
@@ -990,6 +975,22 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 
 	return req, nil
+}
+
+// injectBYOKHeaderIfNeeded sets HeaderCoderBYOKToken when the
+// Authorization header carries a bearer token that differs from the
+// Coder token, indicating the client is using its own LLM
+// credentials. Clients that can set custom headers (Claude Code, Codex)
+// do this themselves; this handles clients that cannot (e.g. Copilot).
+//
+// In centralized mode, Authorization carries the Coder token
+// itself (sent by the client as ANTHROPIC_AUTH_TOKEN), so aibridged
+// discovers it via ExtractAuthToken without any extra header.
+func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
+	bearer := extractCoderTokenFromBearerAuth(header.Get("Authorization"))
+	if bearer != "" && bearer != coderToken {
+		header.Set(agplaibridge.HeaderCoderBYOKToken, coderToken)
+	}
 }
 
 // handleResponse handles responses received from aibridged.
