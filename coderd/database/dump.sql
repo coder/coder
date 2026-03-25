@@ -1212,6 +1212,63 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE automation_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    automation_id uuid NOT NULL,
+    trigger_id uuid,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    payload jsonb NOT NULL,
+    filter_matched boolean NOT NULL,
+    resolved_labels jsonb,
+    matched_chat_id uuid,
+    created_chat_id uuid,
+    status text NOT NULL,
+    error text,
+    CONSTRAINT automation_events_status_check CHECK ((status = ANY (ARRAY['filtered'::text, 'preview'::text, 'created'::text, 'continued'::text, 'rate_limited'::text, 'error'::text])))
+);
+
+CREATE TABLE automation_triggers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    automation_id uuid NOT NULL,
+    type text NOT NULL,
+    webhook_secret text,
+    webhook_secret_key_id text,
+    cron_schedule text,
+    filter jsonb,
+    label_paths jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT automation_triggers_type_check CHECK ((type = ANY (ARRAY['webhook'::text, 'cron'::text])))
+);
+
+COMMENT ON COLUMN automation_triggers.webhook_secret_key_id IS 'The ID of the key used to encrypt the webhook secret. If NULL, the secret is not encrypted.';
+
+COMMENT ON COLUMN automation_triggers.filter IS 'gjson filter conditions for webhook triggers. NULL means match everything.';
+
+COMMENT ON COLUMN automation_triggers.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads.';
+
+CREATE TABLE automations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    instructions text DEFAULT ''::text NOT NULL,
+    model_config_id uuid,
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    allowed_tools text[] DEFAULT '{}'::text[] NOT NULL,
+    status text DEFAULT 'disabled'::text NOT NULL,
+    max_chat_creates_per_hour integer DEFAULT 10 NOT NULL,
+    max_messages_per_hour integer DEFAULT 60 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT automations_max_chat_creates_per_hour_check CHECK ((max_chat_creates_per_hour > 0)),
+    CONSTRAINT automations_max_messages_per_hour_check CHECK ((max_messages_per_hour > 0)),
+    CONSTRAINT automations_status_check CHECK ((status = ANY (ARRAY['disabled'::text, 'preview'::text, 'active'::text])))
+);
+
+COMMENT ON COLUMN automations.instructions IS 'User message sent to the chat when the automation triggers.';
+
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
     unique_workspaces_count bigint DEFAULT 0 NOT NULL,
@@ -1399,7 +1456,8 @@ CREATE TABLE chats (
     last_error text,
     mode chat_mode,
     mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
-    labels jsonb DEFAULT '{}'::jsonb NOT NULL
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL,
+    automation_id uuid
 );
 
 CREATE TABLE connection_logs (
@@ -3311,6 +3369,15 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY automation_events
+    ADD CONSTRAINT automation_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY automation_triggers
+    ADD CONSTRAINT automation_triggers_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY automations
+    ADD CONSTRAINT automations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
@@ -3699,6 +3766,18 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE INDEX idx_automation_events_automation_id_received_at ON automation_events USING btree (automation_id, received_at DESC);
+
+CREATE INDEX idx_automation_events_received_at ON automation_events USING btree (received_at);
+
+CREATE INDEX idx_automation_triggers_automation_id ON automation_triggers USING btree (automation_id);
+
+CREATE INDEX idx_automations_organization_id ON automations USING btree (organization_id);
+
+CREATE INDEX idx_automations_owner_id ON automations USING btree (owner_id);
+
+CREATE UNIQUE INDEX idx_automations_owner_org_name ON automations USING btree (owner_id, organization_id, name);
+
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
@@ -3726,6 +3805,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
+CREATE INDEX idx_chats_automation_id ON chats USING btree (automation_id);
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
@@ -4000,6 +4081,24 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY automation_events
+    ADD CONSTRAINT automation_events_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY automation_events
+    ADD CONSTRAINT automation_events_trigger_id_fkey FOREIGN KEY (trigger_id) REFERENCES automation_triggers(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY automation_triggers
+    ADD CONSTRAINT automation_triggers_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY automations
+    ADD CONSTRAINT automations_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY automations
+    ADD CONSTRAINT automations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY automations
+    ADD CONSTRAINT automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4032,6 +4131,9 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);

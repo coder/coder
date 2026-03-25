@@ -453,6 +453,36 @@ func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepare
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
 }
 
+// CountAutomationChatCreatesInWindow mocks base method.
+func (m *MockStore) CountAutomationChatCreatesInWindow(ctx context.Context, arg database.CountAutomationChatCreatesInWindowParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountAutomationChatCreatesInWindow", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountAutomationChatCreatesInWindow indicates an expected call of CountAutomationChatCreatesInWindow.
+func (mr *MockStoreMockRecorder) CountAutomationChatCreatesInWindow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAutomationChatCreatesInWindow", reflect.TypeOf((*MockStore)(nil).CountAutomationChatCreatesInWindow), ctx, arg)
+}
+
+// CountAutomationMessagesInWindow mocks base method.
+func (m *MockStore) CountAutomationMessagesInWindow(ctx context.Context, arg database.CountAutomationMessagesInWindowParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountAutomationMessagesInWindow", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountAutomationMessagesInWindow indicates an expected call of CountAutomationMessagesInWindow.
+func (mr *MockStoreMockRecorder) CountAutomationMessagesInWindow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAutomationMessagesInWindow", reflect.TypeOf((*MockStore)(nil).CountAutomationMessagesInWindow), ctx, arg)
+}
+
 // CountConnectionLogs mocks base method.
 func (m *MockStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -640,6 +670,34 @@ func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context,
 func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
+}
+
+// DeleteAutomationByID mocks base method.
+func (m *MockStore) DeleteAutomationByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAutomationByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAutomationByID indicates an expected call of DeleteAutomationByID.
+func (mr *MockStoreMockRecorder) DeleteAutomationByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAutomationByID", reflect.TypeOf((*MockStore)(nil).DeleteAutomationByID), ctx, id)
+}
+
+// DeleteAutomationTriggerByID mocks base method.
+func (m *MockStore) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAutomationTriggerByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAutomationTriggerByID indicates an expected call of DeleteAutomationTriggerByID.
+func (mr *MockStoreMockRecorder) DeleteAutomationTriggerByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAutomationTriggerByID", reflect.TypeOf((*MockStore)(nil).DeleteAutomationTriggerByID), ctx, id)
 }
 
 // DeleteChatModelConfigByID mocks base method.
@@ -1803,6 +1861,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedAuditLogsOffset(ctx, arg, prepared
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedAuditLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuthorizedAuditLogsOffset), ctx, arg, prepared)
 }
 
+// GetAuthorizedAutomations mocks base method.
+func (m *MockStore) GetAuthorizedAutomations(ctx context.Context, arg database.GetAutomationsParams, prepared rbac.PreparedAuthorized) ([]database.Automation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedAutomations", ctx, arg, prepared)
+	ret0, _ := ret[0].([]database.Automation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedAutomations indicates an expected call of GetAuthorizedAutomations.
+func (mr *MockStoreMockRecorder) GetAuthorizedAutomations(ctx, arg, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedAutomations", reflect.TypeOf((*MockStore)(nil).GetAuthorizedAutomations), ctx, arg, prepared)
+}
+
 // GetAuthorizedChats mocks base method.
 func (m *MockStore) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -1891,6 +1964,81 @@ func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Contex
 func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
+}
+
+// GetAutomationByID mocks base method.
+func (m *MockStore) GetAutomationByID(ctx context.Context, id uuid.UUID) (database.Automation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAutomationByID", ctx, id)
+	ret0, _ := ret[0].(database.Automation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAutomationByID indicates an expected call of GetAutomationByID.
+func (mr *MockStoreMockRecorder) GetAutomationByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationByID", reflect.TypeOf((*MockStore)(nil).GetAutomationByID), ctx, id)
+}
+
+// GetAutomationEvents mocks base method.
+func (m *MockStore) GetAutomationEvents(ctx context.Context, arg database.GetAutomationEventsParams) ([]database.AutomationEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAutomationEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.AutomationEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAutomationEvents indicates an expected call of GetAutomationEvents.
+func (mr *MockStoreMockRecorder) GetAutomationEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationEvents", reflect.TypeOf((*MockStore)(nil).GetAutomationEvents), ctx, arg)
+}
+
+// GetAutomationTriggerByID mocks base method.
+func (m *MockStore) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAutomationTriggerByID", ctx, id)
+	ret0, _ := ret[0].(database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAutomationTriggerByID indicates an expected call of GetAutomationTriggerByID.
+func (mr *MockStoreMockRecorder) GetAutomationTriggerByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationTriggerByID", reflect.TypeOf((*MockStore)(nil).GetAutomationTriggerByID), ctx, id)
+}
+
+// GetAutomationTriggersByAutomationID mocks base method.
+func (m *MockStore) GetAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAutomationTriggersByAutomationID", ctx, automationID)
+	ret0, _ := ret[0].([]database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAutomationTriggersByAutomationID indicates an expected call of GetAutomationTriggersByAutomationID.
+func (mr *MockStoreMockRecorder) GetAutomationTriggersByAutomationID(ctx, automationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationTriggersByAutomationID", reflect.TypeOf((*MockStore)(nil).GetAutomationTriggersByAutomationID), ctx, automationID)
+}
+
+// GetAutomations mocks base method.
+func (m *MockStore) GetAutomations(ctx context.Context, arg database.GetAutomationsParams) ([]database.Automation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAutomations", ctx, arg)
+	ret0, _ := ret[0].([]database.Automation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAutomations indicates an expected call of GetAutomations.
+func (mr *MockStoreMockRecorder) GetAutomations(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomations", reflect.TypeOf((*MockStore)(nil).GetAutomations), ctx, arg)
 }
 
 // GetChatByID mocks base method.
@@ -5957,6 +6105,51 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), ctx, arg)
 }
 
+// InsertAutomation mocks base method.
+func (m *MockStore) InsertAutomation(ctx context.Context, arg database.InsertAutomationParams) (database.Automation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAutomation", ctx, arg)
+	ret0, _ := ret[0].(database.Automation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAutomation indicates an expected call of InsertAutomation.
+func (mr *MockStoreMockRecorder) InsertAutomation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAutomation", reflect.TypeOf((*MockStore)(nil).InsertAutomation), ctx, arg)
+}
+
+// InsertAutomationEvent mocks base method.
+func (m *MockStore) InsertAutomationEvent(ctx context.Context, arg database.InsertAutomationEventParams) (database.AutomationEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAutomationEvent", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAutomationEvent indicates an expected call of InsertAutomationEvent.
+func (mr *MockStoreMockRecorder) InsertAutomationEvent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAutomationEvent", reflect.TypeOf((*MockStore)(nil).InsertAutomationEvent), ctx, arg)
+}
+
+// InsertAutomationTrigger mocks base method.
+func (m *MockStore) InsertAutomationTrigger(ctx context.Context, arg database.InsertAutomationTriggerParams) (database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAutomationTrigger", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAutomationTrigger indicates an expected call of InsertAutomationTrigger.
+func (mr *MockStoreMockRecorder) InsertAutomationTrigger(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAutomationTrigger", reflect.TypeOf((*MockStore)(nil).InsertAutomationTrigger), ctx, arg)
+}
+
 // InsertChat mocks base method.
 func (m *MockStore) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -7336,6 +7529,20 @@ func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
 }
 
+// PurgeOldAutomationEvents mocks base method.
+func (m *MockStore) PurgeOldAutomationEvents(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PurgeOldAutomationEvents", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PurgeOldAutomationEvents indicates an expected call of PurgeOldAutomationEvents.
+func (mr *MockStoreMockRecorder) PurgeOldAutomationEvents(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeOldAutomationEvents", reflect.TypeOf((*MockStore)(nil).PurgeOldAutomationEvents), ctx)
+}
+
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
 func (m *MockStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -7550,6 +7757,51 @@ func (m *MockStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPI
 func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), ctx, arg)
+}
+
+// UpdateAutomation mocks base method.
+func (m *MockStore) UpdateAutomation(ctx context.Context, arg database.UpdateAutomationParams) (database.Automation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAutomation", ctx, arg)
+	ret0, _ := ret[0].(database.Automation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAutomation indicates an expected call of UpdateAutomation.
+func (mr *MockStoreMockRecorder) UpdateAutomation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomation", reflect.TypeOf((*MockStore)(nil).UpdateAutomation), ctx, arg)
+}
+
+// UpdateAutomationTrigger mocks base method.
+func (m *MockStore) UpdateAutomationTrigger(ctx context.Context, arg database.UpdateAutomationTriggerParams) (database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAutomationTrigger", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAutomationTrigger indicates an expected call of UpdateAutomationTrigger.
+func (mr *MockStoreMockRecorder) UpdateAutomationTrigger(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomationTrigger", reflect.TypeOf((*MockStore)(nil).UpdateAutomationTrigger), ctx, arg)
+}
+
+// UpdateAutomationTriggerWebhookSecret mocks base method.
+func (m *MockStore) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg database.UpdateAutomationTriggerWebhookSecretParams) (database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAutomationTriggerWebhookSecret", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAutomationTriggerWebhookSecret indicates an expected call of UpdateAutomationTriggerWebhookSecret.
+func (mr *MockStoreMockRecorder) UpdateAutomationTriggerWebhookSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomationTriggerWebhookSecret", reflect.TypeOf((*MockStore)(nil).UpdateAutomationTriggerWebhookSecret), ctx, arg)
 }
 
 // UpdateChatByID mocks base method.

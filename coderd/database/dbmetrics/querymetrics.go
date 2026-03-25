@@ -103,7 +103,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrganization").Inc()
 	return r0
 }
-
 func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireChats(ctx, arg)
@@ -296,6 +295,22 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountAutomationChatCreatesInWindow(ctx context.Context, arg database.CountAutomationChatCreatesInWindowParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAutomationChatCreatesInWindow(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountAutomationChatCreatesInWindow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAutomationChatCreatesInWindow").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountAutomationMessagesInWindow(ctx context.Context, arg database.CountAutomationMessagesInWindowParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAutomationMessagesInWindow(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountAutomationMessagesInWindow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAutomationMessagesInWindow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountConnectionLogs(ctx, arg)
@@ -397,6 +412,22 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	r0 := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("DeleteApplicationConnectAPIKeysByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteApplicationConnectAPIKeysByUserID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteAutomationByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteAutomationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAutomationByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAutomationByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteAutomationTriggerByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAutomationTriggerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAutomationTriggerByID").Inc()
 	return r0
 }
 
@@ -1029,6 +1060,46 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationUserRoles").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAutomationByID(ctx context.Context, id uuid.UUID) (database.Automation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAutomationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAutomationByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAutomationByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAutomationEvents(ctx context.Context, arg database.GetAutomationEventsParams) ([]database.AutomationEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAutomationEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAutomationEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAutomationEvents").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (database.AutomationTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAutomationTriggerByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAutomationTriggerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAutomationTriggerByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]database.AutomationTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAutomationTriggersByAutomationID(ctx, automationID)
+	m.queryLatencies.WithLabelValues("GetAutomationTriggersByAutomationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAutomationTriggersByAutomationID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAutomations(ctx context.Context, arg database.GetAutomationsParams) ([]database.Automation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAutomations(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAutomations").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAutomations").Inc()
 	return r0, r1
 }
 
@@ -3176,6 +3247,30 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAutomation(ctx context.Context, arg database.InsertAutomationParams) (database.Automation, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAutomation(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAutomation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAutomation").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAutomationEvent(ctx context.Context, arg database.InsertAutomationEventParams) (database.AutomationEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAutomationEvent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAutomationEvent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAutomationEvent").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAutomationTrigger(ctx context.Context, arg database.InsertAutomationTriggerParams) (database.AutomationTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAutomationTrigger(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAutomationTrigger").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAutomationTrigger").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChat(ctx, arg)
@@ -3880,6 +3975,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) PurgeOldAutomationEvents(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.PurgeOldAutomationEvents(ctx)
+	m.queryLatencies.WithLabelValues("PurgeOldAutomationEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PurgeOldAutomationEvents").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
@@ -3998,6 +4101,30 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAPIKeyByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateAutomation(ctx context.Context, arg database.UpdateAutomationParams) (database.Automation, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAutomation(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAutomation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAutomation").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAutomationTrigger(ctx context.Context, arg database.UpdateAutomationTriggerParams) (database.AutomationTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAutomationTrigger(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAutomationTrigger").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAutomationTrigger").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg database.UpdateAutomationTriggerWebhookSecretParams) (database.AutomationTrigger, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAutomationTriggerWebhookSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAutomationTriggerWebhookSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAutomationTriggerWebhookSecret").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
@@ -5197,5 +5324,13 @@ func (m queryMetricsStore) GetAuthorizedChats(ctx context.Context, arg database.
 	r0, r1 := m.s.GetAuthorizedChats(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedChats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedChats").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedAutomations(ctx context.Context, arg database.GetAutomationsParams, prepared rbac.PreparedAuthorized) ([]database.Automation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedAutomations(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedAutomations").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedAutomations").Inc()
 	return r0, r1
 }

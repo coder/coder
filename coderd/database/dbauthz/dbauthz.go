@@ -454,6 +454,7 @@ var (
 					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChat.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAutomation.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -705,6 +706,7 @@ var (
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAutomation.Type:       {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
@@ -1731,6 +1733,28 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
+func (q *querier) CountAutomationChatCreatesInWindow(ctx context.Context, arg database.CountAutomationChatCreatesInWindowParams) (int64, error) {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
+		return 0, err
+	}
+	return q.db.CountAutomationChatCreatesInWindow(ctx, arg)
+}
+
+func (q *querier) CountAutomationMessagesInWindow(ctx context.Context, arg database.CountAutomationMessagesInWindowParams) (int64, error) {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
+		return 0, err
+	}
+	return q.db.CountAutomationMessagesInWindow(ctx, arg)
+}
+
 func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	// Just like the actual query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -1840,6 +1864,25 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
+}
+
+func (q *querier) DeleteAutomationByID(ctx context.Context, id uuid.UUID) error {
+	return fetchAndExec(q.log, q.auth, policy.ActionDelete, q.db.GetAutomationByID, q.db.DeleteAutomationByID)(ctx, id)
+}
+
+func (q *querier) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID) error {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return err
+	}
+	return q.db.DeleteAutomationTriggerByID(ctx, id)
 }
 
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
@@ -2475,6 +2518,55 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetAutomationByID(ctx context.Context, id uuid.UUID) (database.Automation, error) {
+	return fetch(q.log, q.auth, q.db.GetAutomationByID)(ctx, id)
+}
+
+func (q *querier) GetAutomationEvents(ctx context.Context, arg database.GetAutomationEventsParams) ([]database.AutomationEvent, error) {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
+		return nil, err
+	}
+	return q.db.GetAutomationEvents(ctx, arg)
+}
+
+func (q *querier) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (database.AutomationTrigger, error) {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, id)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (q *querier) GetAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]database.AutomationTrigger, error) {
+	automation, err := q.db.GetAutomationByID(ctx, automationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
+		return nil, err
+	}
+	return q.db.GetAutomationTriggersByAutomationID(ctx, automationID)
+}
+
+func (q *querier) GetAutomations(ctx context.Context, arg database.GetAutomationsParams) ([]database.Automation, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAutomation.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedAutomations(ctx, arg, prep)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -4717,6 +4809,32 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+func (q *querier) InsertAutomation(ctx context.Context, arg database.InsertAutomationParams) (database.Automation, error) {
+	return insert(q.log, q.auth, rbac.ResourceAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertAutomation)(ctx, arg)
+}
+
+func (q *querier) InsertAutomationEvent(ctx context.Context, arg database.InsertAutomationEventParams) (database.AutomationEvent, error) {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return database.AutomationEvent{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.AutomationEvent{}, err
+	}
+	return q.db.InsertAutomationEvent(ctx, arg)
+}
+
+func (q *querier) InsertAutomationTrigger(ctx context.Context, arg database.InsertAutomationTriggerParams) (database.AutomationTrigger, error) {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	return q.db.InsertAutomationTrigger(ctx, arg)
+}
+
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()), q.db.InsertChat)(ctx, arg)
 }
@@ -5484,6 +5602,13 @@ func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (d
 	return q.db.PopNextQueuedMessage(ctx, chatID)
 }
 
+func (q *querier) PurgeOldAutomationEvents(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAutomation); err != nil {
+		return err
+	}
+	return q.db.PurgeOldAutomationEvents(ctx)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -5617,6 +5742,47 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateAutomation(ctx context.Context, arg database.UpdateAutomationParams) (database.Automation, error) {
+	automation, err := q.db.GetAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return database.Automation{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.Automation{}, err
+	}
+	return q.db.UpdateAutomation(ctx, arg)
+}
+
+func (q *querier) UpdateAutomationTrigger(ctx context.Context, arg database.UpdateAutomationTriggerParams) (database.AutomationTrigger, error) {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, arg.ID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	return q.db.UpdateAutomationTrigger(ctx, arg)
+}
+
+func (q *querier) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg database.UpdateAutomationTriggerWebhookSecretParams) (database.AutomationTrigger, error) {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, arg.ID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	return q.db.UpdateAutomationTriggerWebhookSecret(ctx, arg)
 }
 
 func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
@@ -7177,4 +7343,8 @@ func (q *querier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg datab
 
 func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, _ rbac.PreparedAuthorized) ([]database.Chat, error) {
 	return q.GetChats(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedAutomations(ctx context.Context, arg database.GetAutomationsParams, _ rbac.PreparedAuthorized) ([]database.Automation, error) {
+	return q.GetAutomations(ctx, arg)
 }

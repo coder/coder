@@ -225,6 +225,11 @@ export type APIKeyScope =
 	| "audit_log:*"
 	| "audit_log:create"
 	| "audit_log:read"
+	| "automation:*"
+	| "automation:create"
+	| "automation:delete"
+	| "automation:read"
+	| "automation:update"
 	| "boundary_usage:*"
 	| "boundary_usage:delete"
 	| "boundary_usage:read"
@@ -434,6 +439,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"audit_log:*",
 	"audit_log:create",
 	"audit_log:read",
+	"automation:*",
+	"automation:create",
+	"automation:delete",
+	"automation:read",
+	"automation:update",
 	"boundary_usage:*",
 	"boundary_usage:delete",
 	"boundary_usage:read",
@@ -921,6 +931,110 @@ export type AuthorizationResponse = Record<string, boolean>;
 export type AutomaticUpdates = "always" | "never";
 
 export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
+
+// From codersdk/automations.go
+/**
+ * Automation represents an automation that bridges external triggers to
+ * Coder chats.
+ */
+export interface Automation {
+	readonly id: string;
+	readonly owner_id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly instructions: string;
+	readonly model_config_id?: string;
+	readonly mcp_server_ids: readonly string[];
+	readonly allowed_tools: readonly string[];
+	readonly status: AutomationStatus;
+	readonly max_chat_creates_per_hour: number;
+	readonly max_messages_per_hour: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/automations.go
+/**
+ * AutomationEvent records the outcome of a single automation event.
+ */
+export interface AutomationEvent {
+	readonly id: string;
+	readonly automation_id: string;
+	readonly trigger_id?: string;
+	readonly received_at: string;
+	readonly payload: Record<string, string>;
+	readonly filter_matched: boolean;
+	readonly resolved_labels: Record<string, string>;
+	readonly matched_chat_id?: string;
+	readonly created_chat_id?: string;
+	readonly status: AutomationEventStatus;
+	readonly error?: string;
+}
+
+// From codersdk/automations.go
+export type AutomationEventStatus =
+	| "continued"
+	| "created"
+	| "error"
+	| "filtered"
+	| "preview"
+	| "rate_limited";
+
+export const AutomationEventStatuses: AutomationEventStatus[] = [
+	"continued",
+	"created",
+	"error",
+	"filtered",
+	"preview",
+	"rate_limited",
+];
+
+// From codersdk/automations.go
+export type AutomationStatus = "active" | "disabled" | "preview";
+
+export const AutomationStatuses: AutomationStatus[] = [
+	"active",
+	"disabled",
+	"preview",
+];
+
+// From codersdk/automations.go
+/**
+ * AutomationTestResult is the result of a dry-run test against an
+ * automation trigger's filter and session resolution logic.
+ */
+export interface AutomationTestResult {
+	readonly filter_matched: boolean;
+	readonly resolved_labels: Record<string, string>;
+	readonly existing_chat_id?: string;
+	readonly would_create_new_chat: boolean;
+}
+
+// From codersdk/automations.go
+/**
+ * AutomationTrigger represents a trigger attached to an automation.
+ */
+export interface AutomationTrigger {
+	readonly id: string;
+	readonly automation_id: string;
+	readonly type: AutomationTriggerType;
+	readonly webhook_url?: string;
+	readonly webhook_secret?: string;
+	readonly cron_schedule?: string;
+	readonly filter: Record<string, string>;
+	readonly label_paths: Record<string, string>;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/automations.go
+export type AutomationTriggerType = "cron" | "webhook";
+
+export const AutomationTriggerTypes: AutomationTriggerType[] = [
+	"cron",
+	"webhook",
+];
 
 // From codersdk/deployment.go
 /**
@@ -2188,6 +2302,34 @@ export interface ConvertLoginRequest {
 	 */
 	readonly to_type: LoginType;
 	readonly password: string;
+}
+
+// From codersdk/automations.go
+/**
+ * CreateAutomationRequest is the request body for creating an automation.
+ */
+export interface CreateAutomationRequest {
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly instructions?: string;
+	readonly model_config_id?: string;
+	readonly mcp_server_ids?: readonly string[];
+	readonly allowed_tools?: readonly string[];
+	readonly max_chat_creates_per_hour?: number;
+	readonly max_messages_per_hour?: number;
+}
+
+// From codersdk/automations.go
+/**
+ * CreateAutomationTriggerRequest is the request body for creating a
+ * trigger.
+ */
+export interface CreateAutomationTriggerRequest {
+	readonly type: AutomationTriggerType;
+	readonly cron_schedule?: string;
+	readonly filter?: Record<string, string>;
+	readonly label_paths?: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -5442,6 +5584,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "automation"
 	| "boundary_usage"
 	| "chat"
 	| "connection_log"
@@ -5488,6 +5631,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"automation",
 	"boundary_usage",
 	"chat",
 	"connection_log",
@@ -6907,6 +7051,17 @@ export const TerminalFontNames: TerminalFontName[] = [
 	"",
 ];
 
+// From codersdk/automations.go
+/**
+ * TestAutomationRequest is the request body for testing an
+ * automation's filter and session resolution logic.
+ */
+export interface TestAutomationRequest {
+	readonly payload: Record<string, string>;
+	readonly filter?: Record<string, string>;
+	readonly label_paths?: Record<string, string>;
+}
+
 // From codersdk/workspacebuilds.go
 export type TimingStage =
 	| "apply"
@@ -6968,6 +7123,22 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+}
+
+// From codersdk/automations.go
+/**
+ * UpdateAutomationRequest is the request body for updating an automation.
+ */
+export interface UpdateAutomationRequest {
+	readonly name?: string;
+	readonly description?: string;
+	readonly instructions?: string;
+	readonly model_config_id?: string;
+	readonly mcp_server_ids?: string[];
+	readonly allowed_tools?: string[];
+	readonly status?: AutomationStatus;
+	readonly max_chat_creates_per_hour?: number;
+	readonly max_messages_per_hour?: number;
 }
 
 // From codersdk/chats.go

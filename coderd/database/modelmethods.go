@@ -178,6 +178,13 @@ func (c Chat) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String())
 }
 
+func (a Automation) RBACObject() rbac.Object {
+	return rbac.ResourceAutomation.
+		WithID(a.ID).
+		WithOwner(a.OwnerID.String()).
+		InOrg(a.OrganizationID)
+}
+
 func (c ChatFile) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }

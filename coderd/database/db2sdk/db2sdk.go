@@ -1317,3 +1317,80 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 
 	return result
 }
+
+// Automation converts a database Automation to a codersdk Automation.
+func Automation(a database.Automation) codersdk.Automation {
+	result := codersdk.Automation{
+		ID:                    a.ID,
+		OwnerID:               a.OwnerID,
+		OrganizationID:        a.OrganizationID,
+		Name:                  a.Name,
+		Description:           a.Description,
+		Instructions:          a.Instructions,
+		MCPServerIDs:          a.MCPServerIDs,
+		AllowedTools:          a.AllowedTools,
+		Status:                codersdk.AutomationStatus(a.Status),
+		MaxChatCreatesPerHour: a.MaxChatCreatesPerHour,
+		MaxMessagesPerHour:    a.MaxMessagesPerHour,
+		CreatedAt:             a.CreatedAt,
+		UpdatedAt:             a.UpdatedAt,
+	}
+	if a.ModelConfigID.Valid {
+		result.ModelConfigID = &a.ModelConfigID.UUID
+	}
+	if a.MCPServerIDs == nil {
+		result.MCPServerIDs = []uuid.UUID{}
+	}
+	if a.AllowedTools == nil {
+		result.AllowedTools = []string{}
+	}
+	return result
+}
+
+// AutomationEvent converts a database AutomationEvent to a codersdk
+// AutomationEvent.
+func AutomationEvent(e database.AutomationEvent) codersdk.AutomationEvent {
+	result := codersdk.AutomationEvent{
+		ID:             e.ID,
+		AutomationID:   e.AutomationID,
+		ReceivedAt:     e.ReceivedAt,
+		Payload:        e.Payload,
+		FilterMatched:  e.FilterMatched,
+		ResolvedLabels: e.ResolvedLabels.RawMessage,
+		Status:         codersdk.AutomationEventStatus(e.Status),
+	}
+	if e.TriggerID.Valid {
+		result.TriggerID = &e.TriggerID.UUID
+	}
+	if e.MatchedChatID.Valid {
+		result.MatchedChatID = &e.MatchedChatID.UUID
+	}
+	if e.CreatedChatID.Valid {
+		result.CreatedChatID = &e.CreatedChatID.UUID
+	}
+	if e.Error.Valid {
+		result.Error = &e.Error.String
+	}
+	return result
+}
+
+// AutomationTrigger converts a database AutomationTrigger to a codersdk
+// AutomationTrigger.
+func AutomationTrigger(t database.AutomationTrigger, accessURL string) codersdk.AutomationTrigger {
+	result := codersdk.AutomationTrigger{
+		ID:           t.ID,
+		AutomationID: t.AutomationID,
+		Type:         codersdk.AutomationTriggerType(t.Type),
+		Filter:       t.Filter.RawMessage,
+		LabelPaths:   t.LabelPaths.RawMessage,
+		CreatedAt:    t.CreatedAt,
+		UpdatedAt:    t.UpdatedAt,
+	}
+	if t.Type == "webhook" {
+		result.WebhookURL = accessURL + "/api/v2/automations/triggers/" + t.ID.String() + "/webhook"
+	}
+	if t.CronSchedule.Valid {
+		result.CronSchedule = &t.CronSchedule.String
+	}
+	return result
+}
