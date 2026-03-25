@@ -1,30 +1,15 @@
-import { isApiError } from "api/errors";
-import { workspaces } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import { Check, MonitorIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { isApiError } from "#/api/errors";
+import { workspaces } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "#/components/Command/Command";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelCatalogStatusMessage,
@@ -191,7 +176,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const [workspacePopoverOpen, setWorkspacePopoverOpen] = useState(false);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -199,7 +183,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		},
 	);
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
-	const autoCreateWorkspaceValue = "__auto_create_workspace__";
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -261,8 +244,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		selectedModelRef.current = selectedModel;
 		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
 	});
-	const handleWorkspaceChange = (value: string) => {
-		if (value === autoCreateWorkspaceValue) {
+	const handleWorkspaceChange = (value: string | null) => {
+		if (value === null) {
 			setSelectedWorkspaceId(null);
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 			return;
@@ -293,13 +276,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			resetDraft();
 		});
 	};
-
-	const selectedWorkspace = selectedWorkspaceId
-		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)
-		: undefined;
-	const selectedWorkspaceLabel = selectedWorkspace
-		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
-		: undefined;
 
 	const {
 		attachments,
@@ -363,7 +339,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				{workspacesQuery.isError && (
 					<ErrorAlert error={workspacesQuery.error} />
 				)}
-
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
@@ -391,67 +366,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						saveMCPSelection(ids);
 					}}
 					onMCPAuthComplete={onMCPAuthComplete}
-					leftActions={
-						<Popover
-							open={workspacePopoverOpen}
-							onOpenChange={setWorkspacePopoverOpen}
-						>
-							{/* pointer-events-auto overrides the pointer-events:none
-									   that Radix Select's DismissableLayer sets on
-									   document.body when the Model Selector is open.
-									   Without it the first click only dismisses the
-									   Select and a second click is needed to open
-									   the popover. */}
-							<PopoverTrigger asChild>
-								<button
-									type="button"
-									disabled={isCreating || workspacesQuery.isLoading}
-									className="pointer-events-auto group flex h-8 items-center gap-1.5 rounded-md border-none bg-transparent px-1 text-xs text-content-secondary shadow-none ring-offset-background transition-colors hover:bg-transparent hover:text-content-primary focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary transition-colors group-hover:text-content-primary" />
-									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
-									<ChevronDownIcon className="size-icon-sm text-content-secondary transition-colors group-hover:text-content-primary" />
-								</button>
-							</PopoverTrigger>
-							<PopoverContent side="top" align="start" className="w-72 p-0">
-								<Command loop>
-									<CommandInput placeholder="Search workspaces..." />
-									<CommandList>
-										<CommandEmpty>No workspaces found</CommandEmpty>
-										<CommandGroup>
-											<CommandItem
-												value="Auto-create Workspace"
-												onSelect={() => {
-													handleWorkspaceChange(autoCreateWorkspaceValue);
-													setWorkspacePopoverOpen(false);
-												}}
-											>
-												Auto-create Workspace
-												{selectedWorkspaceId == null && (
-													<Check className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</CommandItem>
-											{workspaceOptions.map((workspace) => (
-												<CommandItem
-													key={workspace.id}
-													value={`${workspace.owner_name}/${workspace.name}`}
-													onSelect={() => {
-														handleWorkspaceChange(workspace.id);
-														setWorkspacePopoverOpen(false);
-													}}
-												>
-													{workspace.owner_name}/{workspace.name}
-													{selectedWorkspaceId === workspace.id && (
-														<Check className="ml-auto size-icon-sm shrink-0" />
-													)}
-												</CommandItem>
-											))}
-										</CommandGroup>
-									</CommandList>
-								</Command>
-							</PopoverContent>
-						</Popover>
-					}
+					workspaceOptions={workspaceOptions}
+					selectedWorkspaceId={selectedWorkspaceId}
+					onWorkspaceChange={handleWorkspaceChange}
+					isWorkspaceLoading={workspacesQuery.isLoading}
 				/>
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
 					Coder Agents is available via{" "}
