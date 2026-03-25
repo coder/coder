@@ -159,12 +159,13 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			metrics, err := registry.Gather()
 			assert.NoError(t, err)
 			return testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_connections_total", "tcp") &&
 				testutil.PromGaugeHasValue(t, metrics, 1, "coder_servertailnet_open_connections", "tcp")
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("HostRewrite", func(t *testing.T) {
@@ -463,9 +464,9 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 		})
 
 		// Wait for the agent to connect.
-		require.Eventually(t, func() bool {
+		testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 			return coord.Node(manifest.AgentID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		agents = append(agents, agentWithID{id: manifest.AgentID, Agent: ag})
 	}

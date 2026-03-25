@@ -418,10 +418,11 @@ func TestIntegrationWithMetrics(t *testing.T) {
 	// Then: the interceptions metric should increase to 1.
 	// This is not exhaustively checking the available metrics; just an indicative one to prove
 	// the plumbing is working.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		count := promtest.ToFloat64(metrics.InterceptionCount)
 		return count == 1
-	}, testutil.WaitShort, testutil.IntervalFast, "interceptions_total metric should be 1")
+	}, testutil.IntervalFast, "interceptions_total metric should be 1")
 }
 
 // TestIntegrationCircuitBreaker validates that the circuit breaker opens after

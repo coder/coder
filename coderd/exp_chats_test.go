@@ -1942,7 +1942,7 @@ func TestPostChatMessages(t *testing.T) {
 			require.NotZero(t, created.QueuedMessage.ID)
 			require.True(t, hasTextPart(created.QueuedMessage.Content, messageText))
 
-			require.Eventually(t, func() bool {
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 				if getErr != nil {
 					return false
@@ -1961,7 +1961,7 @@ func TestPostChatMessages(t *testing.T) {
 					}
 				}
 				return false
-			}, testutil.WaitLong, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		} else {
 			require.Nil(t, created.QueuedMessage)
 			require.NotNil(t, created.Message)
@@ -1970,7 +1970,7 @@ func TestPostChatMessages(t *testing.T) {
 			require.NotZero(t, created.Message.ID)
 			require.True(t, hasTextPart(created.Message.Content, messageText))
 
-			require.Eventually(t, func() bool {
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 				if getErr != nil {
 					return false
@@ -1983,7 +1983,7 @@ func TestPostChatMessages(t *testing.T) {
 					}
 				}
 				return false
-			}, testutil.WaitLong, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		}
 	})
 
@@ -2113,7 +2113,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		}
 
 		var found bool
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
@@ -2141,7 +2141,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			return false
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		require.True(t, found, "expected to find file-reference part in stored message")
 	})
 
@@ -2173,7 +2173,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				part.Content == "const x = 1;"
 		}
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
@@ -2195,7 +2195,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			return false
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("FileReferenceWithoutContent", func(t *testing.T) {
@@ -2226,7 +2226,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				part.Content == ""
 		}
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
@@ -2248,7 +2248,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			return false
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("FileReferenceWithCode", func(t *testing.T) {
@@ -2279,7 +2279,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				part.Content == "func main() {\n\tfmt.Println()\n}"
 		}
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
@@ -2301,7 +2301,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			return false
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("InterleavedTextAndFileReferences", func(t *testing.T) {
@@ -2369,7 +2369,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			{typ: codersdk.ChatMessagePartTypeText, text: "second issue"},
 		}
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
@@ -2414,7 +2414,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			return false
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("EmptyFileName", func(t *testing.T) {

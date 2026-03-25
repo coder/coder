@@ -96,9 +96,10 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	}
 	sendBoundaryLogsRequest(t, conn, req)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return len(sink.Entries()) >= 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	entries := sink.Entries()
 	require.Len(t, entries, 1)
@@ -130,9 +131,10 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	}
 	sendBoundaryLogsRequest(t, conn, req2)
 
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return len(sink.Entries()) >= 2
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	entries = sink.Entries()
 	entry = entries[1]

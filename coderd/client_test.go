@@ -3,8 +3,7 @@ package coderd_test
 import (
 	"context"
 	"net/http"
-
-	"github.com/stretchr/testify/require"
+	"testing"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -12,12 +11,12 @@ import (
 
 // Issue: https://github.com/coder/coder/issues/5249
 // While running tests in parallel, the web server seems to be overloaded and responds with HTTP 502.
-// require.Eventually expects correct HTTP responses.
+// testutil.Eventually expects correct HTTP responses.
 
-func requestWithRetries(ctx context.Context, t require.TestingT, client *codersdk.Client, method, path string, body interface{}, opts ...codersdk.RequestOption) (*http.Response, error) {
+func requestWithRetries(ctx context.Context, t testing.TB, client *codersdk.Client, method, path string, body interface{}, opts ...codersdk.RequestOption) (*http.Response, error) {
 	var resp *http.Response
 	var err error
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		// nolint // only requests which are not passed upstream have a body closed
 		resp, err = client.Request(ctx, method, path, body, opts...)
 		if resp != nil && resp.StatusCode == http.StatusBadGateway {
@@ -27,6 +26,6 @@ func requestWithRetries(ctx context.Context, t require.TestingT, client *codersd
 			return false
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	return resp, err
 }

@@ -561,10 +561,10 @@ func findProtoApp(t *testing.T, protoApps []*proto.App, slug string) *proto.App 
 	return nil
 }
 
-func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Request) (*http.Response, error) {
+func doWithRetries(ctx context.Context, t testing.TB, client *codersdk.Client, req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 	var err error
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
 		// nolint // only requests which are not passed upstream have a body closed
 		resp, err = client.HTTPClient.Do(req)
 		if resp != nil && resp.StatusCode == http.StatusBadGateway {
@@ -574,7 +574,7 @@ func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Reques
 			return false
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	return resp, err
 }
 
@@ -582,7 +582,7 @@ func requestWithRetries(ctx context.Context, t testing.TB, client *codersdk.Clie
 	t.Helper()
 	var resp *http.Response
 	var err error
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		// nolint // only requests which are not passed upstream have a body closed
 		resp, err = client.Request(ctx, method, urlOrPath, body, opts...)
 		if resp != nil && resp.StatusCode == http.StatusBadGateway {
@@ -592,7 +592,7 @@ func requestWithRetries(ctx context.Context, t testing.TB, client *codersdk.Clie
 			return false
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	return resp, err
 }
 

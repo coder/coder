@@ -152,7 +152,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			// We are looking for four different stats to be reported. They might not all
 			// arrive at the same time, so we loop until we've seen them all.
 			var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen bool
-			require.Eventuallyf(t, func() bool {
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				var ok bool
 				s, ok = <-stats
 				if !ok {
@@ -171,10 +171,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 					sessionCountSSHSeen = true
 				}
 				return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
-			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountSsh: %t",
-				s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen,
-			)
+			}, testutil.IntervalFast, "never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountSsh: %t", s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen)
 			_, err = stdin.Write([]byte("exit 0\n"))
 			require.NoError(t, err, "writing exit to stdin")
 			_ = stdin.Close()
@@ -208,7 +205,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	// We are looking for four different stats to be reported. They might not all
 	// arrive at the same time, so we loop until we've seen them all.
 	var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen bool
-	require.Eventuallyf(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var ok bool
 		s, ok = <-stats
 		if !ok {
@@ -227,10 +224,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 			sessionCountReconnectingPTYSeen = true
 		}
 		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountReconnectingPTYSeen
-	}, testutil.WaitLong, testutil.IntervalFast,
-		"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountReconnectingPTY: %t",
-		s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen,
-	)
+	}, testutil.IntervalFast, "never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountReconnectingPTY: %t", s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountReconnectingPTYSeen)
 }
 
 func TestAgent_Stats_Magic(t *testing.T) {
@@ -280,7 +274,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 		err = session.Shell()
 		require.NoError(t, err)
-		require.Eventuallyf(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			s, ok := <-stats
 			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountVSCode=%d, ConnectionMedianLatencyMS=%f",
 				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountVscode, s.ConnectionMedianLatencyMs)
@@ -291,9 +285,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 				// Ensure that connection latency is being counted!
 				// If it isn't, it's set to -1.
 				s.ConnectionMedianLatencyMs >= 0
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats",
-		)
+		}, testutil.IntervalFast, "never saw stats")
 
 		_, err = stdin.Write([]byte("exit 0\n"))
 		require.NoError(t, err, "writing exit to stdin")
@@ -350,29 +342,25 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			_ = tunneledConn.Close()
 		})
 
-		require.Eventuallyf(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			s, ok := <-stats
 			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
 				ok, s.ConnectionCount, s.SessionCountJetbrains)
 			return ok && s.SessionCountJetbrains == 1
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats with conn open",
-		)
+		}, testutil.IntervalFast, "never saw stats with conn open")
 
 		// Kill the server and connection after checking for the echo.
 		requireEcho(t, tunneledConn)
 		_ = echoServerCmd.Process.Kill()
 		_ = tunneledConn.Close()
 
-		require.Eventuallyf(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			s, ok := <-stats
 			t.Logf("got stats after disconnect %t, %d",
 				ok, s.SessionCountJetbrains)
 			return ok &&
 				s.SessionCountJetbrains == 0
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats after conn closes",
-		)
+		}, testutil.IntervalFast, "never saw stats after conn closes")
 
 		assertConnectionReport(t, agentClient, proto.Connection_JETBRAINS, 0, "")
 	})
@@ -1387,21 +1375,23 @@ func TestAgent_Metadata(t *testing.T) {
 		})
 
 		var gotMd map[string]agentsdk.Metadata
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			gotMd = client.GetMetadata()
 			return len(gotMd) == 2
-		}, testutil.WaitShort, testutil.IntervalFast/2)
+		}, testutil.IntervalFast/2)
 
 		collectedAt1 := gotMd["greeting1"].CollectedAt
 		collectedAt2 := gotMd["greeting2"].CollectedAt
 
-		require.Eventually(t, func() bool {
+		tCtx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			gotMd = client.GetMetadata()
 			if len(gotMd) != 2 {
 				panic("unexpected number of metadata")
 			}
 			return !gotMd["greeting2"].CollectedAt.Equal(collectedAt2)
-		}, testutil.WaitShort, testutil.IntervalFast/2)
+		}, testutil.IntervalFast/2)
 
 		require.Equal(t, gotMd["greeting1"].CollectedAt, collectedAt1, "metadata should not be collected again")
 	})
@@ -1423,18 +1413,20 @@ func TestAgent_Metadata(t *testing.T) {
 		})
 
 		var gotMd map[string]agentsdk.Metadata
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
-		}, testutil.WaitShort, testutil.IntervalFast/2)
+		}, testutil.IntervalFast/2)
 
 		collectedAt1 := gotMd["greeting"].CollectedAt
 		require.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value))
 
-		if !assert.Eventually(t, func() bool {
+		tCtx = testutil.Context(t, testutil.WaitShort)
+		if !testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			gotMd = client.GetMetadata()
 			return gotMd["greeting"].CollectedAt.After(collectedAt1)
-		}, testutil.WaitShort, testutil.IntervalFast/2) {
+		}, testutil.IntervalFast/2) {
 			t.Fatalf("expected metadata to be collected again")
 		}
 	})
@@ -1475,9 +1467,10 @@ func TestAgentMetadata_Timing(t *testing.T) {
 		opts.ReportMetadataInterval = intervalUnit
 	})
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return len(client.GetMetadata()) == 2
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
 		md := client.GetMetadata()
@@ -1536,10 +1529,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
-		assert.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			got = client.GetLifecycleStates()
 			return slices.Contains(got, want[len(want)-1])
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		require.Equal(t, want, got[:len(want)])
 	})
@@ -1561,10 +1555,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
-		assert.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			got = client.GetLifecycleStates()
 			return slices.Contains(got, want[len(want)-1])
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		require.Equal(t, want, got[:len(want)])
 	})
@@ -1586,10 +1581,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
-		assert.Eventually(t, func() bool {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			got = client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		require.Equal(t, want, got)
 	})
@@ -1605,9 +1601,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 			}},
 		}, 0)
 
-		assert.Eventually(t, func() bool {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
 		done := make(chan struct{})
@@ -1627,11 +1624,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
-		assert.Eventually(t, func() bool {
+		ctx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			got = client.GetLifecycleStates()
 			return slices.Contains(got, want[len(want)-1])
-		}, testutil.WaitShort, testutil.IntervalMedium)
-
+		}, testutil.IntervalMedium)
 		require.Equal(t, want, got[:len(want)])
 	})
 
@@ -1646,9 +1643,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 			}},
 		}, 0)
 
-		assert.Eventually(t, func() bool {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
 		done := make(chan struct{})
@@ -1669,10 +1667,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
-		assert.Eventually(t, func() bool {
+		ctx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			got = client.GetLifecycleStates()
 			return slices.Contains(got, want[len(want)-1])
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		require.Equal(t, want, got[:len(want)])
 	})
@@ -1688,9 +1687,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 			}},
 		}, 0)
 
-		assert.Eventually(t, func() bool {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
 		done := make(chan struct{})
@@ -1711,10 +1711,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
-		assert.Eventually(t, func() bool {
+		ctx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			got = client.GetLifecycleStates()
 			return slices.Contains(got, want[len(want)-1])
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		require.Equal(t, want, got[:len(want)])
 	})
@@ -1759,7 +1760,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 		// agent.Close() loads the shutdown script from the agent metadata.
 		// The metadata is populated just before execution of the startup script, so it's mandatory to wait
 		// until the startup starts.
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
 			content, err := afero.ReadFile(fs, outputPath)
 			if err != nil {
@@ -1767,7 +1769,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 				return false
 			}
 			return len(content) > 0 // something is in the startup log file
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		// In order to avoid shutting down the agent before it is fully started and triggering
 		// errors, we'll wait until the agent is fully up. It's a bit hokey, but among the last things the agent starts
@@ -2026,11 +2028,10 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 		require.NoError(t, err, "Could not stop container")
 	}()
 	// Wait for container to start
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		ct, ok := pool.ContainerByName(ct.Container.Name)
 		return ok && ct.Container.State.Running
-	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
-
+	}, testutil.IntervalSlow, "Container did not start in time")
 	// nolint: dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.Devcontainers = true
@@ -2259,7 +2260,8 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	t.Logf("Waiting for container with label: devcontainer.local_folder=%s", tempWorkspaceFolder)
 
 	var container docker.APIContainers
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitSuperLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		containers, err := pool.Client.ListContainers(docker.ListContainersOptions{All: true})
 		if err != nil {
 			t.Logf("Error listing containers: %v", err)
@@ -2278,7 +2280,7 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 		}
 
 		return false
-	}, testutil.WaitSuperLong, testutil.IntervalMedium, "no container with workspace folder label found")
+	}, testutil.IntervalMedium, "no container with workspace folder label found")
 	defer func() {
 		// We can't rely on pool here because the container is not
 		// managed by it (it is managed by @devcontainer/cli).
@@ -2958,7 +2960,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("pushed DERPMap update to agent")
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		conn := uut.TailnetConn()
 		if conn == nil {
 			return false
@@ -2967,7 +2969,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		preferredDERP := conn.Node().PreferredDERP
 		t.Logf("agent Conn DERPMap with regionIDs %v, PreferredDERP %d", regionIDs, preferredDERP)
 		return len(regionIDs) == 1 && regionIDs[0] == 2 && preferredDERP == 2
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	t.Log("agent got the new DERPMap")
 
 	// Connect from a second client and make sure it uses the new DERP map.
@@ -3076,9 +3078,9 @@ func TestAgent_ReconnectNoLifecycleReemit(t *testing.T) {
 	defer closer.Close()
 
 	// Wait for the agent to reach Ready state.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	statesBefore := slices.Clone(client.GetLifecycleStates())
 
@@ -3127,10 +3129,10 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	name := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		_, err := filesystem.Stat(name)
 		return err == nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestAgent_DebugServer(t *testing.T) {
@@ -3713,7 +3715,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	}
 
 	var actual []*promgo.MetricFamily
-	assert.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		actual, err = registry.Gather()
 		if err != nil {
 			return false
@@ -3723,7 +3725,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 			count += len(m.GetMetric())
 		}
 		return count == len(expected)
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	i := 0
 	for _, mf := range actual {
@@ -3786,10 +3788,11 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connect
 	t.Helper()
 
 	var reports []*proto.ReportConnectionRequest
-	if !assert.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	if !testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		reports = agentClient.GetConnectionReports()
 		return len(reports) >= 2
-	}, testutil.WaitMedium, testutil.IntervalFast, "waiting for 2 connection reports or more; got %d", len(reports)) {
+	}, testutil.IntervalFast, "waiting for 2 connection reports or more; got %d", len(reports)) {
 		return
 	}
 

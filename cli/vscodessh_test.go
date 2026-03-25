@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/spf13/afero"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -74,13 +73,13 @@ func TestVSCodeSSH(t *testing.T) {
 	waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
 	for _, dir := range []string{"/net", "/log"} {
-		assert.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			entries, err := afero.ReadDir(fs, dir)
 			if err != nil {
 				return false
 			}
 			return len(entries) > 0
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	}
 	waiter.Cancel()
 

@@ -74,12 +74,13 @@ func TestWorkspaceBuild(t *testing.T) {
 	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	// Create workspace will also start a build, so we need to wait for
 	// it to ensure all events are recorded.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		logs := auditor.AuditLogs()
 		return len(logs) == 2 &&
 			assert.Equal(t, logs[0].Ip.IPNet.IP.String(), "127.0.0.1") &&
 			assert.Equal(t, logs[1].Ip.IPNet.IP.String(), "127.0.0.1")
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	wb, err := client.WorkspaceBuild(testutil.Context(t, testutil.WaitShort), workspace.LatestBuild.ID)
 	require.NoError(t, err)
 	require.Equal(t, up.Username, wb.WorkspaceOwnerName)
@@ -574,21 +575,21 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		var build codersdk.WorkspaceBuild
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
-		require.Eventually(t, func() bool {
+		tCtx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 			return err == nil
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
-		require.Eventually(t, func() bool {
+		tCtx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, build.ID)
 			// job gets marked Failed when there is an Error; in practice we never get to Status = Canceled
@@ -597,7 +598,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			return assert.NoError(t, err) &&
 				build.Job.Error == "canceled" &&
 				build.Job.Status == codersdk.ProvisionerJobFailed
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 	t.Run("User is not allowed to cancel", func(t *testing.T) {
 		t.Parallel()
@@ -629,11 +630,12 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			var err error
 			build, err = userClient.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		err := userClient.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -721,11 +723,12 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		defer cancel()
 
 		var build codersdk.WorkspaceBuild
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		// When: a cancel request is made with expect_state=pending
 		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
@@ -1678,11 +1681,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			logs := auditor.AuditLogs()
 			return len(logs) > 0 &&
 				assert.Equal(t, logs[0].Ip.IPNet.IP.String(), "127.0.0.1")
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("IncrementBuildNumber", func(t *testing.T) {

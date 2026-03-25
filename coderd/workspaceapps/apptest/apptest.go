@@ -917,7 +917,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					require.NoError(t, err)
 
 					var resp *http.Response
-					resp, err = doWithRetries(t, appClient, req)
+					resp, err = doWithRetries(ctx, t, appClient, req)
 					require.NoError(t, err)
 
 					if !assert.Equal(t, http.StatusSeeOther, resp.StatusCode) {
@@ -958,7 +958,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					t.Log("navigating to: ", gotLocation.String())
 					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 					require.NoError(t, err)
-					resp, err = doWithRetries(t, appClient, req)
+					resp, err = doWithRetries(ctx, t, appClient, req)
 					require.NoError(t, err)
 					resp.Body.Close()
 					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
@@ -1015,7 +1015,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 					require.NoError(t, err)
 					req.Header.Set(codersdk.SessionTokenHeader, apiKey)
-					resp, err = doWithRetries(t, appClient, req)
+					resp, err = doWithRetries(ctx, t, appClient, req)
 					require.NoError(t, err)
 					resp.Body.Close()
 					require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1044,7 +1044,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					require.NoError(t, err)
 
 					var resp *http.Response
-					resp, err = doWithRetries(t, appClient, req)
+					resp, err = doWithRetries(ctx, t, appClient, req)
 					require.NoError(t, err)
 					defer resp.Body.Close()
 					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -2219,7 +2219,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
 				req.Header.Set(codersdk.SessionTokenHeader, appDetails.SDKClient.SessionToken())
 
-				resp, err := doWithRetries(t, appDetails.AppClient(t), req)
+				resp, err := doWithRetries(ctx, t, appDetails.AppClient(t), req)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
@@ -2315,12 +2315,12 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		var stats []workspaceapps.StatsReport
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			// Keep flushing until we get a non-empty stats report.
 			appDetails.FlushStats()
 			stats = reporter.stats()
 			return len(stats) > 0
-		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
+		}, testutil.IntervalFast, "stats not reported")
 
 		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
 		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)

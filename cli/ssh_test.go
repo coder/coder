@@ -180,11 +180,12 @@ func TestSSH(t *testing.T) {
 
 		// Delay until workspace is starting, otherwise the agent may be
 		// booted due to outdated build.
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			var err error
 			workspace, err = client.Workspace(ctx, workspace.ID)
 			return err == nil && workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
@@ -630,13 +631,13 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 		_ = clientOutput.Close()
 
-		assert.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			entries, err := afero.ReadDir(fs, "/net")
 			if err != nil {
 				return false
 			}
 			return len(entries) > 0
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		<-cmdDone
 	})
@@ -759,11 +760,12 @@ func TestSSH(t *testing.T) {
 
 		// Delay until workspace is starting, otherwise the agent may be
 		// booted due to outdated build.
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			var err error
 			workspace, err = client.Workspace(ctx, workspace.ID)
 			return err == nil && workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
@@ -852,10 +854,11 @@ func TestSSH(t *testing.T) {
 		fsn.Notify()
 		<-cmdDone
 		fsn.AssertStopped()
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			_, err = os.Stat(remoteSock)
 			return xerrors.Is(err, os.ErrNotExist)
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("Stdio_BrokenConn", func(t *testing.T) {
@@ -1025,10 +1028,11 @@ func TestSSH(t *testing.T) {
 				// wait for the remote socket to get cleaned up before retrying,
 				// because cleaning up the socket happens asynchronously, and we
 				// might connect to an old listener on the agent side.
-				require.Eventually(t, func() bool {
+				tCtx := testutil.Context(t, testutil.WaitShort)
+				testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 					_, err = os.Stat(remoteSock)
 					return xerrors.Is(err, os.ErrNotExist)
-				}, testutil.WaitShort, testutil.IntervalFast)
+				}, testutil.IntervalFast)
 			}()
 		}
 	})
@@ -1228,7 +1232,7 @@ func TestSSH(t *testing.T) {
 			assert.Error(t, err, "ssh command should fail")
 		})
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:8222/", nil)
 			if !assert.NoError(t, err) {
 				// true exits the loop.
@@ -1245,7 +1249,7 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 			assert.EqualValues(t, "hello world", body)
 			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		// And we're done.
 		cancel()
@@ -2056,10 +2060,11 @@ func TestSSH_Container(t *testing.T) {
 		})
 		require.NoError(t, err, "Could not start container")
 		// Wait for container to start
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			ct, ok := pool.ContainerByName(ct.Container.Name)
 			return ok && ct.Container.State.Running
-		}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+		}, testutil.IntervalSlow, "Container did not start in time")
 		t.Cleanup(func() {
 			err := pool.Purge(ct)
 			require.NoError(t, err, "Could not stop container")

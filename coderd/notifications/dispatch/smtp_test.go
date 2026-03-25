@@ -2,6 +2,7 @@ package dispatch_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -452,7 +453,7 @@ func TestSMTP(t *testing.T) {
 			}()
 
 			// Wait for the server to become pingable.
-			require.Eventually(t, func() bool {
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				cl, err := smtptest.PingClient(listen, tc.useTLS, tc.cfg.TLS.StartTLS.Value())
 				if err != nil {
 					t.Logf("smtp not yet dialable: %s", err)
@@ -470,7 +471,7 @@ func TestSMTP(t *testing.T) {
 				}
 
 				return true
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 
 			// Build a fake payload.
 			payload := types.MessagePayload{
@@ -596,14 +597,14 @@ func TestSMTPEnvelopeAndHeaders(t *testing.T) {
 				assert.NoError(t, srv.Serve(listen))
 			}()
 
-			require.Eventually(t, func() bool {
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				cl, err := smtptest.PingClient(listen, false, false)
 				if err != nil {
 					return false
 				}
 				_ = cl.Close()
 				return true
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 
 			payload := types.MessagePayload{
 				Version:   "1.0",

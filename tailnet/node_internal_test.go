@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"context"
 	"net/netip"
 	"slices"
 	"testing"
@@ -595,7 +596,7 @@ func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
 	// after node callback, we should get the derp and SentNode is true.
 	// Use eventually since, there is a race between the callback completing
 	// and the test checking
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		d := PeerDiagnostics{}
 		uut.fillPeerDiagnostics(&d)
 		// preferred DERP should be set right away, even if the callback is not
@@ -604,7 +605,7 @@ func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
 			return false
 		}
 		return d.SentNode
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	done := make(chan struct{})
 	go func() {

@@ -97,18 +97,19 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	mgr.Run(ctx)
 
 	// THEN: we expect that the handler will have received the notifications for dispatch
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 		return slices.Contains(handler.succeeded, sid[0].String()) &&
 			slices.Contains(handler.failed, fid[0].String())
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// THEN: we expect the store to be called with the updates of the earlier dispatches
-	require.Eventually(t, func() bool {
-		return interceptor.sent.Load() == 2 &&
-			interceptor.failed.Load() == 2
-	}, testutil.WaitLong, testutil.IntervalFast)
+	tCtx = testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
+		return interceptor.sent.Load() == 2 && interceptor.failed.Load() == 2
+	}, testutil.IntervalFast)
 
 	// THEN: we verify that the store contains notifications in their expected state
 	success, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
@@ -176,11 +177,12 @@ func TestSMTPDispatch(t *testing.T) {
 	mgr.Run(ctx)
 
 	// THEN: wait until the dispatch interceptor validates that the messages were dispatched
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		assert.Nil(t, handler.lastErr.Load())
 		assert.True(t, handler.retryable.Load() == 0)
 		return handler.sent.Load() == 1
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	// THEN: we verify that the expected message was received by the mock SMTP server
 	msgs := mockSMTPSrv.MessagesAndPurge()
@@ -375,11 +377,12 @@ func TestBackpressure(t *testing.T) {
 		if elapsed%cfg.StoreSyncInterval.Value() == 0 {
 			numSent := cfg.StoreSyncBufferSize.Value() * int64(elapsed/cfg.StoreSyncInterval.Value())
 			t.Logf("waiting for %d messages", numSent)
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				// need greater or equal because the last set of messages can come immediately due
 				// to graceful shut down
 				return int64(storeInterceptor.sent.Load()) >= numSent
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		}
 	}
 	t.Log("done advancing")
@@ -474,11 +477,12 @@ func TestRetries(t *testing.T) {
 	nbTries := msgCount * maxAttempts * 2
 
 	// THEN: we expect to see all but the final attempts failing on webhook, and all messages to fail on inbox
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		// nolint:gosec
 		return storeInterceptor.failed.Load() == int32(nbTries-msgCount) &&
 			storeInterceptor.sent.Load() == msgCount
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 // TestExpiredLeaseIsRequeued validates that notification messages which are left in "leased" status will be requeued once their lease expires.
@@ -573,10 +577,11 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	mgr.Run(ctx)
 
 	// Wait until all messages are sent & updates flushed to the database.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return handler.sent.Load() == msgCount &&
 			storeInterceptor.sent.Load() == msgCount*2
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Validate that no more messages are in "leased" status.
 	leased, err = store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
@@ -667,12 +672,13 @@ func TestNotifierPaused(t *testing.T) {
 	// Wait a few fetch intervals to be sure that no new notifications are being sent.
 	// TODO: use quartz instead.
 	// nolint:gocritic // These magic numbers are fine.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, fetchInterval*5)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 
 		return len(handler.succeeded)+len(handler.failed) == 0
-	}, fetchInterval*5, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Unpause the notifier.
 	settingsJSON, err = json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: false})
@@ -682,11 +688,12 @@ func TestNotifierPaused(t *testing.T) {
 
 	// Notifier is running again, message should be dequeued.
 	// nolint:gocritic // These magic numbers are fine.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, fetchInterval*5)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 		return slices.Contains(handler.succeeded, sid[0].String())
-	}, fetchInterval*5, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 //go:embed events.go
@@ -1434,7 +1441,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				}()
 
 				// Wait for the server to become pingable.
-				require.Eventually(t, func() bool {
+				tCtx := testutil.Context(t, testutil.WaitShort)
+				testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 					cl, err := smtptest.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
 					if err != nil {
 						t.Logf("smtp not yet dialable: %s", err)
@@ -1452,7 +1460,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					}
 
 					return true
-				}, testutil.WaitShort, testutil.IntervalFast)
+				}, testutil.IntervalFast)
 
 				smtpCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 				smtpCfg.SMTP = smtpConfig
@@ -1506,10 +1514,11 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Wait for the message to be fetched
 				var msg *smtptest.Message
-				require.Eventually(t, func() bool {
+				tCtx = testutil.Context(t, testutil.WaitShort)
+				testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 					msg = backend.LastMessage()
 					return msg != nil && len(msg.Contents) > 0
-				}, testutil.WaitShort, testutil.IntervalFast)
+				}, testutil.IntervalFast)
 
 				body := normalizeGoldenEmail([]byte(msg.Contents))
 

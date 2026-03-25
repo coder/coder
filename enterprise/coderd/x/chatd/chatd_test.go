@@ -215,7 +215,8 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Should get the first relay part.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -227,7 +228,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Wait for the reconnect timer to be created after the relay
 	// drop, then advance the mock clock to fire it immediately.
@@ -236,7 +237,8 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 
 	// After the first relay closes, the reconnection should deliver
 	// the second relay part.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -248,7 +250,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	require.GreaterOrEqual(t, int(callCount.Load()), 2)
 }
@@ -334,7 +336,8 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 
 	// The waiting status event should arrive promptly despite the
 	// relay still dialing.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			return event.Type == codersdk.ChatStreamEventTypeStatus &&
@@ -343,7 +346,7 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Unblock the relay dial so the test can clean up.
 	close(dialContinue)
@@ -419,7 +422,8 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	// channel by the enterprise SubscribeFn. Collect them along
 	// with the live part.
 	var receivedTexts []string
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -431,7 +435,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	require.Equal(t, []string{"snap-one", "snap-two", "live-part"}, receivedTexts)
 
@@ -506,14 +510,15 @@ func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
 		}
 		return fromDB.Status == database.ChatStatusRunning &&
 			fromDB.WorkerID.Valid && fromDB.WorkerID.UUID == workerID
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	select {
 	case <-firstStreamStarted:
@@ -531,7 +536,7 @@ func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
 	var waitingSeen bool
 	var waitingBeforeRetry bool
 	var assistantMessageBeforeRetry bool
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		select {
 		case event, ok := <-events:
 			if !ok {
@@ -558,7 +563,7 @@ func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	require.NotNil(t, retryEvent)
 	require.Equal(t, 1, retryEvent.Attempt)
@@ -697,7 +702,8 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	// and emit the status event before publishing the new running
 	// notification. This avoids time.Sleep (banned by project
 	// policy) and provides a deterministic sync point.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			return event.Type == codersdk.ChatStreamEventTypeStatus &&
@@ -706,7 +712,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Now the chat transitions to running on the NEW worker.
 	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
@@ -730,7 +736,8 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	close(releaseFirstDial)
 
 	// The subscriber should receive parts from the NEW worker, not the stale one.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -748,10 +755,10 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Drain the events channel for a while to ensure no late-arriving
-	// stale part sneaks in after the require.Eventually above returned.
+	// stale part sneaks in after the testutil.Eventually above returned.
 	// This closes the timing gap where "stale-part" could arrive after
 	// "new-worker-part" was already consumed.
 	require.Never(t, func() bool {
@@ -837,14 +844,15 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 
 	// The provider context must be canceled, causing the goroutine
 	// to return cleanly.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case <-dialExited:
 			return true
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 // TestSubscribeRelayRunningToRunningSwitch verifies that when a chat
@@ -943,17 +951,19 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the relay canceled workerA's stale dial.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case <-dialAExited:
 			return true
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// We should receive the part from workerB.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -965,7 +975,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	require.Equal(t, 2, int(callCount.Load()))
 }
@@ -1069,7 +1079,8 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 	// The merge loop re-checks the DB, sees the chat is still
 	// running on the remote worker, and dials again. The second
 	// dial succeeds.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -1081,7 +1092,7 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	require.GreaterOrEqual(t, int(callCount.Load()), 2)
 }
@@ -1148,7 +1159,8 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Consume the remote-part from the initial relay.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -1160,7 +1172,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Notify that the LOCAL worker now owns the chat. This should
 	// close the relay without opening a new one.
@@ -1258,7 +1270,8 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 	// Helper to consume a specific relay part.
 	consumePart := func(text string) {
 		t.Helper()
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitMedium)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			select {
 			case event := <-events:
 				if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
@@ -1270,7 +1283,7 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 			default:
 				return false
 			}
-		}, testutil.WaitMedium, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	}
 
 	// First relay: consumed immediately (synchronous dial).

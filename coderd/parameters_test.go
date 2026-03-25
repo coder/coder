@@ -440,9 +440,10 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 			_ = stream.Close(websocket.StatusGoingAway)
 		}
 		// Cache should always have 0 files when the only stream is closed
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort/5)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return api.FileCache.Count() == 0
-		}, testutil.WaitShort/5, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 	})
 
 	return dynamicParamsTest{

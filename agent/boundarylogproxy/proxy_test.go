@@ -161,10 +161,11 @@ func TestServer_ReceiveAndForwardLogs(t *testing.T) {
 	sendLogs(t, conn, req)
 
 	// Wait for the reporter to receive the log.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		logs := reporter.getLogs()
 		return len(logs) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	logs := reporter.getLogs()
 	require.Len(t, logs, 1)
@@ -220,10 +221,11 @@ func TestServer_MultipleMessages(t *testing.T) {
 		sendLogs(t, conn, req)
 	}
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		logs := reporter.getLogs()
 		return len(logs) == 5
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	cancel()
 	<-forwarderDone
@@ -281,10 +283,11 @@ func TestServer_MultipleConnections(t *testing.T) {
 	}
 	wg.Wait()
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		logs := reporter.getLogs()
 		return len(logs) == numConns
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	cancel()
 	<-forwarderDone
@@ -390,10 +393,11 @@ func TestServer_ForwarderContinuesAfterError(t *testing.T) {
 	sendLogs(t, conn, req2)
 
 	// Only the second message should be recorded.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		logs := reporter.getLogs()
 		return len(logs) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	logs := reporter.getLogs()
 	require.Len(t, logs, 1)
@@ -482,10 +486,11 @@ func TestServer_InvalidProtobuf(t *testing.T) {
 	}
 	sendLogs(t, conn, req)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		logs := reporter.getLogs()
 		return len(logs) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	cancel()
 	<-forwarderDone
@@ -524,10 +529,11 @@ func TestServer_InvalidHeader(t *testing.T) {
 
 		// The server closes the connection on invalid header, so the next
 		// write should fail with a broken pipe error.
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			_, err := conn.Write([]byte{0x00})
 			return err != nil
-		}, testutil.WaitShort, testutil.IntervalFast, name)
+		}, testutil.IntervalFast, name)
 	}
 
 	// TagV1 with length exceeding MaxMessageSizeV1.
@@ -583,10 +589,11 @@ func TestServer_AllowRequest(t *testing.T) {
 	}
 	sendLogs(t, conn, req)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		logs := reporter.getLogs()
 		return len(logs) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	logs := reporter.getLogs()
 	require.Len(t, logs, 1)
@@ -642,9 +649,10 @@ func TestServer_TagV1BackwardsCompatibility(t *testing.T) {
 	}
 	sendLogsV1(t, conn, v1Req)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return len(reporter.getLogs()) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Now send a TagV2 message on the same connection to verify both
 	// tag versions work interleaved.
@@ -664,9 +672,10 @@ func TestServer_TagV1BackwardsCompatibility(t *testing.T) {
 	}
 	sendLogs(t, conn, v2Req)
 
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return len(reporter.getLogs()) == 2
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	logs := reporter.getLogs()
 	require.Equal(t, "https://example.com/v1", logs[0].Logs[0].GetHttpRequest().Url)
@@ -719,9 +728,10 @@ func TestServer_Metrics(t *testing.T) {
 			sendLogs(t, conn, makeReq(1))
 		}
 
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full") >= 1
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		require.GreaterOrEqual(t,
 			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full"),
 			float64(1))
@@ -774,18 +784,20 @@ func TestServer_Metrics(t *testing.T) {
 
 		// The metric is incremented after ReportBoundaryLogs returns, so we
 		// need to poll briefly.
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed") >= 1
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		require.Equal(t, float64(2),
 			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "forward_failed"))
 
 		// Phase 2: forward succeeds.
 		sendLogs(t, conn, makeReq(1))
 
-		require.Eventually(t, func() bool {
+		tCtx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return len(reporter.getLogs()) >= 1
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		require.Equal(t, float64(1),
 			getCounterValue(t, reg, "agent_boundary_log_proxy_batches_forwarded_total"))
 
@@ -798,9 +810,10 @@ func TestServer_Metrics(t *testing.T) {
 
 		// Status is handled immediately by the reader goroutine, not by the
 		// forwarder, so poll metrics directly.
-		require.Eventually(t, func() bool {
+		tCtx = testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full") >= 5
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		require.Equal(t, float64(5),
 			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full"))
 		require.Equal(t, float64(3),

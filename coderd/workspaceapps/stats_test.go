@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -313,10 +312,11 @@ func TestStatsCollector(t *testing.T) {
 			}
 
 			var gotStats []workspaceapps.StatsReport
-			require.Eventually(t, func() bool {
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				gotStats = reporter.stats()
 				return len(gotStats) == len(tt.want)
-			}, testutil.WaitMedium, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 
 			// Order is not guaranteed.
 			sortBySessionID := func(a, b workspaceapps.StatsReport) int {

@@ -143,7 +143,7 @@ func TestDERP(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for all three running proxies to become healthy.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		err := api.ProxyHealth.ForceUpdate(ctx)
 		if !assert.NoError(t, err) {
 			return false
@@ -167,7 +167,7 @@ func TestDERP(t *testing.T) {
 		// The last region should never be healthy.
 		assert.False(t, regions[4].Healthy)
 		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	// Create a workspace + apps
 	authToken := uuid.NewString()
@@ -360,7 +360,7 @@ func TestDERPEndToEnd(t *testing.T) {
 
 	// Wait for the proxy to become healthy.
 	ctx := testutil.Context(t, testutil.WaitLong)
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		err := api.ProxyHealth.ForceUpdate(ctx)
 		if !assert.NoError(t, err) {
 			return false
@@ -379,13 +379,13 @@ func TestDERPEndToEnd(t *testing.T) {
 			}
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	// Wait until the proxy appears in the DERP map, and then swap out the DERP
 	// map for one that only contains the proxy region. This allows us to force
 	// the agent to pick the proxy as its preferred region.
 	var proxyOnlyDERPMap *tailcfg.DERPMap
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		derpMap := api.AGPL.DERPMap()
 		if derpMap == nil {
 			return false
@@ -401,7 +401,7 @@ func TestDERPEndToEnd(t *testing.T) {
 		}
 		proxyOnlyDERPMap.OmitDefaultRegions = true
 		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 	newDERPMapper := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
 		return proxyOnlyDERPMap
 	}
@@ -1177,7 +1177,7 @@ func createProxyReplicas(ctx context.Context, t *testing.T, opts *createProxyRep
 
 	// Ensure that all proxies have pinged successfully. If replicas haven't
 	// successfully pinged yet, force them to re-register again. We don't
-	// use require.Eventually here because it runs the condition function in
+	// use testutil.Eventually here because it runs the condition function in
 	// a goroutine.
 	ticker := time.NewTicker(testutil.IntervalSlow)
 	defer ticker.Stop()

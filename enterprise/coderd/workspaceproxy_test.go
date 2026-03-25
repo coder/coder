@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -120,7 +121,7 @@ func TestRegions(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for the proxy to become healthy.
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			healthCtx := testutil.Context(t, testutil.WaitLong)
 			err := api.ProxyHealth.ForceUpdate(healthCtx)
 			if !assert.NoError(t, err) {
@@ -147,7 +148,7 @@ func TestRegions(t *testing.T) {
 				}
 			}
 			return true
-		}, testutil.WaitLong, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 
 		regions, err := client.Regions(ctx)
 		require.NoError(t, err)
@@ -590,7 +591,8 @@ func TestProxyRegisterDeregister(t *testing.T) {
 			// In production, proxies re-register every 30s and
 			// Kubernetes rolls out gradually, so this is benign.
 			var registerRes wsproxysdk.RegisterWorkspaceProxyResponse
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				var err error
 				registerRes, err = proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 					AccessURL:           "https://proxy.coder.test",
@@ -606,7 +608,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 					return false
 				}
 				return len(registerRes.SiblingReplicas) == i
-			}, testutil.WaitShort, testutil.IntervalMedium, "expected to register replica %d with %d siblings", i, i)
+			}, testutil.IntervalMedium, "expected to register replica %d with %d siblings", i, i)
 		}
 	})
 

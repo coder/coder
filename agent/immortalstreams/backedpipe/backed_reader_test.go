@@ -493,7 +493,7 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 
 	// Verify read is blocked by checking that it hasn't completed
 	// and ensuring we have adequate time for it to reach the blocking state
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		select {
 		case <-readDone:
 			t.Fatal("Read should be blocked on underlying reader")
@@ -502,7 +502,7 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 			// Good, still blocked
 			return true
 		}
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	// Start Close() in a goroutine since it will block until the underlying read completes
 	closeDone := make(chan error, 1)

@@ -76,7 +76,8 @@ func TestEngine_IndexPicksUpNewFile(t *testing.T) {
 	require.NoError(t, eng.AddRoot(ctx, dir))
 	createFile(t, dir, "newfile_unique.txt", "world")
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		results, sErr := eng.Search(ctx, "newfile_unique", filefinder.DefaultSearchOptions())
 		if sErr != nil {
 			return false
@@ -87,7 +88,7 @@ func TestEngine_IndexPicksUpNewFile(t *testing.T) {
 			}
 		}
 		return false
-	}, testutil.WaitShort, testutil.IntervalFast, "expected newfile_unique.txt to appear via watcher")
+	}, testutil.IntervalFast, "expected newfile_unique.txt to appear via watcher")
 }
 
 func TestEngine_IndexRemovesDeletedFile(t *testing.T) {
@@ -105,7 +106,8 @@ func TestEngine_IndexRemovesDeletedFile(t *testing.T) {
 
 	require.NoError(t, os.Remove(filepath.Join(dir, "deleteme_unique.txt")))
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		results, sErr := eng.Search(ctx, "deleteme_unique", filefinder.DefaultSearchOptions())
 		if sErr != nil {
 			return false
@@ -116,7 +118,7 @@ func TestEngine_IndexRemovesDeletedFile(t *testing.T) {
 			}
 		}
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast, "expected deleteme_unique.txt to disappear after removal")
+	}, testutil.IntervalFast, "expected deleteme_unique.txt to disappear after removal")
 }
 
 func TestEngine_MultipleRoots(t *testing.T) {

@@ -1819,8 +1819,8 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 	// This assertion *may* no longer need to be `Eventually`.
-	require.Eventually(t, func() bool { return p.LastSeenAt.Time.UnixNano() == staleTime.UnixNano() },
-		testutil.WaitMedium, testutil.IntervalFast, "expected provisioner LastSeenAt to be:%+v, saw :%+v", staleTime.UTC(), p.LastSeenAt.Time.UTC())
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool { return p.LastSeenAt.Time.UnixNano() == staleTime.UnixNano() }, testutil.IntervalFast, "expected provisioner LastSeenAt to be:%+v, saw :%+v", staleTime.UTC(), p.LastSeenAt.Time.UTC())
 
 	// Ensure the provisioner is gone or stale, relative to the artificial next autostart time, before triggering the autobuild.
 	coderdtest.MustWaitForProvisionersUnavailable(t, db, workspace, provisionerDaemonTags, next)

@@ -549,7 +549,8 @@ func TestTemplatePush(t *testing.T) {
 					inv = inv.WithContext(ctx)
 					clitest.Start(t, inv) // Only used for output, disregard exit status.
 
-					require.Eventually(t, func() bool {
+					tCtx := testutil.Context(t, testutil.WaitShort)
+					testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 						jobs, err := store.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
 						if !assert.NoError(t, err) {
 							return false
@@ -558,7 +559,7 @@ func TestTemplatePush(t *testing.T) {
 							return false
 						}
 						return assert.EqualValues(t, wantTags, jobs[0].Tags)
-					}, testutil.WaitShort, testutil.IntervalFast)
+					}, testutil.IntervalFast)
 
 					if tt.expectOutput != "" {
 						pty.ExpectMatchContext(ctx, tt.expectOutput)

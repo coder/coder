@@ -2734,20 +2734,20 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	currentDerpMap.Store(newDerpMap)
 
 	// Wait for the agent's DERP map to be updated.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		conn := agentCloser.TailnetConn()
 		if conn == nil {
 			return false
 		}
 		regionIDs := conn.DERPMap().RegionIDs()
 		return len(regionIDs) == 1 && regionIDs[0] == 2 && conn.Node().PreferredDERP == 2
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Wait for the DERP map to be updated on the existing client.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		regionIDs := conn1.TailnetConn().DERPMap().RegionIDs()
 		return len(regionIDs) == 1 && regionIDs[0] == 2
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// The first client should still be able to reach the agent.
 	ok = conn1.AwaitReachable(ctx)

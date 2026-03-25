@@ -44,7 +44,8 @@ func TestServer_Single(t *testing.T) {
 	clitest.Start(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
 	client := &http.Client{}
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		reqCtx := testutil.Context(t, testutil.IntervalMedium)
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, accessURL.String()+"/healthz", nil)
 		if err != nil {
@@ -61,7 +62,7 @@ func TestServer_Single(t *testing.T) {
 			panic(err)
 		}
 		return assert.Equal(t, "OK", string(bs))
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 }
 
 func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
@@ -69,10 +70,10 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 
 	var err error
 	var rawURL string
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, testutil.WaitLong, testutil.IntervalFast, "failed to get access URL")
+	}, testutil.IntervalFast, "failed to get access URL")
 
 	accessURL, err := url.Parse(rawURL)
 	require.NoError(t, err, "failed to parse access URL")

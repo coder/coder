@@ -142,31 +142,27 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			checks := 0
 
 			// The Deadline bump occurs asynchronously.
-			require.Eventuallyf(t,
-				func() bool {
-					checks++
-					workspace, err = client.Workspace(ctx, workspace.ID)
-					require.NoError(t, err)
+			tCtx := testutil.Context(t, maxTimeDrift)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
+				checks++
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				require.NoError(t, err)
 
-					hasBumped := !workspace.LatestBuild.Deadline.Time.Equal(firstDeadline)
+				hasBumped := !workspace.LatestBuild.Deadline.Time.Equal(firstDeadline)
 
-					// Always make sure to log this information, even on the last check.
-					// The last check is the most important, as if this loop is acting
-					// slow, the last check could be the cause of the failure.
-					if time.Since(lastChecked) > time.Second || hasBumped {
-						avgCheckTime := time.Since(waitedFor) / time.Duration(checks)
-						t.Logf("deadline detect: bumped=%t since_last_check=%s avg_check_dur=%s checks=%d deadline=%v",
-							hasBumped, time.Since(updatedAfter), avgCheckTime, checks, workspace.LatestBuild.Deadline.Time)
-						lastChecked = time.Now()
-					}
+				// Always make sure to log this information, even on the last check.
+				// The last check is the most important, as if this loop is acting
+				// slow, the last check could be the cause of the failure.
+				if time.Since(lastChecked) > time.Second || hasBumped {
+					avgCheckTime := time.Since(waitedFor) / time.Duration(checks)
+					t.Logf("deadline detect: bumped=%t since_last_check=%s avg_check_dur=%s checks=%d deadline=%v",
+						hasBumped, time.Since(updatedAfter), avgCheckTime, checks, workspace.LatestBuild.Deadline.Time)
+					lastChecked = time.Now()
+				}
 
-					updatedAfter = dbtime.Now()
-					return hasBumped
-				},
-				//nolint: gocritic // maxTimeDrift is a testutil time
-				maxTimeDrift, testutil.IntervalFast,
-				"deadline %v never updated", firstDeadline,
-			)
+				updatedAfter = dbtime.Now()
+				return hasBumped
+			}, testutil.IntervalFast, "deadline %v never updated", firstDeadline)
 
 			// This log line helps establish how long it took for the deadline
 			// to be detected as bumped.

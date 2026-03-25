@@ -59,7 +59,8 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	}()
 	_ = testutil.TryReceive(ctx, t, messageChannel)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		latencyBytes := gatherCount * pubsub.LatencyMessageLength
 		metrics, err = registry.Gather()
 		gatherCount++
@@ -76,7 +77,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_pubsub_receive_latency_seconds") &&
 			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_pubsub_latency_measures_total") &&
 			!testutil.PromCounterGathered(t, metrics, "coder_pubsub_latency_measure_errs_total")
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	colossalSize := 7600
 	colossalData := make([]byte, colossalSize)
@@ -96,7 +97,8 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	_ = testutil.TryReceive(ctx, t, messageChannel)
 	_ = testutil.TryReceive(ctx, t, messageChannel)
 
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		latencyBytes := gatherCount * pubsub.LatencyMessageLength
 		metrics, err = registry.Gather()
 		gatherCount++
@@ -114,7 +116,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_pubsub_receive_latency_seconds") &&
 			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_pubsub_latency_measures_total") &&
 			!testutil.PromCounterGathered(t, metrics, "coder_pubsub_latency_measure_errs_total")
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestPGPubsubDriver(t *testing.T) {

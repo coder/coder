@@ -299,14 +299,16 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	require.EqualValues(t, 2, failure)
 
 	// Validate that the store synced the expected number of updates.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return syncer.sent.Load() == 2 && syncer.failed.Load() == 2
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Wait for the updates to be synced and the metric to reflect that.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return promtest.ToFloat64(metrics.PendingUpdates) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestInflightDispatchesMetric(t *testing.T) {
@@ -361,26 +363,29 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	// THEN:
 	// Ensure we see the dispatches of the messages inflight.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), tmpl.String())) == msgCount
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	for i := 0; i < msgCount; i++ {
 		barrier.wg.Done()
 	}
 
 	// Wait until the handler has dispatched the given notifications.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 
 		return len(handler.succeeded) == msgCount
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Wait for the updates to be synced and the metric to reflect that.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), tmpl.String())) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestCustomMethodMetricCollection(t *testing.T) {
@@ -439,7 +444,8 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 	mgr.Run(ctx)
 
 	// THEN: the fake handlers to "dispatch" the notifications.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		smtpHandler.mu.RLock()
 		webhookHandler.mu.RLock()
 		defer smtpHandler.mu.RUnlock()
@@ -447,13 +453,14 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 		return len(smtpHandler.succeeded) == 1 && len(smtpHandler.failed) == 0 &&
 			len(webhookHandler.succeeded) == 1 && len(webhookHandler.failed) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// THEN: we should have metric series for both the default and custom notification methods.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(defaultMethod), anotherTemplate.String(), notifications.ResultSuccess)) > 0 &&
 			promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(customMethod), tmpl.String(), notifications.ResultSuccess)) > 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 // hasMatchingFingerprint checks if the given metric's series fingerprint matches the reference fingerprint.

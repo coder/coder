@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -51,13 +52,14 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
-		require.Eventually(t, func() bool {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
 			if err != nil {
 				return false
 			}
 			return info.Size() > 0
-		}, testutil.WaitLong, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 	})
 
 	t.Run("PostStartup", func(t *testing.T) {
@@ -216,7 +218,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		// Verify the servers are not listening by checking the log for disabled
 		// messages.
-		require.Eventually(t, func() bool {
+		testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 			logContent, err := os.ReadFile(filepath.Join(logDir, "coder-agent.log"))
 			if err != nil {
 				return false
@@ -225,7 +227,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			return strings.Contains(logStr, "pprof address is empty, disabling pprof server") &&
 				strings.Contains(logStr, "prometheus address is empty, disabling prometheus server") &&
 				strings.Contains(logStr, "debug address is empty, disabling debug server")
-		}, testutil.WaitLong, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 	})
 }
 

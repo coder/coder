@@ -151,7 +151,8 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	metricsAggregator.Update(ctx, testLabels, given3)
 
 	// then
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		var actual []prometheus.Metric
 		metricsCh := make(chan prometheus.Metric)
 
@@ -167,7 +168,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 		close(metricsCh)
 		<-done
 		return verifyCollectedMetrics(t, expected, actual)
-	}, testutil.WaitMedium, testutil.IntervalSlow)
+	}, testutil.IntervalSlow)
 }
 
 func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, actual []prometheus.Metric) bool {
@@ -288,7 +289,8 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 	time.Sleep(time.Millisecond * 10) // Ensure that metric is expired
 
 	// then
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		var actual []prometheus.Metric
 		metricsCh := make(chan prometheus.Metric)
 
@@ -304,7 +306,7 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 		close(metricsCh)
 		<-done
 		return len(actual) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestLabelsAggregation(t *testing.T) {
@@ -610,7 +612,8 @@ func TestLabelsAggregation(t *testing.T) {
 			}
 
 			// then
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitMedium)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				var actual []prometheus.Metric
 				metricsCh := make(chan prometheus.Metric)
 
@@ -626,7 +629,7 @@ func TestLabelsAggregation(t *testing.T) {
 				close(metricsCh)
 				<-done
 				return verifyCollectedMetrics(t, tc.expected, actual)
-			}, testutil.WaitMedium, testutil.IntervalSlow)
+			}, testutil.IntervalSlow)
 		})
 	}
 }

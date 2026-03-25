@@ -50,13 +50,14 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		pty.ExpectMatchContext(ctx, "matt-daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		require.Equal(t, "matt-daemon", daemons[0].Name)
 		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		require.Equal(t, buildinfo.Version(), daemons[0].Version)
@@ -128,13 +129,14 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		assert.Equal(t, "my-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
 		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
@@ -163,13 +165,14 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		assert.Equal(t, "my-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
 		// This should get clobbered to the user who started the daemon.
@@ -199,13 +202,14 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		assert.Equal(t, "org-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
@@ -235,13 +239,14 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		assert.Equal(t, "org-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
 		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
@@ -281,13 +286,14 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		pty.ExpectMatchContext(ctx, "matt-daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID, nil)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		require.Equal(t, "matt-daemon", daemons[0].Name)
 		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		require.Equal(t, buildinfo.Version(), daemons[0].Version)
@@ -326,13 +332,14 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		pty.ExpectMatchContext(ctx, `tags={"tag1":"value1","tag2":"value2"}`)
 
 		var daemons []codersdk.ProvisionerDaemon
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID, nil)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		require.Equal(t, "matt-daemon", daemons[0].Name)
 		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		require.Equal(t, buildinfo.Version(), daemons[0].Version)
@@ -441,13 +448,14 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
 		pty.ExpectMatchContext(ctx, "matt-daemon")
 		var daemons []codersdk.ProvisionerDaemon
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)
 			if err != nil {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		require.Equal(t, "matt-daemon", daemons[0].Name)
 		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		require.Equal(t, buildinfo.Version(), daemons[0].Version)
@@ -483,20 +491,21 @@ func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 
 	var daemons []codersdk.ProvisionerDaemon
 	var err error
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		daemons, err = client.ProvisionerDaemons(ctx)
 		if err != nil {
 			return false
 		}
 		return len(daemons) == 1
-	}, testutil.WaitLong, testutil.IntervalSlow)
+	}, testutil.IntervalSlow)
 	require.Equal(t, "daemon-with-prometheus", daemons[0].Name)
 
 	// Fetch metrics from Prometheus endpoint
 	var req *http.Request
 	var res *http.Response
 	httpClient := &http.Client{}
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		req, err = http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
 		if err != nil {
 			t.Logf("unable to create new HTTP request: %s", err.Error())
@@ -510,7 +519,7 @@ func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 			return false
 		}
 		return true
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 	defer res.Body.Close()
 
 	// Scan for metric patterns

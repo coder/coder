@@ -540,7 +540,8 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 	go func() {
 		defer close(ch)
 		var workspace codersdk.Workspace
-		if !assert.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		if !testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false
@@ -550,7 +551,7 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 				return true
 			}
 			return false
-		}, testutil.WaitShort, testutil.IntervalMedium) {
+		}, testutil.IntervalMedium) {
 			return
 		}
 

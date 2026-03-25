@@ -1086,10 +1086,8 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("UnhealthyAppPermitted", func(t *testing.T) {
 		t.Parallel()
 
-		require.Eventually(t, func() bool {
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
+		tCtx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			agent, err := client.WorkspaceAgent(ctx, agentID)
 			if err != nil {
 				t.Log("could not get agent", err)
@@ -1105,7 +1103,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 			t.Log("could not find app")
 			return false
-		}, testutil.WaitLong, testutil.IntervalFast, "wait for app to become unhealthy")
+		}, testutil.IntervalFast, "wait for app to become unhealthy")
 
 		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodPath,

@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"context"
 	"runtime"
 	"testing"
 
@@ -104,10 +105,10 @@ func TestExpRpty(t *testing.T) {
 		})
 		require.NoError(t, err, "Could not start container")
 		// Wait for container to start
-		require.Eventually(t, func() bool {
+		testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 			ct, ok := pool.ContainerByName(ct.Container.Name)
 			return ok && ct.Container.State.Running
-		}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+		}, testutil.IntervalSlow, "Container did not start in time")
 		t.Cleanup(func() {
 			err := pool.Purge(ct)
 			require.NoError(t, err, "Could not stop container")

@@ -210,11 +210,12 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		err = api.Pubsub.Publish(coderd.PubsubEventLicenses, []byte{})
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			entitlements, err := anotherClient.Entitlements(context.Background())
 			assert.NoError(t, err)
 			return entitlements.HasLicense
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 	t.Run("Resync", func(t *testing.T) {
 		t.Parallel()
@@ -254,11 +255,12 @@ func TestEntitlements(t *testing.T) {
 			JWT:        "invalid",
 		})
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			entitlements, err := anotherClient.Entitlements(context.Background())
 			assert.NoError(t, err)
 			return entitlements.HasLicense
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 }
 
@@ -339,9 +341,10 @@ func TestEntitlements_Prebuilds(t *testing.T) {
 			})
 
 			// The entitlements will need to refresh before the reconciler is set.
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitSuperLong)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				return api.AGPL.PrebuildsReconciler.Load() != nil
-			}, testutil.WaitSuperLong, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 
 			reconciler := api.AGPL.PrebuildsReconciler.Load()
 			claimer := api.AGPL.PrebuildsClaimer.Load()
@@ -440,7 +443,7 @@ func TestExternalTokenEncryption(t *testing.T) {
 		require.Len(t, keys, 1)
 		require.Equal(t, ciphers[0].HexDigest(), keys[0].ActiveKeyDigest.String)
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			entitlements, err := client.Entitlements(context.Background())
 			assert.NoError(t, err)
 			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
@@ -454,7 +457,7 @@ func TestExternalTokenEncryption(t *testing.T) {
 			}
 			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
 			return feature.Enabled && entitled && !warningExists
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -477,7 +480,7 @@ func TestExternalTokenEncryption(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, keys)
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			entitlements, err := client.Entitlements(context.Background())
 			assert.NoError(t, err)
 			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
@@ -491,7 +494,7 @@ func TestExternalTokenEncryption(t *testing.T) {
 			}
 			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
 			return !feature.Enabled && !entitled && !warningExists
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("PreviouslyEnabledButMissingFromLicense", func(t *testing.T) {
@@ -522,7 +525,7 @@ func TestExternalTokenEncryption(t *testing.T) {
 			},
 		})
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			entitlements, err := client.Entitlements(context.Background())
 			assert.NoError(t, err)
 			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
@@ -536,7 +539,7 @@ func TestExternalTokenEncryption(t *testing.T) {
 			}
 			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
 			return feature.Enabled && !entitled && warningExists
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 }
 
@@ -1165,11 +1168,12 @@ func TestConn_CoordinatorRollingRestart(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				_, p2p, _, err := conn.Ping(ctx)
 				assert.NoError(t, err)
 				return p2p == direct
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 
 			// Open a TCP server and connection to it through the tunnel that
 			// should be maintained throughout the restart.

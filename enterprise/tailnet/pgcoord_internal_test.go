@@ -415,9 +415,9 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 
 	// The querier is informed async about being unhealthy, so we need to wait
 	// until it is.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		return !coordinator.querier.isHealthy()
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	pID := uuid.UUID{5}
 	_, resps := coordinator.Coordinate(ctx, pID, "test", agpl.AgentCoordinateeAuth{ID: pID})
@@ -431,5 +431,8 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	// shut down the test.
 	time.Sleep(testutil.IntervalMedium)
 	_ = coordinator.Close()
-	require.Eventually(t, ctrl.Satisfied, testutil.WaitShort, testutil.IntervalFast)
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(_ context.Context) bool {
+		return ctrl.Satisfied()
+	}, testutil.IntervalFast)
 }

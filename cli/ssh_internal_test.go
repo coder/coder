@@ -121,11 +121,11 @@ func TestCloserStack_Context(t *testing.T) {
 	err = uut.push("fc1", fc1)
 	require.NoError(t, err)
 	cancel()
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		uut.Lock()
 		defer uut.Unlock()
 		return uut.closed
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestCloserStack_PushAfterClose(t *testing.T) {

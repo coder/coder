@@ -557,9 +557,9 @@ func TestDynamicParameterTemplate(t *testing.T) {
 
 		// Wait until the cache ends up empty. This verifies the cache does not
 		// leak any files.
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return api.AGPL.FileCache.Count() == 0
-		}, testutil.WaitShort, testutil.IntervalFast, "file cache should be empty after the test")
+		}, testutil.IntervalFast, "file cache should be empty after the test")
 	}()
 
 	// Initial response

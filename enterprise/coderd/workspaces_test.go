@@ -2557,7 +2557,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		// Given: reconciliation loop runs and starts prebuilt workspace in failed state
 		runReconciliationLoop(t, ctx, db, reconciler, presets)
 		var failedWorkspaceBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			rows, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
 				TemplateID: template.ID,
 			})
@@ -2569,7 +2569,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 			t.Logf("found %d failed prebuilds so far, want %d", len(failedWorkspaceBuilds), prebuildInstances)
 			return len(failedWorkspaceBuilds) == int(prebuildInstances)
-		}, testutil.WaitSuperLong, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		require.Len(t, failedWorkspaceBuilds, int(prebuildInstances))
 
 		// Given: a failed prebuilt workspace
@@ -3031,9 +3031,10 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		"preset_name":       presetsPrebuild[0].Name,
 		"type":              "prebuild",
 	}
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prebuildCreationLabels) != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prebuildCreationLabels)
 	require.Equal(t, uint64(1), prebuildCreationHistogram.GetSampleCount())
 
@@ -3063,9 +3064,10 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
 	}
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prebuildClaimLabels) != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prebuildClaimLabels)
 	require.Equal(t, uint64(1), prebuildClaimHistogram.GetSampleCount())
 
@@ -3096,9 +3098,10 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		"preset_name":       presetsNoPrebuild[0].Name,
 		"type":              "regular",
 	}
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", regularWorkspaceLabels) != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", regularWorkspaceLabels)
 	require.Equal(t, uint64(1), regularWorkspaceHistogram.GetSampleCount())
 }

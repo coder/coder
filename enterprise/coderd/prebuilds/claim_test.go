@@ -207,7 +207,7 @@ func TestClaimPrebuild(t *testing.T) {
 
 				// Given: a set of running, eligible prebuilds eventually starts up.
 				runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
-				require.Eventually(t, func() bool {
+				testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 					if err != nil {
 						return false
@@ -242,7 +242,7 @@ func TestClaimPrebuild(t *testing.T) {
 					t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), expectedPrebuildsCount)
 
 					return len(runningPrebuilds) == expectedPrebuildsCount
-				}, testutil.WaitSuperLong, testutil.IntervalSlow)
+				}, testutil.IntervalSlow)
 
 				// When: a user creates a new workspace with a preset for which prebuilds are configured.
 				workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
@@ -345,7 +345,7 @@ func TestClaimPrebuild(t *testing.T) {
 					}
 				}
 
-				require.Eventually(t, func() bool {
+				testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 					if err != nil {
 						return false
@@ -354,7 +354,7 @@ func TestClaimPrebuild(t *testing.T) {
 					t.Logf("found %d running prebuilds so far, want %d", len(rows), expectedPrebuildsCount)
 
 					return len(runningPrebuilds) == expectedPrebuildsCount
-				}, testutil.WaitSuperLong, testutil.IntervalSlow)
+				}, testutil.IntervalSlow)
 
 				// Then: when restarting the created workspace (which claimed a prebuild), it should not try and claim a new prebuild.
 				// Prebuilds should ONLY be used for net-new workspaces.

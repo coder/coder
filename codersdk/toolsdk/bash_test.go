@@ -426,13 +426,14 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 		require.Contains(t, result.Output, "Command continues running in background")
 
 		// Wait for the background command to complete (even though SSH session timed out)
-		require.Eventually(t, func() bool {
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			checkArgs := toolsdk.WorkspaceBashArgs{
 				Workspace: workspace.Name,
 				Command:   `cat /tmp/bg-test-done 2>/dev/null || echo "not found"`,
 			}
 			checkResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, checkArgs)
 			return err == nil && checkResult.Output == "done"
-		}, testutil.WaitMedium, testutil.IntervalMedium, "Background command should continue running and complete after timeout")
+		}, testutil.IntervalMedium, "Background command should continue running and complete after timeout")
 	})
 }

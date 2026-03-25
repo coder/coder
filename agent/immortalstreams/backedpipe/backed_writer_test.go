@@ -2,6 +2,7 @@ package backedpipe_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"sync"
 	"testing"
@@ -646,8 +647,8 @@ func TestBackedWriter_ConcurrentWriteAndClose(t *testing.T) {
 	// Ensure the write is actually blocked by repeatedly checking that:
 	// 1. The write hasn't completed yet
 	// 2. The writer is still not connected
-	// We use require.Eventually to give it a fair chance to reach the blocking state
-	require.Eventually(t, func() bool {
+	// We use testutil.Eventually to give it a fair chance to reach the blocking state
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		select {
 		case <-writeComplete:
 			t.Fatal("Write should be blocked when no writer is connected")
@@ -656,7 +657,7 @@ func TestBackedWriter_ConcurrentWriteAndClose(t *testing.T) {
 			// Write is still blocked, which is what we want
 			return !bw.Connected()
 		}
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	// Close the writer while the write is blocked waiting for connection
 	closeErr := bw.Close()

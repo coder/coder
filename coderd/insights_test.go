@@ -214,7 +214,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	var userActivities codersdk.UserActivityInsightsResponse
-	require.Eventuallyf(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		// Keep connection active.
 		_, err := w.Write([]byte("hello world\n"))
 		if !assert.NoError(t, err) {
@@ -229,7 +229,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 			return false
 		}
 		return len(userActivities.Report.Users) > 0 && userActivities.Report.Users[0].Seconds > 0
-	}, testutil.WaitSuperLong, testutil.IntervalMedium, "user activity is missing")
+	}, testutil.IntervalMedium, "user activity is missing")
 
 	// We got our latency data, close the connection.
 	_ = sess.Close()
@@ -312,7 +312,8 @@ func TestUserLatencyInsights(t *testing.T) {
 	require.NoError(t, err)
 
 	var userLatencies codersdk.UserLatencyInsightsResponse
-	require.Eventuallyf(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		// Keep connection active.
 		_, err := w.Write([]byte("hello world\n"))
 		if !assert.NoError(t, err) {
@@ -327,7 +328,7 @@ func TestUserLatencyInsights(t *testing.T) {
 			return false
 		}
 		return len(userLatencies.Report.Users) > 0 && userLatencies.Report.Users[0].LatencyMS.P50 > 0
-	}, testutil.WaitMedium, testutil.IntervalFast, "user latency is missing")
+	}, testutil.IntervalFast, "user latency is missing")
 
 	// We got our latency data, close the connection.
 	_ = sess.Close()

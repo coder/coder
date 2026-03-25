@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -117,7 +116,8 @@ func Test_Runner(t *testing.T) {
 		// finish, then start the agents.
 		go func() {
 			var workspace codersdk.Workspace
-			if !assert.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			if !testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 					Owner: codersdk.Me,
 				})
@@ -129,7 +129,7 @@ func Test_Runner(t *testing.T) {
 					return true
 				}
 				return false
-			}, testutil.WaitShort, testutil.IntervalMedium) {
+			}, testutil.IntervalMedium) {
 				return
 			}
 

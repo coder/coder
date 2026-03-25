@@ -181,9 +181,10 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		err = pubsub.Publish(replicasync.PubsubEvent, []byte(peer.ID.String()))
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return len(server.Regional()) == 1
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		_ = server.Close()
 	})
 	t.Run("DeletesOld", func(t *testing.T) {
@@ -203,9 +204,10 @@ func TestReplica(t *testing.T) {
 		})
 		require.NoError(t, err)
 		defer server.Close()
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return len(server.Regional()) == 0
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
@@ -263,9 +265,10 @@ func TestReplica(t *testing.T) {
 		err = db.DeleteReplicasUpdatedBefore(ctx, dbtime.Now())
 		require.NoError(t, err)
 		deleteTime := dbtime.Now()
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			return server.Self().UpdatedAt.After(deleteTime)
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 }
 

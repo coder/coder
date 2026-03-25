@@ -117,7 +117,8 @@ func TestTunnel(t *testing.T) {
 			defer func() { _ = server.Close() }()
 			defer func() { tun.Listener.Close() }()
 
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, tun.URL.String(), nil)
 				if !assert.NoError(t, err) {
 					return false
@@ -130,7 +131,7 @@ func TestTunnel(t *testing.T) {
 				_, _ = io.Copy(io.Discard, res.Body)
 
 				return res.StatusCode == http.StatusAccepted
-			}, testutil.WaitShort, testutil.IntervalSlow)
+			}, testutil.IntervalSlow)
 
 			assert.NoError(t, server.Close())
 			cancelTun()

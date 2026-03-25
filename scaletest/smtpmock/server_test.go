@@ -54,9 +54,10 @@ func TestServer_SendAndReceiveEmail(t *testing.T) {
 	err = sendTestEmail(srv.SMTPAddress(), "test@example.com", "Test Subject", "Test Body")
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return srv.MessageCount() == 1
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	url := fmt.Sprintf("%s/messages", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -95,9 +96,10 @@ func TestServer_FilterByEmail(t *testing.T) {
 	err = sendTestEmail(srv.SMTPAddress(), "test-user@coder.com", "Email for test-user", "Body 2")
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return srv.MessageCount() == 2
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	url := fmt.Sprintf("%s/messages?email=admin@coder.com", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -134,9 +136,10 @@ func TestServer_NotificationTemplateID(t *testing.T) {
 	err = sendTestEmail(srv.SMTPAddress(), "test-user@coder.com", "Notification", body)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return srv.MessageCount() == 1
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	url := fmt.Sprintf("%s/messages", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -170,9 +173,10 @@ func TestServer_Purge(t *testing.T) {
 	err = sendTestEmail(srv.SMTPAddress(), "test-user@coder.com", "Test", "Body")
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return srv.MessageCount() == 1
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	url := fmt.Sprintf("%s/purge", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)

@@ -49,7 +49,8 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	client := agpltest.NewClient(ctx, t, coordinator, "client", agentID)
 	defer client.Close(ctx)
 	client.UpdateDERP(10)
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		clients, err := store.GetTailnetTunnelPeerBindings(ctx, agentID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
@@ -62,7 +63,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, 10, node.PreferredDerp)
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	client.UngracefulDisconnect(ctx)
 	assertEventuallyLost(ctx, t, store, client.ID)
 }
@@ -81,7 +82,8 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
 	defer agent.Close(ctx)
 	agent.UpdateDERP(10)
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		agents, err := store.GetTailnetPeers(ctx, agent.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
@@ -94,7 +96,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, 10, node.PreferredDerp)
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	agent.UngracefulDisconnect(ctx)
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
@@ -169,7 +171,8 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 		},
 		PreferredDerp: 10,
 	})
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		agents, err := store.GetTailnetPeers(ctx, agent.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
@@ -182,7 +185,7 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, 10, node.PreferredDerp)
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	agent.UngracefulDisconnect(ctx)
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
@@ -385,7 +388,8 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		mu.Lock()
 		defer mu.Unlock()
 		if len(heartbeats) < 2 {
@@ -394,7 +398,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 		assert.Greater(t, heartbeats[0].Sub(start), time.Duration(0))
 		assert.Greater(t, heartbeats[1].Sub(start), time.Duration(0))
 		return assert.Greater(t, heartbeats[1].Sub(heartbeats[0]), tailnet.HeartbeatPeriod*3/4)
-	}, testutil.WaitMedium, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 }
 
 // TestPGCoordinatorDual_Mainline tests with 2 coordinators, one agent connected to each, and 2 clients per agent.
@@ -909,7 +913,8 @@ func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
 
 func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {
 	t.Helper()
-	assert.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		peers, err := store.GetTailnetPeers(ctx, agentID)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return false
@@ -923,7 +928,7 @@ func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.St
 			}
 		}
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
@@ -933,7 +938,8 @@ func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Stor
 
 func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
 	t.Helper()
-	assert.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		clients, err := store.GetTailnetTunnelPeerIDs(ctx, agentID)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return true
@@ -942,7 +948,7 @@ func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store 
 			t.Fatal(err)
 		}
 		return len(clients) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 type fakeCoordinator struct {

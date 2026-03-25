@@ -934,11 +934,11 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			var err error
 			version, err = client.TemplateVersion(ctx, version.ID)
 			return assert.NoError(t, err) && version.Job.Status == codersdk.ProvisionerJobFailed
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 	// TODO(Cian): until we are able to test cancellation properly, validating
 	// Running -> Canceling is the best we can do for now.
@@ -960,7 +960,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			var err error
 			version, err = client.TemplateVersion(ctx, version.ID)
 			if !assert.NoError(t, err) {
@@ -968,10 +968,10 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 			}
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		err := client.CancelTemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			var err error
 			version, err = client.TemplateVersion(ctx, version.ID)
 			// job gets marked Failed when there is an Error; in practice we never get to Status = Canceled
@@ -981,7 +981,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 			return assert.NoError(t, err) &&
 				strings.HasSuffix(version.Job.Error, "canceled") &&
 				version.Job.Status == codersdk.ProvisionerJobFailed
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 }
 
@@ -1520,10 +1520,11 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		}()
 
 		// Wait for the job to complete
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
 			return assert.NoError(t, err) && job.Status == codersdk.ProvisionerJobSucceeded
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		<-logsDone
 
@@ -1616,7 +1617,8 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 			require.NoError(t, err)
 
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
 				if !assert.NoError(t, err) {
 					return false
@@ -1624,7 +1626,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 				t.Logf("Status: %s", job.Status)
 				return job.Status == codersdk.ProvisionerJobSucceeded
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			var apiErr *codersdk.Error

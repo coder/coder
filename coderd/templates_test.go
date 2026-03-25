@@ -1971,14 +1971,11 @@ func TestTemplateMetrics(t *testing.T) {
 			},
 		},
 	}
-	require.Eventuallyf(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		daus, err = client.TemplateDAUs(ctx, template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 		require.NoError(t, err)
 		return len(daus.Entries) > 0
-	},
-		testutil.WaitShort, testutil.IntervalFast,
-		"template daus never loaded",
-	)
+	}, testutil.IntervalFast, "template daus never loaded")
 	gotDAUs, err := client.TemplateDAUs(ctx, template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 	require.NoError(t, err)
 	require.Equal(t, gotDAUs, wantDAUs)
@@ -1987,15 +1984,12 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, template.ActiveUserCount)
 
-	require.Eventuallyf(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		startMs := template.BuildTimeStats[codersdk.WorkspaceTransitionStart].P50
 		return startMs != nil && *startMs > 1
-	},
-		testutil.WaitShort, testutil.IntervalFast,
-		"BuildTimeStats never loaded",
-	)
+	}, testutil.IntervalFast, "BuildTimeStats never loaded")
 
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)

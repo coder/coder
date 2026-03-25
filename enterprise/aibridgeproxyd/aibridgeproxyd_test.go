@@ -3,6 +3,7 @@ package aibridgeproxyd_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -270,14 +271,15 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 	// Wait for the proxy server to be ready.
 	proxyAddr := srv.Addr()
 	require.NotEmpty(t, proxyAddr)
-	require.Eventually(t, func() bool {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		conn, err := net.Dial("tcp", proxyAddr)
 		if err != nil {
 			return false
 		}
 		_ = conn.Close()
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	return srv
 }

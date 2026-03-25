@@ -73,16 +73,18 @@ func TestBufferedUpdates(t *testing.T) {
 	)
 
 	// Wait for messages to be dispatched.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return santa.naughty.Load() == expectedFailure &&
 			santa.nice.Load() == expectedSuccess
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Wait for the expected number of buffered updates to be accumulated.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		success, failure := mgr.BufferedUpdatesCount()
 		return success == expectedSuccess*len(handlers) && failure == expectedFailure*len(handlers)
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
 	require.NoError(t, mgr.Stop(ctx))
@@ -170,11 +172,11 @@ func TestStopBeforeRun(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: validate that the manager can be stopped safely without Run() having been called yet
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		assert.NoError(t, mgr.Stop(ctx))
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestRunStopRace(t *testing.T) {

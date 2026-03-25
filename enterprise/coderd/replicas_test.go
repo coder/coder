@@ -125,12 +125,10 @@ func TestReplicas(t *testing.T) {
 				Logger:         testutil.Logger(t),
 			})
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancelFunc()
+		testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 			_, _, _, err = conn.Ping(ctx)
 			return err == nil
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		_ = conn.Close()
 	})
 	t.Run("ConnectAcrossMultipleTLS", func(t *testing.T) {
@@ -172,12 +170,10 @@ func TestReplicas(t *testing.T) {
 				Logger:         testutil.Logger(t).Named("client"),
 			})
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.IntervalSlow)
-			defer cancelFunc()
+		testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 			_, _, _, err = conn.Ping(ctx)
 			return err == nil
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		_ = conn.Close()
 		replicas, err = secondClient.Replicas(context.Background())
 		require.NoError(t, err)

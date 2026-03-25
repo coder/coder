@@ -180,7 +180,8 @@ func TestCollectInsights(t *testing.T) {
 	require.NoError(t, err)
 
 	collected := map[string]int{}
-	ok := assert.Eventuallyf(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	ok := testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		// When
 		metrics, err := registry.Gather()
 		if !assert.NoError(t, err) {
@@ -205,7 +206,7 @@ func TestCollectInsights(t *testing.T) {
 		}
 
 		return assert.ObjectsAreEqualValues(golden, collected)
-	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are inconsistent with golden files")
+	}, testutil.IntervalFast, "template insights are inconsistent with golden files")
 	if !ok {
 		diff := cmp.Diff(golden, collected)
 		assert.Empty(t, diff, "template insights are inconsistent with golden files (-golden +collected)")

@@ -241,7 +241,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	// then
 	var stats []database.GetWorkspaceAgentStatsRow
 	var err error
-	require.Eventuallyf(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		// Query all stats created not earlier than ~7 months ago
 		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
 		if err != nil {
@@ -249,7 +249,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		}
 		return !containsWorkspaceAgentStat(stats, first) &&
 			containsWorkspaceAgentStat(stats, second)
-	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old stats: %v", stats)
+	}, testutil.IntervalFast, "it should delete old stats: %v", stats)
 
 	// when
 	events := make(chan dbrollup.Event)
@@ -264,7 +264,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	defer closer.Close()
 
 	// then
-	require.Eventuallyf(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		// Query all stats created not earlier than ~7 months ago
 		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
 		if err != nil {
@@ -273,7 +273,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		return !containsWorkspaceAgentStat(stats, first) &&
 			!containsWorkspaceAgentStat(stats, second) &&
 			containsWorkspaceAgentStat(stats, third)
-	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old stats after rollup: %v", stats)
+	}, testutil.IntervalFast, "it should delete old stats after rollup: %v", stats)
 }
 
 func containsWorkspaceAgentStat(stats []database.GetWorkspaceAgentStatsRow, needle database.WorkspaceAgentStat) bool {
@@ -665,7 +665,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	defer closer.Close()
 
 	// then
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		daemons, err := db.GetProvisionerDaemons(ctx)
 		if err != nil {
 			return false
@@ -681,7 +681,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 			!containsProvisionerDaemon(daemons, "external-1") &&
 			!containsProvisionerDaemon(daemons, "alice-provisioner") &&
 			containsProvisionerDaemon(daemons, "bob-provisioner")
-	}, testutil.WaitShort, testutil.IntervalSlow)
+	}, testutil.IntervalSlow)
 }
 
 func containsProvisionerDaemon(daemons []database.ProvisionerDaemon, name string) bool {
@@ -932,7 +932,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	defer closer.Close()
 	<-done // doTick() has now run.
 
-	require.Eventuallyf(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		// We use an SQL queries directly here because we don't expose queries
 		// for deleting heartbeats in the application code.
 		var totalCount int
@@ -950,7 +950,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 		// Expect 2 heartbeats remaining and none older than 24 hours.
 		t.Logf("eventually: total count: %d, old count: %d", totalCount, oldCount)
 		return totalCount == 2 && oldCount == 0
-	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old telemetry heartbeats")
+	}, testutil.IntervalFast, "it should delete old telemetry heartbeats")
 }
 
 func TestDeleteOldConnectionLogs(t *testing.T) {

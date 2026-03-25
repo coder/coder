@@ -1,6 +1,7 @@
 package agentcontainers_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -49,10 +50,11 @@ func TestIntegrationDockerCLI(t *testing.T) {
 	})
 
 	// Wait for container to start.
-	require.Eventually(t, func() bool {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		ct, ok := pool.ContainerByName(ct.Container.Name)
 		return ok && ct.Container.State.Running
-	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+	}, testutil.IntervalSlow, "Container did not start in time")
 
 	dcli := agentcontainers.NewDockerCLI(agentexec.DefaultExecer)
 	containerName := strings.TrimPrefix(ct.Container.Name, "/")
@@ -159,10 +161,10 @@ func TestIntegrationDockerCLIStop(t *testing.T) {
 	})
 
 	// Given: The container is running
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		ct, ok := pool.ContainerByName(ct.Container.Name)
 		return ok && ct.Container.State.Running
-	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+	}, testutil.IntervalSlow, "Container did not start in time")
 
 	dcli := agentcontainers.NewDockerCLI(agentexec.DefaultExecer)
 	containerName := strings.TrimPrefix(ct.Container.Name, "/")
@@ -207,10 +209,10 @@ func TestIntegrationDockerCLIRemove(t *testing.T) {
 	containerName := strings.TrimPrefix(ct.Container.Name, "/")
 
 	// Wait for the container to exit.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		ct, ok := pool.ContainerByName(ct.Container.Name)
 		return ok && !ct.Container.State.Running
-	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not stop in time")
+	}, testutil.IntervalSlow, "Container did not stop in time")
 
 	dcli := agentcontainers.NewDockerCLI(agentexec.DefaultExecer)
 

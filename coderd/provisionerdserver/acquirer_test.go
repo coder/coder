@@ -135,11 +135,11 @@ func TestAcquirer_WaitsOnNoJobs(t *testing.T) {
 	err = fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
 	require.NoError(t, err)
 	acquiree.startAcquire(ctx, uut)
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		fs.mu.Lock()
 		defer fs.mu.Unlock()
 		return len(fs.params) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	acquiree.requireBlocked()
 
 	// First send in some with incompatible tags & types
@@ -184,11 +184,11 @@ func TestAcquirer_RetriesPending(t *testing.T) {
 	jobID := uuid.New()
 
 	acquiree.startAcquire(ctx, uut)
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		fs.mu.Lock()
 		defer fs.mu.Unlock()
 		return len(fs.params) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// First call to DB is in progress.  Send in posting
 	postJob(t, ps, database.ProvisionerTypeEcho, provisionerdserver.Tags{})

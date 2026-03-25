@@ -3937,12 +3937,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		require.Eventuallyf(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			err = api.RefreshContainers(ctx)
 			require.NoError(t, err)
 
 			return len(fakeSAC.agents) == 1
-		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be created after config change")
+		}, testutil.IntervalFast, "subagent should be created after config change")
 
 		t.Log("Phase 2: Cont, waiting for sub agent to exit")
 		exitSubAgentOnce.Do(func() {
@@ -3977,12 +3977,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		require.Eventuallyf(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			err = api.RefreshContainers(ctx)
 			require.NoError(t, err)
 
 			return len(fakeSAC.agents) == 0
-		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be deleted after config change")
+		}, testutil.IntervalFast, "subagent should be deleted after config change")
 
 		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 		rec = httptest.NewRecorder()
@@ -4544,7 +4544,8 @@ func TestDevcontainerDiscovery(t *testing.T) {
 			tickerTrap.Close()
 
 			// Wait until all projects have been discovered
-			require.Eventuallyf(t, func() bool {
+			ctx = testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
@@ -4554,7 +4555,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				require.NoError(t, err)
 
 				return len(got.Devcontainers) >= len(tt.expected)
-			}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
+			}, testutil.IntervalFast, "dev containers never found")
 
 			// Now projects have been discovered, we'll allow the updater loop
 			// to set the appropriate status for these containers.
@@ -4736,7 +4737,6 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				t.Parallel()
 
 				var (
-					ctx    = testutil.Context(t, testutil.WaitShort)
 					logger = testutil.Logger(t)
 					mClock = quartz.NewMock(t)
 
@@ -4772,7 +4772,8 @@ func TestDevcontainerDiscovery(t *testing.T) {
 
 				// Given: We allow the discover routing to progress
 				var got codersdk.WorkspaceAgentListContainersResponse
-				require.Eventuallyf(t, func() bool {
+				ctx := testutil.Context(t, testutil.WaitShort)
+				testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 					req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 					rec := httptest.NewRecorder()
 					r.ServeHTTP(rec, req)
@@ -4786,7 +4787,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 					upCalledMu.Unlock()
 
 					return len(got.Devcontainers) >= tt.expectDevcontainerCount && upCalledCount >= tt.expectUpCalledCount
-				}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
+				}, testutil.IntervalFast, "dev containers never found")
 
 				// Close the API. We expect this not to fail because we should have finished
 				// at this point.
@@ -4812,7 +4813,6 @@ func TestDevcontainerDiscovery(t *testing.T) {
 		t.Run("Disabled", func(t *testing.T) {
 			t.Parallel()
 			var (
-				ctx    = testutil.Context(t, testutil.WaitShort)
 				logger = testutil.Logger(t)
 				mClock = quartz.NewMock(t)
 				mDCCLI = acmock.NewMockDevcontainerCLI(gomock.NewController(t))
@@ -4863,7 +4863,8 @@ func TestDevcontainerDiscovery(t *testing.T) {
 			r.Mount("/", api.Routes())
 
 			// When: All expected dev containers have been found.
-			require.Eventuallyf(t, func() bool {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
@@ -4873,7 +4874,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				require.NoError(t, err)
 
 				return len(got.Devcontainers) >= 1
-			}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
+			}, testutil.IntervalFast, "dev containers never found")
 
 			// Then: We expect the mock infra to not fail.
 		})

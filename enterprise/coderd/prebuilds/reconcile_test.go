@@ -1756,12 +1756,12 @@ func TestRunLoop(t *testing.T) {
 	// wait until ReconcileAll is completed
 	// TODO: is it possible to avoid Eventually and replace it with quartz?
 	// Ideally to have all control on test-level, and be able to advance loop iterations from the test.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		newPrebuildCount := getNewPrebuildCount()
 
 		// NOTE: preset1 doesn't block creation of instances in preset2
 		return preset2.DesiredInstances.Int32 == newPrebuildCount
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// setup one more preset with 5 prebuilds
 	preset3 := setupTestDBPreset(
@@ -1780,12 +1780,12 @@ func TestRunLoop(t *testing.T) {
 	clock.Advance(cfg.ReconciliationInterval.Value()).MustWait(ctx)
 
 	// wait until ReconcileAll is completed
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		newPrebuildCount := getNewPrebuildCount()
 
 		// both prebuilds for preset2 and preset3 were created
 		return preset2.DesiredInstances.Int32+preset3.DesiredInstances.Int32 == newPrebuildCount
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// gracefully stop the reconciliation loop
 	reconciler.Stop(ctx, nil)

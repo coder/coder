@@ -1,6 +1,7 @@
 package prometheusmetrics
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -52,10 +53,11 @@ func TestDescCache_DescExpire(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		ma.cleanupDescCache()
 		return len(ma.descCache) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 // TestDescCacheTimestampUpdate ensures that the timestamp update in getOrCreateDesc

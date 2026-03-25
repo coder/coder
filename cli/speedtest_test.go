@@ -31,7 +31,7 @@ func TestSpeedtest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		ws, err := client.Workspace(ctx, workspace.ID)
 		if !assert.NoError(t, err) {
 			return false
@@ -39,7 +39,7 @@ func TestSpeedtest(t *testing.T) {
 		a := ws.LatestBuild.Resources[0].Agents[0]
 		return a.Status == codersdk.WorkspaceAgentConnected &&
 			a.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
-	}, testutil.WaitLong, testutil.IntervalFast, "agent is not ready")
+	}, testutil.IntervalFast, "agent is not ready")
 
 	inv, root := clitest.New(t, "speedtest", workspace.Name)
 	clitest.SetupConfig(t, client, root)
@@ -71,7 +71,7 @@ func TestSpeedtestJson(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		ws, err := client.Workspace(ctx, workspace.ID)
 		if !assert.NoError(t, err) {
 			return false
@@ -79,7 +79,7 @@ func TestSpeedtestJson(t *testing.T) {
 		a := ws.LatestBuild.Resources[0].Agents[0]
 		return a.Status == codersdk.WorkspaceAgentConnected &&
 			a.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
-	}, testutil.WaitLong, testutil.IntervalFast, "agent is not ready")
+	}, testutil.IntervalFast, "agent is not ready")
 
 	inv, root := clitest.New(t, "speedtest", "--output=json", workspace.Name)
 	clitest.SetupConfig(t, client, root)

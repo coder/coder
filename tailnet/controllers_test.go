@@ -520,11 +520,11 @@ func coordinationTest(
 		},
 	}
 	testutil.RequireSend(ctx, t, resps, &proto.CoordinateResponse{PeerUpdates: updates})
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		fConn.Lock()
 		defer fConn.Unlock()
 		return len(fConn.updates) > 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	require.Len(t, fConn.updates[0], 1)
 	require.Equal(t, agentID[:], fConn.updates[0][0].Id)
 

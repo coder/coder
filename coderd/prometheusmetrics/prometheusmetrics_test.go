@@ -105,12 +105,13 @@ func TestActiveUsers(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
-			require.Eventually(t, func() bool {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 				metrics, err := registry.Gather()
 				assert.NoError(t, err)
 				result := int(*metrics[0].Metric[0].Gauge.Value)
 				return result == tc.Count
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		})
 	}
 }
@@ -195,7 +196,10 @@ func TestUsers(t *testing.T) {
 				return true
 			}
 
-			require.Eventually(t, checkFn, testutil.WaitShort, testutil.IntervalFast)
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(_ context.Context) bool {
+				return checkFn()
+			}, testutil.IntervalFast)
 
 			// Add another dormant user and ensure it updates
 			dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
@@ -204,7 +208,10 @@ func TestUsers(t *testing.T) {
 			_, w = mClock.AdvanceNext()
 			w.MustWait(ctx)
 
-			require.Eventually(t, checkFn, testutil.WaitShort, testutil.IntervalFast)
+			tCtx2 := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx2, t, func(_ context.Context) bool {
+				return checkFn()
+			}, testutil.IntervalFast)
 		})
 	}
 }
@@ -280,7 +287,7 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
-			require.Eventually(t, func() bool {
+			testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 				metrics, err := registry.Gather()
 				assert.NoError(t, err)
 				sum := 0
@@ -305,7 +312,7 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 				}
 				t.Logf("sum %d == total %d", sum, tc.Total)
 				return sum == tc.Total
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		})
 	}
 }
@@ -383,7 +390,7 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
-			require.Eventually(t, func() bool {
+			testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 				metrics, err := registry.Gather()
 				assert.NoError(t, err)
 
@@ -418,7 +425,7 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 
 				t.Logf("status series = %d, expected == %d", stSum, tc.ExpectedWorkspaces)
 				return stSum == tc.ExpectedWorkspaces
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		})
 	}
 }
@@ -503,7 +510,7 @@ func TestWorkspaceCreationTotal(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
-			require.Eventually(t, func() bool {
+			testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 				metrics, err := registry.Gather()
 				assert.NoError(t, err)
 
@@ -519,7 +526,7 @@ func TestWorkspaceCreationTotal(t *testing.T) {
 
 				t.Logf("count = %d, expected == %d", sum, tc.ExpectedWorkspaces)
 				return sum == tc.ExpectedWorkspaces
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		})
 	}
 }
@@ -594,7 +601,8 @@ func TestAgents(t *testing.T) {
 	var agentsConnections bool
 	var agentsApps bool
 	var agentsExecutionInSeconds bool
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		metrics, err := registry.Gather()
 		assert.NoError(t, err)
 
@@ -635,7 +643,7 @@ func TestAgents(t *testing.T) {
 			}
 		}
 		return agentsUp && agentsConnections && agentsApps && agentsExecutionInSeconds
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestAgentStats(t *testing.T) {
@@ -738,7 +746,8 @@ func TestAgentStats(t *testing.T) {
 
 	collected := map[string]int{}
 	var executionSeconds bool
-	assert.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		metrics, err := registry.Gather()
 		assert.NoError(t, err)
 
@@ -767,7 +776,7 @@ func TestAgentStats(t *testing.T) {
 			}
 		}
 		return executionSeconds && reflect.DeepEqual(golden, collected)
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Keep this assertion, so that "go test" can print differences instead of "Condition never satisfied"
 	assert.EqualValues(t, golden, collected)

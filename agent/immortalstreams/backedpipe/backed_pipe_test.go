@@ -420,7 +420,7 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 	testutil.TryReceive(testCtx, t, readStarted)
 
 	// Ensure the read is actually blocked by verifying it hasn't completed
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testCtx, t, func(ctx context.Context) bool {
 		select {
 		case <-readDone:
 			t.Fatal("Read should be blocked when disconnected")
@@ -429,7 +429,7 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 			// Good, still blocked
 			return true
 		}
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 
 	// Close should unblock the read
 	bp.Close()
@@ -468,9 +468,9 @@ func TestBackedPipe_Reconnection(t *testing.T) {
 	testutil.RequireReceive(testCtx, t, signalChan)
 
 	// Wait for reconnection to complete
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testCtx, t, func(ctx context.Context) bool {
 		return bp.Connected()
-	}, testutil.WaitShort, testutil.IntervalFast, "pipe should reconnect")
+	}, testutil.IntervalFast, "pipe should reconnect")
 
 	replayedData := conn2.ReadString()
 	require.Equal(t, "***trigger failure ", replayedData, "Should replay exactly the data written after sequence 17")
@@ -646,9 +646,9 @@ func TestBackedPipe_StateTransitionsAndGenerationTracking(t *testing.T) {
 	testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, signalChan)
 
 	// Wait for reconnection to complete
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		return bp.Connected()
-	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect")
+	}, testutil.IntervalFast, "should reconnect")
 	require.Equal(t, 2, reconnector.GetCallCount())
 
 	// Force another reconnection
@@ -707,9 +707,9 @@ func TestBackedPipe_GenerationFiltering(t *testing.T) {
 	wg.Wait()
 
 	// Wait for reconnection to complete
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		return bp.Connected()
-	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect once")
+	}, testutil.IntervalFast, "should reconnect once")
 
 	// Should have only reconnected once despite multiple errors
 	require.Equal(t, 2, reconnector.GetCallCount()) // Initial connect + 1 reconnect
@@ -840,9 +840,9 @@ func TestBackedPipe_SingleReconnectionOnMultipleErrors(t *testing.T) {
 	testutil.RequireReceive(testCtx, t, signalChan)
 
 	// Wait for reconnection to complete
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testCtx, t, func(ctx context.Context) bool {
 		return bp.Connected()
-	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect after write error")
+	}, testutil.IntervalFast, "should reconnect after write error")
 
 	// Verify that only one reconnection occurred
 	require.Equal(t, 2, reconnector.GetCallCount(), "should have exactly 2 calls: initial connect + 1 reconnection")

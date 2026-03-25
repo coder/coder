@@ -403,7 +403,8 @@ func TestWorkspace(t *testing.T) {
 
 			// Wait for the sub-agent to become unhealthy due to timeout.
 			var subAgentUnhealthy bool
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				workspace, err = client.Workspace(ctx, workspace.ID)
 				if err != nil {
 					return false
@@ -417,7 +418,7 @@ func TestWorkspace(t *testing.T) {
 					}
 				}
 				return false
-			}, testutil.WaitShort, testutil.IntervalFast, "sub-agent should become unhealthy")
+			}, testutil.IntervalFast, "sub-agent should become unhealthy")
 
 			require.True(t, subAgentUnhealthy, "sub-agent should be unhealthy")
 
@@ -3004,13 +3005,14 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			interval := next.Sub(testCase.at)
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				if len(auditor.AuditLogs()) < 7 {
 					return false
 				}
 				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
 					auditor.AuditLogs()[5].Action == database.AuditActionWrite
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.IntervalFast)
 		})
 	}
 
@@ -3168,13 +3170,14 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 
-			require.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitMedium)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				if len(auditor.AuditLogs()) != 7 {
 					return false
 				}
 				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
 					auditor.AuditLogs()[5].Action == database.AuditActionWrite
-			}, testutil.WaitMedium, testutil.IntervalFast, "expected audit log to be written")
+			}, testutil.IntervalFast, "expected audit log to be written")
 		})
 	}
 
@@ -3489,7 +3492,8 @@ func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.AutomaticUpdatesAlways, updated.AutomaticUpdates)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		var found bool
 		for _, l := range auditor.AuditLogs() {
 			if l.Action == database.AuditActionWrite &&
@@ -3500,7 +3504,7 @@ func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 			}
 		}
 		return found
-	}, testutil.WaitShort, testutil.IntervalFast, "did not find expected audit log")
+	}, testutil.IntervalFast, "did not find expected audit log")
 }
 
 func TestUpdateWorkspaceAutomaticUpdates_NotFound(t *testing.T) {

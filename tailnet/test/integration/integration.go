@@ -427,10 +427,11 @@ func (b BasicClientStarter) StartClient(t *testing.T, logger slog.Logger, server
 	if b.WaitForConnection || b.WaitForDirect {
 		// Wait for connection to be established.
 		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(tCtx, t, func(_ context.Context) bool {
 			t.Log("attempting ping to peer to judge direct connection")
-			ctx := testutil.Context(t, testutil.WaitShort)
-			_, p2p, pong, err := conn.Ping(ctx, peerIP)
+			pingCtx := testutil.Context(t, testutil.WaitShort)
+			_, p2p, pong, err := conn.Ping(pingCtx, peerIP)
 			if err != nil {
 				t.Logf("ping failed: %v", err)
 				return false
@@ -441,7 +442,7 @@ func (b BasicClientStarter) StartClient(t *testing.T, logger slog.Logger, server
 			}
 			t.Logf("ping succeeded, p2p=%t, endpoint=%s", p2p, pong.Endpoint)
 			return true
-		}, testutil.WaitLong, testutil.IntervalMedium)
+		}, testutil.IntervalMedium)
 	}
 
 	return conn

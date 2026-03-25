@@ -103,7 +103,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			current, getErr := db.GetChatByID(ctx, chat.ID)
 			if getErr != nil {
 				return false
@@ -113,7 +113,7 @@ func TestChatStreamRelay(t *testing.T) {
 			}
 			runningChat = current
 			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		var localClient *codersdk.ExperimentalClient
 		var relayClient *codersdk.ExperimentalClient
@@ -292,7 +292,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			current, getErr := db.GetChatByID(ctx, chat.ID)
 			if getErr != nil {
 				return false
@@ -302,7 +302,7 @@ func TestChatStreamRelay(t *testing.T) {
 			}
 			runningChat = current
 			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		var localClient *codersdk.ExperimentalClient
 		var relayClient *codersdk.ExperimentalClient
@@ -462,7 +462,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			current, getErr := db.GetChatByID(ctx, chat.ID)
 			if getErr != nil {
 				return false
@@ -472,7 +472,7 @@ func TestChatStreamRelay(t *testing.T) {
 			}
 			runningChat = current
 			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		var localClient *codersdk.ExperimentalClient
 		var relayClient *codersdk.ExperimentalClient
@@ -634,7 +634,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			current, getErr := db.GetChatByID(ctx, chat.ID)
 			if getErr != nil {
 				return false
@@ -644,7 +644,7 @@ func TestChatStreamRelay(t *testing.T) {
 			}
 			runningChat = current
 			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		var localClient *codersdk.ExperimentalClient
 		var relayClient *codersdk.ExperimentalClient
@@ -782,7 +782,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
 		var runningChat database.Chat
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			current, getErr := db.GetChatByID(ctx, chat.ID)
 			if getErr != nil {
 				return false
@@ -792,7 +792,7 @@ func TestChatStreamRelay(t *testing.T) {
 			}
 			runningChat = current
 			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		var localClient *codersdk.ExperimentalClient
 		var relayClient *codersdk.ExperimentalClient

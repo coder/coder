@@ -73,13 +73,14 @@ func TestIntegrationDocker(t *testing.T) {
 		t.Logf("Purged container %q", ct.Container.Name)
 	})
 	// Wait for container to start
-	require.Eventually(t, func() bool {
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		ct, ok := pool.ContainerByName(ct.Container.Name)
 		return ok && ct.Container.State.Running
-	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
+	}, testutil.IntervalSlow, "Container did not start in time")
 
 	dcl := agentcontainers.NewDockerCLI(agentexec.DefaultExecer)
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx = testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
 	require.Empty(t, actual.Warnings, "Expected no warnings")

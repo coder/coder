@@ -1126,7 +1126,7 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 
 	t.Logf("waiting for template version %s build job to start", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
 		if err != nil {
@@ -1142,7 +1142,7 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 			t.FailNow()
 			return false
 		}
-	}, testutil.WaitShort, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	}, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
 	t.Logf("template version %s job has started", version)
 	return templateVersion
 }
@@ -1157,12 +1157,12 @@ func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 
 	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	}, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
 	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
@@ -1171,12 +1171,10 @@ func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		if err != nil {
@@ -1188,7 +1186,7 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 			return false
 		}
 		return true
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }

@@ -167,7 +167,6 @@ func TestTailnet(t *testing.T) {
 	t.Run("PingDirect", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
@@ -190,7 +189,8 @@ func TestTailnet(t *testing.T) {
 		stitch(t, w1, w2)
 		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
 
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			_, direct, pong, err := w2.Ping(ctx, w1IP)
 			if err != nil {
 				t.Logf("ping error: %s", err.Error())
@@ -201,13 +201,12 @@ func TestTailnet(t *testing.T) {
 				return false
 			}
 			return true
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("PingDERPOnly", func(t *testing.T) {
 		t.Parallel()
 		logger := testutil.Logger(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
@@ -232,7 +231,8 @@ func TestTailnet(t *testing.T) {
 		stitch(t, w1, w2)
 		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
 
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			_, direct, pong, err := w2.Ping(ctx, w1IP)
 			if err != nil {
 				t.Logf("ping error: %s", err.Error())
@@ -243,7 +243,7 @@ func TestTailnet(t *testing.T) {
 				return false
 			}
 			return true
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 }
 

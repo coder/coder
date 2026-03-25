@@ -49,10 +49,11 @@ func TestResetPassword(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 	var rawURL string
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	accessURL, err := url.Parse(rawURL)
 	require.NoError(t, err)
 	client := codersdk.New(accessURL)

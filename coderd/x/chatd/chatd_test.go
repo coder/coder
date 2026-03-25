@@ -86,7 +86,8 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, updated.Status)
 	require.False(t, updated.WorkerID.Valid)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case event := <-events:
 			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
@@ -97,7 +98,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
@@ -193,7 +194,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	// Wait for the root chat AND the subagent to finish.
 	// The root chat finishes first, then the chatd server
 	// picks up and runs the child (subagent) chat.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := expClient.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
@@ -207,7 +208,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		toolsMu.Unlock()
 		// Expect at least 3 calls: root-1 (spawn_agent), child-1, root-2.
 		return n >= 3
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// There should be at least two streamed calls: one for the root
 	// chat and one for the subagent child chat.
@@ -1288,13 +1289,14 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 
 	// The startup recovery should have already reset our stale
 	// chat.
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		fromDB, err := db.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return false
 		}
 		return fromDB.Status == database.ChatStatusPending
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	// Now simulate a second stale chat appearing AFTER startup.
 	// This tests the periodic recovery, not just the startup one.
@@ -1317,13 +1319,14 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 
 	// The periodic stale recovery loop (running at staleAfter/5 =
 	// 100ms intervals) should pick this up without a restart.
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		fromDB, err := db.GetChatByID(ctx, chat2.ID)
 		if err != nil {
 			return false
 		}
 		return fromDB.Status == database.ChatStatusPending
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
@@ -1359,14 +1362,15 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	newReplica := newTestServer(t, db, ps, uuid.New())
 	_ = newReplica
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		fromDB, err := db.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return false
 		}
 		return fromDB.Status == database.ChatStatusPending &&
 			!fromDB.WorkerID.Valid
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
@@ -1594,14 +1598,14 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	require.NoError(t, err)
 
 	var chatResult database.Chat
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
 		chatResult = got
 		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
 		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
@@ -1902,14 +1906,14 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	var chatResult codersdk.Chat
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := expClient.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
 		chatResult = got
 		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
@@ -2074,14 +2078,14 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	var chatResult codersdk.Chat
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := expClient.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
 		chatResult = got
 		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
-	}, testutil.WaitSuperLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
@@ -2813,26 +2817,29 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
 		}
 		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		select {
 		case <-streamStarted:
 			return true
 		default:
 			return false
 		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	require.NoError(t, serverA.Close())
 
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
@@ -2840,7 +2847,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		return fromDB.Status == database.ChatStatusPending &&
 			!fromDB.WorkerID.Valid &&
 			!fromDB.LastError.Valid
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	loggerB := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	serverB := chatd.New(chatd.Config{
@@ -2855,11 +2862,13 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		require.NoError(t, serverB.Close())
 	})
 
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		return requestCount.Load() >= 2
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
-	require.Eventually(t, func() bool {
+	tCtx = testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
 		if dbErr != nil {
 			return false
@@ -2867,7 +2876,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		return fromDB.Status == database.ChatStatusWaiting &&
 			!fromDB.WorkerID.Valid &&
 			!fromDB.LastError.Valid
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
@@ -3189,7 +3198,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	// Wait for the root chat AND the computer use child to finish.
 	// The root chat spawns the child, then the chatd server picks
 	// up and runs the child (which hits the Anthropic mock).
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
@@ -3203,7 +3212,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		n := len(anthropicCalls)
 		anthropicMu.Unlock()
 		return n >= 1
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	anthropicMu.Lock()
 	calls := append([]anthropicCall(nil), anthropicCalls...)
@@ -3459,14 +3468,14 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 	// Wait for the panic to be recovered and the chat to
 	// transition to error status.
 	var chatResult database.Chat
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
 		chatResult = got
 		return got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	require.True(t, chatResult.LastError.Valid, "LastError should be set")
 	require.Contains(t, chatResult.LastError.String, "chat processing panicked")
@@ -3626,14 +3635,14 @@ func TestMCPServerToolInvocation(t *testing.T) {
 
 	// Wait for the chat to finish processing.
 	var chatResult database.Chat
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
 		chatResult = got
 		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	if chatResult.Status == database.ChatStatusError {
 		require.FailNowf(t, "chat failed", "last_error=%q", chatResult.LastError.String)

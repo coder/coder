@@ -372,11 +372,11 @@ func (f *fakePingerCloser) requireNotClosed(t *testing.T) {
 }
 
 func (f *fakePingerCloser) requireEventuallyClosed(t *testing.T, code websocket.StatusCode, reason string) {
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		f.Lock()
 		defer f.Unlock()
 		return f.closed
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 	f.Lock()
 	defer f.Unlock()
 	require.Equal(t, code, f.code)
@@ -384,11 +384,11 @@ func (f *fakePingerCloser) requireEventuallyClosed(t *testing.T, code websocket.
 }
 
 func (f *fakePingerCloser) requireEventuallyHasPing(t *testing.T) {
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		f.Lock()
 		defer f.Unlock()
 		return len(f.pings) > 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 type fakeUpdater struct {
@@ -403,11 +403,11 @@ func (f *fakeUpdater) publishWorkspaceUpdate(_ context.Context, _ uuid.UUID, eve
 }
 
 func (f *fakeUpdater) requireEventuallySomeUpdates(t *testing.T, workspaceID uuid.UUID) {
-	require.Eventually(t, func() bool {
+	testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(ctx context.Context) bool {
 		f.Lock()
 		defer f.Unlock()
 		return len(f.updates) >= 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 
 	f.Lock()
 	defer f.Unlock()

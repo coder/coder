@@ -285,9 +285,10 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 
 	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		t.Log("agent id", resources[0].Agents[0].ID)
 		return (*api.TailnetCoordinator.Load()).Node(resources[0].Agents[0].ID) != nil
-	}, testutil.WaitLong, testutil.IntervalMedium, "agent never connected")
+	}, testutil.IntervalMedium, "agent never connected")
 	return client, resources[0].Agents[0].ID
 }

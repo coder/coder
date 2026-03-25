@@ -195,13 +195,14 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 		// The connection monitor updates the database asynchronously,
 		// so we need to wait for first_connected_at to be set.
 		var agent database.WorkspaceAgent
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			agent, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
 			if err != nil {
 				return false
 			}
 			return agent.FirstConnectedAt.Valid
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 		assert.True(t, agent.LastConnectedAt.Valid,
 			"last_connected_at should be set for agent role")
 	})

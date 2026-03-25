@@ -212,10 +212,10 @@ func TestServer(t *testing.T) {
 		clitest.Start(t, inv.WithContext(ctx))
 
 		//nolint:gocritic // Embedded postgres take a while to fire up.
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			rawURL, err := cfg.URL().Read()
 			return err == nil && rawURL != ""
-		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
+		}, testutil.IntervalFast, "failed to get access URL")
 	})
 	t.Run("EphemeralDeployment", func(t *testing.T) {
 		t.Parallel()
@@ -1229,7 +1229,8 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, body.Body.Close())
 
-		require.Eventually(t, func() bool {
+		tCtx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			snap := <-snapshot
 			htmlFirstServedFound := false
 			for _, item := range snap.TelemetryItems {
@@ -1238,7 +1239,7 @@ func TestServer(t *testing.T) {
 				}
 			}
 			return htmlFirstServedFound
-		}, testutil.WaitLong, testutil.IntervalSlow, "no html_first_served telemetry item")
+		}, testutil.IntervalSlow, "no html_first_served telemetry item")
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
@@ -2074,7 +2075,8 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 
 func loggingWaitFile(t *testing.T, fiName string, dur time.Duration) {
 	var lastStat os.FileInfo
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, dur)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		var err error
 		lastStat, err = os.Stat(fiName)
 		if err != nil {
@@ -2084,12 +2086,7 @@ func loggingWaitFile(t *testing.T, fiName string, dur time.Duration) {
 			return false
 		}
 		return lastStat.Size() > 0
-	},
-		dur, //nolint:gocritic
-		testutil.IntervalFast,
-		"file at %s should exist, last stat: %+v",
-		fiName, lastStat,
-	)
+	}, testutil.IntervalFast, "file at %s should exist, last stat: %+v", fiName, lastStat)
 }
 
 func TestServer_Production(t *testing.T) {
@@ -2286,10 +2283,11 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 
 	var err error
 	var rawURL string
-	require.Eventually(t, func() bool {
+	tCtx := testutil.Context(t, testutil.WaitLong)
+	testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 		rawURL, err = cfg.URL().Read()
 		return err == nil && rawURL != ""
-	}, testutil.WaitLong, testutil.IntervalFast, "failed to get access URL")
+	}, testutil.IntervalFast, "failed to get access URL")
 
 	accessURL, err := url.Parse(rawURL)
 	require.NoError(t, err, "failed to parse access URL")

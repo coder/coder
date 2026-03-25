@@ -5,7 +5,7 @@ import (
 )
 
 // Constants for timing out operations, usable for creating contexts
-// that timeout or in require.Eventually.
+// that timeout or in testutil.Eventually.
 const (
 	WaitShort     = 10 * time.Second
 	WaitMedium    = 15 * time.Second
@@ -14,7 +14,7 @@ const (
 )
 
 // Constants for delaying repeated operations, e.g. in
-// require.Eventually.
+// testutil.Eventually.
 const (
 	IntervalFast   = 25 * time.Millisecond
 	IntervalMedium = 250 * time.Millisecond

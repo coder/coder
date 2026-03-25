@@ -34,9 +34,9 @@ func TestCoordinator(t *testing.T) {
 			Addresses:     []string{tailnet.TailscaleServicePrefix.RandomPrefix().String()},
 			PreferredDerp: 10,
 		})
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return coordinator.Node(client.ID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("ClientWithoutAgent_InvalidIPBits", func(t *testing.T) {
@@ -80,9 +80,9 @@ func TestCoordinator(t *testing.T) {
 			},
 			PreferredDerp: 10,
 		})
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return coordinator.Node(agent.ID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("AgentWithoutClients_InvalidIP", func(t *testing.T) {
@@ -141,9 +141,9 @@ func TestCoordinator(t *testing.T) {
 		agent := test.NewAgent(ctx, t, coordinator, "agent")
 		defer agent.Close(ctx)
 		agent.UpdateDERP(1)
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return coordinator.Node(agent.ID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		client := test.NewClient(ctx, t, coordinator, "client", agent.ID)
 		defer client.Close(ctx)
@@ -176,9 +176,9 @@ func TestCoordinator(t *testing.T) {
 		agent1 := test.NewPeer(ctx, t, coordinator, "agent1", test.WithID(agentID))
 		defer agent1.Close(ctx)
 		agent1.UpdateDERP(1)
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return coordinator.Node(agentID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.IntervalFast)
 
 		client := test.NewPeer(ctx, t, coordinator, "client")
 		defer client.Close(ctx)

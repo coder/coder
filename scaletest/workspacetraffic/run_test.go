@@ -123,14 +123,15 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(gotMetrics)
 			// Wait until we get some non-zero metrics before canceling.
-			assert.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitLong)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				readLatencies := readMetrics.Latencies()
 				writeLatencies := writeMetrics.Latencies()
 				return len(readLatencies) > 0 &&
 					len(writeLatencies) > 0 &&
 					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
 					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
-			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
+			}, testutil.IntervalMedium, "expected non-zero metrics")
 		}()
 
 		// Stop the test after we get some non-zero metrics.
@@ -243,14 +244,15 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(gotMetrics)
 			// Wait until we get some non-zero metrics before canceling.
-			assert.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitLong)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				readLatencies := readMetrics.Latencies()
 				writeLatencies := writeMetrics.Latencies()
 				return len(readLatencies) > 0 &&
 					len(writeLatencies) > 0 &&
 					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
 					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
-			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
+			}, testutil.IntervalMedium, "expected non-zero metrics")
 		}()
 
 		// Stop the test after we get some non-zero metrics.
@@ -343,14 +345,15 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(gotMetrics)
 			// Wait until we get some non-zero metrics before canceling.
-			assert.Eventually(t, func() bool {
+			tCtx := testutil.Context(t, testutil.WaitLong)
+			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				readLatencies := readMetrics.Latencies()
 				writeLatencies := writeMetrics.Latencies()
 				return len(readLatencies) > 0 &&
 					len(writeLatencies) > 0 &&
 					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
 					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
-			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
+			}, testutil.IntervalMedium, "expected non-zero metrics")
 		}()
 
 		// Stop the test after we get some non-zero metrics.
