@@ -34,6 +34,16 @@ export const ExecuteTool: React.FC<{
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
 
+	// Track whether the command text is truncated so we can offer
+	// a click-to-expand interaction.
+	const [commandExpanded, setCommandExpanded] = useState(false);
+	const [commandOverflows, setCommandOverflows] = useState(false);
+	const commandRef = (node: HTMLElement | null) => {
+		if (node) {
+			setCommandOverflows(node.scrollWidth > node.clientWidth);
+		}
+	};
+
 	// Check whether the output overflows the collapsed height so we
 	// know if we need to show the expand toggle at all.
 	const [overflows, setOverflows] = useState(false);
@@ -47,16 +57,53 @@ export const ExecuteTool: React.FC<{
 	return (
 		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			{/* Header: $ command + copy button */}
-			<div className="flex w-full items-center justify-between gap-2 px-2.5 py-0.5">
-				<div className="flex min-w-0 flex-1 items-center gap-2">
-					<span className="shrink-0 font-mono text-xs text-content-secondary">
+			<div className={cn("flex w-full justify-between gap-2 px-2.5 py-0.5", commandExpanded ? "items-start" : "items-center")}>
+				<button
+					type="button"
+					className={cn(
+						"flex min-w-0 flex-1 gap-2 border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
+						commandExpanded ? "items-start" : "items-center",
+						commandOverflows || commandExpanded
+							? "cursor-pointer"
+							: "cursor-default",
+					)}
+					onClick={
+						commandOverflows || commandExpanded
+							? () => setCommandExpanded((v) => !v)
+							: undefined
+					}
+				>
+					<span className="shrink-0 font-mono text-xs leading-5 text-content-secondary">
 						$
 					</span>
-					<code className="min-w-0 flex-1 truncate font-mono text-xs text-content-primary">
+					<code
+						ref={commandRef}
+						className={cn(
+							"min-w-0 flex-1 font-mono text-xs leading-5 text-content-primary",
+							commandExpanded
+								? "whitespace-pre-wrap break-all"
+								: "truncate",
+						)}
+					>
 						{command}
 					</code>
-				</div>
+				</button>
 				<div className="flex shrink-0 items-center gap-1">
+					{commandOverflows && (
+						<button
+							type="button"
+							onClick={() => setCommandExpanded((v) => !v)}
+							className="border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors"
+							aria-label={commandExpanded ? "Collapse command" : "Expand command"}
+						>
+							<ChevronDownIcon
+								className={cn(
+									"h-3.5 w-3.5 transition-transform",
+									commandExpanded && "rotate-180",
+								)}
+							/>
+						</button>
+					)}
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 					)}
@@ -65,7 +112,6 @@ export const ExecuteTool: React.FC<{
 					</span>
 				</div>
 			</div>
-
 			{/* Output preview / expanded */}
 			{hasOutput && (
 				<>
