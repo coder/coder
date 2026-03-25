@@ -470,6 +470,120 @@ export const TaskNameGenericRendering: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// MCP tool stories (generic renderer with MCP server context)
+// ---------------------------------------------------------------------------
+
+const sampleMCPServers = [
+	{
+		id: "mcp-server-1",
+		slug: "linear",
+		display_name: "Linear",
+		description: "Project management",
+		icon_url: "https://linear.app/favicon.ico",
+		transport: "streamable_http",
+		url: "https://mcp.linear.app",
+		auth_type: "oauth2",
+		has_oauth2_secret: false,
+		has_api_key: false,
+		has_custom_headers: false,
+		tool_allow_list: [],
+		tool_deny_list: [],
+		availability: "default_on",
+		enabled: true,
+		auth_connected: true,
+		created_at: "2025-01-01T00:00:00Z",
+		updated_at: "2025-01-01T00:00:00Z",
+	},
+] satisfies readonly import("api/typesGenerated").MCPServerConfig[];
+
+export const MCPToolRunning: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "running",
+		args: { project: "backend" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// Spinner should be visible while running.
+		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		// Icon wrapper should have greyscale filter.
+		const icon = canvasElement.querySelector(".grayscale");
+		expect(icon).not.toBeNull();
+	},
+};
+
+export const MCPToolCompleted: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "completed",
+		args: { project: "backend" },
+		result: {
+			issues: [
+				{ id: "LIN-123", title: "Fix auth flow" },
+				{ id: "LIN-456", title: "Update dashboard" },
+			],
+		},
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// No spinner when completed.
+		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
+		// No greyscale when completed.
+		expect(canvasElement.querySelector(".grayscale")).toBeNull();
+		// Result should be collapsed by default.
+		const toggle = canvas.getByRole("button");
+		expect(toggle).toBeInTheDocument();
+		// Expand to see result content.
+		await userEvent.click(toggle);
+		// The JSON output is syntax-highlighted, splitting text across
+		// DOM nodes. Check the raw text content of the container instead.
+		expect(canvasElement.textContent).toContain("Fix auth flow");
+	},
+};
+
+export const MCPToolError: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		args: { project: "backend" },
+		result: { error: "Authentication token expired" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+};
+
+export const MCPToolNoResult: Story = {
+	args: {
+		name: "linear__create_issue",
+		status: "completed",
+		args: { title: "New issue" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// No toggle button when there is no result content.
+		expect(canvasElement.querySelector("button")).toBeNull();
+	},
+};
+
+export const MCPToolNoServer: Story = {
+	args: {
+		name: "some_custom_tool",
+		status: "completed",
+		result: { output: "Tool finished successfully" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Falls through to generic wrench icon + raw tool name.
+		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
 // WriteFile stories
 // ---------------------------------------------------------------------------
 

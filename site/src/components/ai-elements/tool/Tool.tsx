@@ -1,6 +1,7 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import type * as TypesGen from "api/typesGenerated";
+import { LoaderIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -482,23 +483,29 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		: undefined;
 
 	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
+	const isRunning = status === "running";
 
 	return (
 		<ToolCollapsible
 			hasContent={hasContent}
 			header={
 				<>
-					<ToolIcon
-						name={name}
-						isError={status === "error" || isError}
-						iconUrl={mcpServer?.icon_url}
-					/>
+					<span className={cn(isRunning && "grayscale")}>
+						<ToolIcon
+							name={name}
+							isError={status === "error" || isError}
+							iconUrl={mcpServer?.icon_url}
+						/>
+					</span>
 					<ToolLabel
 						name={name}
 						args={args}
 						result={result}
 						mcpSlug={mcpServer?.slug}
 					/>
+					{isRunning && (
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
 				</>
 			}
 		>
