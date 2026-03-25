@@ -308,6 +308,101 @@ func TestWorker_NoPR_OldRow_Skips(t *testing.T) {
 	tickOnce(ctx, t, mClock, worker, tickDone)
 }
 
+func TestWorker_NoPR_BoundaryExactWindow_Skips(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	// When updated_at is exactly NoPRRetryWindow ago, the strict
+	// "<" comparison means the row should be skipped (no backoff).
+	// This pins the boundary so an accidental change to "<=" is
+	// caught.
+	tickDone := make(chan struct{})
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	mClock := quartz.NewMock(t)
+
+	row := makeAcquiredRowWithBranch(chatID, ownerID, "feature")
+	row.UpdatedAt = mClock.Now().Add(-gitsync.NoPRRetryWindow) // exactly at boundary
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
+	// BackoffChatDiffStatus should NOT be called.
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
+		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			close(tickDone)
+			return nil, nil
+		},
+	))
+
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+}
+
+func TestWorker_NoPR_BackoffError_ContinuesNextRow(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chat1 := uuid.New()
+	chat2 := uuid.New()
+	ownerID := uuid.New()
+
+	// Two recent rows, both with no PR. BackoffChatDiffStatus
+	// fails for the first row but the second row should still
+	// be processed (backoff succeeds).
+	var backoffCount atomic.Int32
+	tickDone := make(chan struct{})
+	var closeOnce sync.Once
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	mClock := quartz.NewMock(t)
+
+	row1 := makeAcquiredRowWithBranch(chat1, ownerID, "no-pr-1")
+	row1.UpdatedAt = mClock.Now()
+	row2 := makeAcquiredRowWithBranch(chat2, ownerID, "no-pr-2")
+	row2.UpdatedAt = mClock.Now()
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{row1, row2}, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+			n := backoffCount.Add(1)
+			if arg.ChatID == chat1 {
+				return fmt.Errorf("simulated backoff error")
+			}
+			// Second call succeeds; both rows processed.
+			if n >= 2 {
+				closeOnce.Do(func() { close(tickDone) })
+			}
+			return nil
+		}).Times(2)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
+		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			return nil, nil
+		},
+	))
+
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+
+	assert.Equal(t, int32(2), backoffCount.Load(),
+		"both rows should have attempted backoff")
+}
+
 func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

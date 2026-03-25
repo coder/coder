@@ -45,6 +45,10 @@ const (
 	// worker lets the 5-minute acquisition lock serve as the
 	// natural retry interval, avoiding indefinite fast-polling
 	// for branches that never receive a PR.
+	//
+	// Together with NoPRBackoff this bounds the number of
+	// GitHub API calls to ~NoPRRetryWindow/NoPRBackoff (≈8)
+	// per push. Keep both values in sync when adjusting.
 	NoPRRetryWindow = 2 * time.Minute
 )
 
@@ -235,10 +239,10 @@ func (w *Worker) tick(ctx context.Context) {
 			// No PR exists yet for this branch. If the row was
 			// recently marked stale (e.g. a git push just
 			// happened), apply a short backoff so the PR is
-			// discovered quickly once created. Outside the retry
-			// window, skip the row and let the 5-minute
-			// acquisition lock serve as the natural retry
-			// interval.
+			// discovered quickly once created. Outside the
+			// retry window, do not shorten the backoff; the
+			// 5-minute acquisition lock will serve as the retry
+			// interval instead.
 			age := w.clock.Now().Sub(res.Request.Row.UpdatedAt)
 			if age < NoPRRetryWindow {
 				if err := w.store.BackoffChatDiffStatus(ctx,
