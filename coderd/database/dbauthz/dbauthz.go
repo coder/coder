@@ -3911,10 +3911,8 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 }
 
 func (q *querier) GetUserAISeatStates(ctx context.Context, userIDs []uuid.UUID) ([]uuid.UUID, error) {
-	for _, uid := range userIDs {
-		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(uid)); err != nil {
-			return nil, err
-		}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
+		return nil, err
 	}
 	return q.db.GetUserAISeatStates(ctx, userIDs)
 }
