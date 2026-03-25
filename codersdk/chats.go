@@ -107,6 +107,7 @@ const (
 	ChatMessagePartTypeSource        ChatMessagePartType = "source"
 	ChatMessagePartTypeFile          ChatMessagePartType = "file"
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
+	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -119,6 +120,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeSource,
 		ChatMessagePartTypeFile,
 		ChatMessagePartTypeFileReference,
+		ChatMessagePartTypeContextFile,
 	}
 }
 
@@ -175,6 +177,31 @@ type ChatMessagePart struct {
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
+	// ContextFilePath is the absolute path of a file loaded into
+	// the LLM context (e.g. an AGENTS.md instruction file).
+	ContextFilePath string `json:"context_file_path" variants:"context-file"`
+	// ContextFileContent holds the file content sent to the LLM.
+	// Internal only: stripped before API responses to keep
+	// payloads small. The backend reads it when building the
+	// prompt via partsToMessageParts.
+	ContextFileContent string `json:"context_file_content,omitempty" typescript:"-"`
+	// ContextFileTruncated indicates the file exceeded the 64KiB
+	// instruction file limit and was truncated.
+	ContextFileTruncated bool `json:"context_file_truncated,omitempty" variants:"context-file?"`
+	// ContextFileAgentID is the workspace agent that provided
+	// this context file. Used to detect when the agent changes
+	// (e.g. workspace rebuilt) so instruction files can be
+	// re-persisted with fresh content.
+	ContextFileAgentID uuid.NullUUID `json:"context_file_agent_id,omitempty" format:"uuid" variants:"context-file?"`
+	// ContextFileOS is the operating system of the workspace
+	// agent. Internal only: used during prompt expansion so
+	// the LLM knows the OS even on turns where InsertSystem
+	// is not called.
+	ContextFileOS string `json:"context_file_os,omitempty" typescript:"-"`
+	// ContextFileDirectory is the working directory of the
+	// workspace agent. Internal only: same purpose as
+	// ContextFileOS.
+	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -188,6 +215,9 @@ func (p *ChatMessagePart) StripInternal() {
 	if p.FileID.Valid {
 		p.Data = nil
 	}
+	p.ContextFileContent = ""
+	p.ContextFileOS = ""
+	p.ContextFileDirectory = ""
 }
 
 // ChatMessageText builds a text chat message part.

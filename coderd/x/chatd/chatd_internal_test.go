@@ -3,11 +3,15 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -100,7 +104,7 @@ func TestRefreshChatWorkspaceSnapshot_ReturnsReloadError(t *testing.T) {
 	require.Equal(t, chat, refreshed)
 }
 
-func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
+func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -126,6 +130,7 @@ func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
 		gomock.Any(),
 		workspaceID,
 	).Return([]database.WorkspaceAgent{workspaceAgent}, nil).Times(1)
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -139,16 +144,15 @@ func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
 		int64(0),
 		int64(maxInstructionFileBytes+1),
 	).Return(
-		nil,
+		io.NopCloser(strings.NewReader("# Project instructions")),
 		"",
-		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
+		nil,
 	).Times(1)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:               db,
-		logger:           logger,
-		instructionCache: make(map[uuid.UUID]cachedInstruction),
+		db:     db,
+		logger: logger,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -164,12 +168,14 @@ func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction := server.resolveInstructions(
+	instruction, err := server.persistInstructionFiles(
 		ctx,
 		chat,
+		uuid.New(),
 		workspaceCtx.getWorkspaceAgent,
 		workspaceCtx.getWorkspaceConn,
 	)
+	require.NoError(t, err)
 	require.Contains(t, instruction, "Operating System: linux")
 	require.Contains(t, instruction, "Working Directory: /home/coder/project")
 }
@@ -791,4 +797,91 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 		}
 	}
 	t.Fatalf("field %q not found in log entry", name)
+}
+
+func TestContextFileAgentID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyMessages", func(t *testing.T) {
+		t.Parallel()
+		id, ok := contextFileAgentID(nil)
+		require.Equal(t, uuid.Nil, id)
+		require.False(t, ok)
+	})
+
+	t.Run("NoContextFileParts", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, uuid.Nil, id)
+		require.False(t, ok)
+	})
+
+	t.Run("SingleContextFile", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath:    "/some/path",
+					ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+				},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, agentID, id)
+		require.True(t, ok)
+	})
+
+	t.Run("MultipleContextFiles", func(t *testing.T) {
+		t.Parallel()
+		agentID1 := uuid.New()
+		agentID2 := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath:    "/first/path",
+					ContextFileAgentID: uuid.NullUUID{UUID: agentID1, Valid: true},
+				},
+			}),
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath:    "/second/path",
+					ContextFileAgentID: uuid.NullUUID{UUID: agentID2, Valid: true},
+				},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, agentID2, id)
+		require.True(t, ok)
+	})
+
+	t.Run("SentinelWithoutAgentID", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFileAgentID: uuid.NullUUID{Valid: false},
+				},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, uuid.Nil, id)
+		require.False(t, ok)
+	})
+}
+
+func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
+	raw, _ := json.Marshal(parts)
+	return database.ChatMessage{
+		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
+	}
 }

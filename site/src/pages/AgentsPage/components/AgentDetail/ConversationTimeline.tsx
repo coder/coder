@@ -437,6 +437,12 @@ const ChatMessageItem = memo<{
 			return null;
 		}
 
+		// Hide messages that consist entirely of context-file parts.
+		// These are metadata for the context indicator, not
+		// conversation content.
+		if (parts.length > 0 && parts.every((p) => p.type === "context-file")) {
+			return null;
+		}
 		const hasRenderableContent =
 			parsed.blocks.length > 0 ||
 			parsed.tools.length > 0 ||

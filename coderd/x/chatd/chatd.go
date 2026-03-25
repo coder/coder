@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -51,7 +52,6 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	homeInstructionLookupTimeout = 5 * time.Second
-	instructionCacheTTL          = 5 * time.Minute
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
@@ -111,11 +111,6 @@ type Server struct {
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
-	// instructionCache caches home instruction file contents by
-	// workspace agent ID so we don't re-dial on every chat turn.
-	instructionCacheMu sync.RWMutex
-	instructionCache   map[uuid.UUID]cachedInstruction
-
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
 
@@ -124,11 +119,6 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
-}
-
-type cachedInstruction struct {
-	instruction string
-	fetchedAt   time.Time
 }
 
 type turnWorkspaceContext struct {
@@ -506,7 +496,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("insert chat: %w", err)
 		}
 
-		systemPrompt := SanitizePromptText(opts.SystemPrompt)
+		systemPrompt := strings.TrimSpace(opts.SystemPrompt)
 		var workspaceAwareness string
 		if opts.WorkspaceID.Valid {
 			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
@@ -1503,7 +1493,6 @@ func New(cfg Config) *Server {
 		pubsub:                         cfg.Pubsub,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
-		instructionCache:               make(map[uuid.UUID]cachedInstruction),
 		pendingChatAcquireInterval:     pendingChatAcquireInterval,
 		maxChatsPerAcquire:             maxChatsPerAcquire,
 		inFlightChatStaleAfter:         inFlightChatStaleAfter,
@@ -3009,16 +2998,48 @@ func (p *Server) runChat(
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
 	)
+	// Check if instruction files need to be (re-)persisted.
+	// This happens when no context-file parts exist yet, or when
+	// the workspace agent has changed (e.g. workspace rebuilt).
+	needsInstructionPersist := false
+	hasContextFiles := false
+	if chat.WorkspaceID.Valid {
+		persistedAgentID, found := contextFileAgentID(messages)
+		hasContextFiles = found
+		if !hasContextFiles {
+			needsInstructionPersist = true
+		} else if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID != persistedAgentID {
+			// Agent changed — persist fresh instruction files.
+			// Old context-file messages remain in the conversation
+			// to preserve the prompt cache prefix.
+			needsInstructionPersist = true
+		}
+	}
 	var g2 errgroup.Group
-	g2.Go(func() error {
-		instruction = p.resolveInstructions(
-			ctx,
-			chat,
-			workspaceCtx.getWorkspaceAgent,
-			workspaceCtx.getWorkspaceConn,
-		)
-		return nil
-	})
+	if needsInstructionPersist {
+		g2.Go(func() error {
+			var persistErr error
+			instruction, persistErr = p.persistInstructionFiles(
+				ctx,
+				chat,
+				modelConfig.ID,
+				workspaceCtx.getWorkspaceAgent,
+				workspaceCtx.getWorkspaceConn,
+			)
+			if persistErr != nil {
+				p.logger.Warn(ctx, "failed to persist instruction files",
+					slog.F("chat_id", chat.ID),
+					slog.Error(persistErr),
+				)
+			}
+			return nil
+		})
+	} else if hasContextFiles {
+		// On subsequent turns, extract the instruction text from
+		// the persisted context-file parts so it can be re-injected
+		// via InsertSystem after compaction drops those messages.
+		instruction = instructionFromContextFiles(messages)
+	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
@@ -3371,45 +3392,6 @@ func (p *Server) runChat(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
-	// getAllowedTemplateIDs returns the current deployment-wide
-	// template allowlist, re-reading from the database on each call
-	// so that admin changes take effect without restarting the chat.
-	// Returns nil (= all allowed) on errors to fail open.
-	getAllowedTemplateIDs := func() map[uuid.UUID]bool {
-		raw, err := p.db.GetChatTemplateAllowlist(ctx)
-		if err != nil {
-			p.logger.Error(ctx, "failed to load template allowlist, all templates will be allowed", slog.Error(err))
-			return nil
-		}
-		if raw == "" {
-			return nil
-		}
-		var ids []string
-		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr != nil {
-			// Note: the API endpoint (GET /template-allowlist) returns
-			// HTTP 500 for corrupt JSON, giving admins visibility into
-			// the problem. The runtime path here deliberately fails open
-			// so that a corrupt allowlist doesn't block all chats.
-			p.logger.Error(ctx, "failed to parse template allowlist JSON, all templates will be allowed",
-				slog.F("raw", raw), slog.Error(jsonErr))
-			return nil
-		}
-		allowlist := make(map[uuid.UUID]bool, len(ids))
-		for _, s := range ids {
-			if id, parseErr := uuid.Parse(s); parseErr == nil {
-				allowlist[id] = true
-			} else {
-				p.logger.Warn(ctx, "ignoring invalid UUID in template allowlist",
-					slog.F("value", s), slog.Error(parseErr))
-			}
-		}
-		if len(ids) > 0 && len(allowlist) == 0 {
-			p.logger.Error(ctx, "all UUIDs in template allowlist were invalid, all templates will be allowed",
-				slog.F("count", len(ids)))
-			return nil
-		}
-		return allowlist
-	}
 	// Only root chats (not delegated subagents) get workspace
 	// provisioning and subagent tools. Child agents must not
 	// create workspaces or spawn further subagents — they should
@@ -3418,14 +3400,12 @@ func (p *Server) runChat(
 		// Workspace provisioning tools.
 		tools = append(tools,
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
-				DB:                 p.db,
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: getAllowedTemplateIDs,
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
 			}),
 			chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:                 p.db,
-				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: getAllowedTemplateIDs,
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
 			}),
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 				DB:                             p.db,
@@ -3436,12 +3416,7 @@ func (p *Server) runChat(
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
 				Logger:                         p.logger,
-				AllowedTemplateIDs:             getAllowedTemplateIDs,
 			}),
-			// StartWorkspace intentionally does not enforce the
-			// template allowlist. The allowlist restricts creation
-			// of new workspaces only — existing workspaces can
-			// be restarted regardless of allowlist changes.
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,
 				OwnerID:     chat.OwnerID,
@@ -3572,26 +3547,10 @@ func (p *Server) runChat(
 			if chat.ParentChatID.Valid {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
 			}
-			var reloadInstruction, reloadUserPrompt string
-			var rg errgroup.Group
-			rg.Go(func() error {
-				reloadInstruction = p.resolveInstructions(
-					reloadCtx,
-					chat,
-					workspaceCtx.getWorkspaceAgent,
-					workspaceCtx.getWorkspaceConn,
-				)
-				return nil
-			})
-			rg.Go(func() error {
-				reloadUserPrompt = p.resolveUserPrompt(reloadCtx, chat.OwnerID)
-				return nil
-			})
-			_ = rg.Wait()
-
-			if reloadInstruction != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadInstruction)
+			if instruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
 			}
+			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
 			if reloadUserPrompt != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadUserPrompt)
 			}
@@ -3907,32 +3866,50 @@ func refreshChatWorkspaceSnapshot(
 	return refreshedChat, nil
 }
 
-// resolveInstructions returns the combined system instructions for the
-// workspace agent. It reads the home-level (~/.coder/AGENTS.md) and
-// working-directory-level (<pwd>/AGENTS.md) instruction files, combines
-// them with agent metadata (OS, directory), and caches the result.
-func (p *Server) resolveInstructions(
+// contextFileAgentID extracts the workspace agent ID from the most
+// recent persisted context-file parts. Returns uuid.Nil, false if no
+// context-file parts exist.
+func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
+	var lastID uuid.UUID
+	found := false
+	for _, msg := range messages {
+		if !msg.Content.Valid || !bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, p := range parts {
+			if p.Type == codersdk.ChatMessagePartTypeContextFile && p.ContextFileAgentID.Valid {
+				lastID = p.ContextFileAgentID.UUID
+				found = true
+				break
+			}
+		}
+	}
+	return lastID, found
+}
+
+// persistInstructionFiles reads instruction files from the workspace
+// agent and persists them as context-file message parts. This is called
+// once when a workspace is first attached to a chat. Returns the
+// formatted instruction string for injection into the current turn's
+// prompt.
+func (p *Server) persistInstructionFiles(
 	ctx context.Context,
 	chat database.Chat,
+	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) string {
+) (string, error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return ""
+		return "", nil
 	}
 
-	agent, agentErr := getWorkspaceAgent(ctx)
-	if agentErr != nil {
-		return ""
-	}
-	agentID := agent.ID
-
-	p.instructionCacheMu.RLock()
-	cached, ok := p.instructionCache[agentID]
-	p.instructionCacheMu.RUnlock()
-
-	if ok && time.Since(cached.fetchedAt) < instructionCacheTTL {
-		return cached.instruction
+	agent, err := getWorkspaceAgent(ctx)
+	if err != nil {
+		return "", nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -3953,19 +3930,17 @@ func (p *Server) resolveInstructions(
 				slog.Error(connErr),
 			)
 		} else {
-			// ~/.coder/AGENTS.md
-			if content, source, truncated, err := readHomeInstructionFile(instructionCtx, conn); err != nil {
+			if content, source, truncated, readErr := readHomeInstructionFile(instructionCtx, conn); readErr != nil {
 				p.logger.Debug(ctx, "failed to load home instruction file",
-					slog.F("chat_id", chat.ID), slog.Error(err))
+					slog.F("chat_id", chat.ID), slog.Error(readErr))
 			} else if content != "" {
 				sections = append(sections, instructionFileSection{content, source, truncated})
 			}
 
-			// <pwd>/AGENTS.md
 			if pwdPath := pwdInstructionFilePath(directory); pwdPath != "" {
-				if content, source, truncated, err := readInstructionFile(instructionCtx, conn, pwdPath); err != nil {
+				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
 					p.logger.Debug(ctx, "failed to load working directory instruction file",
-						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(err))
+						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
 				} else if content != "" {
 					sections = append(sections, instructionFileSection{content, source, truncated})
 				}
@@ -3973,16 +3948,69 @@ func (p *Server) resolveInstructions(
 		}
 	}
 
-	instruction := formatSystemInstructions(agent.OperatingSystem, directory, sections)
-
-	p.instructionCacheMu.Lock()
-	p.instructionCache[agentID] = cachedInstruction{
-		instruction: instruction,
-		fetchedAt:   time.Now(),
+	if len(sections) == 0 {
+		// Persist a sentinel so subsequent turns skip the
+		// workspace agent dial.
+		parts := []codersdk.ChatMessagePart{{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "",
+			ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+		}}
+		content, err := chatprompt.MarshalParts(parts)
+		if err != nil {
+			return "", nil
+		}
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: chat.ID,
+		}
+		appendChatMessage(&msgParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			content,
+			database.ChatMessageVisibilityBoth,
+			modelConfigID,
+			chatprompt.CurrentContentVersion,
+		))
+		_, _ = p.db.InsertChatMessages(ctx, msgParams)
+		return "", nil
 	}
-	p.instructionCacheMu.Unlock()
 
-	return instruction
+	// Build context-file parts, one per instruction file.
+	parts := make([]codersdk.ChatMessagePart, 0, len(sections))
+	for _, s := range sections {
+		parts = append(parts, codersdk.ChatMessagePart{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      s.source,
+			ContextFileContent:   s.content,
+			ContextFileTruncated: s.truncated,
+			ContextFileAgentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
+			ContextFileOS:        agent.OperatingSystem,
+			ContextFileDirectory: directory,
+		})
+	}
+
+	content, err := chatprompt.MarshalParts(parts)
+	if err != nil {
+		return "", xerrors.Errorf("marshal context-file parts: %w", err)
+	}
+
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: chat.ID,
+	}
+	appendChatMessage(&msgParams, newChatMessage(
+		database.ChatMessageRoleUser,
+		content,
+		database.ChatMessageVisibilityBoth,
+		modelConfigID,
+		chatprompt.CurrentContentVersion,
+	))
+	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
+		return "", xerrors.Errorf("persist instruction files: %w", err)
+	}
+
+	// Return the formatted instruction text so the caller can inject
+	// it into this turn's prompt (since the prompt was built before
+	// we persisted).
+	return formatSystemInstructions(agent.OperatingSystem, directory, sections), nil
 }
 
 // resolveUserCompactionThreshold looks up the user's per-model
@@ -4022,15 +4050,11 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 		// sql.ErrNoRows is the normal "not set" case.
 		return ""
 	}
-	sanitized := SanitizePromptText(raw)
-	if sanitized == "" {
-		if strings.TrimSpace(raw) != "" {
-			p.logger.Warn(ctx, "user custom prompt became empty after sanitization",
-				slog.F("user_id", userID))
-		}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
 		return ""
 	}
-	return "<user-instructions>\n" + sanitized + "\n</user-instructions>"
+	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
