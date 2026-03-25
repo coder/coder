@@ -137,21 +137,16 @@ export function useAgentTranscriptAutoScroll(
 
 		const initialRect = content.getBoundingClientRect();
 		let prevContentHeight = initialRect.height;
-		let prevContentWidth = initialRect.width;
 
 		const observer = new ResizeObserver((entries) => {
 			const entry = entries[0];
 			const nextHeight =
 				entry?.contentRect.height ?? content.getBoundingClientRect().height;
-			const nextWidth =
-				entry?.contentRect.width ?? content.getBoundingClientRect().width;
 			const heightDelta = nextHeight - prevContentHeight;
-			const widthChanged = Math.abs(nextWidth - prevContentWidth) > 1;
 
 			prevContentHeight = nextHeight;
-			prevContentWidth = nextWidth;
 
-			if (heightDelta < 1 || widthChanged || !autoScrollRef.current) {
+			if (heightDelta < 1 || !autoScrollRef.current) {
 				return;
 			}
 

@@ -603,7 +603,7 @@ const ScrollAnchoredContainer: FC<{
 			<div
 				ref={scrollContainerRef}
 				data-testid="scroll-container"
-				className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
 				<div ref={contentRef}>{children}</div>
