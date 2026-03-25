@@ -26,7 +26,7 @@ export const ToolIcon: React.FC<{
 	serverName?: string;
 }> = ({ name, isError, iconUrl, isRunning, serverName }) => {
 	const [imgError, setImgError] = useState(false);
-	const color = isError ? "text-content-destructive" : "text-content-secondary";
+	const color = "text-content-secondary";
 	const base = cn("h-4 w-4 shrink-0", color, isRunning && "grayscale");
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
@@ -49,19 +49,11 @@ export const ToolIcon: React.FC<{
 					alt={`${name} icon`}
 					className={cn(
 						"block h-4 w-4",
-						isError
-							? // Drop-shadow recolor: brightness-0 makes every
-								// pixel black, drop-shadow casts an exact-color
-								// copy 16px to the right following the alpha
-								// channel, -translate-x-4 shifts the colored copy
-								// into the original position, and the wrapper's
-								// overflow-hidden clips the black original.
-								"-translate-x-4 [filter:brightness(0)_drop-shadow(16px_0_0_hsl(var(--content-destructive)))]"
-							: // Monochrome: brightness-0 strips colour to black,
-								// dark:invert flips to white for dark backgrounds,
-								// opacity tuned per-theme to match content-secondary
-								// (light ~35% lightness, dark ~65%).
-								"brightness-0 opacity-[0.35] dark:invert dark:opacity-[0.65]",
+						// Monochrome: brightness-0 strips colour to black,
+						// dark:invert flips to white for dark backgrounds,
+						// opacity tuned per-theme to match content-secondary
+						// (light ~35% lightness, dark ~65%).
+						"brightness-0 opacity-[0.35] dark:invert dark:opacity-[0.65]",
 					)}
 					onError={() => setImgError(true)}
 				/>

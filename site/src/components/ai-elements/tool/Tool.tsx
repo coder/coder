@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import type * as TypesGen from "api/typesGenerated";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -303,6 +303,16 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		subagentToolStatus === "error" ||
 		((status === "error" || isError) && !subagentCompleted);
 
+	// Detect timeout from the result. A timed-out wait_agent
+	// typically returns an error string or an object with an
+	// error field containing "timed out".
+	const resultStr = typeof result === "string" ? result : "";
+	const errorStr = rec ? asString(rec.error) : "";
+	const isTimeout =
+		subagentIsError &&
+		(resultStr.toLowerCase().includes("timed out") ||
+			errorStr.toLowerCase().includes("timed out"));
+
 	return (
 		<SubagentTool
 			toolName={name}
@@ -315,6 +325,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
+			isTimeout={isTimeout}
 		/>
 	);
 };
@@ -504,18 +515,16 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 						isRunning={isRunning}
 						serverName={mcpServer?.display_name}
 					/>
-					<span className={cn(isError && "[&>*]:text-content-destructive")}>
-						<ToolLabel
-							name={name}
-							args={args}
-							result={result}
-							mcpSlug={mcpServer?.slug}
-						/>
-					</span>
+					<ToolLabel
+						name={name}
+						args={args}
+						result={result}
+						mcpSlug={mcpServer?.slug}
+					/>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Tool call failed"}
@@ -530,17 +539,32 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		>
 			{writeFileDiff ? (
 				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileDiff
-						fileDiff={stripNoNewline(writeFileDiff)}
-						options={getDiffViewerOptions(isDark)}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : fileContent ? (
+				className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+				viewportClassName="max-h-64"
+				scrollBarClassName="w-1.5"
+			>
+				<FileDiff
+					fileDiff={stripNoNewline(writeFileDiff)}
+					options={getDiffViewerOptions(isDark)}
+					style={DIFFS_FONT_STYLE}
+				/>
+			</ScrollArea>
+		) : fileContent ? (
+			<ScrollArea
+				className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+				viewportClassName="max-h-64"
+				scrollBarClassName="w-1.5"
+			>
+				<FileViewer
+					file={{
+						name: fileContent.path,
+						contents: fileContent.content,
+					}}
+					options={fileContentOptions}
+				/>
+			</ScrollArea>
+		) : (
+			resultOutput && (
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
@@ -548,30 +572,15 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 				>
 					<FileViewer
 						file={{
-							name: fileContent.path,
-							contents: fileContent.content,
+							name: "output.json",
+							contents: resultOutput,
 						}}
-						options={fileContentOptions}
+						options={getFileViewerOptionsNoHeader(isDark)}
+						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
-			) : (
-				resultOutput && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileViewer
-							file={{
-								name: "output.json",
-								contents: resultOutput,
-							}}
-							options={getFileViewerOptionsNoHeader(isDark)}
-							style={DIFFS_FONT_STYLE}
-						/>
-					</ScrollArea>
-				)
-			)}
+			)
+		)}
 		</ToolCollapsible>
 	);
 };

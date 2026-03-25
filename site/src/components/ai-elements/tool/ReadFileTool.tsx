@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { cn } from "utils/cn";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -41,7 +41,7 @@ export const ReadFileTool: React.FC<{
 					<span
 						className={cn(
 							"text-sm",
-							isError ? "text-content-destructive" : "text-content-secondary",
+							"text-content-secondary",
 						)}
 					>
 						Read {path.split("/").pop() || path}
@@ -49,7 +49,7 @@ export const ReadFileTool: React.FC<{
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to read file"}

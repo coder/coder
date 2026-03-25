@@ -1,5 +1,5 @@
 import { API } from "api/api";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
@@ -60,9 +60,7 @@ export const ProposePlanTool: React.FC<{
 				<span
 					className={cn(
 						"text-sm",
-						effectiveError
-							? "text-content-destructive"
-							: "text-content-secondary",
+						"text-content-secondary",
 					)}
 				>
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
@@ -70,10 +68,7 @@ export const ProposePlanTool: React.FC<{
 				{effectiveError && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<CircleAlertIcon
-								aria-label="Error"
-								className="h-3.5 w-3.5 shrink-0 text-content-destructive"
-							/>
+							<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 						</TooltipTrigger>
 						<TooltipContent>
 							{effectiveErrorMessage || "Failed to propose plan"}

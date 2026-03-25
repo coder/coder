@@ -7,6 +7,7 @@ import {
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -39,6 +40,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 import { useSmoothStreamingText } from "./SmoothText";
+import { buildSubagentTitles } from "./messageParsing";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -398,6 +400,7 @@ const ChatMessageItem = memo<{
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	subagentTitles?: Map<string, string>;
 }>(
 	({
 		message,
@@ -409,6 +412,7 @@ const ChatMessageItem = memo<{
 		fadeFromBottom = false,
 		urlTransform,
 		mcpServers,
+		subagentTitles,
 	}) => {
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
@@ -469,6 +473,7 @@ const ChatMessageItem = memo<{
 			blocks: parsed.blocks,
 			toolByID,
 			keyPrefix: String(message.id),
+			subagentTitles,
 			onImageClick: setPreviewImage,
 			onTextFileClick: (content) => setPreviewText(content),
 			urlTransform,
@@ -614,6 +619,7 @@ const ChatMessageItem = memo<{
 											result={tool.result}
 											status={tool.status}
 											isError={tool.isError}
+											subagentTitles={subagentTitles}
 											mcpServerConfigId={tool.mcpServerConfigId}
 											mcpServers={mcpServers}
 										/>
@@ -1043,6 +1049,11 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 }) => {
+	const subagentTitles = useMemo(
+		() => buildSubagentTitles(parsedMessages),
+		[parsedMessages],
+	);
+
 	if (parsedMessages.length === 0) {
 		return null;
 	}
@@ -1085,6 +1096,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 						urlTransform={urlTransform}
 						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 						mcpServers={mcpServers}
+						subagentTitles={subagentTitles}
 					/>
 				),
 			)}
