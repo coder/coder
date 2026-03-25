@@ -905,7 +905,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
-				)}{" "}
+				)}
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<div className="flex min-w-0 items-center gap-1">
 						{/* Plus menu */}

@@ -1,8 +1,8 @@
 /**
  * Returns true if the given BMP codepoint is a visible character that
- * should be preserved in prompt text. This is the inverse of the
- * backend Go isVisible function in coderd/x/chatd/sanitize.go — both
- * use the same codepoint list with the same polarity (true = visible).
+ * should be preserved in prompt text. This mirrors the backend Go
+ * isVisible function in coderd/x/chatd/sanitize.go — both use the
+ * same codepoint list with the same polarity (true = visible).
  *
  * All codepoints in this list are in the Basic Multilingual Plane,
  * so charCodeAt() is safe to use without surrogate pair handling.

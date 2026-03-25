@@ -18,7 +18,7 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useState } from "react";
+import { type FC, type FormEvent, useMemo, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -553,8 +553,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 
-	const systemInvisibleCharCount = countInvisibleCharacters(systemPromptDraft);
-	const userInvisibleCharCount = countInvisibleCharacters(userPromptDraft);
+	const systemInvisibleCharCount = useMemo(
+		() => countInvisibleCharacters(systemPromptDraft),
+		[systemPromptDraft],
+	);
+	const userInvisibleCharCount = useMemo(
+		() => countInvisibleCharacters(userPromptDraft),
+		[userPromptDraft],
+	);
 
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
@@ -672,7 +678,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 									{userInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
 									that could hide content. These will be stripped on save.
 								</Alert>
-							)}{" "}
+							)}
 							<div className="flex justify-end gap-2">
 								<Button
 									size="sm"

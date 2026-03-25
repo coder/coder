@@ -2618,6 +2618,9 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Cap the raw request body to prevent excessive memory use from
+	// payloads padded with invisible characters that sanitize away.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.ChatSystemPrompt
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -2807,6 +2810,9 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		ctx    = r.Context()
 		apiKey = httpmw.APIKey(r)
 	)
+	// Cap the raw request body to prevent excessive memory use from
+	// payloads padded with invisible characters that sanitize away.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 
 	var params codersdk.UserChatCustomPrompt
 	if !httpapi.Read(ctx, rw, r, &params) {
