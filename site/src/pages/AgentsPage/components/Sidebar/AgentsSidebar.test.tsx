@@ -258,6 +258,50 @@ describe("AgentsSidebar load-more behavior", () => {
 		expect(onLoadMore).toHaveBeenCalledTimes(1);
 	});
 
+	it("recreates the observer when isFetchingNextPage transitions to false so visible sentinels re-trigger", () => {
+		const onLoadMore = vi.fn();
+		const { rerender } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					hasNextPage
+					onLoadMore={onLoadMore}
+					isFetchingNextPage={false}
+				/>
+			</Wrapper>,
+		);
+
+		const countAfterMount = observeCount;
+		expect(countAfterMount).toBe(1);
+
+		// Start fetching — observer is torn down.
+		rerender(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					hasNextPage
+					onLoadMore={onLoadMore}
+					isFetchingNextPage={true}
+				/>
+			</Wrapper>,
+		);
+
+		// Fetch completes — a fresh observer is created, firing
+		// an initial entry that detects the still-visible sentinel.
+		rerender(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					hasNextPage
+					onLoadMore={onLoadMore}
+					isFetchingNextPage={false}
+				/>
+			</Wrapper>,
+		);
+
+		expect(observeCount).toBe(countAfterMount + 1);
+	});
+
 	it("does NOT render the sentinel when hasNextPage is false", () => {
 		const onLoadMore = vi.fn();
 		render(
