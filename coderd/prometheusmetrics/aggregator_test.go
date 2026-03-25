@@ -1,9 +1,10 @@
 package prometheusmetrics_test
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -177,14 +178,14 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 	}
 
 	// ensure stable iteration order
-	sort.Slice(expected, func(i, j int) bool {
-		return expected[i].Name < expected[j].Name
+	slices.SortFunc(expected, func(a, b *agentproto.Stats_Metric) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
-	sort.Slice(actual, func(i, j int) bool {
-		m1 := prometheusMetricToString(t, actual[i])
-		m2 := prometheusMetricToString(t, actual[j])
-		return m1 < m2
+	slices.SortFunc(actual, func(a, b prometheus.Metric) int {
+		m1 := prometheusMetricToString(t, a)
+		m2 := prometheusMetricToString(t, b)
+		return cmp.Compare(m1, m2)
 	})
 
 	for i, e := range expected {
@@ -213,11 +214,11 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 
 		dtoLabels := asMetricAgentLabels(d.GetLabel())
 		// dto labels are sorted in alphabetical order.
-		sortFn := func(i, j int) bool {
-			return expectedLabels[i].Name < expectedLabels[j].Name
+		sortFn := func(a, b *agentproto.Stats_Metric_Label) int {
+			return cmp.Compare(a.Name, b.Name)
 		}
-		sort.Slice(expectedLabels, sortFn)
-		sort.Slice(dtoLabels, sortFn)
+		slices.SortFunc(expectedLabels, sortFn)
+		slices.SortFunc(dtoLabels, sortFn)
 		assert.Equal(t, expectedLabels, dtoLabels, d.String())
 	}
 	return true
@@ -234,8 +235,8 @@ func prometheusMetricToString(t *testing.T, m prometheus.Metric) string {
 	err := m.Write(&d)
 	assert.NoError(t, err)
 	dtoLabels := asMetricAgentLabels(d.GetLabel())
-	sort.Slice(dtoLabels, func(i, j int) bool {
-		return dtoLabels[i].Name < dtoLabels[j].Name
+	slices.SortFunc(dtoLabels, func(a, b *agentproto.Stats_Metric_Label) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	for _, dtoLabel := range dtoLabels {

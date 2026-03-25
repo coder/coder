@@ -5,7 +5,7 @@ import (
 	"context"
 	"flag"
 	"os"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -223,10 +223,10 @@ func (s *uuidSet) UniqueAndClear() []uuid.UUID {
 		l = append(l, k)
 	}
 	// For ease of testing, sort the IDs lexically
-	sort.Slice(l, func(i, j int) bool {
+	slices.SortFunc(l, func(a, b uuid.UUID) int {
 		// For some unfathomable reason, byte arrays are not comparable?
 		// See https://github.com/golang/go/issues/61004
-		return bytes.Compare(l[i][:], l[j][:]) < 0
+		return bytes.Compare(a[:], b[:])
 	})
 	clear(s.m)
 	return l

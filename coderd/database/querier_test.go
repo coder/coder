@@ -1,6 +1,7 @@
 package database_test
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -8,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -1731,8 +1731,8 @@ func TestQueuePosition(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
-	sort.Slice(queued, func(i, j int) bool {
-		return queued[i].QueuePosition < queued[j].QueuePosition
+	slices.SortFunc(queued, func(a, b database.GetProvisionerJobsByIDsWithQueuePositionRow) int {
+		return cmp.Compare(a.QueuePosition, b.QueuePosition)
 	})
 	// Ensure that the queue positions are correct based on insertion ID!
 	for index, job := range queued {
@@ -1762,8 +1762,8 @@ func TestQueuePosition(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
-	sort.Slice(queued, func(i, j int) bool {
-		return queued[i].QueuePosition < queued[j].QueuePosition
+	slices.SortFunc(queued, func(a, b database.GetProvisionerJobsByIDsWithQueuePositionRow) int {
+		return cmp.Compare(a.QueuePosition, b.QueuePosition)
 	})
 	// Ensure that queue positions are updated now that the first job has been acquired!
 	for index, job := range queued {
@@ -1834,8 +1834,8 @@ func TestAcquireProvisionerJob(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, qjs, numJobs)
 		// Ensure the jobs are sorted by queue position.
-		sort.Slice(qjs, func(i, j int) bool {
-			return qjs[i].QueuePosition < qjs[j].QueuePosition
+		slices.SortFunc(qjs, func(a, b database.GetProvisionerJobsByIDsWithQueuePositionRow) int {
+			return cmp.Compare(a.QueuePosition, b.QueuePosition)
 		})
 
 		// Then: the queue positions for the jobs should indicate the order in which
@@ -4371,8 +4371,8 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
 
 			// Then: the jobs should be returned in the correct order (sorted by createdAt)
-			sort.Slice(filteredJobs, func(i, j int) bool {
-				return filteredJobs[i].CreatedAt.Before(filteredJobs[j].CreatedAt)
+			slices.SortFunc(filteredJobs, func(a, b database.ProvisionerJob) int {
+				return a.CreatedAt.Compare(b.CreatedAt)
 			})
 			for idx, job := range actualJobs {
 				assert.EqualValues(t, filteredJobs[idx], job.ProvisionerJob)
@@ -4514,8 +4514,8 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
 	// Then: the jobs should be returned in the correct order (sorted by createdAt)
-	sort.Slice(allJobs, func(i, j int) bool {
-		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+	slices.SortFunc(allJobs, func(a, b database.ProvisionerJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	for idx, job := range actualJobs {
 		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
@@ -4612,8 +4612,8 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
 	// Then: the jobs should be returned in the correct order (sorted by createdAt)
-	sort.Slice(allJobs, func(i, j int) bool {
-		return allJobs[i].CreatedAt.Before(allJobs[j].CreatedAt)
+	slices.SortFunc(allJobs, func(a, b database.ProvisionerJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 	for idx, job := range actualJobs {
 		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)

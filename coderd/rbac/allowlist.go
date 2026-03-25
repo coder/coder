@@ -1,8 +1,8 @@
 package rbac
 
 import (
+	"cmp"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -116,11 +116,11 @@ func NormalizeAllowList(inputs []AllowListElement) ([]AllowListElement, error) {
 		}
 	}
 
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Type == out[j].Type {
-			return out[i].ID < out[j].ID
+	slices.SortFunc(out, func(a, b AllowListElement) int {
+		if c := cmp.Compare(a.Type, b.Type); c != 0 {
+			return c
 		}
-		return out[i].Type < out[j].Type
+		return cmp.Compare(a.ID, b.ID)
 	})
 	return out, nil
 }

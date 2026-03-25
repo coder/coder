@@ -3,13 +3,13 @@ package agentcontainers
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os/user"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -479,8 +479,8 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentContainer, []str
 			in.Mounts = []dockerInspectMount{}
 		}
 		// Sort the mounts for deterministic output.
-		sort.Slice(in.Mounts, func(i, j int) bool {
-			return in.Mounts[i].Source < in.Mounts[j].Source
+		slices.SortFunc(in.Mounts, func(a, b dockerInspectMount) int {
+			return cmp.Compare(a.Source, b.Source)
 		})
 		for _, k := range in.Mounts {
 			out.Volumes[k.Source] = k.Destination

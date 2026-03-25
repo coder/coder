@@ -1,9 +1,10 @@
 package rbac
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -886,8 +887,8 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 		}
 	}
 	// Deterministic ordering of permissions
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].ResourceType < list[j].ResourceType
+	slices.SortFunc(list, func(a, b Permission) int {
+		return cmp.Compare(a.ResourceType, b.ResourceType)
 	})
 	return list
 }
