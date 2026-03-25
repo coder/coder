@@ -367,6 +367,9 @@ const AgentsPage: FC = () => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
 	const requestRegenerateTitle = (chatId: string) => {
+		if (regenerateTitleMutation.isPending) {
+			return;
+		}
 		regenerateTitleMutation.mutate(chatId);
 	};
 	const handleToggleSidebarCollapsed = () =>

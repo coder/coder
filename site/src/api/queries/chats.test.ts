@@ -581,13 +581,16 @@ describe("regenerateChatTitle cache updates", () => {
 		seedInfiniteChats(queryClient, [cachedChat]);
 
 		const mutation = regenerateChatTitle(queryClient);
-		const updatedChat = makeChat(chatId, { title: "New title" });
+		const updatedChat = {
+			id: chatId,
+			title: "New title",
+		} as TypesGen.Chat;
 
 		mutation.onSuccess(updatedChat);
 
 		expect(queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))).toEqual({
 			...cachedChat,
-			...updatedChat,
+			title: "New title",
 		});
 		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
 			id: chatId,

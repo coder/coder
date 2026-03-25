@@ -294,7 +294,6 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent,
 		onRegenerateTitle,
 		isRegeneratingTitle,
-		regeneratingTitleChatId,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
@@ -894,10 +893,7 @@ const AgentDetail: FC = () => {
 	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
 
 	const handleRegenerateTitle = () => {
-		if (
-			!agentId ||
-			(isRegeneratingTitle && regeneratingTitleChatId === agentId)
-		) {
+		if (!agentId || isRegeneratingTitle) {
 			return;
 		}
 		onRegenerateTitle(agentId);

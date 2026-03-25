@@ -413,7 +413,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isArchiving,
 		archivingChatId,
 		isRegeneratingTitle,
-		regeneratingTitleChatId,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -609,10 +608,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									) : (
 										<>
 											<DropdownMenuItem
-												disabled={
-													isRegeneratingTitle &&
-													regeneratingTitleChatId === chat.id
-												}
+												disabled={isRegeneratingTitle}
 												onSelect={() => onRegenerateTitle(chat.id)}
 											>
 												<WandSparklesIcon className="h-3.5 w-3.5" />
