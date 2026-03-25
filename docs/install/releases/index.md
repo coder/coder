@@ -9,7 +9,7 @@ deployment.
 
 ## Release channels
 
-We support four release channels, with ad-hoc release candidates:
+We support four primary release channels, as well as ad-hoc release candidates:
 
 - **Mainline:** The bleeding edge version of Coder
 - **Stable:** N-1 of the mainline release
