@@ -14,14 +14,13 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Link } from "components/Link/Link";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -29,6 +28,13 @@ import {
 	LoaderIcon,
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+import { cn } from "utils/cn";
+import { docs } from "utils/docs";
+import { TokenBadges } from "../../TokenBadges";
+import { prettyFormatJSON } from "../../utils";
+import { AgenticLoopTable } from "./AgenticLoopTable";
+import { PromptTable } from "./PromptTable";
+import { ToolCallTable } from "./ToolCallTable";
 
 const EXPANDABLE_COLLAPSE_HEIGHT = 50;
 
@@ -83,14 +89,6 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 	);
 };
 
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
-import { TokenBadges } from "../../TokenBadges";
-import { prettyFormatJSON } from "../../utils";
-import { AgenticLoopTable } from "./AgenticLoopTable";
-import { PromptTable } from "./PromptTable";
-import { ToolCallTable } from "./ToolCallTable";
-
 interface CollapseButtonProps {
 	isOpen: boolean;
 	onClick: () => void;
@@ -108,6 +106,7 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 		variant="subtle"
 		onClick={onClick}
 		className="border-none bg-transparent text-content-secondary flex items-center"
+		size="sm"
 	>
 		{isOpen ? (
 			<ChevronDownIcon className="size-3.5 flex-shrink-0" />
@@ -145,7 +144,7 @@ const BracketConnector: FC<BracketConnectorProps> = ({
 			{/* top rounded line */}
 		</div>
 		{!hideBottomLine && (
-			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-surface-secondary rounded-tl-lg">
+			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-surface-secondary rounded-tl-lg -mt-px">
 				{/* bottom rounded line */}
 			</div>
 		)}
@@ -245,7 +244,7 @@ const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
 				</CollapseButton>
 			</div>
 			{isOpen && (
-				<div className="mb-4 ml-5 mr-4 flex flex-col gap-2 lg:w-1/2 text-xs text-content-secondary">
+				<div className="mb-4 ml-3 mr-4 flex flex-col gap-2 lg:w-1/2 text-xs text-content-secondary">
 					<div className="flex items-center justify-between">
 						<span className="font-medium">In / out tokens</span>
 						<TokenBadges
@@ -302,26 +301,32 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 	return (
 		<>
-			<div className="border border-border border-solid rounded-md flex flex-col lg:flex-row gap-4 p-4">
+			<div className="border border-surface-secondary border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
 				{/* left column: avatar and username */}
-				<div className="flex flex-row items-items-start gap-2">
+				<div className="flex flex-row items-items-start gap-1">
 					<Avatar
 						src={initiator.avatar_url}
 						fallback={initiator.name ?? initiator.username}
 						size="sm"
 						className="flex-shrink-0"
 					/>
-					<span className="text-sm text-content-primary">
+					<span className="text-xs text-content-secondary font-normal py-1">
 						{initiator.username}
 					</span>
 				</div>
 
 				{/* center column: prompt */}
-				<div className="flex-grow">
-					<div className="text-sm text-content-secondary">Prompt</div>
-					<p className="text-sm text-content-primary bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
-						{thread.prompt}
-					</p>
+				<div className="flex-grow flex flex-col gap-1">
+					{thread.prompt && (
+						<>
+							<div className="text-xs text-content-secondary font-normal my-1">
+								Prompt
+							</div>
+							<p className="text-xs text-content-primary bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
+								{thread.prompt}
+							</p>
+						</>
+					)}
 				</div>
 
 				{/* right column: details */}
@@ -337,11 +342,11 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 			<BracketConnector
 				firstRowHeight="60px"
-				contentClassName="border border-border border-dashed rounded-md my-4"
+				contentClassName="border border-surface-secondary border-dashed rounded-md my-4"
 			>
 				{/* Agentic loop */}
 				<div className="flex flex-col lg:flex-row lg:items-center justify-between">
-					<div className="">
+					<div>
 						<CollapseButton
 							isOpen={agenticLoopOpen}
 							onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
@@ -351,7 +356,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 					</div>
 
 					<AgenticLoopTable
-						className="lg:max-w-64 flex-1 m-4"
+						className="lg:max-w-64 flex-1 my-3 mx-2"
 						duration={durationInMs}
 						toolCalls={thread.agentic_actions?.length ?? 0}
 						inputTokens={thread.token_usage.input_tokens}
@@ -425,65 +430,61 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	}, [hasNextPage, isFetchingNextPage, onFetchNextPage]);
 
 	return (
-		<div className="grid grid-cols-[20px_1rem_1px_1fr_auto_20px]">
-			{/* row 1: session start */}
-			<div className="row-start-1 col-start-2 relative">
-				<StatusIndicatorDot
-					variant="inactive"
-					size="sm"
-					className="absolute right-0 translate-x-1/2 translate-y-1/2"
-				/>
-			</div>
-			<div className="row-start-1 col-start-4 col-span-2 flex items-center">
-				<span className="text-content-secondary ml-4">Session started</span>
-			</div>
+		<div className="relative">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button variant="outline" className="absolute top-0 right-0">
+						{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
+						<ChevronDownIcon />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuRadioGroup
+						value={sort}
+						onValueChange={(v) => setSort(v as "oldest" | "newest")}
+					>
+						<DropdownMenuRadioItem value="oldest">
+							Sort by oldest
+						</DropdownMenuRadioItem>
+						<DropdownMenuRadioItem value="newest">
+							Sort by newest
+						</DropdownMenuRadioItem>
+					</DropdownMenuRadioGroup>
+				</DropdownMenuContent>
+			</DropdownMenu>
 
-			{/* row 2: vertical line and timeline sort dropdown */}
-			<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
-				{/* vertical line */}
-			</div>
-			<div className="invisible md:visible row-start-2 col-start-4 col-span-2 text-right">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="outline"
-							size="sm"
-							className="text-xs text-content-secondary"
-						>
-							{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
-							<ChevronDownIcon />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuRadioGroup
-							value={sort}
-							onValueChange={(v) => setSort(v as "oldest" | "newest")}
-						>
-							<DropdownMenuRadioItem value="oldest">
-								Sort by oldest
-							</DropdownMenuRadioItem>
-							<DropdownMenuRadioItem value="newest">
-								Sort by newest
-							</DropdownMenuRadioItem>
-						</DropdownMenuRadioGroup>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
+			<div className="grid grid-cols-[16px_1rem_1px_1fr_auto_16px]">
+				{/* row 1: session start */}
+				<div className="row-start-1 col-start-2 relative h-10 py-1">
+					<StatusIndicatorDot
+						variant="inactive"
+						className="absolute right-0 translate-x-1/2 translate-y-1/2"
+					/>
+				</div>
+				<div className="row-start-1 col-start-4 col-span-2 flex items-center h-10">
+					<span className="text-content-secondary ml-4 py-1 text-sm">
+						Session started
+					</span>
+				</div>
 
-			{/* row 3: sized intentionally to create the visual space above the timeline border */}
-			<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
-				{/* vertical line */}
-			</div>
+				{/* row 2: vertical line and timeline sort dropdown */}
+				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
+					{/* vertical line */}
+				</div>
 
-			{/* row 3/4: AI Governance tooltip */}
-			<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2">
-				AI Governance
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<InfoIcon className="size-icon-sm ml-2" />
-						</TooltipTrigger>
-						<TooltipContent className="max-w-64" align="end" side="top">
+				{/* row 3: sized intentionally to create the visual space above the timeline border */}
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-6">
+					{/* vertical line */}
+				</div>
+
+				{/* row 3/4: AI Governance tooltip */}
+				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2 pt-1">
+					AI Governance
+					<Popover>
+						<PopoverTrigger asChild>
+							<InfoIcon className="size-icon-sm p-0.5 ml-1" />
+						</PopoverTrigger>
+						<PopoverContent className="max-w-64" align="end" side="top">
 							<div className="text-sm text-content-primary font-medium mb-1">
 								Controls and logs AI tooling so AI use stays secure, compliant,
 								and visible.
@@ -493,81 +494,82 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 									More about AI Governance
 								</Link>
 							</div>
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</div>
+						</PopoverContent>
+					</Popover>
+				</div>
 
-			{/* row 4:  */}
-			<div className="row-start-4 col-start-1 border-0 border-l border-t border-dashed border-border-success/40 rounded-tl-xl w-[20px] h-[20px]">
-				{/* top left rounded corner */}
-			</div>
-			<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-border-success/40">
-				{/* horizontal border */}
-			</div>
-			<div className="row-start-4 col-start-3 border-0 border-l border-solid border-surface-secondary">
-				{/* vertical line */}
-			</div>
-			<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-border-success/40">
-				{/* horizontal border */}
-			</div>
-			<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-border-success/40 rounded-tr-xl w-[20px] h-[20px]">
-				{/* top right rounded corner */}
-			</div>
+				{/* row 4:  */}
+				<div className="row-start-4 col-start-1 border-0 border-l border-t border-dashed border-surface-green rounded-tl-lg size-4">
+					{/* top left rounded corner */}
+				</div>
+				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
+					{/* horizontal border */}
+				</div>
+				<div className="row-start-4 col-start-3 border-0 border-l border-solid border-surface-secondary">
+					{/* vertical line */}
+				</div>
+				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
+					{/* horizontal border */}
+				</div>
+				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg size-4">
+					{/* top right rounded corner */}
+				</div>
 
-			{/* row 5: threads */}
-			<div className="row-start-5 col-start-1 border-0 border-l border-dashed border-border-success/40">
-				{/* left vertical line */}
-			</div>
-			<div className="row-start-5 col-start-2 col-span-4">
-				{/* threads */}
-				{threads.map((thread) => (
-					<ThreadItem key={thread.id} thread={thread} initiator={initiator} />
-				))}
-				{/* infinite scroll sentinel — sits 200px below the last thread */}
-				<div ref={sentinelRef} />
-				{isFetchingNextPage && (
-					<div className="flex items-center justify-center py-4 text-sm text-content-secondary">
-						<Spinner loading size="sm" />
-					</div>
-				)}
-			</div>
-			<div className="row-start-5 col-start-6 border-0 border-r border-dashed border-border-success/40">
-				{/* right vertical line */}
-			</div>
+				{/* row 5: threads */}
+				<div className="row-start-5 col-start-1 border-0 border-l border-dashed border-surface-green">
+					{/* left vertical line */}
+				</div>
+				<div className="row-start-5 col-start-2 col-span-4">
+					{/* threads */}
+					{threads.map((thread) => (
+						<ThreadItem key={thread.id} thread={thread} initiator={initiator} />
+					))}
+					{/* infinite scroll sentinel — sits 200px below the last thread */}
+					<div ref={sentinelRef} />
+					{isFetchingNextPage && (
+						<div className="flex items-center justify-center py-4 text-sm text-content-secondary">
+							<Spinner loading size="sm" />
+						</div>
+					)}
+				</div>
+				<div className="row-start-5 col-start-6 border-0 border-r border-dashed border-surface-green">
+					{/* right vertical line */}
+				</div>
 
-			{/* row 6: more design and session end */}
-			<div className="row-start-6 col-start-1 border-0 border-l border-b border-dashed border-border-success/40 rounded-bl-xl w-[20px] h-[20px]">
-				{/* bottom left rounded corner */}
-			</div>
-			<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-border-success/40">
-				{/* horizontal line */}
-			</div>
-			<div className="row-start-6 col-start-3 border-0 border-l border-solid border-surface-secondary">
-				{/* vertical line */}
-			</div>
-			<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-border-success/40">
-				{/* horizontal line */}
-			</div>
-			<div className="row-start-6 col-start-6 border-0 border-r border-b border-dashed border-border-success/40 rounded-br-xl w-[20px] h-[20px]">
-				{/* bottom right rounded corner */}
-			</div>
+				{/* row 6: more design and session end */}
+				<div className="row-start-6 col-start-1 border-0 border-l border-b border-dashed border-surface-green rounded-bl-lg size-4">
+					{/* bottom left rounded corner */}
+				</div>
+				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
+					{/* horizontal line */}
+				</div>
+				<div className="row-start-6 col-start-3 border-0 border-l border-solid border-surface-secondary">
+					{/* vertical line */}
+				</div>
+				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
+					{/* horizontal line */}
+				</div>
+				<div className="row-start-6 col-start-6 border-0 border-r border-b border-dashed border-surface-green rounded-br-lg size-4">
+					{/* bottom right rounded corner */}
+				</div>
 
-			{/* row 7: sized intentionally to create the visual space below the timeline border */}
-			<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
-				{/* vertical line */}
-			</div>
+				{/* row 7: sized intentionally to create the visual space below the timeline border */}
+				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-4">
+					{/* vertical line */}
+				</div>
 
-			{/* row 8: session start */}
-			<div className="row-start-8 col-start-2 relative">
-				<StatusIndicatorDot
-					variant="success"
-					size="sm"
-					className="absolute right-0 translate-x-1/2 translate-y-1/2"
-				/>
-			</div>
-			<div className="row-start-8 col-start-4 flex items-center">
-				<span className="text-success ml-4">Session ended</span>
+				{/* row 8: session start */}
+				<div className="row-start-8 col-start-2 relative">
+					<StatusIndicatorDot
+						variant="success"
+						className="absolute right-0 translate-x-1/2 translate-y-1/2"
+					/>
+				</div>
+				<div className="row-start-8 col-start-4 flex items-center">
+					<span className="text-content-success ml-4 text-sm py-1">
+						Session completed
+					</span>
+				</div>
 			</div>
 		</div>
 	);
