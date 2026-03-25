@@ -210,41 +210,37 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }
 
+// useTestutilEventually ensures that tests use the context-aware
+// testutil.Eventually helper instead of require.Eventually or
+// assert.Eventually. testutil.Eventually runs the condition inline
+// (not in a goroutine), accepts a context for cancellation, and
+// passes that context to the condition function.
+//
+//nolint:unused,deadcode,varnamelen
+func useTestutilEventually(m dsl.Matcher) {
+	m.Import("github.com/stretchr/testify/require")
+	m.Import("github.com/stretchr/testify/assert")
+
+	m.Match(
+		`require.Eventually($*_)`,
+		`require.Eventuallyf($*_)`,
+		`assert.Eventually($*_)`,
+		`assert.Eventuallyf($*_)`,
+	).
+		Report("Use testutil.Eventually instead of require/assert.Eventually. testutil.Eventually is context-aware and does not run the condition in a goroutine.")
+}
+
 // useStandardTimeoutsAndDelaysInTests ensures all tests use common
 // constants for timeouts and delays in usual scenarios, this allows us
 // to tweak them based on platform (important to avoid CI flakes).
 //
 //nolint:unused,deadcode,varnamelen
 func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
-	m.Import("github.com/stretchr/testify/require")
-	m.Import("github.com/stretchr/testify/assert")
 	m.Import("github.com/coder/coder/v2/testutil")
 
 	m.Match(`context.WithTimeout($ctx, $duration)`).
 		Where(m.File().Imports("testing") && !m.File().PkgPath.Matches("testutil$") && !m["duration"].Text.Matches("^testutil\\.")).
 		At(m["duration"]).
-		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
-
-	m.Match(`
-		$testify.$Eventually($t, func() bool {
-			$*_
-		}, $timeout, $interval, $*_)
-	`).
-		Where((m["testify"].Text == "require" || m["testify"].Text == "assert") &&
-			(m["Eventually"].Text == "Eventually" || m["Eventually"].Text == "Eventuallyf") &&
-			!m["timeout"].Text.Matches("^testutil\\.")).
-		At(m["timeout"]).
-		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
-
-	m.Match(`
-		$testify.$Eventually($t, func() bool {
-			$*_
-		}, $timeout, $interval, $*_)
-	`).
-		Where((m["testify"].Text == "require" || m["testify"].Text == "assert") &&
-			(m["Eventually"].Text == "Eventually" || m["Eventually"].Text == "Eventuallyf") &&
-			!m["interval"].Text.Matches("^testutil\\.")).
-		At(m["interval"]).
 		Report("Do not use magic numbers in test timeouts and delays. Use the standard testutil.Wait* or testutil.Interval* constants instead.")
 }
 
