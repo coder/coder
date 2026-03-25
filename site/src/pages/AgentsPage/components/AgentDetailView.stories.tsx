@@ -679,12 +679,17 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 
 		await waitForScrollOverflow(scrollContainer);
 
-		// Verify the starting position is pinned to the bottom.
-		const initialDistFromBottom =
-			scrollContainer.scrollHeight -
-			scrollContainer.scrollTop -
-			scrollContainer.clientHeight;
-		expect(initialDistFromBottom).toBeLessThan(5);
+		// Wait for the initial double-RAF pin to bottom to complete.
+		await waitFor(
+			() => {
+				const initialDistFromBottom =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(initialDistFromBottom).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();

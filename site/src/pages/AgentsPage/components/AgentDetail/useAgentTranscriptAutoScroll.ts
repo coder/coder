@@ -215,7 +215,10 @@ export function useAgentTranscriptAutoScroll(
 		isProgrammaticScrollRef.current = true;
 		cancelScrollStateUpdate(scrollStateRafIdRef);
 		setShowScrollToBottom(false);
-		container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+		container.scrollTo({
+			top: container.scrollHeight - container.clientHeight,
+			behavior: "smooth",
+		});
 	};
 
 	return {
