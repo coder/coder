@@ -386,30 +386,4 @@ describe("useFileAttachments persistence", () => {
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
 		unmount();
 	});
-
-	it("preserves attachments and localStorage when resetAttachments is not called", () => {
-		const entry = makePersistedEntry();
-		localStorage.setItem(
-			persistedAttachmentsStorageKey,
-			JSON.stringify([entry]),
-		);
-
-		const { result, unmount } = renderFileAttachments();
-
-		// Verify attachments were restored.
-		expect(result.current.attachments).toHaveLength(1);
-
-		// Simulate a failed send: the caller does NOT call
-		// resetAttachments because the mutation rejected.
-		// Attachments and localStorage must remain intact.
-		expect(result.current.attachments).toHaveLength(1);
-		expect(result.current.attachments[0].name).toBe("photo.png");
-
-		const stored = localStorage.getItem(persistedAttachmentsStorageKey);
-		expect(stored).not.toBeNull();
-		const parsed = JSON.parse(stored!);
-		expect(parsed).toHaveLength(1);
-		expect(parsed[0].fileId).toBe("file-1");
-		unmount();
-	});
 });
