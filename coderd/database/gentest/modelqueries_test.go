@@ -27,6 +27,7 @@ func TestCustomQueriesSyncedRowScan(t *testing.T) {
 		"GetWorkspaces":          "GetAuthorizedWorkspaces",
 		"GetUsers":               "GetAuthorizedUsers",
 		"GetChats":               "GetAuthorizedChats",
+		"GetAutomations":         "GetAuthorizedAutomations",
 	}
 
 	// Scan custom

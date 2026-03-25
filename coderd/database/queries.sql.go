@@ -2517,6 +2517,511 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const countAutomationChatCreatesInWindow = `-- name: CountAutomationChatCreatesInWindow :one
+SELECT COUNT(*)
+FROM automation_webhook_events
+WHERE automation_id = $1::uuid
+    AND status = 'created'
+    AND received_at > $2::timestamptz
+`
+
+type CountAutomationChatCreatesInWindowParams struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	WindowStart  time.Time `db:"window_start" json:"window_start"`
+}
+
+func (q *sqlQuerier) CountAutomationChatCreatesInWindow(ctx context.Context, arg CountAutomationChatCreatesInWindowParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAutomationChatCreatesInWindow, arg.AutomationID, arg.WindowStart)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAutomationMessagesInWindow = `-- name: CountAutomationMessagesInWindow :one
+SELECT COUNT(*)
+FROM automation_webhook_events
+WHERE automation_id = $1::uuid
+    AND status = 'continued'
+    AND received_at > $2::timestamptz
+`
+
+type CountAutomationMessagesInWindowParams struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	WindowStart  time.Time `db:"window_start" json:"window_start"`
+}
+
+func (q *sqlQuerier) CountAutomationMessagesInWindow(ctx context.Context, arg CountAutomationMessagesInWindowParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAutomationMessagesInWindow, arg.AutomationID, arg.WindowStart)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAutomationWebhookEvents = `-- name: GetAutomationWebhookEvents :many
+SELECT
+    id, automation_id, received_at, payload, filter_matched, resolved_labels, matched_chat_id, created_chat_id, status, error
+FROM
+    automation_webhook_events
+WHERE
+    automation_id = $1::uuid
+    AND CASE
+        WHEN $2::text IS NOT NULL THEN status = $2::text
+        ELSE true
+    END
+ORDER BY
+    received_at DESC
+OFFSET $3
+LIMIT
+    COALESCE(NULLIF($4 :: int, 0), 50)
+`
+
+type GetAutomationWebhookEventsParams struct {
+	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
+	StatusFilter sql.NullString `db:"status_filter" json:"status_filter"`
+	OffsetOpt    int32          `db:"offset_opt" json:"offset_opt"`
+	LimitOpt     int32          `db:"limit_opt" json:"limit_opt"`
+}
+
+func (q *sqlQuerier) GetAutomationWebhookEvents(ctx context.Context, arg GetAutomationWebhookEventsParams) ([]AutomationWebhookEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getAutomationWebhookEvents,
+		arg.AutomationID,
+		arg.StatusFilter,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AutomationWebhookEvent
+	for rows.Next() {
+		var i AutomationWebhookEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.AutomationID,
+			&i.ReceivedAt,
+			&i.Payload,
+			&i.FilterMatched,
+			&i.ResolvedLabels,
+			&i.MatchedChatID,
+			&i.CreatedChatID,
+			&i.Status,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAutomationWebhookEvent = `-- name: InsertAutomationWebhookEvent :one
+INSERT INTO automation_webhook_events (
+    automation_id,
+    payload,
+    filter_matched,
+    resolved_labels,
+    matched_chat_id,
+    created_chat_id,
+    status,
+    error
+) VALUES (
+    $1::uuid,
+    $2::jsonb,
+    $3::boolean,
+    $4::jsonb,
+    $5::uuid,
+    $6::uuid,
+    $7::text,
+    $8::text
+) RETURNING id, automation_id, received_at, payload, filter_matched, resolved_labels, matched_chat_id, created_chat_id, status, error
+`
+
+type InsertAutomationWebhookEventParams struct {
+	AutomationID   uuid.UUID             `db:"automation_id" json:"automation_id"`
+	Payload        json.RawMessage       `db:"payload" json:"payload"`
+	FilterMatched  bool                  `db:"filter_matched" json:"filter_matched"`
+	ResolvedLabels pqtype.NullRawMessage `db:"resolved_labels" json:"resolved_labels"`
+	MatchedChatID  uuid.NullUUID         `db:"matched_chat_id" json:"matched_chat_id"`
+	CreatedChatID  uuid.NullUUID         `db:"created_chat_id" json:"created_chat_id"`
+	Status         string                `db:"status" json:"status"`
+	Error          sql.NullString        `db:"error" json:"error"`
+}
+
+func (q *sqlQuerier) InsertAutomationWebhookEvent(ctx context.Context, arg InsertAutomationWebhookEventParams) (AutomationWebhookEvent, error) {
+	row := q.db.QueryRowContext(ctx, insertAutomationWebhookEvent,
+		arg.AutomationID,
+		arg.Payload,
+		arg.FilterMatched,
+		arg.ResolvedLabels,
+		arg.MatchedChatID,
+		arg.CreatedChatID,
+		arg.Status,
+		arg.Error,
+	)
+	var i AutomationWebhookEvent
+	err := row.Scan(
+		&i.ID,
+		&i.AutomationID,
+		&i.ReceivedAt,
+		&i.Payload,
+		&i.FilterMatched,
+		&i.ResolvedLabels,
+		&i.MatchedChatID,
+		&i.CreatedChatID,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const purgeOldAutomationWebhookEvents = `-- name: PurgeOldAutomationWebhookEvents :exec
+DELETE FROM automation_webhook_events
+WHERE received_at < NOW() - INTERVAL '7 days'
+`
+
+func (q *sqlQuerier) PurgeOldAutomationWebhookEvents(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, purgeOldAutomationWebhookEvents)
+	return err
+}
+
+const deleteAutomationByID = `-- name: DeleteAutomationByID :exec
+DELETE FROM automations WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteAutomationByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAutomationByID, id)
+	return err
+}
+
+const getAutomationByID = `-- name: GetAutomationByID :one
+SELECT id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, filter, session_labels, system_prompt, model_config_id, workspace_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at FROM automations WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAutomationByID(ctx context.Context, id uuid.UUID) (Automation, error) {
+	row := q.db.QueryRowContext(ctx, getAutomationByID, id)
+	var i Automation
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.WebhookSecret,
+		&i.WebhookSecretKeyID,
+		&i.Filter,
+		&i.SessionLabels,
+		&i.SystemPrompt,
+		&i.ModelConfigID,
+		&i.WorkspaceID,
+		pq.Array(&i.MCPServerIDs),
+		pq.Array(&i.AllowedTools),
+		&i.Status,
+		&i.MaxChatCreatesPerHour,
+		&i.MaxMessagesPerHour,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAutomations = `-- name: GetAutomations :many
+SELECT
+    id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, filter, session_labels, system_prompt, model_config_id, workspace_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+FROM
+    automations
+WHERE
+    CASE
+        WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN automations.owner_id = $1
+        ELSE true
+    END
+    AND CASE
+        WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN automations.organization_id = $2
+        ELSE true
+    END
+    -- Authorize Filter clause will be injected below in GetAuthorizedAutomations
+    -- @authorize_filter
+ORDER BY
+    created_at DESC
+OFFSET $3
+LIMIT
+    COALESCE(NULLIF($4 :: int, 0), 50)
+`
+
+type GetAutomationsParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+func (q *sqlQuerier) GetAutomations(ctx context.Context, arg GetAutomationsParams) ([]Automation, error) {
+	rows, err := q.db.QueryContext(ctx, getAutomations,
+		arg.OwnerID,
+		arg.OrganizationID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Automation
+	for rows.Next() {
+		var i Automation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Description,
+			&i.WebhookSecret,
+			&i.WebhookSecretKeyID,
+			&i.Filter,
+			&i.SessionLabels,
+			&i.SystemPrompt,
+			&i.ModelConfigID,
+			&i.WorkspaceID,
+			pq.Array(&i.MCPServerIDs),
+			pq.Array(&i.AllowedTools),
+			&i.Status,
+			&i.MaxChatCreatesPerHour,
+			&i.MaxMessagesPerHour,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAutomation = `-- name: InsertAutomation :one
+INSERT INTO automations (
+    owner_id,
+    organization_id,
+    name,
+    description,
+    webhook_secret,
+    filter,
+    session_labels,
+    system_prompt,
+    model_config_id,
+    workspace_id,
+    mcp_server_ids,
+    allowed_tools,
+    status,
+    max_chat_creates_per_hour,
+    max_messages_per_hour
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::jsonb,
+    $7::jsonb,
+    $8::text,
+    $9::uuid,
+    $10::uuid,
+    COALESCE($11::uuid[], '{}'::uuid[]),
+    COALESCE($12::text[], '{}'::text[]),
+    $13::text,
+    $14::integer,
+    $15::integer
+) RETURNING id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, filter, session_labels, system_prompt, model_config_id, workspace_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+`
+
+type InsertAutomationParams struct {
+	OwnerID               uuid.UUID             `db:"owner_id" json:"owner_id"`
+	OrganizationID        uuid.UUID             `db:"organization_id" json:"organization_id"`
+	Name                  string                `db:"name" json:"name"`
+	Description           string                `db:"description" json:"description"`
+	WebhookSecret         string                `db:"webhook_secret" json:"webhook_secret"`
+	Filter                pqtype.NullRawMessage `db:"filter" json:"filter"`
+	SessionLabels         pqtype.NullRawMessage `db:"session_labels" json:"session_labels"`
+	SystemPrompt          string                `db:"system_prompt" json:"system_prompt"`
+	ModelConfigID         uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	WorkspaceID           uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	MCPServerIDs          []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	AllowedTools          []string              `db:"allowed_tools" json:"allowed_tools"`
+	Status                string                `db:"status" json:"status"`
+	MaxChatCreatesPerHour int32                 `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
+	MaxMessagesPerHour    int32                 `db:"max_messages_per_hour" json:"max_messages_per_hour"`
+}
+
+func (q *sqlQuerier) InsertAutomation(ctx context.Context, arg InsertAutomationParams) (Automation, error) {
+	row := q.db.QueryRowContext(ctx, insertAutomation,
+		arg.OwnerID,
+		arg.OrganizationID,
+		arg.Name,
+		arg.Description,
+		arg.WebhookSecret,
+		arg.Filter,
+		arg.SessionLabels,
+		arg.SystemPrompt,
+		arg.ModelConfigID,
+		arg.WorkspaceID,
+		pq.Array(arg.MCPServerIDs),
+		pq.Array(arg.AllowedTools),
+		arg.Status,
+		arg.MaxChatCreatesPerHour,
+		arg.MaxMessagesPerHour,
+	)
+	var i Automation
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.WebhookSecret,
+		&i.WebhookSecretKeyID,
+		&i.Filter,
+		&i.SessionLabels,
+		&i.SystemPrompt,
+		&i.ModelConfigID,
+		&i.WorkspaceID,
+		pq.Array(&i.MCPServerIDs),
+		pq.Array(&i.AllowedTools),
+		&i.Status,
+		&i.MaxChatCreatesPerHour,
+		&i.MaxMessagesPerHour,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAutomation = `-- name: UpdateAutomation :one
+UPDATE automations SET
+    name = $1::text,
+    description = $2::text,
+    filter = $3::jsonb,
+    session_labels = $4::jsonb,
+    system_prompt = $5::text,
+    model_config_id = $6::uuid,
+    workspace_id = $7::uuid,
+    mcp_server_ids = $8::uuid[],
+    allowed_tools = $9::text[],
+    status = $10::text,
+    max_chat_creates_per_hour = $11::integer,
+    max_messages_per_hour = $12::integer,
+    updated_at = NOW()
+WHERE id = $13::uuid
+RETURNING id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, filter, session_labels, system_prompt, model_config_id, workspace_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+`
+
+type UpdateAutomationParams struct {
+	Name                  string                `db:"name" json:"name"`
+	Description           string                `db:"description" json:"description"`
+	Filter                pqtype.NullRawMessage `db:"filter" json:"filter"`
+	SessionLabels         pqtype.NullRawMessage `db:"session_labels" json:"session_labels"`
+	SystemPrompt          string                `db:"system_prompt" json:"system_prompt"`
+	ModelConfigID         uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	WorkspaceID           uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	MCPServerIDs          []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	AllowedTools          []string              `db:"allowed_tools" json:"allowed_tools"`
+	Status                string                `db:"status" json:"status"`
+	MaxChatCreatesPerHour int32                 `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
+	MaxMessagesPerHour    int32                 `db:"max_messages_per_hour" json:"max_messages_per_hour"`
+	ID                    uuid.UUID             `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error) {
+	row := q.db.QueryRowContext(ctx, updateAutomation,
+		arg.Name,
+		arg.Description,
+		arg.Filter,
+		arg.SessionLabels,
+		arg.SystemPrompt,
+		arg.ModelConfigID,
+		arg.WorkspaceID,
+		pq.Array(arg.MCPServerIDs),
+		pq.Array(arg.AllowedTools),
+		arg.Status,
+		arg.MaxChatCreatesPerHour,
+		arg.MaxMessagesPerHour,
+		arg.ID,
+	)
+	var i Automation
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.WebhookSecret,
+		&i.WebhookSecretKeyID,
+		&i.Filter,
+		&i.SessionLabels,
+		&i.SystemPrompt,
+		&i.ModelConfigID,
+		&i.WorkspaceID,
+		pq.Array(&i.MCPServerIDs),
+		pq.Array(&i.AllowedTools),
+		&i.Status,
+		&i.MaxChatCreatesPerHour,
+		&i.MaxMessagesPerHour,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAutomationWebhookSecret = `-- name: UpdateAutomationWebhookSecret :one
+UPDATE automations SET
+    webhook_secret = $1::text,
+    updated_at = NOW()
+WHERE id = $2::uuid
+RETURNING id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, filter, session_labels, system_prompt, model_config_id, workspace_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+`
+
+type UpdateAutomationWebhookSecretParams struct {
+	WebhookSecret string    `db:"webhook_secret" json:"webhook_secret"`
+	ID            uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAutomationWebhookSecret(ctx context.Context, arg UpdateAutomationWebhookSecretParams) (Automation, error) {
+	row := q.db.QueryRowContext(ctx, updateAutomationWebhookSecret, arg.WebhookSecret, arg.ID)
+	var i Automation
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.WebhookSecret,
+		&i.WebhookSecretKeyID,
+		&i.Filter,
+		&i.SessionLabels,
+		&i.SystemPrompt,
+		&i.ModelConfigID,
+		&i.WorkspaceID,
+		pq.Array(&i.MCPServerIDs),
+		pq.Array(&i.AllowedTools),
+		&i.Status,
+		&i.MaxChatCreatesPerHour,
+		&i.MaxMessagesPerHour,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAndResetBoundaryUsageSummary = `-- name: GetAndResetBoundaryUsageSummary :one
 WITH deleted AS (
     DELETE FROM boundary_usage_stats
@@ -3823,7 +4328,7 @@ WHERE
             $3::int
     )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 `
 
 type AcquireChatsParams struct {
@@ -3862,6 +4367,7 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.Mode,
 			pq.Array(&i.MCPServerIDs),
 			&i.Labels,
+			&i.AutomationID,
 		); err != nil {
 			return nil, err
 		}
@@ -4095,7 +4601,7 @@ func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userI
 
 const getChatByID = `-- name: GetChatByID :one
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 FROM
     chats
 WHERE
@@ -4124,12 +4630,13 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels FROM chats WHERE id = $1::uuid FOR UPDATE
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id FROM chats WHERE id = $1::uuid FOR UPDATE
 `
 
 func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
@@ -4154,6 +4661,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }
@@ -4998,7 +5506,7 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 
 const getChats = `-- name: GetChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 FROM
     chats
 WHERE
@@ -5089,6 +5597,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 			&i.Mode,
 			pq.Array(&i.MCPServerIDs),
 			&i.Labels,
+			&i.AutomationID,
 		); err != nil {
 			return nil, err
 		}
@@ -5154,7 +5663,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 FROM
     chats
 WHERE
@@ -5192,6 +5701,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.Mode,
 			pq.Array(&i.MCPServerIDs),
 			&i.Labels,
+			&i.AutomationID,
 		); err != nil {
 			return nil, err
 		}
@@ -5269,7 +5779,7 @@ INSERT INTO chats (
     COALESCE($9::jsonb, '{}'::jsonb)
 )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 `
 
 type InsertChatParams struct {
@@ -5316,6 +5826,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }
@@ -5711,7 +6222,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 `
 
 type UpdateChatByIDParams struct {
@@ -5741,6 +6252,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }
@@ -5780,7 +6292,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 `
 
 type UpdateChatLabelsByIDParams struct {
@@ -5810,6 +6322,7 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }
@@ -5823,7 +6336,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 `
 
 type UpdateChatMCPServerIDsParams struct {
@@ -5853,6 +6366,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }
@@ -5917,7 +6431,7 @@ SET
 WHERE
     id = $6::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 `
 
 type UpdateChatStatusParams struct {
@@ -5958,6 +6472,7 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }
@@ -5971,7 +6486,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, automation_id
 `
 
 type UpdateChatWorkspaceParams struct {
@@ -6001,6 +6516,7 @@ func (q *sqlQuerier) UpdateChatWorkspace(ctx context.Context, arg UpdateChatWork
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.AutomationID,
 	)
 	return i, err
 }

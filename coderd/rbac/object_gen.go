@@ -63,6 +63,16 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceAutomation
+	// Valid Actions
+	//  - "ActionCreate" :: create an automation
+	//  - "ActionDelete" :: delete an automation
+	//  - "ActionRead" :: read automation configuration
+	//  - "ActionUpdate" :: update an automation
+	ResourceAutomation = Object{
+		Type: "automation",
+	}
+
 	// ResourceBoundaryUsage
 	// Valid Actions
 	//  - "ActionDelete" :: delete boundary usage statistics
@@ -438,6 +448,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceAutomation,
 		ResourceBoundaryUsage,
 		ResourceChat,
 		ResourceConnectionLog,

@@ -1141,6 +1141,78 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 }
 
+func (s *MethodTestSuite) TestAutomations() {
+	s.Run("InsertAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertAutomationParams{})
+		automation := testutil.Fake(s.T(), faker, database.Automation{OwnerID: arg.OwnerID, OrganizationID: arg.OrganizationID})
+		dbm.EXPECT().InsertAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionCreate).Returns(automation)
+	}))
+	s.Run("GetAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionRead).Returns(automation)
+	}))
+	s.Run("GetAutomations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetAutomationsParams{}
+		dbm.EXPECT().GetAuthorizedAutomations(gomock.Any(), params, gomock.Any()).Return([]database.Automation{}, nil).AnyTimes()
+		check.Args(params).Asserts()
+	}))
+	s.Run("UpdateAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		arg := database.UpdateAutomationParams{ID: automation.ID, Name: "Updated"}
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(automation)
+	}))
+	s.Run("UpdateAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		arg := database.UpdateAutomationWebhookSecretParams{ID: automation.ID, WebhookSecret: "new-secret"}
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateAutomationWebhookSecret(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(automation)
+	}))
+	s.Run("DeleteAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().DeleteAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns()
+	}))
+	s.Run("InsertAutomationWebhookEvent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertAutomationWebhookEventParams{})
+		event := testutil.Fake(s.T(), faker, database.AutomationWebhookEvent{})
+		dbm.EXPECT().InsertAutomationWebhookEvent(gomock.Any(), arg).Return(event, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAutomation, policy.ActionUpdate).Returns(event)
+	}))
+	s.Run("GetAutomationWebhookEvents", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.Automation{})
+		arg := database.GetAutomationWebhookEventsParams{AutomationID: automation.ID}
+		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().GetAutomationWebhookEvents(gomock.Any(), arg).Return([]database.AutomationWebhookEvent{}, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionRead).Returns([]database.AutomationWebhookEvent{})
+	}))
+	s.Run("CountAutomationChatCreatesInWindow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.CountAutomationChatCreatesInWindowParams{})
+		dbm.EXPECT().CountAutomationChatCreatesInWindow(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAutomation, policy.ActionRead).Returns(int64(0))
+	}))
+	s.Run("CountAutomationMessagesInWindow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.CountAutomationMessagesInWindowParams{})
+		dbm.EXPECT().CountAutomationMessagesInWindow(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAutomation, policy.ActionRead).Returns(int64(0))
+	}))
+	s.Run("PurgeOldAutomationWebhookEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().PurgeOldAutomationWebhookEvents(gomock.Any()).Return(nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAutomation, policy.ActionDelete).Returns()
+	}))
+	s.Run("GetAuthorizedAutomations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetAutomationsParams{}
+		dbm.EXPECT().GetAuthorizedAutomations(gomock.Any(), params, gomock.Any()).Return([]database.Automation{}, nil).AnyTimes()
+		// No asserts here because it re-routes through GetAutomations which uses SQLFilter.
+		check.Args(params, emptyPreparedAuthorized{}).Asserts()
+	}))
+}
+
 func (s *MethodTestSuite) TestFile() {
 	s.Run("GetFileByHashAndCreator", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		f := testutil.Fake(s.T(), faker, database.File{})

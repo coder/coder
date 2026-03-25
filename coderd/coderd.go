@@ -1149,9 +1149,26 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		// Experimental(agents): chat API routes gated by ExperimentAgents.
-		r.Route("/chats", func(r chi.Router) {
-			r.Use(
+			// Experimental(agents): automation API routes gated by ExperimentAgents.
+			r.Route("/automations", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
+				)
+				r.Post("/", api.postAutomation)
+				r.Get("/", api.listAutomations)
+				r.Route("/{automation}", func(r chi.Router) {
+					r.Use(httpmw.ExtractAutomationParam(options.Database))
+					r.Get("/", api.getAutomation)
+					r.Patch("/", api.patchAutomation)
+					r.Delete("/", api.deleteAutomation)
+					r.Post("/regenerate-secret", api.regenerateAutomationSecret)
+					r.Get("/events", api.listAutomationEvents)
+					r.Post("/test", api.testAutomation)
+				})
+			})
+			// Experimental(agents): chat API routes gated by ExperimentAgents.
+			r.Route("/chats", func(r chi.Router) {			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
@@ -1295,12 +1312,16 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/regions", api.regions)
 		})
-		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
-			r.Get("/", api.derpMapUpdates)
-		})
-		r.Route("/deployment", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Route("/derp-map", func(r chi.Router) {
+				// r.Use(apiKeyMiddleware)
+				r.Get("/", api.derpMapUpdates)
+			})
+			// Unauthenticated webhook endpoint for automations.
+			// Authentication is via HMAC signature, not API key.
+			r.Route("/automations/{automation_id}/webhook", func(r chi.Router) {
+				r.Post("/", api.postAutomationWebhook)
+				})
+				r.Route("/deployment", func(r chi.Router) {			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)

@@ -53,6 +53,7 @@ type customQuerier interface {
 	connectionLogQuerier
 	aibridgeQuerier
 	chatQuerier
+	automationQuerier
 }
 
 type templateQuerier interface {
@@ -791,6 +792,73 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Mode,
 			pq.Array(&i.MCPServerIDs),
 			&i.Labels,
+			&i.AutomationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+type automationQuerier interface {
+	GetAuthorizedAutomations(ctx context.Context, arg GetAutomationsParams, prepared rbac.PreparedAuthorized) ([]Automation, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedAutomations(ctx context.Context, arg GetAutomationsParams, prepared rbac.PreparedAuthorized) ([]Automation, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.NoACLConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getAutomations, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedAutomations :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.OwnerID,
+		arg.OrganizationID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Automation
+	for rows.Next() {
+		var i Automation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Description,
+			&i.WebhookSecret,
+			&i.WebhookSecretKeyID,
+			&i.Filter,
+			&i.SessionLabels,
+			&i.SystemPrompt,
+			&i.ModelConfigID,
+			&i.WorkspaceID,
+			pq.Array(&i.MCPServerIDs),
+			pq.Array(&i.AllowedTools),
+			&i.Status,
+			&i.MaxChatCreatesPerHour,
+			&i.MaxMessagesPerHour,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
