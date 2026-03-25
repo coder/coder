@@ -21,38 +21,29 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	menus,
 }) => {
 	return (
-		<>
-			<div className="mb-4 flex items-center justify-end">
-				<span className="mr-2 text-content-secondary">Organization:</span>
-				{/* TODO: add organization filter */}
-				{/* <OrganizationAutocomplete */}
-				{/* 	onChange={(org) => console.info("Selected organization", org)} */}
-				{/* /> */}
-			</div>
-			<Filter
-				filter={filter}
-				optionsSkeleton={<MenuSkeleton />}
-				isLoading={menus.user.isInitializing}
-				presets={[
-					{
-						name: "All sessions",
-						query: "",
-					},
-					{
-						name: "My sessions",
-						query: "initiator:me",
-					},
-				]}
-				error={error}
-				options={
-					<>
-						<UserMenu menu={menus.user} placeholder="All users" />
-						<ProviderFilter menu={menus.provider} />
-						{/* TODO: add client filter */}
-						{/* <ClientFilter menu={menus.client} /> */}
-					</>
-				}
-			/>
-		</>
+		<Filter
+			filter={filter}
+			optionsSkeleton={<MenuSkeleton />}
+			isLoading={menus.user.isInitializing}
+			presets={[
+				{
+					name: "All sessions",
+					query: "",
+				},
+				{
+					name: "My sessions",
+					query: "initiator:me",
+				},
+			]}
+			error={error}
+			options={
+				<>
+					<UserMenu menu={menus.user} placeholder="All users" />
+					<ProviderFilter menu={menus.provider} />
+					{/* TODO: add client filter */}
+					{/* <ClientFilter menu={menus.client} /> */}
+				</>
+			}
+		/>
 	);
 };
