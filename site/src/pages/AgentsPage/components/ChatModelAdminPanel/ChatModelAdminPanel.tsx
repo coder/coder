@@ -32,7 +32,6 @@ export type ProviderState = {
 	hasManagedAPIKey: boolean;
 	hasCatalogAPIKey: boolean;
 	hasEffectiveAPIKey: boolean;
-	isEnvPreset: boolean;
 	baseURL: string;
 };
 
@@ -43,7 +42,6 @@ export type ChatModelAdminSection = "providers" | "models";
 type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
-const envPresetProviders = new Set(["openai", "anthropic"]);
 
 const hasProviderAPIKey = (
 	providerConfig: TypesGen.ChatProviderConfig | undefined,
@@ -168,12 +166,6 @@ const useProviderStates = (
 			readOptionalString(providerConfigEntry?.display_name) ??
 			formatProviderLabel(provider);
 		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
-		const isCatalogEnvPreset =
-			!providerConfig &&
-			envPresetProviders.has(provider) &&
-			(catalogProviderSource === "env" || hasCatalogAPIKey);
-		const isEnvPreset =
-			providerConfigSource === "env_preset" || isCatalogEnvPreset;
 
 		return {
 			provider,
@@ -186,7 +178,6 @@ const useProviderStates = (
 			hasEffectiveAPIKey: providerConfigEntry
 				? hasProviderEntryAPIKey
 				: hasManagedAPIKey || hasCatalogAPIKey,
-			isEnvPreset,
 			baseURL: getProviderBaseURL(providerConfigEntry),
 		};
 	});

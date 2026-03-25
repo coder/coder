@@ -1,7 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { ChevronLeftIcon, InfoIcon } from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -44,7 +43,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onDeleteProvider,
 	onBack,
 }) => {
-	const { provider, providerConfig, baseURL, isEnvPreset } = providerState;
+	const { provider, providerConfig, baseURL } = providerState;
 
 	const apiKeyInputId = useId();
 	const baseURLInputId = useId();
@@ -71,8 +70,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
-	const requiresAPIKey = !providerConfig && !isAPIKeyEnvManaged;
+	const requiresAPIKey = !providerConfig;
 
 	// The actual API key value to submit — ignore the placeholder.
 	const effectiveApiKey =
@@ -87,17 +85,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const canSave =
 		!providerConfigsUnavailable &&
 		!isProviderMutationPending &&
-		!isAPIKeyEnvManaged &&
 		isDirty &&
 		(!requiresAPIKey || effectiveApiKey);
 
 	const handleSubmit = async (event: FormEvent) => {
 		event.preventDefault();
-		if (
-			providerConfigsUnavailable ||
-			isProviderMutationPending ||
-			isAPIKeyEnvManaged
-		) {
+		if (providerConfigsUnavailable || isProviderMutationPending) {
 			return;
 		}
 
@@ -186,7 +179,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						type="text"
 						value={displayName || formatProviderLabel(provider)}
 						onChange={(e) => setDisplayName(e.target.value)}
-						disabled={isDisabled || isAPIKeyEnvManaged}
+						disabled={isDisabled}
 						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 						placeholder={formatProviderLabel(provider)}
 					/>
@@ -202,127 +195,117 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 
-			{isAPIKeyEnvManaged ? (
-				<Alert severity="info">
-					<AlertTitle>API key managed by environment variable</AlertTitle>
-					<AlertDescription>
-						This provider key is configured from deployment environment settings
-						and cannot be edited in this UI.
-					</AlertDescription>
-				</Alert>
-			) : (
-				<form
-					className="flex flex-1 flex-col"
-					onSubmit={(event) => void handleSubmit(event)}
-					autoComplete="off"
-					data-form-type="other"
-				>
-					<div className="space-y-5">
-						<ProviderField
-							label="API Key"
-							htmlFor={apiKeyInputId}
-							required={!providerConfig}
-							description="Secret key used to authenticate requests to this provider."
-						>
-							<Input
-								id={apiKeyInputId}
-								name="provider_api_token"
-								type="text"
-								autoComplete="off"
-								data-1p-ignore
-								data-lpignore="true"
-								data-form-type="other"
-								data-bwignore
-								style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
-								className="h-9 font-mono text-[13px]"
-								placeholder="sk-..."
-								value={apiKey}
-								onFocus={handleApiKeyFocus}
-								onChange={(e) => {
-									setApiKey(e.target.value);
-									setApiKeyTouched(true);
-								}}
-								disabled={isDisabled}
-							/>
-						</ProviderField>
+			<form
+				className="flex flex-1 flex-col"
+				onSubmit={(event) => void handleSubmit(event)}
+				autoComplete="off"
+				data-form-type="other"
+			>
+				<div className="space-y-5">
+					<ProviderField
+						label="API Key"
+						htmlFor={apiKeyInputId}
+						required={!providerConfig}
+						description="Secret key used to authenticate requests to this provider."
+					>
+						<Input
+							id={apiKeyInputId}
+							name="provider_api_token"
+							type="text"
+							autoComplete="off"
+							data-1p-ignore
+							data-lpignore="true"
+							data-form-type="other"
+							data-bwignore
+							style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
+							className="h-9 font-mono text-[13px]"
+							placeholder="sk-..."
+							value={apiKey}
+							onFocus={handleApiKeyFocus}
+							onChange={(e) => {
+								setApiKey(e.target.value);
+								setApiKeyTouched(true);
+							}}
+							disabled={isDisabled}
+						/>
+					</ProviderField>
 
-						<ProviderField
-							label="Base URL"
-							htmlFor={baseURLInputId}
-							description="Custom endpoint for this provider. Leave empty to use the default."
-						>
-							<Input
-								id={baseURLInputId}
-								name="provider_base_url"
-								className="h-9 text-[13px]"
-								placeholder={baseURLPlaceholder}
-								autoComplete="off"
-								value={baseURLValue}
-								onChange={(e) => setBaseURLValue(e.target.value)}
-								disabled={isDisabled}
-							/>
-						</ProviderField>
-					</div>
+					<ProviderField
+						label="Base URL"
+						htmlFor={baseURLInputId}
+						description="Custom endpoint for this provider. Leave empty to use the default."
+					>
+						<Input
+							id={baseURLInputId}
+							name="provider_base_url"
+							className="h-9 text-[13px]"
+							placeholder={baseURLPlaceholder}
+							autoComplete="off"
+							value={baseURLValue}
+							onChange={(e) => setBaseURLValue(e.target.value)}
+							disabled={isDisabled}
+						/>
+					</ProviderField>
+				</div>
 
-					{/* Footer — pushed to bottom */}
-					<div className="mt-auto pt-6">
-						<hr className="mb-4 border-0 border-t border-solid border-border" />
-						{confirmingDelete && providerConfig ? (
-							<div className="flex items-center gap-3">
-								<p className="m-0 flex-1 text-sm text-content-secondary">
-									Are you sure? This action is irreversible.
-								</p>
-								<div className="flex shrink-0 items-center gap-2">
-									<Button
-										variant="outline"
-										size="lg"
-										type="button"
-										onClick={() => setConfirmingDelete(false)}
-										disabled={isProviderMutationPending}
-									>
-										Cancel
-									</Button>
-									<Button
-										variant="destructive"
-										size="lg"
-										type="button"
-										disabled={isProviderMutationPending}
-										onClick={() => void onDeleteProvider(providerConfig.id)}
-									>
-										{isProviderMutationPending && (
-											<Spinner className="h-4 w-4" loading />
-										)}
-										Delete provider
-									</Button>
-								</div>
-							</div>
-						) : (
-							<div className="flex items-center justify-between">
-								{providerConfig ? (
-									<Button
-										variant="outline"
-										size="lg"
-										type="button"
-										className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-										disabled={isDisabled}
-										onClick={() => setConfirmingDelete(true)}
-									>
-										Delete
-									</Button>
-								) : (
-									<div />
-								)}
-								<Button size="lg" type="submit" disabled={!canSave}>
+				{/* Footer — pushed to bottom */}
+				<div className="mt-auto pt-6">
+					<hr className="mb-4 border-0 border-t border-solid border-border" />
+					{confirmingDelete && providerConfig ? (
+						<div className="flex items-center gap-3">
+							<p className="m-0 flex-1 text-sm text-content-secondary">
+								Are you sure? This action is irreversible.
+							</p>
+							<div className="flex shrink-0 items-center gap-2">
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									onClick={() => setConfirmingDelete(false)}
+									disabled={isProviderMutationPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									size="lg"
+									type="button"
+									disabled={isProviderMutationPending}
+									onClick={() => void onDeleteProvider(providerConfig.id)}
+								>
 									{isProviderMutationPending && (
 										<Spinner className="h-4 w-4" loading />
 									)}
-									{providerConfig ? "Save changes" : "Create provider config"}
+									Delete provider
 								</Button>
 							</div>
-						)}
-					</div>
-				</form>
-			)}
+						</div>
+					) : (
+						<div className="flex items-center justify-between">
+							{providerConfig ? (
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+									disabled={isDisabled}
+									onClick={() => setConfirmingDelete(true)}
+								>
+									Delete
+								</Button>
+							) : (
+								<div />
+							)}
+							<Button size="lg" type="submit" disabled={!canSave}>
+								{isProviderMutationPending && (
+									<Spinner className="h-4 w-4" loading />
+								)}
+								{providerConfig ? "Save changes" : "Create provider config"}
+							</Button>
+						</div>
+					)}
+				</div>
+			</form>
 		</div>
 	);
 };

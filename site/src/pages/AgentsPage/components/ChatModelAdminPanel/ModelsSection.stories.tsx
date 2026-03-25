@@ -24,7 +24,6 @@ const providerState: ProviderState = {
 	hasManagedAPIKey: true,
 	hasCatalogAPIKey: true,
 	hasEffectiveAPIKey: true,
-	isEnvPreset: false,
 	baseURL: "",
 };
 

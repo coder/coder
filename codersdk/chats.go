@@ -437,7 +437,6 @@ type ChatProviderConfigSource string
 
 const (
 	ChatProviderConfigSourceDatabase  ChatProviderConfigSource = "database"
-	ChatProviderConfigSourceEnvPreset ChatProviderConfigSource = "env_preset"
 	ChatProviderConfigSourceSupported ChatProviderConfigSource = "supported"
 )
 
