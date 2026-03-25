@@ -32,12 +32,12 @@ export const CreateTemplateGalleryPageView: FC<
 				actions={
 					<Button asChild size="sm" variant="outline">
 						<a
-							href="https://registry.coder.com"
+							href="https://registry.coder.com/templates"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="flex items-center"
 						>
-							Browse the Coder Registry
+							Browse other Templates on the Coder Registry
 							<ExternalLinkIcon className="size-icon-sm ml-1" />
 						</a>
 					</Button>
