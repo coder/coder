@@ -2331,7 +2331,8 @@ func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 			return ctx, nil, err
 		}
 
-		tlsClientConfig := &tls.Config{ //nolint:gosec
+		tlsClientConfig := &tls.Config{
+			MinVersion:   tls.VersionTLS12,
 			Certificates: certificates,
 			NextProtos:   []string{"h2", "http/1.1"},
 		}
