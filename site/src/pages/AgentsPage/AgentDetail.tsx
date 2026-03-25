@@ -630,7 +630,8 @@ const AgentDetail: FC = () => {
 			clearStreamError();
 			setPendingEditMessageId(editedMessageID);
 			if (scrollContainerRef.current) {
-				scrollContainerRef.current.scrollTop = 0;
+				const el = scrollContainerRef.current;
+				el.scrollTop = el.scrollHeight - el.clientHeight;
 			}
 			store.clearStreamState();
 			try {
@@ -661,7 +662,8 @@ const AgentDetail: FC = () => {
 		clearChatErrorReason(agentId);
 		clearStreamError();
 		if (scrollContainerRef.current) {
-			scrollContainerRef.current.scrollTop = 0;
+			const el = scrollContainerRef.current;
+			el.scrollTop = el.scrollHeight - el.clientHeight;
 		}
 
 		// No optimistic rendering — the message will appear in the
