@@ -128,7 +128,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 				<DialogActionButtons
 					cancelText={cancelText}
 					confirmLoading={confirmLoading}
-					confirmText="Submit"
+					confirmText="Update schedule"
 					disabled={disabled}
 					onCancel={!hideCancel ? onClose : undefined}
 					onConfirm={onConfirm || onClose}
