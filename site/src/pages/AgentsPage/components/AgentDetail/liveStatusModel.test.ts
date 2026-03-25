@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { deriveLiveStatus } from "./liveStatusModel";
-import type { RetryState, StreamState } from "./types";
+import type { ReconnectState, RetryState, StreamState } from "./types";
 
 const makeStreamState = (
 	overrides: Partial<StreamState> = {},
@@ -23,6 +23,15 @@ const makeRetryState = (overrides: Partial<RetryState> = {}): RetryState => ({
 	...overrides,
 });
 
+const makeReconnectState = (
+	overrides: Partial<ReconnectState> = {},
+): ReconnectState => ({
+	attempt: 1,
+	delayMs: 1000,
+	retryingAt: "2026-03-10T00:00:01.000Z",
+	...overrides,
+});
+
 const makeStreamError = (
 	overrides: Partial<ChatDetailError> = {},
 ): ChatDetailError => ({
@@ -40,6 +49,7 @@ const derive = (
 	deriveLiveStatus({
 		streamState: null,
 		retryState: null,
+		reconnectState: null,
 		streamError: null,
 		persistedError: null,
 		isAwaitingFirstStreamChunk: false,
@@ -57,6 +67,15 @@ describe("deriveLiveStatus", () => {
 		provider: "anthropic",
 		delayMs: 2000,
 		retryingAt: "2026-03-10T00:00:02.000Z",
+	};
+	const reconnectingStatus = {
+		phase: "reconnecting",
+		hasAccumulatedOutput: false,
+		title: "Reconnecting",
+		message: "Chat stream disconnected. Reconnecting…",
+		attempt: 1,
+		delayMs: 1000,
+		retryingAt: "2026-03-10T00:00:01.000Z",
 	};
 	const failedStatus = {
 		phase: "failed",
@@ -77,6 +96,11 @@ describe("deriveLiveStatus", () => {
 			{ phase: "starting", hasAccumulatedOutput: false },
 		],
 		["retrying", { retryState: makeRetryState() }, retryingStatus],
+		[
+			"reconnecting",
+			{ reconnectState: makeReconnectState() },
+			reconnectingStatus,
+		],
 		["failed", { streamError: makeStreamError() }, failedStatus],
 		[
 			"streaming",
@@ -114,10 +138,25 @@ describe("deriveLiveStatus", () => {
 		});
 	});
 
-	it("prioritizes retrying over failed", () => {
+	it("tracks accumulated output while reconnecting", () => {
+		expect(
+			derive({
+				streamState: makeStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				reconnectState: makeReconnectState(),
+			}),
+		).toEqual({
+			...reconnectingStatus,
+			hasAccumulatedOutput: true,
+		});
+	});
+
+	it("prioritizes retrying over failed and reconnecting", () => {
 		expect(
 			derive({
 				retryState: makeRetryState({ kind: "rate_limit" }),
+				reconnectState: makeReconnectState({ attempt: 3 }),
 				streamError: makeStreamError({ kind: "timeout" }),
 				persistedError: makeStreamError({ kind: "generic" }),
 				isAwaitingFirstStreamChunk: true,
@@ -125,14 +164,24 @@ describe("deriveLiveStatus", () => {
 		).toMatchObject({ phase: "retrying", kind: "rate_limit" });
 	});
 
-	it("prioritizes failed over starting", () => {
+	it("prioritizes failed over reconnecting and starting", () => {
 		expect(
 			derive({
+				reconnectState: makeReconnectState(),
 				streamError: makeStreamError({ kind: "timeout" }),
 				persistedError: makeStreamError({ kind: "generic" }),
 				isAwaitingFirstStreamChunk: true,
 			}),
 		).toMatchObject({ phase: "failed", kind: "timeout" });
+	});
+
+	it("prioritizes reconnecting over starting", () => {
+		expect(
+			derive({
+				reconnectState: makeReconnectState(),
+				isAwaitingFirstStreamChunk: true,
+			}),
+		).toEqual(reconnectingStatus);
 	});
 
 	it("prioritizes starting over streaming", () => {

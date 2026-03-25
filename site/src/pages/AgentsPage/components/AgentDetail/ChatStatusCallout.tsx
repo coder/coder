@@ -11,10 +11,11 @@ const RESPONSE_STARTUP_GRACE_MS = 15_000;
 const DELAYED_STARTUP_TEXT = "Response startup is taking longer than expected";
 const THINKING_TEXT = "Thinking...";
 
-type AlertStatus = Extract<
+type RetryOrFailedStatus = Extract<
 	LiveStatusModel,
 	{ phase: "retrying" } | { phase: "failed" }
 >;
+type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
 
 const StatusPlaceholder: FC<{
 	text: string;
@@ -62,19 +63,19 @@ const StartingPlaceholder: FC = () => {
 /**
  * Syncs with the system clock to produce a live countdown from an
  * ISO-8601 deadline. Polls at 100ms so the displayed second flips
- * within 100ms of the real transition. Returns 0 when no deadline
- * is provided or the deadline has passed.
+ * within 100ms of the real transition. Returns 0 when no deadline is
+ * provided or the deadline has passed.
  */
-const useRetryCountdown = (retryingAt: string | undefined): number => {
+const useDeadlineCountdown = (deadline: string | undefined): number => {
 	const [secondsLeft, setSecondsLeft] = useState(0);
 
 	useEffect(() => {
-		if (!retryingAt) {
+		if (!deadline) {
 			setSecondsLeft(0);
 			return;
 		}
 
-		const targetMs = new Date(retryingAt).getTime();
+		const targetMs = new Date(deadline).getTime();
 		if (!Number.isFinite(targetMs)) {
 			setSecondsLeft(0);
 			return;
@@ -88,25 +89,32 @@ const useRetryCountdown = (retryingAt: string | undefined): number => {
 		update();
 		const interval = setInterval(update, 100);
 		return () => clearInterval(interval);
-	}, [retryingAt]);
+	}, [deadline]);
 
 	return secondsLeft;
 };
 
 /**
- * Leaf component that owns the countdown interval so ticking
- * seconds only re-render this span, not the parent Alert (which
- * contains a Radix Slot that infinite-loops on rapid re-renders).
+ * Leaf component that owns the countdown interval so ticking seconds only
+ * re-render this span, not the parent Alert (which contains a Radix Slot
+ * that infinite-loops on rapid re-renders).
  */
-const RetryCountdown: FC<{ retryingAt: string }> = ({ retryingAt }) => {
-	const seconds = useRetryCountdown(retryingAt);
+const StatusCountdown: FC<{
+	deadline: string;
+	label: string;
+}> = ({ deadline, label }) => {
+	const seconds = useDeadlineCountdown(deadline);
 	if (seconds <= 0) {
 		return null;
 	}
-	return <span>Retrying in {seconds}s</span>;
+	return (
+		<span>
+			{label} {seconds}s
+		</span>
+	);
 };
 
-const StatusAlert: FC<{ status: AlertStatus }> = ({ status }) => {
+const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 	const statusURL = getProviderStatusURL(status.kind, status.provider);
 	const pillType =
 		status.phase === "failed"
@@ -155,7 +163,10 @@ const StatusAlert: FC<{ status: AlertStatus }> = ({ status }) => {
 				{hasMetadata && (
 					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
 						{status.phase === "retrying" && status.retryingAt && (
-							<RetryCountdown retryingAt={status.retryingAt} />
+							<StatusCountdown
+								deadline={status.retryingAt}
+								label="Retrying in"
+							/>
 						)}
 						{status.phase === "retrying" && (
 							<span>Attempt {status.attempt}</span>
@@ -169,6 +180,24 @@ const StatusAlert: FC<{ status: AlertStatus }> = ({ status }) => {
 						)}
 					</div>
 				)}
+			</div>
+		</Alert>
+	);
+};
+
+const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
+	return (
+		<Alert severity="info" className="py-3">
+			<div className="space-y-2.5">
+				<AlertTitle>{status.title}</AlertTitle>
+				<AlertDescription>{status.message}</AlertDescription>
+				<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
+					<StatusCountdown
+						deadline={status.retryingAt}
+						label="Reconnecting in"
+					/>
+					<span>Attempt {status.attempt}</span>
+				</div>
 			</div>
 		</Alert>
 	);
@@ -188,6 +217,13 @@ export const ChatStatusCallout: FC<{
 			return (
 				<>
 					<StatusAlert status={status} />
+					<StatusPlaceholder text={THINKING_TEXT} shimmer />
+				</>
+			);
+		case "reconnecting":
+			return (
+				<>
+					<ReconnectingAlert status={status} />
 					<StatusPlaceholder text={THINKING_TEXT} shimmer />
 				</>
 			);

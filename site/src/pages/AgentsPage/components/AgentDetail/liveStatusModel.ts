@@ -1,10 +1,13 @@
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { getErrorTitle } from "./chatStatusHelpers";
-import type { RetryState, StreamState } from "./types";
+import type { ReconnectState, RetryState, StreamState } from "./types";
 
 type LiveStatusBase = {
 	hasAccumulatedOutput: boolean;
 };
+
+const RECONNECTING_TITLE = "Reconnecting";
+const RECONNECTING_MESSAGE = "Chat stream disconnected. Reconnecting…";
 
 export type LiveStatusModel =
 	| ({ phase: "idle" } & LiveStatusBase)
@@ -21,6 +24,14 @@ export type LiveStatusModel =
 			retryingAt?: string;
 	  } & LiveStatusBase)
 	| ({
+			phase: "reconnecting";
+			title: string;
+			message: string;
+			attempt: number;
+			delayMs: number;
+			retryingAt: string;
+	  } & LiveStatusBase)
+	| ({
 			phase: "failed";
 			title: string;
 			kind: string;
@@ -33,6 +44,7 @@ export type LiveStatusModel =
 export type DeriveLiveStatusParams = {
 	streamState: StreamState | null;
 	retryState: RetryState | null;
+	reconnectState: ReconnectState | null;
 	streamError: ChatDetailError | null;
 	persistedError: ChatDetailError | null;
 	isAwaitingFirstStreamChunk: boolean;
@@ -40,6 +52,17 @@ export type DeriveLiveStatusParams = {
 
 const getHasAccumulatedOutput = (streamState: StreamState | null): boolean =>
 	Boolean(streamState && streamState.blocks.length > 0);
+
+const toReconnectingLiveStatus = (
+	reconnectState: ReconnectState,
+	options: { hasAccumulatedOutput?: boolean } = {},
+): Extract<LiveStatusModel, { phase: "reconnecting" }> => ({
+	phase: "reconnecting",
+	hasAccumulatedOutput: options.hasAccumulatedOutput ?? false,
+	title: RECONNECTING_TITLE,
+	message: RECONNECTING_MESSAGE,
+	...reconnectState,
+});
 
 const toFailedLiveStatus = (
 	error: ChatDetailError,
@@ -58,6 +81,7 @@ const toFailedLiveStatus = (
 export const deriveLiveStatus = ({
 	streamState,
 	retryState,
+	reconnectState,
 	streamError,
 	persistedError,
 	isAwaitingFirstStreamChunk,
@@ -80,6 +104,10 @@ export const deriveLiveStatus = ({
 
 	if (streamError) {
 		return toFailedLiveStatus(streamError, { hasAccumulatedOutput });
+	}
+
+	if (reconnectState) {
+		return toReconnectingLiveStatus(reconnectState, { hasAccumulatedOutput });
 	}
 
 	if (isAwaitingFirstStreamChunk) {

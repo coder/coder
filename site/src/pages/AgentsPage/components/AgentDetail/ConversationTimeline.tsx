@@ -641,6 +641,11 @@ const ChatMessageItem = memo<{
 	},
 );
 
+const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
+	liveStatus.phase === "starting" ||
+	liveStatus.phase === "retrying" ||
+	liveStatus.phase === "reconnecting";
+
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
@@ -667,8 +672,7 @@ export const StreamingOutput: FC<{
 	const isStreaming = liveStatus.phase === "streaming";
 	const shouldShowBlocks =
 		liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
-	const shouldShowStatusCallout =
-		liveStatus.phase === "starting" || liveStatus.phase === "retrying";
+	const shouldShowStatusCallout = hasTransientLiveStatus(liveStatus);
 	if (!shouldShowBlocks && !shouldShowStatusCallout) {
 		return null;
 	}
@@ -995,9 +999,8 @@ const StickyUserMessage: FC<{
 };
 
 const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
-	liveStatus.phase === "starting" ||
 	liveStatus.phase === "streaming" ||
-	liveStatus.phase === "retrying" ||
+	hasTransientLiveStatus(liveStatus) ||
 	liveStatus.hasAccumulatedOutput;
 
 interface ConversationTimelineProps {

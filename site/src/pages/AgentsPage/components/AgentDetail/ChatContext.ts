@@ -9,7 +9,7 @@ import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { applyMessagePartToStreamState } from "./streamState";
-import type { RetryState, StreamState } from "./types";
+import type { ReconnectState, RetryState, StreamState } from "./types";
 
 const isChatStreamEvent = (data: unknown): data is TypesGen.ChatStreamEvent =>
 	typeof data === "object" &&
@@ -179,6 +179,32 @@ const retryStatesEqual = (
 	);
 };
 
+const reconnectStatesEqual = (
+	left: ReconnectState | null,
+	right: ReconnectState | null,
+): boolean => {
+	if (left === right) {
+		return true;
+	}
+	if (!left || !right) {
+		return false;
+	}
+	return (
+		left.attempt === right.attempt &&
+		left.delayMs === right.delayMs &&
+		left.retryingAt === right.retryingAt
+	);
+};
+
+const isActiveChatStatus = (status: TypesGen.ChatStatus | null): boolean =>
+	status === "running" || status === "pending";
+
+const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
+	state.streamError === null &&
+	(state.streamState !== null ||
+		state.retryState !== null ||
+		isActiveChatStatus(state.chatStatus));
+
 type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
@@ -186,6 +212,7 @@ type ChatStoreState = {
 	chatStatus: TypesGen.ChatStatus | null;
 	streamError: ChatDetailError | null;
 	retryState: RetryState | null;
+	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
@@ -212,6 +239,8 @@ type ChatStore = {
 	clearStreamError: () => void;
 	setRetryState: (state: RetryState | null) => void;
 	clearRetryState: () => void;
+	setReconnectState: (state: ReconnectState | null) => void;
+	clearReconnectState: () => void;
 	clearStreamState: () => void;
 	setSubagentStatusOverride: (
 		chatID: string,
@@ -227,6 +256,7 @@ const createInitialState = (): ChatStoreState => ({
 	chatStatus: null,
 	streamError: null,
 	retryState: null,
+	reconnectState: null,
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
 });
@@ -482,6 +512,26 @@ export const createChatStore = (): ChatStore => {
 				retryState: null,
 			}));
 		},
+		setReconnectState: (reconnectState) => {
+			setState((current) => {
+				if (reconnectStatesEqual(current.reconnectState, reconnectState)) {
+					return current;
+				}
+				return {
+					...current,
+					reconnectState,
+				};
+			});
+		},
+		clearReconnectState: () => {
+			if (state.reconnectState === null) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				reconnectState: null,
+			}));
+		},
 		clearStreamState: () => {
 			if (state.streamState === null) {
 				return;
@@ -509,6 +559,7 @@ export const createChatStore = (): ChatStore => {
 				state.streamState === null &&
 				state.streamError === null &&
 				state.retryState === null &&
+				state.reconnectState === null &&
 				state.subagentStatusOverrides.size === 0
 			) {
 				return;
@@ -518,6 +569,7 @@ export const createChatStore = (): ChatStore => {
 				streamState: null,
 				streamError: null,
 				retryState: null,
+				reconnectState: null,
 				subagentStatusOverrides: new Map(),
 			}));
 		},
@@ -547,6 +599,8 @@ export const selectQueuedMessages = (state: ChatStoreState) =>
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
+export const selectReconnectState = (state: ChatStoreState) =>
+	state.reconnectState;
 
 const selectLatestDurableMessage = (
 	state: ChatStoreState,
@@ -566,7 +620,7 @@ export const selectIsAwaitingFirstStreamChunk = (
 		!latestMessage || latestMessage.role !== "assistant";
 	return (
 		state.streamState === null &&
-		(state.chatStatus === "running" || state.chatStatus === "pending") &&
+		isActiveChatStatus(state.chatStatus) &&
 		latestMessageNeedsAssistantResponse
 	);
 };
@@ -1016,29 +1070,22 @@ export const useChatStore = (
 				return socket;
 			},
 			onOpen() {
-				// Connection succeeded — clear any previous disconnect
-				// error and stale stream state. Clearing stream state
-				// is critical for reconnections: the server replays
-				// all buffered message_part events, so we must start
-				// from a clean slate to avoid duplicating text.
-				store.clearStreamError();
+				// Connection succeeded — clear any previous reconnect
+				// banner and stale stream state. Clearing stream
+				// state is critical for reconnections: the server
+				// replays all buffered message_part events, so we
+				// must start from a clean slate to avoid duplicating
+				// text.
+				store.clearReconnectState();
 				store.clearStreamState();
 			},
-			onDisconnect(attempt) {
-				// Show the error only on the first disconnect (not
-				// while we are already retrying).
-				if (attempt === 0) {
-					store.setStreamError({
-						kind: "generic",
-						message: "Chat stream disconnected. Reconnecting\u2026",
-					});
-				}
-				// Clear "running" status on disconnect so the UI
-				// doesn't show a stale spinner. The reconnected
-				// stream will deliver the authoritative status.
-				const currentStatus = store.getSnapshot().chatStatus;
-				if (currentStatus === "running") {
-					store.setChatStatus(null);
+			onDisconnect(reconnectState) {
+				// Only surface reconnecting when the disconnect
+				// interrupted active response work. Idle watcher
+				// reconnects stay silent.
+				const snapshot = store.getSnapshot();
+				if (shouldSurfaceReconnectState(snapshot)) {
+					store.setReconnectState(reconnectState);
 				}
 			},
 		});

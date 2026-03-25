@@ -286,6 +286,42 @@ describe("setRetryState / clearRetryState", () => {
 });
 
 // ---------------------------------------------------------------------------
+// setReconnectState / clearReconnectState
+// ---------------------------------------------------------------------------
+
+describe("setReconnectState / clearReconnectState", () => {
+	it("stores and clears reconnect state", () => {
+		const store = createChatStore();
+
+		store.setReconnectState({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+		expect(store.getSnapshot().reconnectState).toEqual({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+
+		store.clearReconnectState();
+		expect(store.getSnapshot().reconnectState).toBeNull();
+	});
+
+	it("clearReconnectState is a no-op when already null", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.clearReconnectState();
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // setSubagentStatusOverride
 // ---------------------------------------------------------------------------
 
@@ -450,7 +486,7 @@ describe("applyMessagePart / applyMessageParts", () => {
 // ---------------------------------------------------------------------------
 
 describe("resetTransientState", () => {
-	it("clears streamState, streamError, retryState, and subagentOverrides", () => {
+	it("clears streamState, streamError, retryState, reconnectState, and subagentOverrides", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
 		store.setStreamError({
@@ -465,6 +501,11 @@ describe("resetTransientState", () => {
 			delayMs: 5000,
 			retryingAt: "2025-01-01T00:01:00.000Z",
 		});
+		store.setReconnectState({
+			attempt: 1,
+			delayMs: 1000,
+			retryingAt: "2025-01-01T00:00:01.000Z",
+		});
 		store.setSubagentStatusOverride("sub-1", "error");
 
 		store.resetTransientState();
@@ -473,6 +514,7 @@ describe("resetTransientState", () => {
 		expect(state.streamState).toBeNull();
 		expect(state.streamError).toBeNull();
 		expect(state.retryState).toBeNull();
+		expect(state.reconnectState).toBeNull();
 		expect(state.subagentStatusOverrides.size).toBe(0);
 	});
 

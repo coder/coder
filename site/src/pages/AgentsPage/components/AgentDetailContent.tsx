@@ -18,6 +18,7 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
 	selectStreamState,
@@ -71,6 +72,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamError = useChatSelector(store, selectStreamError);
 	const retryState = useChatSelector(store, selectRetryState);
+	const reconnectState = useChatSelector(store, selectReconnectState);
 	const isAwaitingFirstStreamChunk = useChatSelector(
 		store,
 		selectIsAwaitingFirstStreamChunk,
@@ -87,6 +89,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	const liveStatus = deriveLiveStatus({
 		streamState,
 		retryState,
+		reconnectState,
 		streamError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,

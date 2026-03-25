@@ -12,6 +12,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
 	textResponseStreamParts,
@@ -631,6 +632,36 @@ export const RetryWithReason: Story = {
 		expect(canvas.getByText(/transient upstream failure/i)).toBeVisible();
 		expect(canvas.getByText("generic")).toBeVisible();
 		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
+	},
+};
+
+/** Reconnecting keeps partial streamed output visible without a terminal banner. */
+export const ReconnectingKeepsPartialOutputVisible: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: retryThenResumeMessages,
+		streamState: retryThenResumedStream.streamState,
+		streamTools: retryThenResumedStream.streamTools,
+		liveStatus: buildLiveStatus({
+			streamState: retryThenResumedStream.streamState,
+			reconnectState: buildReconnectState({
+				attempt: 2,
+				delayMs: 2000,
+				retryingAt: "2099-01-01T00:00:00.000Z",
+			}),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
+		expect(
+			canvas.getByRole("heading", { name: /reconnecting/i }),
+		).toBeVisible();
+		expect(canvas.getByText(/chat stream disconnected/i)).toBeVisible();
+		expect(canvas.queryByText("generic")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("heading", { name: /request failed/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -39,6 +39,7 @@ import {
 	selectChatStatus,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
 	selectStreamState,
@@ -1889,7 +1890,7 @@ describe("useChatStore", () => {
 		expect(result.current.chatStatus).toBe("running");
 	});
 
-	it("sets streamError on WebSocket disconnect and reconnects", async () => {
+	it("sets reconnectState on WebSocket disconnect and clears it after reconnect", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-disconnect";
@@ -1919,7 +1920,8 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					streamError: useChatSelector(store, selectStreamError),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					reconnectState: useChatSelector(store, selectReconnectState),
 				};
 			},
 			{ wrapper },
@@ -1935,10 +1937,14 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toEqual({
-				kind: "generic",
-				message: "Chat stream disconnected. Reconnecting\u2026",
+			expect(result.current.reconnectState).toMatchObject({
+				attempt: 1,
+				delayMs: 1000,
 			});
+			expect(result.current.reconnectState?.retryingAt).toEqual(
+				expect.any(String),
+			);
+			expect(result.current.chatStatus).toBe("running");
 		});
 
 		// The reconnect timer fires after 1s. Since we're not
@@ -1959,10 +1965,12 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toBeNull();
+			expect(result.current.reconnectState).toBeNull();
+			expect(result.current.chatStatus).toBe("running");
 		});
 	});
-	it("does not overwrite existing streamError on WebSocket disconnect", async () => {
+
+	it("keeps terminal streamError when a WebSocket disconnect follows it", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-disconnect-existing";
@@ -1993,6 +2001,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamError: useChatSelector(store, selectStreamError),
+					reconnectState: useChatSelector(store, selectReconnectState),
 				};
 			},
 			{ wrapper },
@@ -2019,11 +2028,11 @@ describe("useChatStore", () => {
 				retryable: false,
 				statusCode: undefined,
 			});
+			expect(result.current.reconnectState).toBeNull();
 		});
 
-		// WebSocket disconnect overwrites with reconnecting message
-		// since the reconnect logic always shows the disconnect
-		// notice on first disconnect.
+		// WebSocket disconnect should not overwrite the terminal error
+		// or surface reconnect state once the turn has already failed.
 		act(() => {
 			mockSocket.emitError();
 		});
@@ -2031,8 +2040,62 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(result.current.streamError).toEqual({
 				kind: "generic",
-				message: "Chat stream disconnected. Reconnecting\u2026",
+				message: "Rate limit exceeded",
+				provider: undefined,
+				retryable: false,
+				statusCode: undefined,
 			});
+			expect(result.current.reconnectState).toBeNull();
+		});
+	});
+
+	it("does not surface reconnectState for completed chats", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-disconnect-completed";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: { ...makeChat(chatID), status: "completed" },
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+					reconnectState: useChatSelector(store, selectReconnectState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("completed");
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitError();
+		});
+
+		await waitFor(() => {
+			expect(result.current.reconnectState).toBeNull();
+			expect(result.current.chatStatus).toBe("completed");
 		});
 	});
 	it("uses exponential backoff on consecutive disconnects", async () => {

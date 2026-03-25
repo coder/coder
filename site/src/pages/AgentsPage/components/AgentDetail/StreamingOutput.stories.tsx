@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, waitFor, within } from "storybook/test";
 import { StreamingOutput } from "./ConversationTimeline";
-import { buildLiveStatus, buildRetryState } from "./storyFixtures";
+import {
+	buildLiveStatus,
+	buildReconnectState,
+	buildRetryState,
+} from "./storyFixtures";
 
 // StreamingOutput renders inside a ConversationItem > Message > MessageContent
 // chain, but it's self-contained enough to render standalone.
@@ -34,6 +38,35 @@ export const ThinkingPlaceholder: Story = {
 		expect(
 			canvas.queryByRole("heading", { name: /retrying request/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/** Transport reconnects render a non-terminal reconnecting callout. */
+export const ReconnectingAfterDisconnect: Story = {
+	args: {
+		streamState: null,
+		streamTools: [],
+		liveStatus: buildLiveStatus({
+			reconnectState: buildReconnectState({
+				attempt: 2,
+				delayMs: 2000,
+				retryingAt: "2099-01-01T00:00:00.000Z",
+			}),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /reconnecting/i }),
+		).toBeVisible();
+		expect(canvas.getByText(/chat stream disconnected/i)).toBeVisible();
+		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
+		await waitFor(() => {
+			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
+		});
+		expect(canvas.queryByText("generic")).not.toBeInTheDocument();
+		const thinkingMatches = canvas.getAllByText(/thinking\.\.\./i);
+		expect(thinkingMatches.length).toBeGreaterThanOrEqual(1);
 	},
 };
 

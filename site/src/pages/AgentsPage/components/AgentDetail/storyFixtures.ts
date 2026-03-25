@@ -5,7 +5,12 @@ import {
 	type LiveStatusModel,
 } from "./liveStatusModel";
 import { applyMessagePartToStreamState, buildStreamTools } from "./streamState";
-import type { MergedTool, RetryState, StreamState } from "./types";
+import type {
+	MergedTool,
+	ReconnectState,
+	RetryState,
+	StreamState,
+} from "./types";
 
 type StoryStreamRenderState = {
 	streamState: StreamState | null;
@@ -16,6 +21,7 @@ type StoryStreamRenderState = {
 const DEFAULT_LIVE_STATUS_PARAMS: DeriveLiveStatusParams = {
 	streamState: null,
 	retryState: null,
+	reconnectState: null,
 	streamError: null,
 	persistedError: null,
 	isAwaitingFirstStreamChunk: false,
@@ -43,6 +49,15 @@ export const buildStreamRenderState = (
 		liveStatus: buildLiveStatus({ streamState }),
 	};
 };
+
+export const buildReconnectState = (
+	overrides: Partial<ReconnectState> = {},
+): ReconnectState => ({
+	attempt: 1,
+	delayMs: 1000,
+	retryingAt: "2026-03-10T00:00:01.000Z",
+	...overrides,
+});
 
 export const buildRetryState = (
 	overrides: Partial<RetryState> = {},
