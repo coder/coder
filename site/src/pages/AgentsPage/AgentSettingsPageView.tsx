@@ -17,12 +17,7 @@ import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	ChevronLeftIcon,
-	ShieldIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
 import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
@@ -32,7 +27,6 @@ import {
 } from "react-query";
 import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
-import { formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -57,7 +51,10 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import {
+	ChatCostSummaryView,
+	TokensCell,
+} from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 import {
 	DateRangePicker,
@@ -144,43 +141,12 @@ const UserRow: FC<{
 			<TableCell>{user.message_count.toLocaleString()}</TableCell>
 			<TableCell>{user.chat_count.toLocaleString()}</TableCell>
 			<TableCell>
-				<TooltipProvider delayDuration={0}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span className="inline-flex items-center gap-1 whitespace-nowrap">
-								<span className="inline-flex items-center gap-0.5">
-									<ArrowDownIcon className="h-3 w-3" />
-									{formatTokenCount(user.total_input_tokens)}
-								</span>
-								<span className="text-content-secondary">/</span>
-								<span className="inline-flex items-center gap-0.5">
-									<ArrowUpIcon className="h-3 w-3" />
-									{formatTokenCount(user.total_output_tokens)}
-								</span>
-							</span>
-						</TooltipTrigger>
-						<TooltipContent side="top">
-							<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
-								<span className="text-content-secondary">Input</span>
-								<span className="text-right font-mono">
-									{user.total_input_tokens.toLocaleString()}
-								</span>
-								<span className="text-content-secondary">Output</span>
-								<span className="text-right font-mono">
-									{user.total_output_tokens.toLocaleString()}
-								</span>
-								<span className="text-content-secondary">Cache read</span>
-								<span className="text-right font-mono">
-									{user.total_cache_read_tokens.toLocaleString()}
-								</span>
-								<span className="text-content-secondary">Cache write</span>
-								<span className="text-right font-mono">
-									{user.total_cache_creation_tokens.toLocaleString()}
-								</span>
-							</div>
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<TokensCell
+					inputTokens={user.total_input_tokens}
+					outputTokens={user.total_output_tokens}
+					cacheReadTokens={user.total_cache_read_tokens}
+					cacheWriteTokens={user.total_cache_creation_tokens}
+				/>
 			</TableCell>
 		</TableRow>
 	);
