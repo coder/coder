@@ -333,15 +333,16 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
 		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
 		aiSeatUserIDs, err = api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
-		if xerrors.Is(err, sql.ErrNoRows) {
-			err = nil
-		}
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching AI seat states.",
-				Detail:  err.Error(),
-			})
-			return
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				api.Logger.Warn(
+					ctx,
+					"failed to fetch AI seat states for users",
+					slog.F("user_count", len(userIDs)),
+					slog.Error(err),
+				)
+			}
+			aiSeatUserIDs = nil
 		}
 	}
 	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
