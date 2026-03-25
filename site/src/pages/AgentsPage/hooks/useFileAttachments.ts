@@ -9,6 +9,113 @@ import {
 } from "react";
 import type { UploadState } from "../components/AgentChatInput";
 
+/** @internal Exported for testing. */
+export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
+
+/**
+ * Serializable metadata stored in localStorage so that already-uploaded
+ * attachments survive page navigations on the create form.
+ */
+interface PersistedAttachment {
+	fileId: string;
+	fileName: string;
+	fileType: string;
+	lastModified: number;
+}
+
+/**
+ * Restore previously persisted attachments from localStorage.
+ * Creates synthetic File objects (empty blobs with correct metadata)
+ * and populates the corresponding Maps so the UI can render them.
+ */
+function restorePersistedAttachments(): {
+	files: File[];
+	uploadStates: Map<File, UploadState>;
+	previewUrls: Map<File, string>;
+} {
+	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+	if (!stored) {
+		return {
+			files: [],
+			uploadStates: new Map(),
+			previewUrls: new Map(),
+		};
+	}
+	try {
+		const persisted: PersistedAttachment[] = JSON.parse(stored);
+		const files: File[] = [];
+		const uploadStates = new Map<File, UploadState>();
+		const previewUrls = new Map<File, string>();
+
+		for (const p of persisted) {
+			// Synthetic File used as a Map key only — its content is
+			// never read because the existing file_id is reused at
+			// send time.
+			const file = new File([], p.fileName, {
+				type: p.fileType,
+				lastModified: p.lastModified,
+			});
+			files.push(file);
+			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
+			if (p.fileType.startsWith("image/")) {
+				previewUrls.set(file, `/api/experimental/chats/files/${p.fileId}`);
+			}
+		}
+		return { files, uploadStates, previewUrls };
+	} catch {
+		return {
+			files: [],
+			uploadStates: new Map(),
+			previewUrls: new Map(),
+		};
+	}
+}
+
+function addPersistedAttachment(file: File, fileId: string) {
+	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+	let persisted: PersistedAttachment[];
+	try {
+		persisted = stored ? JSON.parse(stored) : [];
+	} catch {
+		persisted = [];
+	}
+	persisted.push({
+		fileId,
+		fileName: file.name,
+		fileType: file.type,
+		lastModified: file.lastModified,
+	});
+	localStorage.setItem(
+		persistedAttachmentsStorageKey,
+		JSON.stringify(persisted),
+	);
+}
+
+function removePersistedAttachment(fileId: string) {
+	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+	if (!stored) {
+		return;
+	}
+	try {
+		const persisted: PersistedAttachment[] = JSON.parse(stored);
+		const filtered = persisted.filter((p) => p.fileId !== fileId);
+		if (filtered.length > 0) {
+			localStorage.setItem(
+				persistedAttachmentsStorageKey,
+				JSON.stringify(filtered),
+			);
+		} else {
+			localStorage.removeItem(persistedAttachmentsStorageKey);
+		}
+	} catch {
+		localStorage.removeItem(persistedAttachmentsStorageKey);
+	}
+}
+
+function clearPersistedAttachments() {
+	localStorage.removeItem(persistedAttachmentsStorageKey);
+}
+
 interface UseFileAttachmentsReturn {
 	attachments: File[];
 	textContents: Map<File, string>;
@@ -25,12 +132,25 @@ interface UseFileAttachmentsReturn {
 
 export function useFileAttachments(
 	organizationId: string | undefined,
+	options?: { persist?: boolean },
 ): UseFileAttachmentsReturn {
-	const [attachments, setAttachments] = useState<File[]>([]);
-	const [uploadStates, setUploadStates] = useState(
-		() => new Map<File, UploadState>(),
+	const persist = options?.persist ?? false;
+
+	// Restore previously uploaded attachments from localStorage
+	// when persistence is enabled. Computed once on first render.
+	const [restored] = useState(() =>
+		persist
+			? restorePersistedAttachments()
+			: {
+					files: [] as File[],
+					uploadStates: new Map<File, UploadState>(),
+					previewUrls: new Map<File, string>(),
+				},
 	);
-	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
+
+	const [attachments, setAttachments] = useState<File[]>(restored.files);
+	const [uploadStates, setUploadStates] = useState(restored.uploadStates);
+	const [previewUrls, setPreviewUrls] = useState(restored.previewUrls);
 	const [textContents, setTextContents] = useState(
 		() => new Map<File, string>(),
 	);
@@ -71,6 +191,9 @@ export function useFileAttachments(
 						fileId: result.id,
 					}),
 				);
+				if (persist) {
+					addPersistedAttachment(file, result.id);
+				}
 				// Pre-warm the browser HTTP cache for images so the
 				// timeline can render them instantly after send. We
 				// intentionally skip text attachments because the
@@ -140,6 +263,22 @@ export function useFileAttachments(
 	};
 
 	const handleRemoveAttachment = (attachment: number | File) => {
+		// Resolve the file to remove and perform localStorage side
+		// effects before entering state updaters. React may call
+		// updaters more than once (StrictMode, React Compiler), so
+		// they must stay pure.
+		const idx =
+			typeof attachment === "number"
+				? attachment
+				: attachments.indexOf(attachment);
+		const removed = idx >= 0 ? attachments[idx] : undefined;
+		if (persist && removed) {
+			const state = uploadStates.get(removed);
+			if (state?.status === "uploaded" && state.fileId) {
+				removePersistedAttachment(state.fileId);
+			}
+		}
+
 		setAttachments((prev) => {
 			const index =
 				typeof attachment === "number" ? attachment : prev.indexOf(attachment);
@@ -147,22 +286,22 @@ export function useFileAttachments(
 				return prev;
 			}
 
-			const removed = prev[index];
+			const removedFile = prev[index];
 			setUploadStates((prevStates) => {
 				const next = new Map(prevStates);
-				next.delete(removed);
+				next.delete(removedFile);
 				return next;
 			});
 			setPreviewUrls((prevUrls) => {
-				const url = prevUrls.get(removed);
+				const url = prevUrls.get(removedFile);
 				if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
 				const next = new Map(prevUrls);
-				next.delete(removed);
+				next.delete(removedFile);
 				return next;
 			});
 			setTextContents((prevContents) => {
 				const next = new Map(prevContents);
-				next.delete(removed);
+				next.delete(removedFile);
 				return next;
 			});
 			return prev.filter((_, i) => i !== index);
@@ -177,6 +316,9 @@ export function useFileAttachments(
 		setTextContents(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
+		if (persist) {
+			clearPersistedAttachments();
+		}
 	};
 
 	return {
@@ -188,6 +330,9 @@ export function useFileAttachments(
 		handleRemoveAttachment,
 		startUpload,
 		resetAttachments,
+		// Raw setters exposed for AgentDetailContent to pre-populate
+		// attachments from existing chat messages. These bypass
+		// localStorage persistence — only use when persist is false.
 		setAttachments,
 		setPreviewUrls,
 		setUploadStates,

@@ -255,10 +255,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				selectedMCPServerIdsRef.current.length > 0
 					? [...selectedMCPServerIdsRef.current]
 					: undefined,
-		}).catch(() => {
+		}).catch((err) => {
 			// Re-enable draft persistence so the user can edit
-			// and retry after a failed send attempt.
+			// and retry after a failed send attempt, then rethrow
+			// so callers (handleSendWithAttachments) can preserve
+			// attachments on failure.
 			resetDraft();
+			throw err;
 		});
 	};
 
@@ -270,7 +273,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizations[0]?.id);
+	} = useFileAttachments(organizations[0]?.id, { persist: true });
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
