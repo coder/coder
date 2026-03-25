@@ -1341,6 +1341,10 @@ func (p *Server) RegenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.Chat, error) {
+	if limitErr := p.checkUsageLimit(ctx, p.db, chat.OwnerID); limitErr != nil {
+		return database.Chat{}, limitErr
+	}
+
 	headMessages, err := p.db.GetChatMessagesByChatIDAscPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDAscPaginatedParams{

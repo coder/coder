@@ -2131,6 +2131,9 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 
 	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
 	if err != nil {
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to regenerate chat title.",
 			Detail:  err.Error(),

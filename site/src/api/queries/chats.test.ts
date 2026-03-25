@@ -584,14 +584,18 @@ describe("regenerateChatTitle cache updates", () => {
 		const updatedChat = {
 			id: chatId,
 			title: "New title",
-		} as TypesGen.Chat;
+		} satisfies Partial<TypesGen.Chat>;
 
-		mutation.onSuccess(updatedChat);
+		mutation.onSuccess(updatedChat as TypesGen.Chat);
 
-		expect(queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))).toEqual({
+		const cachedDetail = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		expect(cachedDetail).toEqual({
 			...cachedChat,
 			title: "New title",
 		});
+		expect(cachedDetail?.diff_status).toEqual(cachedChat.diff_status);
 		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
 			id: chatId,
 			title: "New title",

@@ -48,6 +48,19 @@ func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
 	})
 	wantActor, ok := dbauthz.ActorFromContext(dbauthz.AsChatd(context.Background()))
 	require.True(t, ok)
+	checkChatdActor := func(ctx context.Context) {
+		t.Helper()
+		gotActor, ok := dbauthz.ActorFromContext(ctx)
+		require.True(t, ok)
+		require.Equal(t, wantActor, gotActor)
+	}
+	// No usage-limit config means regeneration is allowed.
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).DoAndReturn(
+		func(ctx context.Context) (database.ChatUsageLimitConfig, error) {
+			checkChatdActor(ctx)
+			return database.ChatUsageLimitConfig{}, sql.ErrNoRows
+		},
+	)
 
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		userCtx,
@@ -72,12 +85,6 @@ func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	checkChatdActor := func(ctx context.Context) {
-		t.Helper()
-		gotActor, ok := dbauthz.ActorFromContext(ctx)
-		require.True(t, ok)
-		require.Equal(t, wantActor, gotActor)
-	}
 	db.EXPECT().GetDefaultChatModelConfig(gomock.Any()).DoAndReturn(
 		func(ctx context.Context) (database.ChatModelConfig, error) {
 			checkChatdActor(ctx)
