@@ -374,9 +374,7 @@ export const pinChat = (queryClient: QueryClient) => ({
 		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId
-					? { ...chat, pin_order: optimisticPinOrder }
-					: chat,
+				chat.id === chatId ? { ...chat, pin_order: optimisticPinOrder } : chat,
 			),
 		);
 		if (previousChat) {
