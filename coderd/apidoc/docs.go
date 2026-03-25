@@ -17426,6 +17426,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "has_ai_seat": {
+                    "type": "boolean"
+                },
                 "is_service_account": {
                     "type": "boolean"
                 },
@@ -20222,6 +20225,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "email"
                 },
+                "has_ai_seat": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -21070,6 +21076,9 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "format": "email"
+                },
+                "has_ai_seat": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",
