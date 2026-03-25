@@ -607,7 +607,8 @@ func convertCallResult(
 		}
 	}
 
-	// If structured content is present, marshal it to JSON and	// append as a text part so the data is preserved for the LLM.
+	// If structured content is present, marshal it to JSON and
+	// append as a text part so the data is preserved for the LLM.
 	if result.StructuredContent != nil {
 		data, err := json.Marshal(result.StructuredContent)
 		if err != nil {
