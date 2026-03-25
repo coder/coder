@@ -39,8 +39,8 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
-import { useSmoothStreamingText } from "./SmoothText";
 import { buildSubagentTitles } from "./messageParsing";
+import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
 	ParsedMessageContent,
