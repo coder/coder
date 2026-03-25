@@ -12,9 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -386,13 +384,10 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		},
 	}
 
-	title, err := generateManualTitle(
+	title, _, err := generateManualTitle(
 		context.Background(),
-		database.Chat{},
 		messages,
 		model,
-		chatprovider.ProviderAPIKeys{},
-		slogtest.Make(t, nil),
 	)
 	require.NoError(t, err)
 	require.Equal(t, "Refresh title", title)
@@ -425,13 +420,10 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		},
 	}
 
-	_, err := generateManualTitle(
+	_, _, err := generateManualTitle(
 		context.Background(),
-		database.Chat{},
 		messages,
 		model,
-		chatprovider.ProviderAPIKeys{},
-		slogtest.Make(t, nil),
 	)
 	require.NoError(t, err)
 }

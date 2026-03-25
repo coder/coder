@@ -1372,14 +1372,17 @@ func (p *Server) RegenerateChatTitle(
 	// Reuse chatd's scoped auth context for deployment-config lookups while
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	model, _, keys, err := p.resolveChatModel(dbauthz.AsChatd(ctx), chat)
+	model, modelConfig, _, err := p.resolveChatModel(dbauthz.AsChatd(ctx), chat)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
 	}
 
-	title, err := generateManualTitle(ctx, chat, messages, model, keys, p.logger)
+	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
+	}
+	if err := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); err != nil {
+		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", err)
 	}
 	if title == "" || title == chat.Title {
 		return chat, nil
@@ -1417,6 +1420,82 @@ func mergeManualTitleMessages(
 		appendUnique(tailMessagesDesc[i])
 	}
 	return merged
+}
+
+func (p *Server) recordManualTitleUsage(
+	ctx context.Context,
+	chat database.Chat,
+	modelConfig database.ChatModelConfig,
+	usage fantasy.Usage,
+) error {
+	if usage.InputTokens == 0 && usage.OutputTokens == 0 &&
+		usage.TotalTokens == 0 && usage.ReasoningTokens == 0 &&
+		usage.CacheCreationTokens == 0 && usage.CacheReadTokens == 0 {
+		return nil
+	}
+
+	callConfig := codersdk.ChatModelCallConfig{}
+	if len(modelConfig.Options) > 0 {
+		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+			return xerrors.Errorf("parse model call config: %w", err)
+		}
+	}
+
+	usageForCost := codersdk.ChatMessageUsage{}
+	if usage.InputTokens != 0 {
+		usageForCost.InputTokens = ptr.Ref(usage.InputTokens)
+	}
+	if usage.OutputTokens != 0 {
+		usageForCost.OutputTokens = ptr.Ref(usage.OutputTokens)
+	}
+	if usage.ReasoningTokens != 0 {
+		usageForCost.ReasoningTokens = ptr.Ref(usage.ReasoningTokens)
+	}
+	if usage.CacheCreationTokens != 0 {
+		usageForCost.CacheCreationTokens = ptr.Ref(usage.CacheCreationTokens)
+	}
+	if usage.CacheReadTokens != 0 {
+		usageForCost.CacheReadTokens = ptr.Ref(usage.CacheReadTokens)
+	}
+	totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{})
+	if err != nil {
+		return xerrors.Errorf("marshal empty manual title usage content: %w", err)
+	}
+
+	return p.db.InTx(func(tx database.Store) error {
+		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{string(content.RawMessage)},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
+			InputTokens:         []int64{usage.InputTokens},
+			OutputTokens:        []int64{usage.OutputTokens},
+			TotalTokens:         []int64{usage.TotalTokens},
+			ReasoningTokens:     []int64{usage.ReasoningTokens},
+			CacheCreationTokens: []int64{usage.CacheCreationTokens},
+			CacheReadTokens:     []int64{usage.CacheReadTokens},
+			ContextLimit:        []int64{modelConfig.ContextLimit},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
+			RuntimeMs:           []int64{0},
+			ProviderResponseID:  []string{""},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert manual title usage message: %w", err)
+		}
+		if len(messages) != 1 {
+			return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
+		}
+		if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+			return xerrors.Errorf("soft delete manual title usage message: %w", err)
+		}
+		return nil
+	}, nil)
 }
 
 // RefreshStatus loads the latest chat status and publishes it to stream subscribers.

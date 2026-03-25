@@ -139,7 +139,7 @@ func generateTitle(
 	model fantasy.LanguageModel,
 	input string,
 ) (string, error) {
-	title, err := generateShortText(ctx, model, titleGenerationPrompt, input)
+	title, _, err := generateShortText(ctx, model, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -403,12 +403,9 @@ func renderManualTitlePrompt(
 
 func generateManualTitle(
 	ctx context.Context,
-	chat database.Chat,
 	messages []database.ChatMessage,
 	fallbackModel fantasy.LanguageModel,
-	keys chatprovider.ProviderAPIKeys,
-	logger slog.Logger,
-) (string, error) {
+) (string, fantasy.Usage, error) {
 	turns := extractManualTitleTurns(messages)
 	selected := selectManualTitleTurnIndexes(turns)
 
@@ -420,7 +417,7 @@ func generateManualTitle(
 		}
 	}
 	if firstUserText == "" {
-		return "", nil
+		return "", fantasy.Usage{}, nil
 	}
 	firstUserText = truncateRunes(firstUserText, 1000)
 
@@ -434,38 +431,22 @@ func generateManualTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
-	for _, c := range preferredTitleModels {
-		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys, chatprovider.UserAgent(),
-			chatprovider.CoderHeaders(chat),
-		)
-		if err == nil {
-			candidates = append(candidates, m)
-		}
-	}
-	candidates = append(candidates, fallbackModel)
-
-	var lastErr error
-	for _, model := range candidates {
-		title, err := generateShortText(titleCtx, model, systemPrompt, firstUserText)
-		if err != nil {
-			lastErr = err
-			logger.Debug(ctx, "manual title model candidate failed", slog.Error(err))
-			continue
-		}
-
-		title = normalizeTitleOutput(title)
-		if title == "" {
-			lastErr = xerrors.New("generated title was empty")
-			logger.Debug(ctx, "manual title model candidate returned empty title")
-			continue
-		}
-
-		return title, nil
+	title, usage, err := generateShortText(
+		titleCtx,
+		fallbackModel,
+		systemPrompt,
+		firstUserText,
+	)
+	if err != nil {
+		return "", fantasy.Usage{}, err
 	}
 
-	return "", lastErr
+	title = normalizeTitleOutput(title)
+	if title == "" {
+		return "", fantasy.Usage{}, xerrors.New("generated title was empty")
+	}
+
+	return title, usage, nil
 }
 
 const pushSummaryPrompt = "You are a notification assistant. Given a chat title " +
@@ -504,7 +485,7 @@ func generatePushSummary(
 	candidates = append(candidates, fallbackModel)
 
 	for _, model := range candidates {
-		summary, err := generateShortText(summaryCtx, model, pushSummaryPrompt, input)
+		summary, _, err := generateShortText(summaryCtx, model, pushSummaryPrompt, input)
 		if err != nil {
 			logger.Debug(ctx, "push summary model candidate failed",
 				slog.Error(err),
@@ -526,7 +507,7 @@ func generateShortText(
 	model fantasy.LanguageModel,
 	systemPrompt string,
 	userInput string,
-) (string, error) {
+) (string, fantasy.Usage, error) {
 	prompt := []fantasy.Message{
 		{
 			Role: fantasy.MessageRoleSystem,
@@ -554,7 +535,7 @@ func generateShortText(
 		return genErr
 	}, nil)
 	if err != nil {
-		return "", xerrors.Errorf("generate short text: %w", err)
+		return "", fantasy.Usage{}, xerrors.Errorf("generate short text: %w", err)
 	}
 
 	responseParts := make([]codersdk.ChatMessagePart, 0, len(response.Content))
@@ -565,5 +546,5 @@ func generateShortText(
 	}
 	text := strings.TrimSpace(contentBlocksToText(responseParts))
 	text = strings.Trim(text, "\"'`")
-	return text, nil
+	return text, response.Usage, nil
 }
