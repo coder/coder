@@ -128,8 +128,9 @@ type Server struct {
 // allowlist is empty or cannot be loaded the function returns
 // nil, which the tools interpret as "all templates allowed".
 func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
-	//nolint:gocritic // System-level config, not scoped to any user.
-	ctx := dbauthz.AsSystemRestricted(context.Background())
+	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
+	// access for reading deployment config.
+	ctx := dbauthz.AsChatd(context.Background())
 	raw, err := p.db.GetChatTemplateAllowlist(ctx)
 	if err != nil {
 		p.logger.Warn(ctx, "failed to load chat template allowlist", slog.Error(err))
@@ -138,9 +139,6 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 	ids, err := xjson.ParseUUIDList(raw)
 	if err != nil {
 		p.logger.Warn(ctx, "failed to parse chat template allowlist", slog.Error(err))
-		return nil
-	}
-	if len(ids) == 0 {
 		return nil
 	}
 	m := make(map[uuid.UUID]bool, len(ids))
