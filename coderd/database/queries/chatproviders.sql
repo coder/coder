@@ -12,7 +12,8 @@ SELECT
 FROM
     chat_providers
 WHERE
-    provider = @provider::text;
+    provider = @provider::text
+    AND enabled = TRUE;
 
 -- name: GetChatProviders :many
 SELECT

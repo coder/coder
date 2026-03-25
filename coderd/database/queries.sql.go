@@ -3824,6 +3824,7 @@ FROM
     chat_providers
 WHERE
     provider = $1::text
+    AND enabled = TRUE
 `
 
 func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
