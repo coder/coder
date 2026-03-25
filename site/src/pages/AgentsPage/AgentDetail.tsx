@@ -837,6 +837,12 @@ const AgentDetail: FC = () => {
 			return;
 		}
 
+		// Prefer the active git repo root so VS Code opens to the
+		// actual project directory, falling back to the agent's
+		// configured directory.
+		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
+		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
+
 		generateKeyMutation.mutate(undefined, {
 			onSuccess: ({ key }) => {
 				location.href = getVSCodeHref(editor, {
@@ -844,7 +850,7 @@ const AgentDetail: FC = () => {
 					workspace: workspace.name,
 					token: key,
 					agent: workspaceAgent.name,
-					folder: workspaceAgent.expanded_directory,
+					folder,
 					chatId: agentId,
 				});
 			},
@@ -980,4 +986,12 @@ const AgentDetail: FC = () => {
 	);
 };
 
-export default AgentDetail;
+// Keyed wrapper so that navigating between agents (changing the
+// :agentId param) fully remounts the component, resetting all
+// internal state — drafts, editing, queries — cleanly.
+const KeyedAgentDetail: FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
+	return <AgentDetail key={agentId} />;
+};
+
+export default KeyedAgentDetail;
