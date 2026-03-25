@@ -5,9 +5,11 @@ import { API } from "#/api/api";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { AgentCreateForm } from "./AgentCreateForm";
 
+const modelConfigID = "model-config-1";
+
 const modelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: modelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",

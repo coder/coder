@@ -27,9 +27,11 @@ import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import { AgentsPageView } from "./AgentsPageView";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -38,7 +40,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
-		id: "config-openai-gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -63,7 +65,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	total_cache_creation_tokens: 5_432,
 	by_model: [
 		{
-			model_config_id: "model-config-1",
+			model_config_id: defaultModelConfigID,
 			display_name: "GPT-4.1",
 			provider: "OpenAI",
 			model: "gpt-4.1",
@@ -227,7 +229,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
-				id: "config-openai-gpt-4o",
+				id: defaultModelConfigID,
 				provider: "openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
@@ -239,6 +241,7 @@ const meta: Meta<typeof AgentsPageView> = {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 		]);
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
 			enable_desktop: false,
 		});

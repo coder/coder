@@ -320,3 +320,95 @@ describe("AgentsSidebar load-more behavior", () => {
 		expect(observeCount).toBe(0);
 	});
 });
+
+describe("AgentsSidebar model display names", () => {
+	it("uses the chat model config ID to pick the correct duplicate model label", () => {
+		const modelOptions = [
+			{
+				id: "config-fast",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o (Fast)",
+			},
+			{
+				id: "config-quality",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o (Quality)",
+			},
+		];
+		const modelConfigs: TypesGen.ChatModelConfig[] = [
+			{
+				id: "config-fast",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o (Fast)",
+				enabled: true,
+				is_default: false,
+				context_limit: 128_000,
+				compression_threshold: 70,
+				created_at: oneWeekAgo,
+				updated_at: oneWeekAgo,
+			},
+			{
+				id: "config-quality",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o (Quality)",
+				enabled: true,
+				is_default: false,
+				context_limit: 128_000,
+				compression_threshold: 70,
+				created_at: oneWeekAgo,
+				updated_at: oneWeekAgo,
+			},
+		];
+
+		const { getByText, queryByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-quality",
+							title: "Quality chat",
+							last_model_config_id: "config-quality",
+						}),
+					]}
+					modelOptions={modelOptions}
+					modelConfigs={modelConfigs}
+				/>
+			</Wrapper>,
+		);
+
+		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
+		expect(queryByText("GPT-4o (Fast)")).not.toBeInTheDocument();
+	});
+
+	it("falls back to legacy provider/model matching when no config ID match exists", () => {
+		const { getByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "legacy-chat",
+							title: "Legacy chat",
+							last_model_config_id: "openai:gpt-4o",
+						}),
+					]}
+					modelOptions={[
+						{
+							id: "config-quality",
+							provider: "openai",
+							model: "gpt-4o",
+							displayName: "GPT-4o (Quality)",
+						},
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
+	});
+});
