@@ -1,9 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import type { ApiErrorResponse } from "api/errors";
-import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
+import type { ApiErrorResponse } from "#/api/errors";
+import type { ExternalAuth, ExternalAuthDevice } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { GitDeviceAuth } from "#/components/GitDeviceAuth/GitDeviceAuth";

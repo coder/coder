@@ -1,5 +1,5 @@
-import { API } from "api/api";
 import type { FC } from "react";
+import { API } from "#/api/api";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,

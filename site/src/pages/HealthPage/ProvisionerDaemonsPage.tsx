@@ -1,8 +1,8 @@
-import type { HealthcheckReport } from "api/typesGenerated";
 import { Provisioner } from "modules/provisioners/Provisioner";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
+import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import {
 	Header,

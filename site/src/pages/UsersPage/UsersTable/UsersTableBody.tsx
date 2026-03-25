@@ -1,7 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { GroupsByUserId } from "api/queries/groups";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
@@ -14,6 +12,8 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type { GroupsByUserId } from "#/api/queries/groups";
+import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { PremiumBadge } from "#/components/Badges/Badges";

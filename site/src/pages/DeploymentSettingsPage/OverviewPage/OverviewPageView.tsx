@@ -1,11 +1,11 @@
+import type { FC } from "react";
+import { useDeploymentOptions } from "utils/deployOptions";
+import { docs } from "utils/docs";
 import type {
 	DAUsResponse,
 	Experiment,
 	SerpentOption,
-} from "api/typesGenerated";
-import type { FC } from "react";
-import { useDeploymentOptions } from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,

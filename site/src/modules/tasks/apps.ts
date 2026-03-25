@@ -2,7 +2,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 
 export type WorkspaceAppWithAgent = WorkspaceApp & {
 	agent: WorkspaceAgent;

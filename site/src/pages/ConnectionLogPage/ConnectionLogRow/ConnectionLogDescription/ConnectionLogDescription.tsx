@@ -1,7 +1,7 @@
-import type { ConnectionLog } from "api/typesGenerated";
 import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { connectionTypeToFriendlyName } from "utils/connection";
+import type { ConnectionLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 
 interface ConnectionLogDescriptionProps {

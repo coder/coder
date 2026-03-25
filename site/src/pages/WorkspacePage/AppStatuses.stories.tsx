@@ -9,8 +9,8 @@ import {
 } from "testHelpers/entities";
 import { withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { WorkspaceAppStatus } from "api/typesGenerated";
 import { userEvent, within } from "storybook/test";
+import type { WorkspaceAppStatus } from "#/api/typesGenerated";
 import { AppStatuses } from "./AppStatuses";
 
 const meta: Meta<typeof AppStatuses> = {

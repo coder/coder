@@ -1,12 +1,12 @@
 import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ComponentProps, FC } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { createChatStore } from "./AgentDetail/ChatContext";
@@ -21,9 +21,11 @@ import {
 // ---------------------------------------------------------------------------
 const AGENT_ID = "agent-detail-view-1";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -37,8 +39,9 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	owner_id: "owner-1",
 	title: "Help me refactor",
 	status: "completed",
-	last_model_config_id: "model-config-1",
+	last_model_config_id: defaultModelConfigID,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
@@ -104,7 +107,7 @@ const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		hasWorkspace: true,
 		store: createChatStore(),
 		pendingEditMessageId: null as number | null,
-		effectiveSelectedModel: "openai:gpt-4o",
+		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
 		modelSelectorPlaceholder: "Select a model",
@@ -296,7 +299,7 @@ export const Loading: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -314,7 +317,7 @@ export const LoadingWithModelOptions: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled={false}
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -331,7 +334,7 @@ export const LoadingWithRightPanel: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -349,7 +352,7 @@ export const LoadingSidebarCollapsed: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"

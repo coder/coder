@@ -10,12 +10,12 @@ import {
 	MockTemplateVersionVariable5,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
+import { screen, userEvent } from "storybook/test";
 import {
 	getProvisionerDaemonsKey,
 	organizationsKey,
-} from "api/queries/organizations";
-import { action } from "storybook/actions";
-import { screen, userEvent } from "storybook/test";
+} from "#/api/queries/organizations";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 
 const meta: Meta<typeof CreateTemplateForm> = {

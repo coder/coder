@@ -1,7 +1,7 @@
-import type * as TypesGen from "api/typesGenerated";
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
@@ -94,8 +94,7 @@ export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
  * Read the persisted MCP selection from localStorage, filtered to only
  * include IDs that still exist in the current server list.
  * Returns `null` when nothing is stored (caller should fall back to defaults).
- */
-export const getSavedMCPSelection = (
+ */ export const getSavedMCPSelection = (
 	servers: readonly TypesGen.MCPServerConfig[],
 ): string[] | null => {
 	const raw = localStorage.getItem(mcpSelectionStorageKey);
@@ -138,8 +137,7 @@ export const getSavedMCPSelection = (
 
 /**
  * Persist the current MCP selection to localStorage.
- */
-export const saveMCPSelection = (ids: readonly string[]): void => {
+ */ export const saveMCPSelection = (ids: readonly string[]): void => {
 	localStorage.setItem(mcpSelectionStorageKey, JSON.stringify(ids));
 };
 

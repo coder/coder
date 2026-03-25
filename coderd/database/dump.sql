@@ -1398,7 +1398,8 @@ CREATE TABLE chats (
     archived boolean DEFAULT false NOT NULL,
     last_error text,
     mode chat_mode,
-    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE connection_logs (
@@ -3725,6 +3726,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
+CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 

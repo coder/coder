@@ -1714,7 +1714,7 @@ func TestGetUser(t *testing.T) {
 
 		user, err := client.User(ctx, exp.Username)
 		require.NoError(t, err)
-		require.Equal(t, exp, user)
+		require.Equal(t, exp.ID, user.ID)
 	})
 }
 

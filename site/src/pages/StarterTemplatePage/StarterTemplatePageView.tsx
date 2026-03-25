@@ -1,8 +1,8 @@
 import { useTheme } from "@emotion/react";
-import type { TemplateExample } from "api/typesGenerated";
 import { ExternalLinkIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
+import type { TemplateExample } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";

@@ -1,4 +1,3 @@
-import type { Template } from "api/typesGenerated";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import { type FormikTouched, useFormik } from "formik";
@@ -11,6 +10,7 @@ import { getFormHelpers } from "utils/formUtils";
 import { humanDuration } from "utils/time";
 import { timeZones } from "utils/timeZones";
 import * as Yup from "yup";
+import type { Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {

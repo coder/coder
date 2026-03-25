@@ -1,6 +1,6 @@
-import { getErrorDetail, getErrorMessage, getErrorStatus } from "api/errors";
 import { isAxiosError } from "axios";
 import type { FC } from "react";
+import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import { Link } from "../Link/Link";
 import { Alert, AlertDescription, type AlertProps, AlertTitle } from "./Alert";
 

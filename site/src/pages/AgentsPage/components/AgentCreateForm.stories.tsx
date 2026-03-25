@@ -5,9 +5,11 @@ import { API } from "#/api/api";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { AgentCreateForm } from "./AgentCreateForm";
 
+const modelConfigID = "model-config-1";
+
 const modelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: modelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -186,6 +188,63 @@ export const NoModelsConfigured: Story = {
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
+	},
+};
+
+export const PreservesAttachmentsOnFailedSend: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockRejectedValue(new Error("server error")),
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		// Pre-persist an uploaded attachment so it is restored on mount.
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "persisted-file-1",
+					fileName: "photo.png",
+					fileType: "image/png",
+					lastModified: 1000,
+				},
+			]),
+		);
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [],
+			count: 0,
+		});
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// The restored attachment should appear on mount.
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+
+		// Type a message and submit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("test message");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		// Wait for onCreateChat to have been called (and rejected).
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+
+		// The attachment must still be visible after the failed send.
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+
+		// localStorage must still have the persisted attachment.
+		const stored = localStorage.getItem("agents.persisted-attachments");
+		expect(stored).not.toBeNull();
+		const parsed = JSON.parse(stored!);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].fileId).toBe("persisted-file-1");
 	},
 };
 

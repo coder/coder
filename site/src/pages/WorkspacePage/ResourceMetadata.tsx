@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { WorkspaceResource } from "api/typesGenerated";
 import { SensitiveValue } from "modules/resources/SensitiveValue";
 import { Children, type FC, type HTMLAttributes } from "react";
+import type { WorkspaceResource } from "#/api/typesGenerated";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 

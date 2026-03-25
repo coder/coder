@@ -1,10 +1,10 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Divider from "@mui/material/Divider";
-import type * as TypesGen from "api/typesGenerated";
 import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
 import { createDayString } from "utils/createDayString";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";

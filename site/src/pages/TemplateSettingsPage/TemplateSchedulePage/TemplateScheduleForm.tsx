@@ -1,6 +1,5 @@
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { type FormikTouched, useFormik } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { getFormHelpers } from "utils/formUtils";
@@ -8,6 +7,7 @@ import {
 	calculateAutostopRequirementDaysValue,
 	type TemplateAutostartRequirementDaysValue,
 } from "utils/schedule";
+import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DurationField } from "#/components/DurationField/DurationField";

@@ -1,5 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
 import type { FC } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DropdownMenu,

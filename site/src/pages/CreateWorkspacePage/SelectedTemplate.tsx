@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { Template, TemplateExample } from "api/typesGenerated";
 import type { FC } from "react";
+import type { Template, TemplateExample } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Stack } from "#/components/Stack/Stack";
 

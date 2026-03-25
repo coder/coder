@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -15,6 +14,7 @@ import {
 	type ReactElement,
 } from "react";
 import { docs } from "utils/docs";
+import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
 import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;

@@ -1,7 +1,7 @@
-import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import type { JSX } from "react";
 import { FixedSizeList as List } from "react-window";
 import { cn } from "utils/cn";
+import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import type { Line } from "#/components/Logs/LogLine";
 import {

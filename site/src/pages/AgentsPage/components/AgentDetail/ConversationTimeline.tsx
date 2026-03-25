@@ -1,4 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
 import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
@@ -12,6 +11,7 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConversationItem,
 	Message,
@@ -38,6 +38,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
+import { buildSubagentTitles } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -398,6 +399,7 @@ const ChatMessageItem = memo<{
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	subagentTitles?: Map<string, string>;
 }>(
 	({
 		message,
@@ -409,6 +411,7 @@ const ChatMessageItem = memo<{
 		fadeFromBottom = false,
 		urlTransform,
 		mcpServers,
+		subagentTitles,
 	}) => {
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
@@ -475,6 +478,7 @@ const ChatMessageItem = memo<{
 			blocks: parsed.blocks,
 			toolByID,
 			keyPrefix: String(message.id),
+			subagentTitles,
 			onImageClick: setPreviewImage,
 			onTextFileClick: (content) => setPreviewText(content),
 			urlTransform,
@@ -620,6 +624,7 @@ const ChatMessageItem = memo<{
 											result={tool.result}
 											status={tool.status}
 											isError={tool.isError}
+											subagentTitles={subagentTitles}
 											mcpServerConfigId={tool.mcpServerConfigId}
 											mcpServers={mcpServers}
 										/>
@@ -1049,6 +1054,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 }) => {
+	const subagentTitles = buildSubagentTitles(parsedMessages);
+
 	if (parsedMessages.length === 0) {
 		return null;
 	}
@@ -1091,6 +1098,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 						urlTransform={urlTransform}
 						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 						mcpServers={mcpServers}
+						subagentTitles={subagentTitles}
 					/>
 				),
 			)}

@@ -8,7 +8,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import {
 	getValidationSchema,
 	type TemplateScheduleFormValues,

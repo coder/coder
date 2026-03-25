@@ -1,9 +1,9 @@
-import { API } from "api/api";
-import { authMethods, updatePassword } from "api/queries/users";
 import { useAuthenticated } from "hooks";
 import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import { authMethods, updatePassword } from "#/api/queries/users";
 import { Loader } from "#/components/Loader/Loader";
 import { Stack } from "#/components/Stack/Stack";
 import { Section } from "../Section";

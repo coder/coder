@@ -1,5 +1,3 @@
-import { buildInfo } from "api/queries/buildInfo";
-import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
@@ -8,6 +6,8 @@ import { Navigate, useLocation, useNavigate } from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { sendDeploymentEvent } from "utils/telemetry";
+import { buildInfo } from "#/api/queries/buildInfo";
+import { authMethods } from "#/api/queries/users";
 import { LoginPageView } from "./LoginPageView";
 
 const LoginPage: FC = () => {

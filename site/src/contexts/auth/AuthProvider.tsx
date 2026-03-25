@@ -1,13 +1,3 @@
-import { isApiError } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
-import {
-	hasFirstUser,
-	login,
-	logout,
-	me,
-	updateProfile as updateProfileOptions,
-} from "api/queries/users";
-import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type Permissions, permissionChecks } from "modules/permissions";
 import {
@@ -19,6 +9,16 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { isApiError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import {
+	hasFirstUser,
+	login,
+	logout,
+	me,
+	updateProfile as updateProfileOptions,
+} from "#/api/queries/users";
+import type { UpdateUserProfileRequest, User } from "#/api/typesGenerated";
 
 export type AuthContextValue = {
 	isLoading: boolean;

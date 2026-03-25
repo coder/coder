@@ -1,4 +1,3 @@
-import { paginatedInterceptions } from "api/queries/aiBridge";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -6,6 +5,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { paginatedInterceptions } from "#/api/queries/aiBridge";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useModelFilterMenu } from "./RequestLogsFilter/ModelFilter";

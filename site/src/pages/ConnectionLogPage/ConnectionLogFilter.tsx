@@ -1,9 +1,3 @@
-import {
-	type ConnectionLogStatus,
-	ConnectionLogStatuses,
-	type ConnectionType,
-	ConnectionTypes,
-} from "api/typesGenerated";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
@@ -12,6 +6,12 @@ import {
 import type { FC } from "react";
 import { connectionTypeToFriendlyName } from "utils/connection";
 import { docs } from "utils/docs";
+import {
+	type ConnectionLogStatus,
+	ConnectionLogStatuses,
+	type ConnectionType,
+	ConnectionTypes,
+} from "#/api/typesGenerated";
 import {
 	Filter,
 	MenuSkeleton,

@@ -24,8 +24,6 @@ import {
 import { server } from "testHelpers/server";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as apiModule from "api/api";
-import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import MockServerSocket from "jest-websocket-mock";
 import {
 	DashboardContext,
@@ -34,6 +32,8 @@ import {
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { HttpResponse, http } from "msw";
 import type { FC } from "react";
+import * as apiModule from "#/api/api";
+import type { TemplateVersionParameter, Workspace } from "#/api/typesGenerated";
 import WorkspacePage from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;

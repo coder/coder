@@ -1,6 +1,6 @@
-import { API } from "api/api";
-import type { Task } from "api/typesGenerated";
 import type { QueryClient } from "react-query";
+import { API } from "#/api/api";
+import type { Task } from "#/api/typesGenerated";
 
 export const taskLogsKey = (user: string, taskId: string) => [
 	"tasks",

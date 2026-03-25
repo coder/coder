@@ -5,12 +5,12 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
+import { type FC, useEffect, useState } from "react";
 import type {
 	TemplateVersionVariable,
 	VariableValue,
-} from "api/typesGenerated";
-import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
-import { type FC, useEffect, useState } from "react";
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "#/components/Form/Form";

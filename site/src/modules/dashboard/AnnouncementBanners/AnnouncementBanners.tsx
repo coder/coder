@@ -1,6 +1,6 @@
-import type { BannerConfig } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import type { BannerConfig } from "#/api/typesGenerated";
 import { AnnouncementBannerView } from "./AnnouncementBannerView";
 
 export const AnnouncementBanners: FC = () => {

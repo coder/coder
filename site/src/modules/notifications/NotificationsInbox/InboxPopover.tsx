@@ -1,8 +1,8 @@
-import type { InboxNotification } from "api/typesGenerated";
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
+import type { InboxNotification } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,

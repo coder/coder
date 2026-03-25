@@ -1,4 +1,3 @@
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import {
 	BanIcon,
 	CloudIcon,
@@ -10,6 +9,7 @@ import {
 	StarOffIcon,
 } from "lucide-react";
 import type { FC } from "react";
+import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Tooltip,

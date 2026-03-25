@@ -1,8 +1,4 @@
 import type { StoryContext } from "@storybook/react-vite";
-import { withDefaultFeatures } from "api/api";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { hasFirstUserKey, meKey } from "api/queries/users";
-import type { Entitlements } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import {
 	getPreferredProxy,
@@ -15,6 +11,10 @@ import { OrganizationSettingsContext } from "modules/management/OrganizationSett
 import { permissionChecks } from "modules/permissions";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
+import { withDefaultFeatures } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { hasFirstUserKey, meKey } from "#/api/queries/users";
+import type { Entitlements } from "#/api/typesGenerated";
 import { Toaster } from "#/components/Toaster/Toaster";
 import {
 	MockAppearanceConfig,

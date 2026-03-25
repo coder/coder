@@ -1,5 +1,3 @@
-import { deploymentConfig } from "api/queries/deployment";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import {
 	type ActionType,
@@ -10,6 +8,8 @@ import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/Wo
 import { type FC, Fragment, type ReactNode } from "react";
 import { useQuery } from "react-query";
 import { mustUpdateWorkspace } from "utils/workspace";
+import { deploymentConfig } from "#/api/queries/deployment";
+import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
 import {
 	ActivateButton,
 	CancelButton,

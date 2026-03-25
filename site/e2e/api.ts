@@ -1,10 +1,10 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
-import { API, type DeploymentConfig } from "api/api";
-import type { SerpentOption } from "api/typesGenerated";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { API, type DeploymentConfig } from "#/api/api";
+import type { SerpentOption } from "#/api/typesGenerated";
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);

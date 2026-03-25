@@ -1,20 +1,3 @@
-import { API } from "api/api";
-import { type ApiErrorResponse, DetailedError } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
-import {
-	templateByName,
-	templateVersion,
-	templateVersionExternalAuth,
-	templateVersionPresets,
-} from "api/queries/templates";
-import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import type {
-	DynamicParametersRequest,
-	DynamicParametersResponse,
-	MinimalUser,
-	PreviewParameter,
-	Workspace,
-} from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
@@ -31,6 +14,23 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
+import { API } from "#/api/api";
+import { type ApiErrorResponse, DetailedError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import {
+	templateByName,
+	templateVersion,
+	templateVersionExternalAuth,
+	templateVersionPresets,
+} from "#/api/queries/templates";
+import { autoCreateWorkspace, createWorkspace } from "#/api/queries/workspaces";
+import type {
+	DynamicParametersRequest,
+	DynamicParametersResponse,
+	MinimalUser,
+	PreviewParameter,
+	Workspace,
+} from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";

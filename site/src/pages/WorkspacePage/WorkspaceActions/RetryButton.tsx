@@ -1,6 +1,6 @@
-import type { Workspace } from "api/typesGenerated";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
+import type { Workspace } from "#/api/typesGenerated";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 import type { ActionButtonProps } from "./Buttons";

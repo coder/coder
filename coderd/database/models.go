@@ -4170,6 +4170,7 @@ type Chat struct {
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
 	Mode              NullChatMode   `db:"mode" json:"mode"`
 	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels            StringMap      `db:"labels" json:"labels"`
 }
 
 type ChatDiffStatus struct {

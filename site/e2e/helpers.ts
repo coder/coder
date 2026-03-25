@@ -4,15 +4,15 @@ import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { API } from "api/api";
-import type {
-	UpdateTemplateMeta,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
 import express from "express";
 import capitalize from "lodash/capitalize";
 import * as ssh from "ssh2";
 import { TarWriter } from "utils/tar";
+import { API } from "#/api/api";
+import type {
+	UpdateTemplateMeta,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
 import {
 	agentPProfPort,
 	coderBinary,

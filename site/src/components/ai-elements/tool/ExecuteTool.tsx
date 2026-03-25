@@ -4,6 +4,7 @@ import {
 	CircleAlertIcon,
 	ExternalLinkIcon,
 	LoaderIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
@@ -27,7 +28,7 @@ export const ExecuteTool: React.FC<{
 	output: string;
 	status: ToolStatus;
 	isError: boolean;
-}> = ({ command, output, status, isError }) => {
+}> = ({ command, output, status }) => {
 	const [expanded, setExpanded] = useState(false);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
@@ -83,7 +84,7 @@ export const ExecuteTool: React.FC<{
 							}
 							className={cn(
 								"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-2.5 py-2 font-mono text-xs",
-								isError ? "text-content-destructive" : "text-content-secondary",
+								"text-content-secondary",
 							)}
 						>
 							{output}
@@ -199,7 +200,7 @@ export const WaitForExternalAuthTool: React.FC<{
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
 		icon = (
-			<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+			<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;

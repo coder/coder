@@ -1,4 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
 import { useFormik } from "formik";
 import {
 	ChevronDownIcon,
@@ -9,6 +8,7 @@ import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";

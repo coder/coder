@@ -1,9 +1,9 @@
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
-import type { ProvisionerDaemon } from "api/typesGenerated";
 import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { FormSection } from "#/components/Form/Form";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";

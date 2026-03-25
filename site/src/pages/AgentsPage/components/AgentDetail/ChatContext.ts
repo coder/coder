@@ -1,12 +1,11 @@
-import { watchChat } from "api/api";
-import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
 import { asNumber, asString } from "components/ai-elements/runtimeTypeUtils";
-
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import { watchChat } from "#/api/api";
+import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,

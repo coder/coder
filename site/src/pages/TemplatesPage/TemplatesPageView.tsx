@@ -1,7 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { hasError, isApiValidationError } from "api/errors";
-import type { Template, TemplateExample } from "api/typesGenerated";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -14,6 +12,8 @@ import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
 } from "utils/templates";
+import { hasError, isApiValidationError } from "#/api/errors";
+import type { Template, TemplateExample } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";

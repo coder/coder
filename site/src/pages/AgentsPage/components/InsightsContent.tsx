@@ -1,7 +1,7 @@
-import { prInsights } from "api/queries/chats";
 import dayjs, { type Dayjs } from "dayjs";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
+import { prInsights } from "#/api/queries/chats";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { type PRInsightsTimeRange, PRInsightsView } from "./PRInsightsView";
 

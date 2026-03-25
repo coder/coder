@@ -1,4 +1,4 @@
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { cn } from "utils/cn";
 import {
@@ -28,18 +28,11 @@ export const ReadTemplateTool: React.FC<{
 
 	return (
 		<div className="flex items-center gap-1.5">
-			<span
-				className={cn(
-					"text-sm",
-					isError ? "text-content-destructive" : "text-content-secondary",
-				)}
-			>
-				{label}
-			</span>
+			<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 					</TooltipTrigger>
 					<TooltipContent>
 						{errorMessage || "Failed to read template"}

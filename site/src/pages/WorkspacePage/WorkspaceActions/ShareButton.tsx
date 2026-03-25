@@ -1,10 +1,10 @@
-import type { Workspace } from "api/typesGenerated";
 import { Share2Icon } from "lucide-react";
 import { isGroup } from "modules/groups";
 import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
 import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 import type { FC } from "react";
+import type { Workspace } from "#/api/typesGenerated";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {

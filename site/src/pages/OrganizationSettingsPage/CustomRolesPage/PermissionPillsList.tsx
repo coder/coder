@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
-import type { Permission } from "api/typesGenerated";
 import type { FC } from "react";
+import type { Permission } from "#/api/typesGenerated";
 import { Pill } from "#/components/Pill/Pill";
 import {
 	Tooltip,

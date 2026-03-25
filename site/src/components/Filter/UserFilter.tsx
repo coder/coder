@@ -1,6 +1,6 @@
-import { API } from "api/api";
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
+import { API } from "#/api/api";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
