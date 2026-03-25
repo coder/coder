@@ -1127,8 +1127,8 @@ func AIBridgeSessionThreads(
 		thoughtsByInterception[mt.InterceptionID] = append(thoughtsByInterception[mt.InterceptionID], mt)
 	}
 
-	// Group interceptions by thread_id, preserving the
-	// chronological order returned by the SQL query.
+	// Group interceptions by thread_id, preserving the order returned by the
+	// SQL query.
 	interceptionsByThread := make(map[uuid.UUID][]database.AIBridgeInterception, len(interceptions))
 	var threadIDs []uuid.UUID
 	for _, row := range interceptions {
@@ -1228,6 +1228,8 @@ func buildAIBridgeThread(
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
 		// Get first user prompt from root interception.
+		// A thread can only have one prompt, by definition, since we currently
+		// only store the last prompt observed in an interception.
 		if prompts := promptsByInterception[rootIntc.ID]; len(prompts) > 0 {
 			thread.Prompt = &prompts[0].Prompt
 		}
@@ -1246,22 +1248,15 @@ func buildAIBridgeThread(
 		}
 	}
 
-	// Build agentic actions grouped by interception. Each
-	// interception that has tool calls produces one action with all
-	// its tool calls, thinking blocks, and token usage.
+	// Build agentic actions grouped by interception. Each interception that
+	// has tool calls produces one action with all its tool calls, thinking
+	// blocks, and token usage.
 	var actions []codersdk.AIBridgeAgenticAction
 	for _, intc := range interceptions {
 		tools := toolsByInterception[intc.ID]
 		if len(tools) == 0 {
 			continue
 		}
-		// Sort tool usages within the interception by created_at.
-		sort.Slice(tools, func(i, j int) bool {
-			if tools[i].CreatedAt.Equal(tools[j].CreatedAt) {
-				return tools[i].ID.String() < tools[j].ID.String()
-			}
-			return tools[i].CreatedAt.Before(tools[j].CreatedAt)
-		})
 
 		// Thinking blocks for this interception.
 		thoughts := thoughtsByInterception[intc.ID]
@@ -1322,6 +1317,8 @@ func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridge
 	for _, tu := range tokens {
 		inputTokens += tu.InputTokens
 		outputTokens += tu.OutputTokens
+		// TODO: once https://github.com/coder/aibridge/issues/150 lands we
+		// should aggregate the other token types.
 	}
 	return codersdk.AIBridgeSessionThreadsTokenUsage{
 		InputTokens:  inputTokens,
