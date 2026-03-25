@@ -2,6 +2,7 @@ import { API, watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
+	cancelChatListQueries,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
@@ -410,6 +411,20 @@ const AgentsPage: FC = () => {
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
 					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
+
+					// Cancel in-flight list and per-chat refetches so
+					// they cannot overwrite the cache update below with
+					// stale server data. This matters when a title_change
+					// event races with a refetch triggered by
+					// createChat.onSuccess or the onOpen invalidation:
+					// the refetch may have been issued before the async
+					// title generation finished, so its response carries
+					// the fallback title.
+					void cancelChatListQueries(queryClient);
+					void queryClient.cancelQueries({
+						queryKey: chatKey(updatedChat.id),
+						exact: true,
+					});
 
 					// For "created" events, use a cross-page existence
 					// check and prepend only to the first page.

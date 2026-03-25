@@ -104,6 +104,20 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	});
 };
 
+/**
+ * Cancel in-flight refetches for sidebar chat-list queries.
+ * Call this before writing WebSocket-driven cache updates so a
+ * concurrent refetch (e.g. from createChat.onSuccess or the
+ * watchChats onOpen handler) cannot overwrite the update with
+ * stale server data that predates async title generation.
+ */
+export const cancelChatListQueries = (queryClient: QueryClient) => {
+	return queryClient.cancelQueries({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
+};
+
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
