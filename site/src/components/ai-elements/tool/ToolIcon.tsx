@@ -12,13 +12,19 @@ import type React from "react";
 import { useState } from "react";
 import { cn } from "utils/cn";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 export const ToolIcon: React.FC<{
 	name: string;
 	isError: boolean;
 	iconUrl?: string;
 	isRunning?: boolean;
-}> = ({ name, isError, iconUrl, isRunning }) => {
+	serverName?: string;
+}> = ({ name, isError, iconUrl, isRunning, serverName }) => {
 	const [imgError, setImgError] = useState(false);
 	const color = isError ? "text-content-destructive" : "text-content-secondary";
 	const base = cn("h-4 w-4 shrink-0", color, isRunning && "grayscale");
@@ -28,20 +34,26 @@ export const ToolIcon: React.FC<{
 	// style. brightness-0 forces every pixel to black, then in dark
 	// mode we invert to white and tune opacity to approximate
 	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
-	// On error we halve opacity further; on running it's the same
-	// monochrome treatment (already desaturated).
 	if (iconUrl && !imgError) {
-		return (
+		const img = (
 			<ExternalImage
 				src={iconUrl}
 				alt={`${name} icon`}
-				className={cn(
-					"block h-4 w-4 shrink-0 brightness-0 opacity-[0.35] dark:invert dark:opacity-[0.65]",
-					isError && "!opacity-[0.2] dark:!opacity-[0.35]",
-				)}
+				className="block h-4 w-4 shrink-0 brightness-0 opacity-[0.35] dark:invert dark:opacity-[0.65]"
 				onError={() => setImgError(true)}
 			/>
 		);
+
+		if (serverName) {
+			return (
+				<Tooltip>
+					<TooltipTrigger asChild>{img}</TooltipTrigger>
+					<TooltipContent>{serverName}</TooltipContent>
+				</Tooltip>
+			);
+		}
+
+		return img;
 	}
 
 	switch (name) {

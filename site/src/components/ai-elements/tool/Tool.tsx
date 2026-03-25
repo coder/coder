@@ -502,6 +502,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 						isError={status === "error" || isError}
 						iconUrl={mcpServer?.icon_url}
 						isRunning={isRunning}
+						serverName={mcpServer?.display_name}
 					/>
 					<span className={cn(isError && "[&>*]:text-content-destructive")}>
 						<ToolLabel
