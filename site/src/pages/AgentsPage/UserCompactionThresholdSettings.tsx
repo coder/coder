@@ -210,8 +210,7 @@ export const UserCompactionThresholdSettings: FC<
 											System default:{" "}
 											<span className="inline-block w-[3ch] text-right tabular-nums">
 												{modelConfig.compression_threshold}
-											</span>
-											%
+											</span>%
 										</span>
 									</div>
 									<div className="flex items-center gap-1.5">
