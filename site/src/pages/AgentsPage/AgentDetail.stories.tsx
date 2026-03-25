@@ -1033,10 +1033,7 @@ export const StreamedReasoning: Story = {
  */
 export const StreamingSurvivesQueuedSend: Story = {
 	beforeEach: () => {
-		const spy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockResolvedValue({
+		const spy = spyOn(API.experimental, "createChatMessage").mockResolvedValue({
 			queued: true,
 			queued_message: {
 				id: 99,
