@@ -23,6 +23,7 @@ export interface AgentsOutletContext {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
+	onChatReady: () => void;
 }
 
 interface AgentsPageViewProps {
@@ -119,6 +120,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
+		onChatReady: () => {},
 	};
 
 	return (

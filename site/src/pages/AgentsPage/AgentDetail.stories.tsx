@@ -54,6 +54,7 @@ const AgentDetailLayout: FC = () => {
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
+							onChatReady: () => {},
 						} satisfies AgentsOutletContext
 					}
 				/>

@@ -2,7 +2,14 @@ import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { permissionChecks } from "modules/permissions";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -10,6 +17,7 @@ import {
 	Outlet,
 	useBlocker,
 	useParams,
+	useSearchParams,
 } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
@@ -180,16 +188,27 @@ const AgentEmbedPage: FC = () => {
 		),
 	);
 
-	// Apply the system color scheme on mount so the first paint
-	// matches VS Code before a coder:set-theme message arrives.
-	// Then listen for theme changes from the parent frame. On
-	// unmount, remove the marker so ThemeProvider resumes control.
-	useEffect(() => {
-		const prefersDark = window.matchMedia(
-			"(prefers-color-scheme: dark)",
-		).matches;
-		applyEmbedTheme(prefersDark ? "dark" : "light");
+	// Apply the initial theme from the URL query param
+	// (?theme=light|dark) or fall back to prefers-color-scheme.
+	// useLayoutEffect runs before paint to prevent a flash.
+	const [searchParams] = useSearchParams();
+	useLayoutEffect(() => {
+		const paramTheme = searchParams.get("theme");
+		if (paramTheme === "light" || paramTheme === "dark") {
+			applyEmbedTheme(paramTheme);
+		} else {
+			const prefersDark = window.matchMedia(
+				"(prefers-color-scheme: dark)",
+			).matches;
+			applyEmbedTheme(prefersDark ? "dark" : "light");
+		}
+		return () => {
+			delete document.documentElement.dataset.embedTheme;
+		};
+	}, [searchParams]);
 
+	// Listen for live theme changes from the parent frame.
+	useEffect(() => {
 		const parentWindow = window.parent;
 		const handler = (event: MessageEvent) => {
 			if (event.source !== parentWindow) {
@@ -202,11 +221,12 @@ const AgentEmbedPage: FC = () => {
 		};
 
 		window.addEventListener("message", handler);
-		return () => {
-			window.removeEventListener("message", handler);
-			delete document.documentElement.dataset.embedTheme;
-		};
+		return () => window.removeEventListener("message", handler);
 	}, []);
+
+	const onChatReady = () => {
+		window.parent.postMessage({ type: "coder:chat-ready" }, "*");
+	};
 
 	const outletContext: AgentsOutletContext = {
 		chatErrorReasons,
@@ -218,6 +238,7 @@ const AgentEmbedPage: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
+		onChatReady,
 	};
 
 	// When signed out and not already bootstrapping, listen for the
