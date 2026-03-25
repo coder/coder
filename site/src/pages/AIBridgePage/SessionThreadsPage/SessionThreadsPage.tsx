@@ -5,7 +5,7 @@ import { useParams } from "react-router";
 import { SessionThreadsPageView } from "./SessionThreadsPageView";
 
 const SessionThreadsPage: FC = () => {
-	const { sessionId = "" } = useParams<{ sessionId: string }>();
+	const { sessionId } = useParams() as { sessionId: string };
 
 	const sessionQuery = useInfiniteQuery({
 		...infiniteSessionThreads(sessionId),

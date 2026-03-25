@@ -44,7 +44,9 @@ export const paginatedSessions = (
 	};
 };
 
-export const infiniteSessionThreads = (sessionId: string, limit = 1) => {
+export const infiniteSessionThreads = (sessionId: string) => {
+	const limit = 20;
+
 	return {
 		queryKey: ["aiBridgeSessionThreads", sessionId],
 		getNextPageParam: (lastPage: AIBridgeSessionThreadsResponse) => {
@@ -55,12 +57,10 @@ export const infiniteSessionThreads = (sessionId: string, limit = 1) => {
 			return threads[threads.length - 1].id;
 		},
 		initialPageParam: undefined as string | undefined,
-		queryFn: ({ pageParam }) => {
-			console.warn("Fetching threads with pageParam:", pageParam);
-			return API.getAIBridgeSessionThreads(sessionId, {
+		queryFn: ({ pageParam }) =>
+			API.getAIBridgeSessionThreads(sessionId, {
 				limit,
 				after_id: pageParam as string | undefined,
-			});
-		},
+			}),
 	} satisfies UseInfiniteQueryOptions<AIBridgeSessionThreadsResponse>;
 };

@@ -15,6 +15,7 @@ import type { FC, PropsWithChildren } from "react";
 import { Link as RouterLink } from "react-router";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
@@ -83,8 +84,11 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && (
-						// TODO actual loader
-						<div className="text-content-secondary text-sm">Loading…</div>
+						<Spinner
+							size="sm"
+							className="text-content-secondary"
+							aria-label="Loading session summary"
+						/>
 					)}
 					{session && (
 						<SessionSummaryTable
