@@ -53,6 +53,39 @@ const getBootstrapToken = (data: unknown): string | undefined => {
 	return token.length > 0 ? token : undefined;
 };
 
+const getThemeFromMessage = (data: unknown): "light" | "dark" | undefined => {
+	if (typeof data !== "object" || data === null) {
+		return undefined;
+	}
+	const msg = data as { type?: unknown; payload?: unknown };
+	if (msg.type !== "coder:set-theme") {
+		return undefined;
+	}
+	if (typeof msg.payload !== "object" || msg.payload === null) {
+		return undefined;
+	}
+	const payload = msg.payload as { theme?: unknown };
+	if (payload.theme !== "light" && payload.theme !== "dark") {
+		return undefined;
+	}
+	return payload.theme;
+};
+
+/**
+ * Sets the embed theme on <html> and marks it with a data
+ * attribute so ThemeProvider skips its own class manipulation.
+ * No-ops when the requested theme is already active.
+ */
+const applyEmbedTheme = (theme: "light" | "dark") => {
+	const root = document.documentElement;
+	if (root.dataset.embedTheme === theme) {
+		return;
+	}
+	root.classList.remove("light", "dark");
+	root.classList.add(theme);
+	root.dataset.embedTheme = theme;
+};
+
 const AgentEmbedPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
@@ -146,6 +179,34 @@ const AgentEmbedPage: FC = () => {
 			[agentId],
 		),
 	);
+
+	// Apply the system color scheme on mount so the first paint
+	// matches VS Code before a coder:set-theme message arrives.
+	// Then listen for theme changes from the parent frame. On
+	// unmount, remove the marker so ThemeProvider resumes control.
+	useEffect(() => {
+		const prefersDark = window.matchMedia(
+			"(prefers-color-scheme: dark)",
+		).matches;
+		applyEmbedTheme(prefersDark ? "dark" : "light");
+
+		const parentWindow = window.parent;
+		const handler = (event: MessageEvent) => {
+			if (event.source !== parentWindow) {
+				return;
+			}
+			const theme = getThemeFromMessage(event.data);
+			if (theme) {
+				applyEmbedTheme(theme);
+			}
+		};
+
+		window.addEventListener("message", handler);
+		return () => {
+			window.removeEventListener("message", handler);
+			delete document.documentElement.dataset.embedTheme;
+		};
+	}, []);
 
 	const outletContext: AgentsOutletContext = {
 		chatErrorReasons,
