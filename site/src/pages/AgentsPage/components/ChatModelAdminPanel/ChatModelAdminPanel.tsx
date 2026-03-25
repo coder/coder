@@ -27,7 +27,7 @@ import { ProvidersSection } from "./ProvidersSection";
 export type ProviderState = {
 	provider: string;
 	label: string;
-	providerConfigs?: readonly TypesGen.ChatProviderConfig[];
+	providerConfigs: readonly TypesGen.ChatProviderConfig[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
 	hasManagedAPIKey: boolean;
@@ -35,9 +35,6 @@ export type ProviderState = {
 	hasEffectiveAPIKey: boolean;
 	isEnvPreset: boolean;
 	baseURL: string;
-	// TODO: Remove this legacy compatibility field after stories stop
-	// constructing ProviderState objects manually.
-	providerConfig?: TypesGen.ChatProviderConfig | undefined;
 };
 
 export type ChatModelAdminSection = "providers" | "models";

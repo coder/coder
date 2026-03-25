@@ -114,7 +114,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const selectedProviderConfigCount =
-		selectedProviderState?.providerConfigs?.length ?? 0;
+		selectedProviderState?.providerConfigs.length;
 	const canManageModels = Boolean(
 		selectedProviderConfigCount && selectedProviderState?.hasEffectiveAPIKey,
 	);
@@ -173,7 +173,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState || selectedProviderConfigCount === 0) return;
+				if (!selectedProviderState?.providerConfigs.length) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
