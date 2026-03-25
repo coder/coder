@@ -4,10 +4,7 @@ on:
   push:
     branches:
       - main
-      - "release/2.*"
-  # This event reads the workflow from the default branch (main), not the
-  # release branch. No cherry-pick needed.
-  # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#release
+      - "release/*.*"
   release:
     types: [published]
 
@@ -48,17 +45,12 @@ jobs:
       - name: Sync issues
         id: sync
         if: steps.version.outputs.skip != 'true'
-        uses: linear/linear-release-action@5cbaabc187ceb63eee9d446e62e68e5c29a03ae8 # v0.5.0
+        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
           version: ${{ steps.version.outputs.version }}
-
-      - name: Print release URL
-        if: steps.sync.outputs.release-url
-        run: echo "Synced to $RELEASE_URL"
-        env:
-          RELEASE_URL: ${{ steps.sync.outputs.release-url }}
+          timeout: 300
 
   sync-release-branch:
     name: Sync backports to Linear release
@@ -79,17 +71,12 @@ jobs:
 
       - name: Sync issues
         id: sync
-        uses: linear/linear-release-action@5cbaabc187ceb63eee9d446e62e68e5c29a03ae8 # v0.5.0
+        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
           version: ${{ steps.version.outputs.version }}
-
-      - name: Print release URL
-        if: steps.sync.outputs.release-url
-        run: echo "Synced to $RELEASE_URL"
-        env:
-          RELEASE_URL: ${{ steps.sync.outputs.release-url }}
+          timeout: 300
 
   code-freeze:
     name: Move Linear release to Code Freeze
@@ -112,18 +99,13 @@ jobs:
 
       - name: Move to Code Freeze
         id: update
-        uses: linear/linear-release-action@5cbaabc187ceb63eee9d446e62e68e5c29a03ae8 # v0.5.0
+        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: update
           stage: Code Freeze
           version: ${{ steps.version.outputs.version }}
-
-      - name: Print release URL
-        if: steps.update.outputs.release-url
-        run: echo "Moved to Code Freeze: $RELEASE_URL"
-        env:
-          RELEASE_URL: ${{ steps.update.outputs.release-url }}
+          timeout: 300
 
   complete:
     name: Complete Linear release
@@ -154,14 +136,9 @@ jobs:
       - name: Complete release
         id: complete
         if: steps.version.outputs.is_minor == 'true'
-        uses: linear/linear-release-action@5cbaabc187ceb63eee9d446e62e68e5c29a03ae8 # v0.5.0
+        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: complete
           version: ${{ steps.version.outputs.version }}
-
-      - name: Print release URL
-        if: steps.complete.outputs.release-url
-        run: echo "Completed $RELEASE_URL"
-        env:
-          RELEASE_URL: ${{ steps.complete.outputs.release-url }}
+          timeout: 300
