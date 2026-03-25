@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"strings"
+	"unicode"
 )
 
 // SanitizePromptText strips invisible Unicode characters that could
@@ -138,7 +139,7 @@ func collapseNewlines(s string) string {
 	// leading whitespace for indentation.
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
-		lines[i] = strings.TrimRight(line, " \t")
+		lines[i] = strings.TrimRightFunc(line, unicode.IsSpace)
 	}
 	s = strings.Join(lines, "\n")
 

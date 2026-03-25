@@ -243,6 +243,13 @@ func TestSanitizePromptText(t *testing.T) {
 			want:  "above\n\nbelow",
 		},
 		{
+			name: "NBSPOnlyLinesCollapsed",
+			// U+00A0 (NBSP) and other Unicode whitespace must
+			// be trimmed from lines so they collapse properly.
+			input: "above\n\u00A0\n\u00A0\n\u00A0\nbelow",
+			want:  "above\n\nbelow",
+		},
+		{
 			name: "MixedZWSPaddedHiddenInstruction",
 			// Reproduces the PoC pattern: normal text, then many
 			// lines of only ZWS (scroll padding), then a hidden

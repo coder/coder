@@ -668,11 +668,11 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 							/>
 							{userInvisibleCharCount > 0 && (
 								<Alert severity="warning">
-									This text contains {userInvisibleCharCount} invisible Unicode
-									character{userInvisibleCharCount !== 1 ? "s" : ""} that could
-									hide content from reviewers. These will be stripped on save.
+									This text contains {userInvisibleCharCount} invisible Unicode{" "}
+									{userInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
+									that could hide content. These will be stripped on save.
 								</Alert>
-							)}
+							)}{" "}
 							<div className="flex justify-end gap-2">
 								<Button
 									size="sm"
@@ -740,10 +740,11 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 									{systemInvisibleCharCount > 0 && (
 										<Alert severity="warning">
 											This text contains {systemInvisibleCharCount} invisible
-											Unicode character
-											{systemInvisibleCharCount !== 1 ? "s" : ""} that could
-											hide content from reviewers. These will be stripped on
-											save.
+											Unicode{" "}
+											{systemInvisibleCharCount !== 1
+												? "characters"
+												: "character"}{" "}
+											that could hide content. These will be stripped on save.
 										</Alert>
 									)}
 									<div className="flex justify-end gap-2">
