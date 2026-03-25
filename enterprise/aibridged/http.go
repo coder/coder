@@ -50,7 +50,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Strip every header that may carry the Coder session token so it is
+	// Strip every header that may carry the Coder token so it is
 	// never forwarded to upstream providers. After stripping, the
 	// aibridge library can treat the request as a normal LLM API call
 	// with no Coder-specific information.
