@@ -207,6 +207,11 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "context-file": {
+				// Context files are metadata for the context indicator;
+				// they are not rendered in the conversation timeline.
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;

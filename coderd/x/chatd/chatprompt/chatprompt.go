@@ -1302,6 +1302,32 @@ func partsToMessageParts(
 			result = append(result, fantasy.TextPart{
 				Text: fileReferencePartToText(part),
 			})
+		case codersdk.ChatMessagePartTypeContextFile:
+			if part.ContextFileContent == "" {
+				continue
+			}
+			var sb strings.Builder
+			_, _ = sb.WriteString("<workspace-context>\n")
+			if part.ContextFileOS != "" {
+				_, _ = sb.WriteString("Operating System: ")
+				_, _ = sb.WriteString(part.ContextFileOS)
+				_, _ = sb.WriteString("\n")
+			}
+			if part.ContextFileDirectory != "" {
+				_, _ = sb.WriteString("Working Directory: ")
+				_, _ = sb.WriteString(part.ContextFileDirectory)
+				_, _ = sb.WriteString("\n")
+			}
+			source := part.ContextFilePath
+			if part.ContextFileTruncated {
+				source += " (truncated to 64KiB)"
+			}
+			_, _ = sb.WriteString("\nSource: ")
+			_, _ = sb.WriteString(source)
+			_, _ = sb.WriteString("\n")
+			_, _ = sb.WriteString(part.ContextFileContent)
+			_, _ = sb.WriteString("\n</workspace-context>")
+			result = append(result, fantasy.TextPart{Text: sb.String()})
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue
