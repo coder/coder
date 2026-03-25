@@ -2,8 +2,11 @@ package chaterror_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
+	"time"
 
+	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -337,4 +340,95 @@ func TestWithProviderAddsProviderWhenUnknown(t *testing.T) {
 		Retryable:  true,
 		StatusCode: 429,
 	}, enriched)
+}
+
+func TestClassify_UsesStructuredProviderStatusAndRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		429,
+		map[string]string{"Retry-After": "30"},
+	))
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "The AI provider is rate limiting requests (HTTP 429).",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "",
+		Retryable:  true,
+		StatusCode: 429,
+		RetryAfter: 30 * time.Second,
+	}, classified)
+}
+
+func TestClassify_PrefersRetryAfterMsOverRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{
+			"Retry-After":    "30",
+			"ReTrY-AfTeR-Ms": "1500",
+		},
+	))
+
+	require.Equal(t, 429, classified.StatusCode)
+	require.Equal(t, 1500*time.Millisecond, classified.RetryAfter)
+}
+
+func TestClassify_ParsesRetryAfterHTTPDate(t *testing.T) {
+	t.Parallel()
+
+	retryAt := time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{"Retry-After": retryAt},
+	))
+
+	require.Equal(t, 429, classified.StatusCode)
+	require.GreaterOrEqual(t, classified.RetryAfter, 2*time.Second)
+	require.LessOrEqual(t, classified.RetryAfter, 4*time.Second)
+}
+
+func TestClassify_IgnoresInvalidRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{"Retry-After": "definitely not a delay"},
+	))
+
+	require.Zero(t, classified.RetryAfter)
+}
+
+func TestWithProviderPreservesRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{"Retry-After": "30"},
+	))
+
+	enriched := classified.WithProvider("openai")
+	require.Equal(t, 30*time.Second, enriched.RetryAfter)
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "OpenAI is rate limiting requests (HTTP 429).",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 429,
+		RetryAfter: 30 * time.Second,
+	}, enriched)
+}
+
+func testProviderError(message string, statusCode int, headers map[string]string) error {
+	return &fantasy.ProviderError{
+		Message:         message,
+		StatusCode:      statusCode,
+		ResponseHeaders: headers,
+	}
 }
