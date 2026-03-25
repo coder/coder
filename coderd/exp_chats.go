@@ -3929,16 +3929,20 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	providersByName := make(map[string]database.ChatProvider, len(providers))
-	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
-	for _, provider := range providers {
-		normalizedProvider := normalizeChatProvider(provider.Provider)
+	configuredFamilies := make(map[string]bool, len(providers))
+	for i := range providers {
+		normalizedProvider := normalizeChatProvider(providers[i].Provider)
 		if normalizedProvider == "" {
 			continue
 		}
-		provider.Provider = normalizedProvider
-		providersByName[normalizedProvider] = provider
+		providers[i].Provider = normalizedProvider
+		providersByName[normalizedProvider] = providers[i]
+		configuredFamilies[normalizedProvider] = true
+	}
+	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providersByName))
+	for _, provider := range providersByName {
 		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
-			Provider: normalizedProvider,
+			Provider: provider.Provider,
 			APIKey:   provider.APIKey,
 			BaseURL:  provider.BaseUrl,
 		})
@@ -3984,18 +3988,22 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	supportedProviders := chatprovider.SupportedProviders()
-	resp := make([]codersdk.ChatProviderConfig, 0, len(supportedProviders))
+	resp := make([]codersdk.ChatProviderConfig, 0, len(providers)+len(supportedProviders))
+	for _, provider := range providers {
+		if normalizeChatProvider(provider.Provider) == "" {
+			continue
+		}
+		resp = append(
+			resp,
+			convertChatProviderConfig(
+				provider,
+				effectiveKeys.APIKey(provider.Provider) != "",
+				codersdk.ChatProviderConfigSourceDatabase,
+			),
+		)
+	}
 	for _, provider := range supportedProviders {
-		configured, ok := providersByName[provider]
-		if ok {
-			resp = append(
-				resp,
-				convertChatProviderConfig(
-					configured,
-					effectiveKeys.APIKey(provider) != "",
-					codersdk.ChatProviderConfigSourceDatabase,
-				),
-			)
+		if configuredFamilies[provider] {
 			continue
 		}
 
@@ -4069,7 +4077,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		switch {
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat provider already exists.",
+				Message: "Only one enabled provider config per provider family is allowed.",
 				Detail:  err.Error(),
 			})
 			return
@@ -4169,11 +4177,20 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		ID:          existing.ID,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update chat provider.",
-			Detail:  err.Error(),
-		})
-		return
+		switch {
+		case database.IsUniqueViolation(err):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Only one enabled provider config per provider family is allowed.",
+				Detail:  err.Error(),
+			})
+			return
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat provider.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
