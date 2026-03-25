@@ -859,6 +859,8 @@ export const NoWarningForCleanPrompt: Story = {
 
 		// No invisible Unicode warning should be present.
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+	},
+};
 
 // ── Templates tab stories ──────────────────────────────────────
 

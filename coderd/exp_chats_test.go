@@ -5177,6 +5177,22 @@ func TestChatTemplateAllowlist(t *testing.T) {
 		OrganizationID: admin.OrganizationID,
 		CreatedBy:      admin.UserID,
 	})
+	deprecatedTmpl := dbgen.Template(t, store, database.Template{
+		OrganizationID: admin.OrganizationID,
+		CreatedBy:      admin.UserID,
+	})
+	//nolint:gocritic // Owner context needed to deprecate the template in test setup.
+	ownerRoles, err := rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()
+	require.NoError(t, err)
+	err = store.UpdateTemplateAccessControlByID(dbauthz.As(context.Background(), rbac.Subject{
+		ID:    "owner",
+		Roles: rbac.Roles(ownerRoles),
+		Scope: rbac.ExpandableScope(rbac.ScopeAll),
+	}), database.UpdateTemplateAccessControlByIDParams{
+		ID:         deprecatedTmpl.ID,
+		Deprecated: "this template is deprecated",
+	})
+	require.NoError(t, err, "deprecate template")
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
 	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
@@ -5246,6 +5262,15 @@ func TestChatTemplateAllowlist(t *testing.T) {
 	t.Run("NonexistentTemplateRejected", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
+	t.Run("DeprecatedTemplateRejected", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{
+			TemplateIDs: []string{deprecatedTmpl.ID.String()},
+		})
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 

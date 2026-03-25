@@ -2842,16 +2842,11 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 		}
 	}
 
-	// Verify all template IDs refer to existing templates.
-	for _, canonical := range deduped {
-		parsed, _ := uuid.Parse(canonical) // already validated above
-		if _, err := api.Database.GetTemplateByID(ctx, parsed); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Template not found.",
-				Detail:  fmt.Sprintf("Template %s does not exist.", canonical),
-			})
-			return
-		}
+	// Convert to UUIDs for the database query.
+	parsedUUIDs := make([]uuid.UUID, len(deduped))
+	for i, s := range deduped {
+		// Already validated above, safe to ignore error.
+		parsedUUIDs[i], _ = uuid.Parse(s)
 	}
 
 	raw, err := json.Marshal(deduped)
@@ -2863,10 +2858,46 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := api.Database.UpsertChatTemplateAllowlist(ctx, string(raw)); httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	} else if err != nil {
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Verify all IDs refer to existing, non-deprecated templates
+		// in a single query.
+		if len(parsedUUIDs) > 0 {
+			found, err := tx.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				IDs: parsedUUIDs,
+				Deprecated: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("fetch templates: %w", err)
+			}
+			if len(found) != len(parsedUUIDs) {
+				foundSet := make(map[uuid.UUID]struct{}, len(found))
+				for _, t := range found {
+					foundSet[t.ID] = struct{}{}
+				}
+				var missing []string
+				for _, id := range parsedUUIDs {
+					if _, ok := foundSet[id]; !ok {
+						missing = append(missing, id.String())
+					}
+				}
+				return xerrors.Errorf("templates not found or deprecated: %s", strings.Join(missing, ", "))
+			}
+		}
+		return tx.UpsertChatTemplateAllowlist(ctx, string(raw))
+	}, nil)
+	if err != nil {
+		// If the error mentions "not found or deprecated", it's a
+		// validation failure, not an internal error.
+		if strings.Contains(err.Error(), "not found or deprecated") {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more templates not found or deprecated.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat template allowlist.",
 			Detail:  err.Error(),

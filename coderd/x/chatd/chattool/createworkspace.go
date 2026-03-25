@@ -67,7 +67,7 @@ type CreateWorkspaceOptions struct {
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
 	Logger                         slog.Logger
-	AllowedTemplateIDs             []uuid.UUID
+	AllowedTemplateIDs             func() map[uuid.UUID]bool
 }
 
 type createWorkspaceArgs struct {

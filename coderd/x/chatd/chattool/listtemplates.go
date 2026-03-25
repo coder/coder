@@ -24,7 +24,7 @@ const listTemplatesPageSize = 10
 type ListTemplatesOptions struct {
 	DB                 database.Store
 	OwnerID            uuid.UUID
-	AllowedTemplateIDs map[uuid.UUID]bool
+	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
 type listTemplatesArgs struct {
@@ -66,10 +66,13 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 				filterParams.FuzzyName = query
 			}
 
-			if len(options.AllowedTemplateIDs) > 0 {
-				filterParams.IDs = slices.Collect(maps.Keys(options.AllowedTemplateIDs))
+			var allowlist map[uuid.UUID]bool
+			if options.AllowedTemplateIDs != nil {
+				allowlist = options.AllowedTemplateIDs()
 			}
-
+			if len(allowlist) > 0 {
+				filterParams.IDs = slices.Collect(maps.Keys(allowlist))
+			}
 			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil

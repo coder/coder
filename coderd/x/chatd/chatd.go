@@ -3371,12 +3371,19 @@ func (p *Server) runChat(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
-	// Load the deployment-wide template allowlist so chat tools
-	// only expose permitted templates.
-	var allowedTemplateIDs map[uuid.UUID]bool
-	if raw, err := p.db.GetChatTemplateAllowlist(ctx); err != nil {
-		p.logger.Error(ctx, "failed to load template allowlist, all templates will be allowed", slog.Error(err))
-	} else if raw != "" {
+	// getAllowedTemplateIDs returns the current deployment-wide
+	// template allowlist, re-reading from the database on each call
+	// so that admin changes take effect without restarting the chat.
+	// Returns nil (= all allowed) on errors to fail open.
+	getAllowedTemplateIDs := func() map[uuid.UUID]bool {
+		raw, err := p.db.GetChatTemplateAllowlist(ctx)
+		if err != nil {
+			p.logger.Error(ctx, "failed to load template allowlist, all templates will be allowed", slog.Error(err))
+			return nil
+		}
+		if raw == "" {
+			return nil
+		}
 		var ids []string
 		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr != nil {
 			// Note: the API endpoint (GET /template-allowlist) returns
@@ -3385,23 +3392,24 @@ func (p *Server) runChat(
 			// so that a corrupt allowlist doesn't block all chats.
 			p.logger.Error(ctx, "failed to parse template allowlist JSON, all templates will be allowed",
 				slog.F("raw", raw), slog.Error(jsonErr))
-		} else {
-			allowedTemplateIDs = make(map[uuid.UUID]bool, len(ids))
-			for _, s := range ids {
-				if id, parseErr := uuid.Parse(s); parseErr == nil {
-					allowedTemplateIDs[id] = true
-				} else {
-					p.logger.Warn(ctx, "ignoring invalid UUID in template allowlist",
-						slog.F("value", s), slog.Error(parseErr))
-				}
-			}
-			if len(ids) > 0 && len(allowedTemplateIDs) == 0 {
-				p.logger.Error(ctx, "all UUIDs in template allowlist were invalid, all templates will be allowed",
-					slog.F("count", len(ids)))
+			return nil
+		}
+		allowlist := make(map[uuid.UUID]bool, len(ids))
+		for _, s := range ids {
+			if id, parseErr := uuid.Parse(s); parseErr == nil {
+				allowlist[id] = true
+			} else {
+				p.logger.Warn(ctx, "ignoring invalid UUID in template allowlist",
+					slog.F("value", s), slog.Error(parseErr))
 			}
 		}
+		if len(ids) > 0 && len(allowlist) == 0 {
+			p.logger.Error(ctx, "all UUIDs in template allowlist were invalid, all templates will be allowed",
+				slog.F("count", len(ids)))
+			return nil
+		}
+		return allowlist
 	}
-
 	// Only root chats (not delegated subagents) get workspace
 	// provisioning and subagent tools. Child agents must not
 	// create workspaces or spawn further subagents — they should
@@ -3412,12 +3420,12 @@ func (p *Server) runChat(
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
 				DB:                 p.db,
 				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: allowedTemplateIDs,
+				AllowedTemplateIDs: getAllowedTemplateIDs,
 			}),
 			chattool.ReadTemplate(chattool.ReadTemplateOptions{
 				DB:                 p.db,
 				OwnerID:            chat.OwnerID,
-				AllowedTemplateIDs: allowedTemplateIDs,
+				AllowedTemplateIDs: getAllowedTemplateIDs,
 			}),
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 				DB:                             p.db,
@@ -3428,7 +3436,7 @@ func (p *Server) runChat(
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
 				Logger:                         p.logger,
-				AllowedTemplateIDs:             allowedTemplateIDs,
+				AllowedTemplateIDs:             getAllowedTemplateIDs,
 			}),
 			// StartWorkspace intentionally does not enforce the
 			// template allowlist. The allowlist restricts creation

@@ -16,7 +16,7 @@ import (
 type ReadTemplateOptions struct {
 	DB                 database.Store
 	OwnerID            uuid.UUID
-	AllowedTemplateIDs map[uuid.UUID]bool
+	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
 type readTemplateArgs struct {
