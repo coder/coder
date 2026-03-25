@@ -348,6 +348,189 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 	assert.NotEmpty(t, chattool.ComputerUseModelName)
 }
 
+func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	// Insert two MCP server configs so we can verify both are
+	// inherited by the child chat.
+	mcpA, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:   "MCP A",
+		Slug:          "mcp-a",
+		Url:           "https://mcp-a.example.com",
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
+	})
+	require.NoError(t, err)
+
+	mcpB, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:   "MCP B",
+		Slug:          "mcp-b",
+		Url:           "https://mcp-b.example.com",
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
+	})
+	require.NoError(t, err)
+
+	parentMCPIDs := []uuid.UUID{mcpA.ID, mcpB.ID}
+
+	// Create a parent chat with MCP servers.
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-with-mcp",
+		ModelConfigID:      model.ID,
+		MCPServerIDs:       parentMCPIDs,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Refetch the parent to get DB-populated fields.
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, parentMCPIDs, parentChat.MCPServerIDs,
+		"parent chat must have the MCP server IDs we set")
+
+	// Spawn a child subagent chat.
+	child, err := server.createChildSubagentChat(
+		ctx,
+		parentChat,
+		"do some work",
+		"child-task",
+	)
+	require.NoError(t, err)
+
+	// Verify the child inherited the parent's MCP server IDs.
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, parentMCPIDs, childChat.MCPServerIDs,
+		"child chat must inherit MCP server IDs from parent")
+}
+
+func TestSpawnComputerUseAgent_InheritsMCPServerIDs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	// Insert an MCP server config.
+	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:   "MCP Test",
+		Slug:          "mcp-test",
+		Url:           "https://mcp.example.com",
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
+	})
+	require.NoError(t, err)
+
+	parentMCPIDs := []uuid.UUID{mcpCfg.ID}
+
+	// Create a parent chat with MCP servers.
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-cu-mcp",
+		ModelConfigID:      model.ID,
+		MCPServerIDs:       parentMCPIDs,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	// Call spawn_computer_use_agent via the tool.
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_computer_use_agent")
+	require.NotNil(t, tool)
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "call-mcp",
+		Name:  "spawn_computer_use_agent",
+		Input: `{"prompt":"check the UI"}`,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)
+
+	// Parse the child chat ID from the response.
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	childIDStr, ok := result["chat_id"].(string)
+	require.True(t, ok)
+
+	childID, err := uuid.Parse(childIDStr)
+	require.NoError(t, err)
+
+	// Verify the child inherited MCP server IDs.
+	childChat, err := db.GetChatByID(ctx, childID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, parentMCPIDs, childChat.MCPServerIDs,
+		"computer use child chat must inherit MCP server IDs from parent")
+}
+
+func TestCreateChildSubagentChat_NoMCPServersStaysEmpty(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	// Create a parent chat without any MCP servers.
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-no-mcp",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	// Spawn a child.
+	child, err := server.createChildSubagentChat(
+		ctx,
+		parentChat,
+		"do some work",
+		"child-no-mcp",
+	)
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	assert.Empty(t, childChat.MCPServerIDs,
+		"child chat must have empty MCP server IDs when parent has none")
+}
+
 func TestIsSubagentDescendant(t *testing.T) {
 	t.Parallel()
 

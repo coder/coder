@@ -1,8 +1,8 @@
-import { MockWorkspace } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { MockWorkspace } from "#/testHelpers/entities";
 import { AgentCreateForm } from "./AgentCreateForm";
 
 const modelOptions = [
@@ -79,14 +79,19 @@ export const WithWorkspaces: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		// Open the "+" menu first, then click the workspace trigger inside it.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			const trigger = canvas.getByText("Workspace").closest("button")!;
+			const trigger = body.getByText("Attach workspace").closest("button")!;
 			expect(trigger).toBeEnabled();
 		});
-		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
-		// Wait for the portalled combobox dropdown to appear so Chromatic
-		// captures it.
-		await within(canvasElement.ownerDocument.body).findByRole("dialog");
+		await userEvent.click(
+			body.getByText("Attach workspace").closest("button")!,
+		);
+		// Wait for the workspace combobox dropdown to appear so
+		// Chromatic captures it.
+		await body.findByPlaceholderText("Search workspaces...");
 	},
 };
 
@@ -100,14 +105,16 @@ export const SearchWorkspaces: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		// Open the "+" menu first, then click the workspace trigger inside it.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			const trigger = canvas.getByText("Workspace").closest("button")!;
+			const trigger = body.getByText("Attach workspace").closest("button")!;
 			expect(trigger).toBeEnabled();
 		});
-		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
-
-		const body = within(canvasElement.ownerDocument.body);
-		await body.findByRole("dialog");
+		await userEvent.click(
+			body.getByText("Attach workspace").closest("button")!,
+		);
 
 		// Type in the search input to filter workspaces.
 		const searchInput = body.getByPlaceholderText("Search workspaces...");
@@ -119,7 +126,7 @@ export const SearchWorkspaces: Story = {
 			// "Auto-create Workspace" is filtered out, only
 			// "johndoe/backend-api" matches.
 			expect(options).toHaveLength(1);
-			expect(options[0]).toHaveTextContent("johndoe/backend-api");
+			expect(options[0]).toHaveTextContent("backend-api");
 		});
 	},
 };
@@ -134,28 +141,31 @@ export const SelectWorkspaceViaSearch: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		// Open the "+" menu first, then click the workspace trigger inside it.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			const trigger = canvas.getByText("Workspace").closest("button")!;
+			const trigger = body.getByText("Attach workspace").closest("button")!;
 			expect(trigger).toBeEnabled();
 		});
-		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
+		await userEvent.click(
+			body.getByText("Attach workspace").closest("button")!,
+		);
 
-		const body = within(canvasElement.ownerDocument.body);
-		await body.findByRole("dialog");
-
-		// Search for "janedoe" and select the result.
+		// Search for "backend" and select the result.
 		const searchInput = body.getByPlaceholderText("Search workspaces...");
-		await userEvent.type(searchInput, "janedoe");
+		await userEvent.type(searchInput, "backend");
 
 		await waitFor(() => {
 			expect(body.getAllByRole("option")).toHaveLength(1);
 		});
 
-		await userEvent.click(body.getByRole("option", { name: /janedoe/ }));
+		await userEvent.click(body.getByRole("option", { name: /backend-api/ }));
 
-		// The trigger should now show the selected workspace.
+		// Re-open the "+" menu to verify the selected workspace label.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			expect(canvas.getByText("janedoe/my-project")).toBeInTheDocument();
+			expect(body.getByText("backend-api")).toBeInTheDocument();
 		});
 	},
 };

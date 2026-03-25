@@ -15,16 +15,10 @@ const DEFAULT_WIDTH = 480;
 const SNAP_THRESHOLD = 80;
 
 function getMaxWidth(): number {
-	if (typeof window === "undefined") {
-		return 960;
-	}
 	return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * MAX_WIDTH_RATIO));
 }
 
 function loadPersistedWidth(): number {
-	if (typeof window === "undefined") {
-		return DEFAULT_WIDTH;
-	}
 	const stored = localStorage.getItem(STORAGE_KEY);
 	if (!stored) {
 		return DEFAULT_WIDTH;
@@ -228,9 +222,7 @@ export const RightPanel = ({
 	});
 
 	useEffect(() => {
-		if (typeof window !== "undefined") {
-			localStorage.setItem(STORAGE_KEY, String(width));
-		}
+		localStorage.setItem(STORAGE_KEY, String(width));
 	}, [width]);
 
 	return (
