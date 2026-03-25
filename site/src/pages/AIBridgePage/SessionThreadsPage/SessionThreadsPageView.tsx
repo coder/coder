@@ -12,9 +12,9 @@ import {
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import type { FC, PropsWithChildren } from "react";
 import { Link as RouterLink } from "react-router";
+import { Loader } from "#/components/Loader/Loader";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
-import { Loader } from "#/components/Loader/Loader";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
