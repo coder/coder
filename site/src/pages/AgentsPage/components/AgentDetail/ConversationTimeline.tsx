@@ -7,7 +7,6 @@ import {
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -1049,10 +1048,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 }) => {
-	const subagentTitles = useMemo(
-		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
+	const subagentTitles = buildSubagentTitles(parsedMessages);
 
 	if (parsedMessages.length === 0) {
 		return null;
