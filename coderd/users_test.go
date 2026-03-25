@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -2431,4 +2432,38 @@ func TestUserHasAISeatFieldExposure(t *testing.T) {
 	require.NoError(t, json.Unmarshal(singleBody, &singleUser))
 	require.False(t, singleUser.HasAISeat,
 		"GET /users/me should default has_ai_seat to false when user has no AI seat")
+}
+
+func TestUserHasAISeatEnabledIntegration(t *testing.T) {
+	t.Parallel()
+
+	client, _, api := coderdtest.NewWithAPI(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
+		entitlements.Features[codersdk.FeatureAIGovernanceUserLimit] = codersdk.Feature{
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled:     true,
+		}
+	})
+
+	_, err := api.Database.UpsertAISeatState(
+		dbauthz.AsSystemRestricted(ctx),
+		database.UpsertAISeatStateParams{
+			UserID:        firstUser.UserID,
+			FirstUsedAt:   dbtime.Now(),
+			LastEventType: database.AiSeatUsageReasonTask,
+		},
+	)
+	require.NoError(t, err)
+
+	me, err := client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.True(t, me.HasAISeat, "GET /users/me should return has_ai_seat=true")
+
+	users, err := client.Users(ctx, codersdk.UsersRequest{Search: me.Username})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 1)
+	require.True(t, users.Users[0].HasAISeat, "GET /users should return has_ai_seat=true")
 }
