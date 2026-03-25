@@ -24,18 +24,20 @@ export const ToolIcon: React.FC<{
 	const base = cn("h-4 w-4 shrink-0", color, isRunning && "grayscale");
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
-	// External images can't be recolored to an exact CSS token, so
-	// on error the image is shown with reduced opacity. The error
-	// state is communicated by the red label text and alert icon.
+	// Strip colour so external icons match the monochrome lucide
+	// style. brightness-0 forces every pixel to black, then in dark
+	// mode we invert to white and tune opacity to approximate
+	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
+	// On error we halve opacity further; on running it's the same
+	// monochrome treatment (already desaturated).
 	if (iconUrl && !imgError) {
 		return (
 			<ExternalImage
 				src={iconUrl}
 				alt={`${name} icon`}
 				className={cn(
-					"block h-4 w-4 shrink-0",
-					isError && "opacity-50 grayscale",
-					isRunning && "grayscale",
+					"block h-4 w-4 shrink-0 brightness-0 opacity-[0.35] dark:invert dark:opacity-[0.65]",
+					isError && "!opacity-[0.2] dark:!opacity-[0.35]",
 				)}
 				onError={() => setImgError(true)}
 			/>

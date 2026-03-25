@@ -507,8 +507,8 @@ export const MCPToolRunning: Story = {
 	play: async ({ canvasElement }) => {
 		// Spinner should be visible while running.
 		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
-		// Icon wrapper should have greyscale filter.
-		const icon = canvasElement.querySelector(".grayscale");
+		// Icon should be monochrome (brightness-0 filter).
+		const icon = canvasElement.querySelector(".brightness-0");
 		expect(icon).not.toBeNull();
 	},
 };
@@ -531,8 +531,8 @@ export const MCPToolCompleted: Story = {
 		const canvas = within(canvasElement);
 		// No spinner when completed.
 		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
-		// No greyscale when completed.
-		expect(canvasElement.querySelector(".grayscale")).toBeNull();
+		// Icon should still be monochrome when completed.
+		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
 		// Result should be collapsed by default.
 		const toggle = canvas.getByRole("button");
 		expect(toggle).toBeInTheDocument();
@@ -576,6 +576,60 @@ export const MCPToolNoResult: Story = {
 	play: async ({ canvasElement }) => {
 		// No toggle button when there is no result content.
 		expect(canvasElement.querySelector("button")).toBeNull();
+	},
+};
+
+export const MCPToolSlackIcon: Story = {
+	args: {
+		name: "slack__post_message",
+		status: "completed",
+		result: { ok: true, channel: "#general" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "slack",
+				display_name: "Slack",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/500px-Slack_icon_2019.svg.png",
+			},
+		],
+	},
+};
+
+export const MCPToolGitHubIcon: Story = {
+	args: {
+		name: "github__list_prs",
+		status: "completed",
+		result: { prs: [{ id: 1, title: "Fix bug" }] },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "github",
+				display_name: "GitHub",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg",
+			},
+		],
+	},
+};
+
+export const MCPToolFigmaIcon: Story = {
+	args: {
+		name: "figma__get_file",
+		status: "completed",
+		result: { file: "design.fig" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "figma",
+				display_name: "Figma",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
+			},
+		],
 	},
 };
 
