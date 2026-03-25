@@ -8,8 +8,8 @@ import type { ComponentProps, FC } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { ModelSelectorOption } from "#/components/ai-elements";
-import { createChatStore } from "./AgentDetail/ChatContext";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
+import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
@@ -185,9 +185,7 @@ export const Default: Story = {
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
-	render: () => (
-		<StoryAgentDetailView isArchived isInputDisabled />
-	),
+	render: () => <StoryAgentDetailView isArchived isInputDisabled />,
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
