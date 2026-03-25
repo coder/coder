@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
 const (

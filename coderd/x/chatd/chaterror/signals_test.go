@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
 func TestExtractStatusCode(t *testing.T) {
