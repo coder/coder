@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -22,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -439,10 +439,10 @@ func RandomRBACObject() rbac.Object {
 		OrgID: uuid.NewString(),
 		Type:  randomRBACType(),
 		ACLUserList: map[string][]policy.Action{
-			namesgenerator.GetRandomName(1): {RandomRBACAction()},
+			namesgenerator.UniqueName(): {RandomRBACAction()},
 		},
 		ACLGroupList: map[string][]policy.Action{
-			namesgenerator.GetRandomName(1): {RandomRBACAction()},
+			namesgenerator.UniqueName(): {RandomRBACAction()},
 		},
 	}
 }
@@ -471,7 +471,7 @@ func RandomRBACSubject() rbac.Subject {
 	return rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
-		Groups: []string{namesgenerator.GetRandomName(1)},
+		Groups: []string{namesgenerator.UniqueName()},
 		Scope:  rbac.ScopeAll,
 	}
 }

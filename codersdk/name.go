@@ -5,8 +5,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 )
 
 var (
@@ -35,7 +36,7 @@ func UsernameFrom(str string) string {
 	if valid := NameValid(str); valid == nil {
 		return str
 	}
-	return strings.ReplaceAll(namesgenerator.GetRandomName(1), "_", "-")
+	return namesgenerator.NameDigitWith("-")
 }
 
 // NameValid returns whether the input string is a valid name.

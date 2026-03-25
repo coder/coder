@@ -693,7 +693,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						}
 					`,
 				},
-				expectError: "Undefined Parameter",
+				expectError: "", // Presets are not validated unless they are for a prebuild
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
