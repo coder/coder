@@ -38,6 +38,7 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 			emptyMessage="No file changes."
 			diffStyle={diffStyle}
 			chatInputRef={chatInputRef}
+			storageKey={`local-${repo.repo_root}`}
 		/>
 	);
 };

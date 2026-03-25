@@ -189,6 +189,8 @@ interface CommentableDiffViewerProps {
 	diffStyle: DiffStyle;
 	/** Ref to the chat message input for inserting comments. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	/** Optional key for persisting collapsed file state to localStorage. */
+	storageKey?: string;
 	/** Scroll to a specific file. */
 	scrollToFile?: string | null;
 	/** Called after scrollToFile has been processed. */
