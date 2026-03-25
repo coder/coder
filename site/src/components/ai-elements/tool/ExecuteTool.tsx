@@ -57,7 +57,12 @@ export const ExecuteTool: React.FC<{
 	return (
 		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			{/* Header: $ command + copy button */}
-			<div className={cn("flex w-full justify-between gap-2 px-2.5 py-0.5", commandExpanded ? "items-start" : "items-center")}>
+			<div
+				className={cn(
+					"flex w-full justify-between gap-2 px-2.5 py-0.5",
+					commandExpanded ? "items-start" : "items-center",
+				)}
+			>
 				<button
 					type="button"
 					className={cn(
@@ -80,9 +85,7 @@ export const ExecuteTool: React.FC<{
 						ref={commandRef}
 						className={cn(
 							"min-w-0 flex-1 font-mono text-xs leading-5 text-content-primary",
-							commandExpanded
-								? "whitespace-pre-wrap break-all"
-								: "truncate",
+							commandExpanded ? "whitespace-pre-wrap break-all" : "truncate",
 						)}
 					>
 						{command}
@@ -94,7 +97,9 @@ export const ExecuteTool: React.FC<{
 							type="button"
 							onClick={() => setCommandExpanded((v) => !v)}
 							className="border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors"
-							aria-label={commandExpanded ? "Collapse command" : "Expand command"}
+							aria-label={
+								commandExpanded ? "Collapse command" : "Expand command"
+							}
 						>
 							<ChevronDownIcon
 								className={cn(
