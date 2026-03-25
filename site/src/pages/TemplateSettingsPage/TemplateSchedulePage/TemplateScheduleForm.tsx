@@ -397,7 +397,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 
 			<FormSection
 				title="Autostart"
-				description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
+				description="Allow users to set custom autostart scheduling options for workspaces created from this template."
 			>
 				<div className="flex flex-col gap-4">
 					<div className="flex items-start">
