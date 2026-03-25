@@ -132,7 +132,7 @@ const UserRow: FC<{
 			{...clickableRowProps}
 			aria-label={`View details for ${user.name || user.username}`}
 		>
-			<TableCell className="px-4 py-3">
+			<TableCell>
 				<AvatarData
 					title={user.name || user.username}
 					subtitle={`@${user.username}`}
@@ -140,16 +140,10 @@ const UserRow: FC<{
 					imgFallbackText={user.username}
 				/>
 			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatCostMicros(user.total_cost_micros)}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{user.message_count.toLocaleString()}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{user.chat_count.toLocaleString()}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
+			<TableCell>{formatCostMicros(user.total_cost_micros)}</TableCell>
+			<TableCell>{user.message_count.toLocaleString()}</TableCell>
+			<TableCell>{user.chat_count.toLocaleString()}</TableCell>
+			<TableCell>
 				<TooltipProvider delayDuration={0}>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -463,22 +457,16 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 							<div className="overflow-hidden rounded-lg border border-border-default">
 								<Table>
 									<TableHeader>
-										<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
-											<TableHead className="px-4 py-3">User</TableHead>
-												<TableHead className="px-4 py-3 text-right">
-													Cost
-												</TableHead>											<TableHead className="px-4 py-3 text-right">
-												Messages
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Chats
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Tokens
-											</TableHead>
+										<TableRow>
+											<TableHead>User</TableHead>
+											<TableHead>Cost</TableHead>
+											<TableHead>Messages</TableHead>
+											<TableHead>Chats</TableHead>
+											<TableHead>Tokens</TableHead>
 										</TableRow>
-										</TableHeader>
-										<TableBody>										{usersQuery.data.users.map((user) => (
+									</TableHeader>
+									<TableBody>
+										{usersQuery.data.users.map((user) => (
 											<UserRow
 												key={user.user_id}
 												user={user}

@@ -244,21 +244,15 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					<div className="overflow-x-auto rounded-lg border border-border-default">
 						<Table className="text-sm" aria-label="Cost breakdown by model">
 							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Model</TableHead>
-									<TableHead className="px-4 py-3">Provider</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
+								<TableRow>
+									<TableHead>Model</TableHead>
+									<TableHead>Provider</TableHead>
+									<TableHead>Cost</TableHead>
+									<TableHead>Messages</TableHead>
+									<TableHead>Input</TableHead>
+									<TableHead>Output</TableHead>
+									<TableHead>Cache Read</TableHead>
+									<TableHead>Cache Write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -267,28 +261,26 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										key={model.model_config_id}
 										className="border-t border-border-default"
 									>
-										<TableCell className="px-4 py-3">
-											{model.display_name || model.model}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-content-secondary">
+										<TableCell>{model.display_name || model.model}</TableCell>
+										<TableCell className="text-content-secondary">
 											{model.provider}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatCostMicros(model.total_cost_micros)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{model.message_count.toLocaleString()}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatTokenCount(model.total_input_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatTokenCount(model.total_output_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatTokenCount(model.total_cache_read_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatTokenCount(model.total_cache_creation_tokens)}
 										</TableCell>
 									</TableRow>
@@ -300,20 +292,14 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					<div className="overflow-x-auto rounded-lg border border-border-default">
 						<Table className="text-sm" aria-label="Cost breakdown by chat">
 							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Chat</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
+								<TableRow>
+									<TableHead>Chat</TableHead>
+									<TableHead>Cost</TableHead>
+									<TableHead>Messages</TableHead>
+									<TableHead>Input</TableHead>
+									<TableHead>Output</TableHead>
+									<TableHead>Cache Read</TableHead>
+									<TableHead>Cache Write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -322,29 +308,27 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										key={chat.root_chat_id}
 										className="border-t border-border-default"
 									>
-										<TableCell className="px-4 py-3">
+										<TableCell>
 											{chat.chat_title || (
 												<span className="italic text-content-secondary">
 													Untitled chat
 												</span>
 											)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatCostMicros(chat.total_cost_micros)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{chat.message_count.toLocaleString()}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>{chat.message_count.toLocaleString()}</TableCell>
+										<TableCell>
 											{formatTokenCount(chat.total_input_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatTokenCount(chat.total_output_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatTokenCount(chat.total_cache_read_tokens)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatTokenCount(chat.total_cache_creation_tokens)}
 										</TableCell>
 									</TableRow>
