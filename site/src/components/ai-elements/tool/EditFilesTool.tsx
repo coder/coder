@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { cn } from "utils/cn";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -61,18 +61,13 @@ export const EditFilesTool: React.FC<{
 			defaultExpanded
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							isError ? "text-content-destructive" : "text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						{label}
 					</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to edit files"}

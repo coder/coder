@@ -1,4 +1,4 @@
-import { CircleAlertIcon, ExternalLinkIcon, LoaderIcon } from "lucide-react";
+import { ExternalLinkIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
@@ -46,18 +46,11 @@ export const CreateWorkspaceTool: React.FC<{
 	return (
 		<div className="w-full">
 			<div className="flex items-center gap-2">
-				<span
-					className={cn(
-						"text-sm",
-						isError ? "text-content-destructive" : "text-content-secondary",
-					)}
-				>
-					{label}
-				</span>
+				<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
 				{isError && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+							<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 						</TooltipTrigger>
 						<TooltipContent>
 							{errorMessage || "Failed to create workspace"}
