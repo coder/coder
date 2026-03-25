@@ -33,7 +33,7 @@ export const DashboardLayout: FC = () => {
 						const main = document.getElementById("main-content");
 						main?.focus();
 					}}
-					className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-surface-primary focus:text-content-primary"
+					className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:z-50 focus-visible:p-4 focus-visible:bg-surface-primary focus-visible:text-content-primary"
 				>
 					Skip to main content
 				</a>
