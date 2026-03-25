@@ -15,6 +15,7 @@ import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
+	chatModelConfigs,
 	chatModelsKey,
 	chatsKey,
 	mcpServerConfigsKey,
@@ -65,6 +66,7 @@ const AgentDetailLayout: FC = () => {
 // Shared mock data
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
+const MODEL_CONFIG_ID = "model-config-1";
 
 const mockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
@@ -107,11 +109,27 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 	],
 };
 
+const mockModelConfigs: TypesGen.ChatModelConfig[] = [
+	{
+		id: MODEL_CONFIG_ID,
+		provider: "openai",
+		model: "gpt-4o",
+		display_name: "GPT-4o",
+		enabled: true,
+		is_default: true,
+		context_limit: 200000,
+		compression_threshold: 70,
+		created_at: "2026-02-18T00:00:00.000Z",
+		updated_at: "2026-02-18T00:00:00.000Z",
+	},
+];
+
 const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
-	last_model_config_id: "model-config-1",
+	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -177,6 +195,7 @@ const buildQueries = (
 			data: mockWorkspace,
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
+		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
 		{ key: mcpServerConfigsKey, data: [] },
 	];
 };

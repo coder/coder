@@ -71,7 +71,7 @@ export const ObservabilitySettingsPageView: FC<
 							<PopoverPaywall
 								message="Observability"
 								description="With a Premium license, you can monitor your application with logs and metrics."
-								documentationLink="https://coder.com/docs/admin/appearance"
+								documentationLink={docs("/admin/monitoring")}
 							/>
 						</TooltipContent>
 					</Tooltip>

@@ -38,7 +38,7 @@ import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
-import { getModelOptionsFromCatalog } from "./utils/modelOptions";
+import { getModelOptionsFromConfigs } from "./utils/modelOptions";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -199,9 +199,9 @@ const AgentsPage: FC = () => {
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
-	const catalogModelOptions = getModelOptionsFromCatalog(
-		chatModelsQuery.data,
+	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
+		chatModelsQuery.data,
 	);
 	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
 		const trimmedMessage = reason.message.trim();

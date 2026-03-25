@@ -201,6 +201,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	owner_id: "owner-1",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
+	labels: {},
 	title: "test",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",

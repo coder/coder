@@ -184,6 +184,28 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.Equal(t, []byte("inline-data"), part.Data)
 	})
 
+	t.Run("StripsContextFileContent", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		part := codersdk.ChatMessagePart{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      "/home/coder/AGENTS.md",
+			ContextFileContent:   "large content",
+			ContextFileAgentID:   uuid.NullUUID{UUID: agentID, Valid: true},
+			ContextFileOS:        "linux",
+			ContextFileDirectory: "/home/coder/project",
+		}
+		part.StripInternal()
+		// Internal fields stripped.
+		assert.Empty(t, part.ContextFileContent)
+		assert.Empty(t, part.ContextFileOS)
+		assert.Empty(t, part.ContextFileDirectory)
+		// Public fields preserved.
+		assert.Equal(t, "/home/coder/AGENTS.md", part.ContextFilePath)
+		assert.Equal(t, agentID, part.ContextFileAgentID.UUID)
+		assert.True(t, part.ContextFileAgentID.Valid)
+	})
+
 	t.Run("NoopOnCleanPart", func(t *testing.T) {
 		t.Parallel()
 		part := codersdk.ChatMessageText("hello")
@@ -209,12 +231,14 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	// If you add a new field to ChatMessagePart, either add a
 	// variants tag or add it here with a comment explaining why.
 	excludedFields := map[string]string{
-		"type":              "discriminant, added automatically by codegen",
-		"signature":         "added in #22290, never populated by any code path",
-		"result_delta":      "added in #22290, never populated by any code path",
-		"provider_metadata": "internal only, stripped by db2sdk before API responses",
+		"type":                   "discriminant, added automatically by codegen",
+		"signature":              "added in #22290, never populated by any code path",
+		"result_delta":           "added in #22290, never populated by any code path",
+		"provider_metadata":      "internal only, stripped by db2sdk before API responses",
+		"context_file_content":   "internal only, stripped before API responses (typescript:\"-\")",
+		"context_file_os":        "internal only, used during prompt expansion (typescript:\"-\")",
+		"context_file_directory": "internal only, used during prompt expansion (typescript:\"-\")",
 	}
-
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
 		knownTypes[pt] = true

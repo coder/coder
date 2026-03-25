@@ -559,13 +559,12 @@ export const MCPToolError: Story = {
 		mcpServers: sampleMCPServers,
 	},
 	play: async ({ canvasElement }) => {
-		// Error alert icon should be present.
-		expect(canvasElement.querySelector(".lucide-circle-alert")).not.toBeNull();
-		// Label text should use the destructive color.
-		const label = canvasElement.querySelector(
-			".\\[\\&\\>\\*\\]\\:text-content-destructive",
-		);
-		expect(label).not.toBeNull();
+		// Warning triangle icon should be present.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Label text should NOT use the destructive color.
+		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
 	},
 };
 
@@ -905,9 +904,10 @@ export const ComputerError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
-		// Icon and label should have the destructive color class.
-		const label = canvas.getByText("Screenshot");
-		expect(label.className).toContain("text-content-destructive");
+		// Warning icon should be present, not the old destructive style.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
 	},
 };
 
@@ -931,5 +931,166 @@ export const ComputerArrayResult: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Tool failure display stories
+// ---------------------------------------------------------------------------
+
+export const GenericToolFailed: Story = {
+	args: {
+		name: "some_custom_tool",
+		status: "error",
+		isError: true,
+		args: { input: "test data" },
+		result: { error: "Connection refused: could not reach upstream service" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show "Failed" badge instead of scary red alert.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Label should NOT have destructive color.
+		const label = canvas.getByText("some_custom_tool");
+		expect(label.className).not.toContain("text-content-destructive");
+		// Error icon should not be present (replaced by warning triangle).
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+	},
+};
+
+export const GenericToolFailedNoResult: Story = {
+	args: {
+		name: "web_search",
+		status: "error",
+		isError: true,
+	},
+	play: async ({ canvasElement }) => {
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+	},
+};
+
+export const SubagentWaitTimedOut: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: "timed out waiting for delegated subagent completion",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show clock icon for timeout.
+		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
+		// Should NOT show red alert icon.
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+		// Should show timeout verb.
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitTimedOutWithTitle: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: {
+			chat_id: "timed-out-child",
+			error: "timed out waiting for delegated subagent completion",
+			title: "Fix login bug",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+		expect(canvas.getByText("Fix login bug")).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitTimedOutTitleFromMap: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: "timed out waiting for delegated subagent completion",
+		subagentTitles: new Map([["timed-out-child", "Refactor auth module"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Refactor auth module")).toBeInTheDocument();
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+	},
+};
+
+export const SubagentSpawnError: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "error",
+		isError: true,
+		args: {
+			title: "Database migration",
+			prompt: "Run the pending migrations.",
+		},
+		result: {
+			chat_id: "failed-child",
+			error: "workspace not found",
+			status: "error",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show the muted X icon, not the red alert.
+		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+		// Should show error verb.
+		expect(canvas.getByText(/Failed to spawn/)).toBeInTheDocument();
+		expect(canvas.getByText("Database migration")).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitError: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "error-child" },
+		result: {
+			chat_id: "error-child",
+			error: "subagent crashed unexpectedly",
+			status: "error",
+			title: "Lint codebase",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
+		expect(canvas.getByText(/Failed waiting for/)).toBeInTheDocument();
+		expect(canvas.getByText("Lint codebase")).toBeInTheDocument();
+	},
+};
+
+export const MCPToolFailedUnifiedStyle: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		args: { project: "backend" },
+		result: { error: "Authentication token expired" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// Should show warning triangle icon.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Icon should NOT be red.
+		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
 	},
 };
