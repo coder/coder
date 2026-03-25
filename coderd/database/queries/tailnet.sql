@@ -118,6 +118,26 @@ WHERE id IN (
   WHERE tailnet_tunnels.dst_id = $1
 );
 
+-- name: GetTailnetTunnelPeerIDsBatch :many
+SELECT src_id AS lookup_id, dst_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE src_id = ANY(@ids :: uuid[])
+UNION ALL
+SELECT dst_id AS lookup_id, src_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE dst_id = ANY(@ids :: uuid[]);
+
+-- name: GetTailnetTunnelPeerBindingsBatch :many
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status,
+       tt.src_id AS lookup_id
+FROM tailnet_peers tp
+INNER JOIN tailnet_tunnels tt ON tp.id = tt.dst_id
+WHERE tt.src_id = ANY(@ids :: uuid[])
+UNION ALL
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status,
+       tt.dst_id AS lookup_id
+FROM tailnet_peers tp
+INNER JOIN tailnet_tunnels tt ON tp.id = tt.src_id
+WHERE tt.dst_id = ANY(@ids :: uuid[]);
+
 -- For PG Coordinator HTMLDebug
 
 -- name: GetAllTailnetCoordinators :many

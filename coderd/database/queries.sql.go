@@ -6322,6 +6322,89 @@ func (q *sqlQuerier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg U
 	return i, err
 }
 
+const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
+INSERT INTO connection_logs (
+    id, connect_time, organization_id, workspace_owner_id, workspace_id,
+    workspace_name, agent_name, type, code, ip, user_agent, user_id,
+    slug_or_port, connection_id, disconnect_reason, disconnect_time
+)
+SELECT
+    unnest($1::uuid[]),
+    unnest($2::timestamptz[]),
+    unnest($3::uuid[]),
+    unnest($4::uuid[]),
+    unnest($5::uuid[]),
+    unnest($6::text[]),
+    unnest($7::text[]),
+    unnest($8::connection_type[]),
+    unnest($9::int4[]),
+    unnest($10::inet[]),
+    unnest($11::text[]),
+    unnest($12::uuid[]),
+    unnest($13::text[]),
+    unnest($14::uuid[]),
+    unnest($15::text[]),
+    unnest($16::timestamptz[])
+ON CONFLICT (connection_id, workspace_id, agent_name)
+DO UPDATE SET
+    disconnect_time = CASE
+        WHEN connection_logs.disconnect_time IS NULL
+        THEN EXCLUDED.disconnect_time
+        ELSE connection_logs.disconnect_time
+    END,
+    disconnect_reason = CASE
+        WHEN connection_logs.disconnect_reason IS NULL
+        THEN EXCLUDED.disconnect_reason
+        ELSE connection_logs.disconnect_reason
+    END,
+    code = CASE
+        WHEN connection_logs.code IS NULL
+        THEN EXCLUDED.code
+        ELSE connection_logs.code
+    END
+`
+
+type BatchUpsertConnectionLogsParams struct {
+	ID               []uuid.UUID      `db:"id" json:"id"`
+	ConnectTime      []time.Time      `db:"connect_time" json:"connect_time"`
+	OrganizationID   []uuid.UUID      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID []uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      []uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    []string         `db:"workspace_name" json:"workspace_name"`
+	AgentName        []string         `db:"agent_name" json:"agent_name"`
+	Type             []ConnectionType `db:"type" json:"type"`
+	Code             []int32          `db:"code" json:"code"`
+	Ip               []pqtype.Inet    `db:"ip" json:"ip"`
+	UserAgent        []string         `db:"user_agent" json:"user_agent"`
+	UserID           []uuid.UUID      `db:"user_id" json:"user_id"`
+	SlugOrPort       []string         `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
+	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
+	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+}
+
+func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
+	_, err := q.db.ExecContext(ctx, batchUpsertConnectionLogs,
+		pq.Array(arg.ID),
+		pq.Array(arg.ConnectTime),
+		pq.Array(arg.OrganizationID),
+		pq.Array(arg.WorkspaceOwnerID),
+		pq.Array(arg.WorkspaceID),
+		pq.Array(arg.WorkspaceName),
+		pq.Array(arg.AgentName),
+		pq.Array(arg.Type),
+		pq.Array(arg.Code),
+		pq.Array(arg.Ip),
+		pq.Array(arg.UserAgent),
+		pq.Array(arg.UserID),
+		pq.Array(arg.SlugOrPort),
+		pq.Array(arg.ConnectionID),
+		pq.Array(arg.DisconnectReason),
+		pq.Array(arg.DisconnectTime),
+	)
+	return err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count
@@ -18252,6 +18335,59 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 	return items, nil
 }
 
+const getTailnetTunnelPeerBindingsBatch = `-- name: GetTailnetTunnelPeerBindingsBatch :many
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status,
+       tt.src_id AS lookup_id
+FROM tailnet_peers tp
+INNER JOIN tailnet_tunnels tt ON tp.id = tt.dst_id
+WHERE tt.src_id = ANY($1 :: uuid[])
+UNION ALL
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status,
+       tt.dst_id AS lookup_id
+FROM tailnet_peers tp
+INNER JOIN tailnet_tunnels tt ON tp.id = tt.src_id
+WHERE tt.dst_id = ANY($1 :: uuid[])
+`
+
+type GetTailnetTunnelPeerBindingsBatchRow struct {
+	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
+	Node          []byte        `db:"node" json:"node"`
+	Status        TailnetStatus `db:"status" json:"status"`
+	LookupID      uuid.UUID     `db:"lookup_id" json:"lookup_id"`
+}
+
+func (q *sqlQuerier) GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerBindingsBatch, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTailnetTunnelPeerBindingsBatchRow
+	for rows.Next() {
+		var i GetTailnetTunnelPeerBindingsBatchRow
+		if err := rows.Scan(
+			&i.PeerID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+			&i.Status,
+			&i.LookupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTailnetTunnelPeerIDs = `-- name: GetTailnetTunnelPeerIDs :many
 SELECT dst_id as peer_id, coordinator_id, updated_at
 FROM tailnet_tunnels
@@ -18278,6 +18414,49 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 	for rows.Next() {
 		var i GetTailnetTunnelPeerIDsRow
 		if err := rows.Scan(&i.PeerID, &i.CoordinatorID, &i.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTailnetTunnelPeerIDsBatch = `-- name: GetTailnetTunnelPeerIDsBatch :many
+SELECT src_id AS lookup_id, dst_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE src_id = ANY($1 :: uuid[])
+UNION ALL
+SELECT dst_id AS lookup_id, src_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE dst_id = ANY($1 :: uuid[])
+`
+
+type GetTailnetTunnelPeerIDsBatchRow struct {
+	LookupID      uuid.UUID `db:"lookup_id" json:"lookup_id"`
+	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerIDsBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerIDsBatch, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTailnetTunnelPeerIDsBatchRow
+	for rows.Next() {
+		var i GetTailnetTunnelPeerIDsBatchRow
+		if err := rows.Scan(
+			&i.LookupID,
+			&i.PeerID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -23423,6 +23602,51 @@ func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg Update
 		arg.UpdatedAt,
 		arg.State,
 		arg.DebouncedUntil,
+	)
+	return err
+}
+
+const batchUpdateWorkspaceAgentConnections = `-- name: BatchUpdateWorkspaceAgentConnections :exec
+WITH agents AS (
+	SELECT
+		unnest($1::uuid[]) AS id,
+		unnest($2::timestamptz[]) AS first_connected_at,
+		unnest($3::timestamptz[]) AS last_connected_at,
+		unnest($4::uuid[]) AS last_connected_replica_id,
+		unnest($5::timestamptz[]) AS disconnected_at,
+		unnest($6::timestamptz[]) AS updated_at
+)
+UPDATE
+	workspace_agents wa
+SET
+	first_connected_at = a.first_connected_at,
+	last_connected_at = a.last_connected_at,
+	last_connected_replica_id = a.last_connected_replica_id,
+	disconnected_at = a.disconnected_at,
+	updated_at = a.updated_at
+FROM
+	agents a
+WHERE
+	wa.id = a.id
+`
+
+type BatchUpdateWorkspaceAgentConnectionsParams struct {
+	ID                     []uuid.UUID `db:"id" json:"id"`
+	FirstConnectedAt       []time.Time `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt        []time.Time `db:"last_connected_at" json:"last_connected_at"`
+	LastConnectedReplicaID []uuid.UUID `db:"last_connected_replica_id" json:"last_connected_replica_id"`
+	DisconnectedAt         []time.Time `db:"disconnected_at" json:"disconnected_at"`
+	UpdatedAt              []time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) BatchUpdateWorkspaceAgentConnections(ctx context.Context, arg BatchUpdateWorkspaceAgentConnectionsParams) error {
+	_, err := q.db.ExecContext(ctx, batchUpdateWorkspaceAgentConnections,
+		pq.Array(arg.ID),
+		pq.Array(arg.FirstConnectedAt),
+		pq.Array(arg.LastConnectedAt),
+		pq.Array(arg.LastConnectedReplicaID),
+		pq.Array(arg.DisconnectedAt),
+		pq.Array(arg.UpdatedAt),
 	)
 	return err
 }
