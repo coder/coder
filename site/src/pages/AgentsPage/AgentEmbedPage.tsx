@@ -2,23 +2,10 @@ import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { permissionChecks } from "modules/permissions";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import {
-	type BlockerFunction,
-	Outlet,
-	useBlocker,
-	useParams,
-	useSearchParams,
-} from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import type { AgentsOutletContext } from "./AgentsPage";
@@ -166,27 +153,21 @@ const AgentEmbedPage: FC = () => {
 
 	// Block navigations that leave the embed route and forward
 	// the target URL to the parent frame.
-	useBlocker(
-		useCallback<BlockerFunction>(
-			({ nextLocation }) => {
-				if (nextLocation.pathname.startsWith(`/agents/${agentId}/embed`)) {
-					return false;
-				}
-				window.parent.postMessage(
-					{
-						type: "coder:navigate",
-						payload: {
-							url:
-								nextLocation.pathname + nextLocation.search + nextLocation.hash,
-						},
-					},
-					"*",
-				);
-				return true;
+	useBlocker(({ nextLocation }) => {
+		if (nextLocation.pathname.startsWith(`/agents/${agentId}/embed`)) {
+			return false;
+		}
+		window.parent.postMessage(
+			{
+				type: "coder:navigate",
+				payload: {
+					url: nextLocation.pathname + nextLocation.search + nextLocation.hash,
+				},
 			},
-			[agentId],
-		),
-	);
+			"*",
+		);
+		return true;
+	});
 
 	// Apply the initial theme from the URL query param
 	// (?theme=light|dark) or fall back to prefers-color-scheme.
@@ -203,9 +184,15 @@ const AgentEmbedPage: FC = () => {
 			applyEmbedTheme(prefersDark ? "dark" : "light");
 		}
 		return () => {
+			document.documentElement.classList.remove("light", "dark");
 			delete document.documentElement.dataset.embedTheme;
 		};
 	}, [searchParams]);
+
+	// Shared ref for the chat scroll container. Passed through the
+	// outlet context so AgentDetail attaches it to the DOM element
+	// instead of creating its own.
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
 	// Listen for parent frame commands: theme changes and
 	// scroll-to-bottom requests.
@@ -222,11 +209,8 @@ const AgentEmbedPage: FC = () => {
 			}
 			if (event.data?.type === "coder:scroll-to-bottom") {
 				// flex-col-reverse: scrollTop 0 is the visual bottom.
-				const container = document.querySelector<HTMLElement>(
-					'[data-testid="scroll-container"]',
-				);
-				if (container) {
-					container.scrollTop = 0;
+				if (scrollContainerRef.current) {
+					scrollContainerRef.current.scrollTop = 0;
 				}
 			}
 		};
@@ -250,6 +234,7 @@ const AgentEmbedPage: FC = () => {
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
 		onChatReady,
+		scrollContainerRef,
 	};
 
 	// When signed out and not already bootstrapping, listen for the

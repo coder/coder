@@ -295,13 +295,13 @@ const AgentDetail: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
+		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
