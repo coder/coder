@@ -2780,6 +2780,154 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	raw, err := api.Database.GetChatTemplateAllowlist(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	ids, parseErr := parseChatTemplateAllowlist(raw)
+	if parseErr != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored template allowlist is corrupt.",
+			Detail:  parseErr.Error(),
+		})
+		return
+	}
+	resp := codersdk.ChatTemplateAllowlist{
+		TemplateIDs: ids,
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.ChatTemplateAllowlist
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Validate all entries are valid UUIDs and deduplicate.
+	seen := make(map[string]struct{}, len(req.TemplateIDs))
+	deduped := make([]string, 0, len(req.TemplateIDs))
+	for _, id := range req.TemplateIDs {
+		parsed, err := uuid.Parse(id)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid template ID in allowlist.",
+				Detail:  fmt.Sprintf("%q is not a valid UUID.", id),
+			})
+			return
+		}
+		// Canonicalize to lowercase so deduplication is
+		// case-insensitive and stored values are consistent.
+		canonical := parsed.String()
+		if _, ok := seen[canonical]; !ok {
+			seen[canonical] = struct{}{}
+			deduped = append(deduped, canonical)
+		}
+	}
+
+	// Convert to UUIDs for the database query.
+	parsedUUIDs := make([]uuid.UUID, len(deduped))
+	for i, s := range deduped {
+		// Already validated above, safe to ignore error.
+		parsedUUIDs[i], _ = uuid.Parse(s)
+	}
+
+	raw, err := json.Marshal(deduped)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error encoding template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Verify all IDs refer to existing, non-deprecated templates
+		// in a single query.
+		if len(parsedUUIDs) > 0 {
+			found, err := tx.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				IDs: parsedUUIDs,
+				Deprecated: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("fetch templates: %w", err)
+			}
+			if len(found) != len(parsedUUIDs) {
+				foundSet := make(map[uuid.UUID]struct{}, len(found))
+				for _, t := range found {
+					foundSet[t.ID] = struct{}{}
+				}
+				var missing []string
+				for _, id := range parsedUUIDs {
+					if _, ok := foundSet[id]; !ok {
+						missing = append(missing, id.String())
+					}
+				}
+				return xerrors.Errorf("templates not found or deprecated: %s", strings.Join(missing, ", "))
+			}
+		}
+		return tx.UpsertChatTemplateAllowlist(ctx, string(raw))
+	}, nil)
+	if err != nil {
+		// If the error mentions "not found or deprecated", it's a
+		// validation failure, not an internal error.
+		if strings.Contains(err.Error(), "not found or deprecated") {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more templates not found or deprecated.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// parseChatTemplateAllowlist parses the raw JSON string from the
+// database into a list of template ID strings. Returns an empty
+// slice when the value is empty. Returns an error when the stored
+// JSON is corrupt or otherwise cannot be unmarshalled.
+func parseChatTemplateAllowlist(raw string) ([]string, error) {
+	if raw == "" {
+		return []string{}, nil
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return nil, xerrors.Errorf("unmarshal template allowlist: %w", err)
+	}
+	if ids == nil {
+		return []string{}, nil
+	}
+	return ids, nil
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

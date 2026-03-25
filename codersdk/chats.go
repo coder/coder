@@ -425,6 +425,13 @@ func ParseChatWorkspaceTTL(s string) (time.Duration, error) {
 	return d, nil
 }
 
+// ChatTemplateAllowlist is the request and response body for the
+// chat template allowlist configuration endpoint. An empty list
+// means all templates are allowed.
+type ChatTemplateAllowlist struct {
+	TemplateIDs []string `json:"template_ids"`
+}
+
 // ChatProviderConfigSource describes how a provider entry is sourced.
 type ChatProviderConfigSource string
 
@@ -1434,6 +1441,33 @@ func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorks
 // UpdateChatWorkspaceTTL updates the chat workspace TTL setting.
 func (c *ExperimentalClient) UpdateChatWorkspaceTTL(ctx context.Context, req UpdateChatWorkspaceTTLRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/workspace-ttl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatTemplateAllowlist returns the deployment-wide chat template allowlist.
+func (c *ExperimentalClient) GetChatTemplateAllowlist(ctx context.Context) (ChatTemplateAllowlist, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/template-allowlist", nil)
+	if err != nil {
+		return ChatTemplateAllowlist{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatTemplateAllowlist{}, ReadBodyAsError(res)
+	}
+	var resp ChatTemplateAllowlist
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatTemplateAllowlist updates the deployment-wide chat template allowlist.
+func (c *ExperimentalClient) UpdateChatTemplateAllowlist(ctx context.Context, req ChatTemplateAllowlist) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/template-allowlist", req)
 	if err != nil {
 		return err
 	}
