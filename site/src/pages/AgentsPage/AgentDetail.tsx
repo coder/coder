@@ -13,6 +13,7 @@ import {
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
+	userCompactionThresholds,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
@@ -31,7 +32,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useOutletContext, useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
@@ -264,8 +265,34 @@ const getPersistedDetailError = ({
 	return undefined;
 };
 
+/**
+ * Resolves the effective compaction threshold for a model configuration,
+ * preferring the user's override when set.
+ */
+function resolveCompactionThreshold(
+	modelConfigID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	modelConfigs: readonly TypesGen.ChatModelConfig[],
+): number | undefined {
+	if (!modelConfigID) {
+		return undefined;
+	}
+	const config = modelConfigs.find(
+		(modelConfig) => modelConfig.id === modelConfigID,
+	);
+	if (!config) {
+		return undefined;
+	}
+	const userOverride = userThresholds?.find(
+		(threshold) => threshold.model_config_id === modelConfigID,
+	);
+	if (userOverride) {
+		return userOverride.threshold_percent;
+	}
+	return config.compression_threshold;
+}
+
 const AgentDetail: FC = () => {
-	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
 		chatErrorReasons,
@@ -327,6 +354,7 @@ const AgentDetail: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
@@ -358,8 +386,6 @@ const AgentDetail: FC = () => {
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 	const modelCatalogError = chatModelsQuery.error;
-
-	const handleOpenAnalytics = () => navigate("/agents/analytics");
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -551,10 +577,11 @@ const AgentDetail: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const compressionThreshold = chatLastModelConfigID
-		? modelConfigs.find((c) => c.id === chatLastModelConfigID)
-				?.compression_threshold
-		: undefined;
+	const compressionThreshold = resolveCompactionThreshold(
+		chatLastModelConfigID,
+		userThresholdsQuery.data?.thresholds,
+		modelConfigs,
+	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -919,7 +946,6 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			onOpenAnalytics={handleOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}

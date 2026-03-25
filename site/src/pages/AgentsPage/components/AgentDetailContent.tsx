@@ -1,9 +1,9 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import type { ModelSelectorOption } from "#/components/ai-elements";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -45,7 +45,6 @@ interface AgentDetailTimelineProps {
 	chatID?: string;
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
-	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -61,12 +60,11 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	chatID,
 	store,
 	persistedError,
-	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
-	mcpServers: _mcpServers,
+	mcpServers,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -108,11 +106,11 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 				startingResetKey={chatID}
 				subagentTitles={subagentTitles}
 				subagentStatusOverrides={subagentStatusOverrides}
-				onOpenAnalytics={onOpenAnalytics}
 				onEditUserMessage={onEditUserMessage}
 				editingMessageId={editingMessageId}
 				savingMessageId={savingMessageId}
 				urlTransform={urlTransform}
+				mcpServers={mcpServers}
 			/>
 		</Profiler>
 	);

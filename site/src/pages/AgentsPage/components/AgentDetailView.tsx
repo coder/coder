@@ -78,7 +78,6 @@ interface AgentDetailViewProps {
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
-	onOpenAnalytics?: () => void;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -155,7 +154,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
-	onOpenAnalytics,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
@@ -269,7 +267,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							chatID={agentId}
 							store={store}
 							persistedError={persistedError}
-							onOpenAnalytics={onOpenAnalytics}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
@@ -278,7 +275,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						/>
 					</div>
 				</ScrollAnchoredContainer>
-				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
 						store={store}
 						compressionThreshold={compressionThreshold}
@@ -421,7 +418,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
 						initialValue=""
