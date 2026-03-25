@@ -573,21 +573,14 @@ const ScrollAnchoredContainer: FC<{
 	}, [isFetchingMoreMessages]);
 
 	// Pagination prepend: preserve scroll position when older
-	// messages are loaded. Track scrollHeight continuously during
-	// fetch to exclude concurrent streaming growth from the delta.
+	// messages are loaded. Snapshot scrollHeight once at fetch
+	// start, then compensate by the delta when the fetch
+	// completes.
 	useEffect(() => {
 		if (isFetchingMoreMessages) {
-			const container = scrollContainerRef.current;
-			const content = contentRef.current;
-			if (!container || !content) return;
-			prevScrollHeightRef.current = container.scrollHeight;
-			const observer = new ResizeObserver(() => {
-				if (scrollContainerRef.current) {
-					prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
-				}
-			});
-			observer.observe(content);
-			return () => observer.disconnect();
+			prevScrollHeightRef.current =
+				scrollContainerRef.current?.scrollHeight ?? 0;
+			return;
 		}
 
 		const container = scrollContainerRef.current;
@@ -607,7 +600,7 @@ const ScrollAnchoredContainer: FC<{
 		return () => {
 			cancelAnimationFrame(rafId);
 		};
-	}, [isFetchingMoreMessages, scrollContainerRef, contentRef]);
+	}, [isFetchingMoreMessages, scrollContainerRef]);
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
