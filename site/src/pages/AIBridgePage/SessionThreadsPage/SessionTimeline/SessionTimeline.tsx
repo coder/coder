@@ -1,26 +1,3 @@
-import type {
-	AIBridgeAgenticAction,
-	AIBridgeThread,
-	MinimalUser,
-} from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Link } from "components/Link/Link";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Spinner } from "components/Spinner/Spinner";
-import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -28,8 +5,31 @@ import {
 	LoaderIcon,
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
+import type {
+	AIBridgeAgenticAction,
+	AIBridgeThread,
+	MinimalUser,
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Link } from "#/components/Link/Link";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import { TokenBadges } from "../../TokenBadges";
 import { prettyFormatJSON } from "../../utils";
 import { AgenticLoopTable } from "./AgenticLoopTable";
@@ -62,20 +62,20 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 					isExpandable && !isExpanded
 						? {
 								maxHeight: EXPANDABLE_COLLAPSE_HEIGHT,
-								overflow: "hidden",
-								WebkitMaskImage:
-									"linear-gradient(to bottom, black 40%, transparent 100%)",
-								maskImage:
-									"linear-gradient(to bottom, black 40%, transparent 100%)",
 							}
 						: undefined
 				}
-				className={className}
+				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
 				{text}
 			</p>
 			{isExpandable && (
-				<div className="flex justify-end mt-1">
+				<div
+					className={cn(
+						"flex justify-end mt-1 absolute bottom-0 right-0 left-0",
+						!isExpanded && "bg-gradient-to-t from-surface-primary to-transparent",
+					)}
+				>
 					<Button
 						size="sm"
 						variant="outline"
