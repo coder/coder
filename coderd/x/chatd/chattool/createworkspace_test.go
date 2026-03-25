@@ -2,6 +2,7 @@ package chattool //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 	"testing"
@@ -228,6 +229,160 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 	}
 }
 
+func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	agentID := uuid.New()
+	now := time.Now().UTC()
+
+	expectExistingWorkspaceLookup(
+		db,
+		chatID,
+		workspaceID,
+		jobID,
+		"existing-workspace",
+		database.ProvisionerJobStatusSucceeded,
+		database.WorkspaceTransitionStart,
+	)
+	db.EXPECT().
+		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{{
+			ID:               agentID,
+			CreatedAt:        now.Add(-time.Minute),
+			FirstConnectedAt: validNullTime(now.Add(-45 * time.Second)),
+			LastConnectedAt:  validNullTime(now.Add(-5 * time.Second)),
+		}}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+		Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}, nil)
+
+	connFn := func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		t.Fatalf("unexpected agent dial for connected workspace")
+		return nil, nil, xerrors.New("unexpected agent dial")
+	}
+
+	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
+	result, done, err := options.checkExistingWorkspace(context.Background())
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, "already_exists", result["status"])
+	require.Equal(t, "existing-workspace", result["workspace_name"])
+	require.Equal(t, "workspace is already running and recently connected", result["message"])
+}
+
+func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	agentID := uuid.New()
+	now := time.Now().UTC()
+	connectCalls := 0
+
+	expectExistingWorkspaceLookup(
+		db,
+		chatID,
+		workspaceID,
+		jobID,
+		"existing-workspace",
+		database.ProvisionerJobStatusSucceeded,
+		database.WorkspaceTransitionStart,
+	)
+	db.EXPECT().
+		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{{
+			ID:                       agentID,
+			CreatedAt:                now,
+			ConnectionTimeoutSeconds: 60,
+		}}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentLifecycleStateByID(gomock.Any(), agentID).
+		Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}, nil)
+
+	connFn := func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		connectCalls++
+		return nil, func() {}, nil
+	}
+
+	options := testCheckExistingWorkspaceOptions(db, chatID, connFn)
+	result, done, err := options.checkExistingWorkspace(context.Background())
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, 1, connectCalls)
+	require.Equal(t, "already_exists", result["status"])
+	require.Equal(t, "workspace exists and the agent is still connecting", result["message"])
+}
+
+func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		agent database.WorkspaceAgent
+	}{
+		{
+			name: "Disconnected",
+			agent: database.WorkspaceAgent{
+				ID:               uuid.New(),
+				CreatedAt:        time.Now().UTC().Add(-2 * time.Minute),
+				FirstConnectedAt: validNullTime(time.Now().UTC().Add(-2 * time.Minute)),
+				LastConnectedAt:  validNullTime(time.Now().UTC().Add(-time.Minute)),
+			},
+		},
+		{
+			name: "TimedOut",
+			agent: database.WorkspaceAgent{
+				ID:                       uuid.New(),
+				CreatedAt:                time.Now().UTC().Add(-2 * time.Second),
+				ConnectionTimeoutSeconds: 1,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+
+			chatID := uuid.New()
+			workspaceID := uuid.New()
+			jobID := uuid.New()
+
+			expectExistingWorkspaceLookup(
+				db,
+				chatID,
+				workspaceID,
+				jobID,
+				"existing-workspace",
+				database.ProvisionerJobStatusSucceeded,
+				database.WorkspaceTransitionStart,
+			)
+			db.EXPECT().
+				GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+				Return([]database.WorkspaceAgent{tc.agent}, nil)
+
+			options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+			result, done, err := options.checkExistingWorkspace(context.Background())
+			require.NoError(t, err)
+			require.False(t, done)
+			require.Nil(t, result)
+		})
+	}
+}
+
 func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -252,10 +407,62 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 			Deleted: true,
 		}, nil)
 
-	result, done, err := checkExistingWorkspace(
-		context.Background(), db, chatID, nil,
-	)
+	options := testCheckExistingWorkspaceOptions(db, chatID, nil)
+	result, done, err := options.checkExistingWorkspace(context.Background())
 	require.NoError(t, err)
 	require.False(t, done, "should allow creation for deleted workspace")
 	require.Nil(t, result)
+}
+
+func testCheckExistingWorkspaceOptions(
+	db *dbmock.MockStore,
+	chatID uuid.UUID,
+	agentConnFn AgentConnFunc,
+) CreateWorkspaceOptions {
+	return CreateWorkspaceOptions{
+		DB:                             db,
+		ChatID:                         chatID,
+		AgentConnFn:                    agentConnFn,
+		AgentInactiveDisconnectTimeout: 30 * time.Second,
+	}
+}
+
+func expectExistingWorkspaceLookup(
+	db *dbmock.MockStore,
+	chatID uuid.UUID,
+	workspaceID uuid.UUID,
+	jobID uuid.UUID,
+	workspaceName string,
+	jobStatus database.ProvisionerJobStatus,
+	transition database.WorkspaceTransition,
+) {
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{
+			ID:   workspaceID,
+			Name: workspaceName,
+		}, nil)
+	db.EXPECT().
+		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+			Transition:  transition,
+		}, nil)
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: jobStatus,
+		}, nil)
+}
+
+func validNullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{Time: t, Valid: true}
 }

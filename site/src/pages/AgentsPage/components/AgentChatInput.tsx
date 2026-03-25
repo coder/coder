@@ -1044,10 +1044,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								<button
 									type="button"
 									onClick={() => onWorkspaceChange(null)}
-									className="ml-0.5 cursor-pointer rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+									className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
 									aria-label={`Remove workspace ${selectedWorkspace.name}`}
 								>
-									<XIcon className="size-3" />
+									<XIcon className="!size-2.5" />
 								</button>
 							</span>
 						)}
@@ -1072,10 +1072,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										<button
 											type="button"
 											onClick={() => handleMcpToggle(server.id, false)}
-											className="ml-0.5 cursor-pointer rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+											className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
 											aria-label={`Remove ${server.display_name}`}
 										>
-											<XIcon className="size-3" />
+											<XIcon className="!size-2.5" />
 										</button>
 									)}
 								</span>
