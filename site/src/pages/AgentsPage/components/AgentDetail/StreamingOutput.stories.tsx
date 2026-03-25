@@ -2,10 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, waitFor, within } from "storybook/test";
 import { StreamingOutput } from "./ConversationTimeline";
 import {
-	FIXTURE_NOW,
 	buildLiveStatus,
 	buildReconnectState,
 	buildRetryState,
+	FIXTURE_NOW,
 } from "./storyFixtures";
 
 // StreamingOutput renders inside a ConversationItem > Message > MessageContent

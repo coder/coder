@@ -2,10 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, within } from "storybook/test";
 import { LiveStreamTailContent } from "./LiveStreamTail";
 import {
-	FIXTURE_NOW,
 	buildLiveStatus,
 	buildReconnectState,
 	buildStreamRenderState,
+	FIXTURE_NOW,
 	textResponseStreamParts,
 } from "./storyFixtures";
 
