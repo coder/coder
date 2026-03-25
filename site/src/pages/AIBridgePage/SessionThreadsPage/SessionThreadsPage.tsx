@@ -1,4 +1,4 @@
-import { infiniteSession } from "api/queries/aiBridge";
+import { infiniteSessionThreads } from "api/queries/aiBridge";
 import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
 import { useParams } from "react-router";
@@ -8,7 +8,7 @@ const SessionThreadsPage: FC = () => {
 	const { sessionId = "" } = useParams<{ sessionId: string }>();
 
 	const sessionQuery = useInfiniteQuery({
-		...infiniteSession(sessionId),
+		...infiniteSessionThreads(sessionId),
 		enabled: !!sessionId,
 	});
 

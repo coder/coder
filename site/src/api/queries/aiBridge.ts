@@ -1,7 +1,9 @@
+import type { UseInfiniteQueryOptions } from "react-query";
 import { API } from "#/api/api";
 import type {
 	AIBridgeListInterceptionsResponse,
 	AIBridgeListSessionsResponse,
+	AIBridgeSessionThreadsResponse,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -40,4 +42,25 @@ export const paginatedSessions = (
 				q: payload,
 			}),
 	};
+};
+
+export const infiniteSessionThreads = (sessionId: string, limit = 1) => {
+	return {
+		queryKey: ["aiBridgeSessionThreads", sessionId],
+		getNextPageParam: (lastPage: AIBridgeSessionThreadsResponse) => {
+			const threads = lastPage.threads;
+			if (threads.length < limit) {
+				return undefined;
+			}
+			return threads[threads.length - 1].id;
+		},
+		initialPageParam: undefined as string | undefined,
+		queryFn: ({ pageParam }) => {
+			console.warn("Fetching threads with pageParam:", pageParam);
+			return API.getAIBridgeSessionThreads(sessionId, {
+				limit,
+				after_id: pageParam as string | undefined,
+			});
+		},
+	} satisfies UseInfiniteQueryOptions<AIBridgeSessionThreadsResponse>;
 };
