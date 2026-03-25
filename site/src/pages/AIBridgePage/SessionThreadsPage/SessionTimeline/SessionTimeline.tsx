@@ -388,7 +388,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 	);
 };
 
-export interface SessionTimelineProps {
+interface SessionTimelineProps {
 	initiator: MinimalUser;
 	threads: readonly AIBridgeThread[];
 	hasNextPage: boolean;

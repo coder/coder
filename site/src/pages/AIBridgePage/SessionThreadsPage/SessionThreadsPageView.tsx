@@ -45,7 +45,7 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	</TooltipProvider>
 );
 
-export interface SessionThreadsPageViewProps {
+interface SessionThreadsPageViewProps {
 	session: AIBridgeSessionThreadsResponse | undefined;
 	threads: readonly AIBridgeThread[];
 	loading: boolean;
