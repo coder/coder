@@ -1,8 +1,8 @@
-import type * as TypesGen from "api/typesGenerated";
 import type { FC } from "react";
 import { Outlet, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import {
 	AgentsSidebar,

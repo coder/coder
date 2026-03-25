@@ -1,4 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
 import { useClipboard } from "hooks/useClipboard";
 import {
 	CircleUserIcon,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import {
 	DropdownMenuItem,

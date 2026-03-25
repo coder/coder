@@ -1,7 +1,7 @@
-import type { SerpentOption } from "api/typesGenerated";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Badges,
 	EnterpriseBadge,

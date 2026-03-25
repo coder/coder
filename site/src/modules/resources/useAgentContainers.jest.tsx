@@ -5,14 +5,14 @@ import {
 import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { renderHook, waitFor } from "@testing-library/react";
-import * as API from "api/api";
-import type { WorkspaceAgentListContainersResponse } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClientProvider } from "react-query";
 import { toast } from "sonner";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
+import * as API from "#/api/api";
+import type { WorkspaceAgentListContainersResponse } from "#/api/typesGenerated";
 import { useAgentContainers } from "./useAgentContainers";
 
 const createWrapper = (): FC<PropsWithChildren> => {

@@ -63,7 +63,7 @@ vi.mock("@novnc/novnc/lib/rfb", () => ({
 	default: FakeRFB,
 }));
 
-import { watchChatDesktop } from "api/api";
+import { watchChatDesktop } from "#/api/api";
 
 const mockWatchChatDesktop = vi.mocked(watchChatDesktop);
 

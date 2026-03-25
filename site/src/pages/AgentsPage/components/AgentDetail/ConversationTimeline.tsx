@@ -1,4 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
 import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
@@ -12,6 +11,7 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConversationItem,
 	Message,

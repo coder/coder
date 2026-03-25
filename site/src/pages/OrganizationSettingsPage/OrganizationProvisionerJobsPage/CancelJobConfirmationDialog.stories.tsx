@@ -1,8 +1,8 @@
 import { MockProvisionerJob } from "testHelpers/entities";
 import { withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Response } from "api/typesGenerated";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { Response } from "#/api/typesGenerated";
 import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
 
 const meta: Meta<typeof CancelJobConfirmationDialog> = {

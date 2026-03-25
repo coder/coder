@@ -1,6 +1,6 @@
-import type * as TypesGen from "api/typesGenerated";
 import { ChevronLeftIcon, InfoIcon } from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";

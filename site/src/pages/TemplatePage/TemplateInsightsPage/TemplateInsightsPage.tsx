@@ -1,18 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	insightsTemplate,
-	insightsUserActivity,
-	insightsUserLatency,
-} from "api/queries/insights";
-import type {
-	Template,
-	TemplateAppUsage,
-	TemplateInsightsResponse,
-	TemplateParameterUsage,
-	TemplateParameterValue,
-	UserActivityInsightsResponse,
-	UserLatencyInsightsResponse,
-} from "api/typesGenerated";
 import chroma from "chroma-js";
 import {
 	CircleCheck as CircleCheckIcon,
@@ -44,6 +29,21 @@ import {
 	startOfHour,
 	subtractTime,
 } from "utils/time";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	insightsTemplate,
+	insightsUserActivity,
+	insightsUserLatency,
+} from "#/api/queries/insights";
+import type {
+	Template,
+	TemplateAppUsage,
+	TemplateInsightsResponse,
+	TemplateParameterUsage,
+	TemplateParameterValue,
+	UserActivityInsightsResponse,
+	UserLatencyInsightsResponse,
+} from "#/api/typesGenerated";
 import {
 	ActiveUserChart,
 	ActiveUsersTitle,

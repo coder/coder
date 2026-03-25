@@ -1,4 +1,3 @@
-import type { Task, Workspace } from "api/typesGenerated";
 import { useClipboard } from "hooks";
 import {
 	ArrowLeftIcon,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import type { Task, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,

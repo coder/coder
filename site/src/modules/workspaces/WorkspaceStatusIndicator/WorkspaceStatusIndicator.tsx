@@ -1,4 +1,3 @@
-import type { Workspace } from "api/typesGenerated";
 import { getAgentHealthIssue } from "modules/workspaces/health";
 import type React from "react";
 import type { FC } from "react";
@@ -6,6 +5,7 @@ import {
 	type DisplayWorkspaceStatusType,
 	getDisplayWorkspaceStatus,
 } from "utils/workspace";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,

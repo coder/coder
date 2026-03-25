@@ -30,14 +30,6 @@ import {
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { taskLogsKey } from "api/queries/tasks";
-import type {
-	Task,
-	TaskLogsResponse,
-	Workspace,
-	WorkspaceApp,
-} from "api/typesGenerated";
 import {
 	expect,
 	screen,
@@ -47,6 +39,14 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import { taskLogsKey } from "#/api/queries/tasks";
+import type {
+	Task,
+	TaskLogsResponse,
+	Workspace,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
 import TaskPage from "./TaskPage";
 
 const MockClaudeCodeApp: WorkspaceApp = {

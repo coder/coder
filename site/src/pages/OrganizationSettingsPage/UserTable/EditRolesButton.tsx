@@ -1,7 +1,7 @@
 import Checkbox from "@mui/material/Checkbox";
-import type { SlimRole } from "api/typesGenerated";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
+import type { SlimRole } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {

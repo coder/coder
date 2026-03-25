@@ -4,7 +4,7 @@ import type {
 	ReducedUser,
 	User,
 	WorkspaceUser,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 
 /**
  * Union of all user-like types that can be distinguished from Group.

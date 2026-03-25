@@ -1,14 +1,3 @@
-import { API } from "api/api";
-import {
-	systemNotificationTemplates,
-	userNotificationPreferences,
-} from "api/queries/notifications";
-import { templates } from "api/queries/templates";
-import {
-	preferenceSettings,
-	updatePreferenceSettings,
-} from "api/queries/users";
-import type { TasksFilter } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ChevronDownIcon, TrashIcon } from "lucide-react";
@@ -22,6 +11,17 @@ import { type FC, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import {
+	systemNotificationTemplates,
+	userNotificationPreferences,
+} from "#/api/queries/notifications";
+import { templates } from "#/api/queries/templates";
+import {
+	preferenceSettings,
+	updatePreferenceSettings,
+} from "#/api/queries/users";
+import type { TasksFilter } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button, type ButtonProps } from "#/components/Button/Button";

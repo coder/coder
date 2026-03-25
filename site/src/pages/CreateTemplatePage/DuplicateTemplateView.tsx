@@ -1,3 +1,8 @@
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { useNavigate, useSearchParams } from "react-router";
 import {
 	JobError,
 	template,
@@ -5,13 +10,8 @@ import {
 	templateVersionLogs,
 	templateVersionPresets,
 	templateVersionVariables,
-} from "api/queries/templates";
-import type { Template, TemplateVersion } from "api/typesGenerated";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { useNavigate, useSearchParams } from "react-router";
+} from "#/api/queries/templates";
+import type { Template, TemplateVersion } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";

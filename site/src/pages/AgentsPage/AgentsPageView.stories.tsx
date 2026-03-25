@@ -5,9 +5,6 @@ import {
 } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { Chat } from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useState } from "react";
 import {
@@ -20,6 +17,9 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";

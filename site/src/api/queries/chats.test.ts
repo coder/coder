@@ -1,7 +1,7 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	archiveChat,
 	cancelChatListQueries,

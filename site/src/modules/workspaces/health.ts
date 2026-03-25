@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceAgentStatus } from "api/typesGenerated";
+import type { Workspace, WorkspaceAgentStatus } from "#/api/typesGenerated";
 
 interface AgentHealthIssue {
 	title: string;

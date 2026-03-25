@@ -1,10 +1,3 @@
-import {
-	createMCPServerConfig as createMCPServerConfigMutation,
-	deleteMCPServerConfig as deleteMCPServerConfigMutation,
-	mcpServerConfigs,
-	updateMCPServerConfig as updateMCPServerConfigMutation,
-} from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
 import { useFormik } from "formik";
 import {
 	CheckCircleIcon,
@@ -19,6 +12,13 @@ import { type FC, type ReactNode, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { cn } from "utils/cn";
+import {
+	createMCPServerConfig as createMCPServerConfigMutation,
+	deleteMCPServerConfig as deleteMCPServerConfigMutation,
+	mcpServerConfigs,
+	updateMCPServerConfig as updateMCPServerConfigMutation,
+} from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";

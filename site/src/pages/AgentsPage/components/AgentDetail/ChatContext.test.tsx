@@ -1,6 +1,6 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { watchChat } from "api/api";
-import { chatMessagesKey, chatsKey } from "api/queries/chats";
+import { watchChat } from "#/api/api";
+import { chatMessagesKey, chatsKey } from "#/api/queries/chats";
 
 // The infinite query key used by useInfiniteQuery(infiniteChats())
 // is [...chatsKey, undefined] = ["chats", undefined].
@@ -30,11 +30,11 @@ const readInfiniteChats = (
 	return data?.pages.flat();
 };
 
-import type * as TypesGen from "api/typesGenerated";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	selectChatStatus,
 	selectOrderedMessageIDs,

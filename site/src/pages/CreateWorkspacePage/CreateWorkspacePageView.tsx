@@ -1,5 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { type FormikContextType, useFormik } from "formik";
 import { useDebouncedFunction } from "hooks/debounce";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
@@ -25,6 +23,11 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import type * as TypesGen from "#/api/typesGenerated";
+import type {
+	FriendlyDiagnostic,
+	PreviewParameter,
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";

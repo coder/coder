@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Group } from "api/typesGenerated";
 import { expect, fn, within } from "storybook/test";
+import type { Group } from "#/api/typesGenerated";
 import { GroupLimitsSection } from "./GroupLimitsSection";
 
 const mockGroupOverrides = [

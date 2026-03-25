@@ -1,22 +1,3 @@
-import { getErrorMessage } from "api/errors";
-import {
-	chatCostSummary,
-	chatCostUsers,
-	chatDesktopEnabled,
-	chatModelConfigs,
-	chatSystemPrompt,
-	chatTemplateAllowlist,
-	chatUserCustomPrompt,
-	chatWorkspaceTTL,
-	updateChatDesktopEnabled,
-	updateChatSystemPrompt,
-	updateChatTemplateAllowlist,
-	updateChatWorkspaceTTL,
-	updateUserChatCustomPrompt,
-} from "api/queries/chats";
-import { templates } from "api/queries/templates";
-import { user } from "api/queries/users";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
@@ -34,6 +15,25 @@ import { formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
 import { countInvisibleCharacters } from "utils/invisibleUnicode";
+import { getErrorMessage } from "#/api/errors";
+import {
+	chatCostSummary,
+	chatCostUsers,
+	chatDesktopEnabled,
+	chatModelConfigs,
+	chatSystemPrompt,
+	chatTemplateAllowlist,
+	chatUserCustomPrompt,
+	chatWorkspaceTTL,
+	updateChatDesktopEnabled,
+	updateChatSystemPrompt,
+	updateChatTemplateAllowlist,
+	updateChatWorkspaceTTL,
+	updateUserChatCustomPrompt,
+} from "#/api/queries/chats";
+import { templates } from "#/api/queries/templates";
+import { user } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";

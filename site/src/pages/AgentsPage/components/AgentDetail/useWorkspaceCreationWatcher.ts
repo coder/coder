@@ -1,6 +1,6 @@
-import { chatKey } from "api/queries/chats";
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "react-query";
+import { chatKey } from "#/api/queries/chats";
 import { useChatSelector } from "./ChatContext";
 import type { StreamState } from "./types";
 

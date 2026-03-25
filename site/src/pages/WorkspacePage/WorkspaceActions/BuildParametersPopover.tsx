@@ -1,10 +1,3 @@
-import { richParameters } from "api/queries/templates";
-import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
-import type {
-	TemplateVersionParameter,
-	Workspace,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
@@ -14,6 +7,13 @@ import {
 	type AutofillBuildParameter,
 	getInitialRichParameterValues,
 } from "utils/richParameters";
+import { richParameters } from "#/api/queries/templates";
+import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
+import type {
+	TemplateVersionParameter,
+	Workspace,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { FormFields } from "#/components/Form/Form";

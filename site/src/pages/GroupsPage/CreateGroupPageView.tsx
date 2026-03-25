@@ -1,5 +1,3 @@
-import { isApiValidationError } from "api/errors";
-import type { CreateGroupRequest } from "api/typesGenerated";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
@@ -9,6 +7,8 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import type { CreateGroupRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";

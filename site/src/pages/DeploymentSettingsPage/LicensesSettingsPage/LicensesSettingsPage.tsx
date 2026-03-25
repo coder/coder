@@ -1,13 +1,13 @@
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { entitlements, refreshEntitlements } from "api/queries/entitlements";
-import { insightsUserStatusCounts } from "api/queries/insights";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { entitlements, refreshEntitlements } from "#/api/queries/entitlements";
+import { insightsUserStatusCounts } from "#/api/queries/insights";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const LicensesSettingsPage: FC = () => {

@@ -1,16 +1,3 @@
-import { MissingBuildParameters, ParameterValidationError } from "api/api";
-import {
-	type ApiError,
-	getErrorDetail,
-	getErrorMessage,
-	isApiError,
-} from "api/errors";
-import {
-	changeVersion,
-	deleteWorkspace,
-	workspacePermissions,
-} from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -24,6 +11,19 @@ import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
+import { MissingBuildParameters, ParameterValidationError } from "#/api/api";
+import {
+	type ApiError,
+	getErrorDetail,
+	getErrorMessage,
+	isApiError,
+} from "#/api/errors";
+import {
+	changeVersion,
+	deleteWorkspace,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
+import type { Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,

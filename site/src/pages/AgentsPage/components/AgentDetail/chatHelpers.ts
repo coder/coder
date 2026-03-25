@@ -1,4 +1,4 @@
-import type * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { asString } from "#/components/ai-elements/runtimeTypeUtils";
 import type { AgentContextUsage } from "../AgentChatInput";

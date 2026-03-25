@@ -1,17 +1,17 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { addMember, removeMember } from "api/queries/groups";
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-	ReducedUser,
-} from "api/typesGenerated";
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
 import { isEveryoneGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { addMember, removeMember } from "#/api/queries/groups";
+import type {
+	Group,
+	OrganizationMemberWithUserData,
+	ReducedUser,
+} from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";

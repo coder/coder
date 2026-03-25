@@ -1,11 +1,3 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import { workspaces } from "api/queries/workspaces";
-import type {
-	AuthorizationResponse,
-	Template,
-	TemplateVersion,
-} from "api/typesGenerated";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -21,6 +13,14 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { workspaces } from "#/api/queries/workspaces";
+import type {
+	AuthorizationResponse,
+	Template,
+	TemplateVersion,
+} from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";

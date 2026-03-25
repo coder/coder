@@ -1,3 +1,5 @@
+import type { Permissions } from "modules/permissions";
+import { useMemo, useSyncExternalStore } from "react";
 import type {
 	AppearanceConfig,
 	BuildInfoResponse,
@@ -7,9 +9,7 @@ import type {
 	Region,
 	User,
 	UserAppearanceSettings,
-} from "api/typesGenerated";
-import type { Permissions } from "modules/permissions";
-import { useMemo, useSyncExternalStore } from "react";
+} from "#/api/typesGenerated";
 export const DEFAULT_METADATA_KEY = "property";
 
 /**

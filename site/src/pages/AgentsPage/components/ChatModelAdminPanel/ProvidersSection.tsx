@@ -1,8 +1,8 @@
-import type * as TypesGen from "api/typesGenerated";
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ProviderForm } from "./ProviderForm";

@@ -1,9 +1,9 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { getApps, revokeApp } from "api/queries/oauth2";
 import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getApps, revokeApp } from "#/api/queries/oauth2";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { Section } from "../Section";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";

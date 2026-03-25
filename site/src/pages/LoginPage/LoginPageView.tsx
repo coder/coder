@@ -1,6 +1,6 @@
-import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router";
+import type { AuthMethods, BuildInfoResponse } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
 import { Loader } from "#/components/Loader/Loader";

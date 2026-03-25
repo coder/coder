@@ -1,6 +1,6 @@
-import { templateVersionExternalAuth } from "api/queries/templates";
 import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
+import { templateVersionExternalAuth } from "#/api/queries/templates";
 
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 

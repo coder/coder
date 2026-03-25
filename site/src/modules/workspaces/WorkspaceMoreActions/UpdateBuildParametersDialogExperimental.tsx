@@ -1,6 +1,6 @@
-import type { FieldError } from "api/errors";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type { FieldError } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,

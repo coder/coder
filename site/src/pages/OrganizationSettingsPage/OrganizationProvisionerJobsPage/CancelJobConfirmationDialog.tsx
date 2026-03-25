@@ -1,13 +1,13 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import {
-	getProvisionerDaemonsKey,
-	provisionerJobsQueryKey,
-} from "api/queries/organizations";
-import type { ProvisionerJob } from "api/typesGenerated";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import {
+	getProvisionerDaemonsKey,
+	provisionerJobsQueryKey,
+} from "#/api/queries/organizations";
+import type { ProvisionerJob } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 type CancelJobConfirmationDialogProps = {

@@ -14,8 +14,8 @@
  * users like that, though, know that it will be painful
  */
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { LoginType, SlimRole } from "api/typesGenerated";
 import type { FC } from "react";
+import type { LoginType, SlimRole } from "#/api/typesGenerated";
 import { Pill } from "#/components/Pill/Pill";
 import { TableCell } from "#/components/Table/Table";
 import {

@@ -1,6 +1,6 @@
-import { API } from "api/api";
-import type { BuildInfoResponse } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
+import { API } from "#/api/api";
+import type { BuildInfoResponse } from "#/api/typesGenerated";
 import { cachedQuery } from "./util";
 
 const buildInfoKey = ["buildInfo"] as const;

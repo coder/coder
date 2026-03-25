@@ -1,8 +1,12 @@
-import type { Organization, Role, RoleSyncSettings } from "api/typesGenerated";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import * as Yup from "yup";
+import type {
+	Organization,
+	Role,
+	RoleSyncSettings,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Combobox,

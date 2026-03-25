@@ -11,8 +11,8 @@ import {
 } from "testHelpers/renderHelpers";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
 import { toast } from "sonner";
+import { API } from "#/api/api";
 import TemplateVariablesPage from "./TemplateVariablesPage";
 
 // The createAndBuildTemplateVersion mutation polls getTemplateVersion behind

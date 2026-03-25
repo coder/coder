@@ -10,7 +10,14 @@ import {
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
+import type { FC } from "react";
+import { Outlet } from "react-router";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	reactRouterOutlet,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import {
 	chatDiffContentsKey,
 	chatKey,
@@ -19,16 +26,9 @@ import {
 	chatModelsKey,
 	chatsKey,
 	mcpServerConfigsKey,
-} from "api/queries/chats";
-import { workspaceByIdKey } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import type { FC } from "react";
-import { Outlet } from "react-router";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import {
-	reactRouterOutlet,
-	reactRouterParameters,
-} from "storybook-addon-remix-react-router";
+} from "#/api/queries/chats";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import AgentDetail, { RIGHT_PANEL_OPEN_KEY } from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 

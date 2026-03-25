@@ -1,12 +1,12 @@
-import { getErrorMessage } from "api/errors";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getErrorMessage } from "#/api/errors";
 import {
 	deleteUserCompactionThreshold,
 	updateUserCompactionThreshold,
 	userCompactionThresholds,
-} from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+} from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";

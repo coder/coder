@@ -1,5 +1,5 @@
-import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { type FC, type JSX, useState } from "react";
+import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { Stack } from "#/components/Stack/Stack";

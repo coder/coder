@@ -1,12 +1,12 @@
 import Skeleton from "@mui/material/Skeleton";
-import { users } from "api/queries/users";
-import type { User } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { useDebouncedValue } from "hooks/debounce";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { cn } from "utils/cn";
+import { users } from "#/api/queries/users";
+import type { User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import {

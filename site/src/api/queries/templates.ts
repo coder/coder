@@ -1,4 +1,11 @@
-import { API, type GetTemplatesOptions, type GetTemplatesQuery } from "api/api";
+import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
+import { delay } from "utils/delay";
+import { getTemplateVersionFiles } from "utils/templateVersion";
+import {
+	API,
+	type GetTemplatesOptions,
+	type GetTemplatesQuery,
+} from "#/api/api";
 import type {
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
@@ -8,10 +15,7 @@ import type {
 	TemplateRole,
 	TemplateVersion,
 	UsersRequest,
-} from "api/typesGenerated";
-import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
-import { delay } from "utils/delay";
-import { getTemplateVersionFiles } from "utils/templateVersion";
+} from "#/api/typesGenerated";
 
 const templateKey = (templateId: string) => ["template", templateId];
 

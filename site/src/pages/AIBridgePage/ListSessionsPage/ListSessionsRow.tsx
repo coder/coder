@@ -1,4 +1,3 @@
-import type { AIBridgeSession } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { TableCell, TableRow } from "components/Table/Table";
@@ -13,6 +12,7 @@ import { AIBridgeClientIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIB
 import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
 import type { FC } from "react";
 import { DATE_FORMAT, formatDateTime } from "utils/time";
+import type { AIBridgeSession } from "#/api/typesGenerated";
 import {
 	getProviderDisplayName,
 	getProviderIconName,

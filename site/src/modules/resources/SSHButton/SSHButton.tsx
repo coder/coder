@@ -1,7 +1,7 @@
-import { deploymentSSHConfig } from "api/queries/deployment";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";

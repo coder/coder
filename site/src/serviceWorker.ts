@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import type { WebpushMessage } from "api/typesGenerated";
+import type { WebpushMessage } from "#/api/typesGenerated";
 
 declare const self: ServiceWorkerGlobalScope;
 

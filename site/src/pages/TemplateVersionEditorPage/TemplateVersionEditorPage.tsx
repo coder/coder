@@ -1,18 +1,3 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import { file, uploadFile } from "api/queries/files";
-import {
-	createTemplateVersion,
-	resources,
-	templateByName,
-	templateByNameKey,
-	templateVersionByName,
-	templateVersionVariables,
-} from "api/queries/templates";
-import type {
-	PatchTemplateVersionRequest,
-	TemplateVersion,
-} from "api/typesGenerated";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
@@ -28,6 +13,21 @@ import { existsFile, type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { file, uploadFile } from "#/api/queries/files";
+import {
+	createTemplateVersion,
+	resources,
+	templateByName,
+	templateByNameKey,
+	templateVersionByName,
+	templateVersionVariables,
+} from "#/api/queries/templates";
+import type {
+	PatchTemplateVersionRequest,
+	TemplateVersion,
+} from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 

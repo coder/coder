@@ -1,5 +1,3 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -9,6 +7,8 @@ import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
 import { isDevBuild } from "utils/buildInfo";
 import { cn } from "utils/cn";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";

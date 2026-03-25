@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { TimingStage } from "api/typesGenerated";
 import { CircleAlertIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
+import type { TimingStage } from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,

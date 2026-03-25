@@ -1,5 +1,3 @@
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	type Dispatch,
 	type SetStateAction,
@@ -7,6 +5,8 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { UploadState } from "../components/AgentChatInput";
 
 /** @internal Exported for testing. */

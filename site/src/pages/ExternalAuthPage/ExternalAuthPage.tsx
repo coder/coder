@@ -1,15 +1,15 @@
-import type { ApiErrorResponse } from "api/errors";
-import {
-	exchangeExternalAuthDevice,
-	externalAuthDevice,
-	externalAuthProvider,
-} from "api/queries/externalAuth";
 import { isAxiosError } from "axios";
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
+import type { ApiErrorResponse } from "#/api/errors";
+import {
+	exchangeExternalAuthDevice,
+	externalAuthDevice,
+	externalAuthProvider,
+} from "#/api/queries/externalAuth";
 import { Button } from "#/components/Button/Button";
 import {
 	isExchangeErrorRetryable,

@@ -1,9 +1,3 @@
-import type {
-	Chat,
-	ChatDiffStatus,
-	ChatModelConfig,
-	ChatStatus,
-} from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -47,6 +41,12 @@ import {
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import type {
+	Chat,
+	ChatDiffStatus,
+	ChatModelConfig,
+	ChatStatus,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { ModelSelectorOption } from "#/components/ai-elements";

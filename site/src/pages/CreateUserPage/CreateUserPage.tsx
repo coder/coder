@@ -1,11 +1,11 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { authMethods, createUser } from "api/queries/users";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { authMethods, createUser } from "#/api/queries/users";
 import { Margins } from "#/components/Margins/Margins";
 import { CreateUserForm } from "./CreateUserForm";
 

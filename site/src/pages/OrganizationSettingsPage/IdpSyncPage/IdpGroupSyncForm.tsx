@@ -1,8 +1,3 @@
-import type {
-	Group,
-	GroupSyncSettings,
-	Organization,
-} from "api/typesGenerated";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { isEveryoneGroup } from "modules/groups";
@@ -10,6 +5,11 @@ import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
+import type {
+	Group,
+	GroupSyncSettings,
+	Organization,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Combobox,

@@ -1,7 +1,7 @@
-import type * as TypesGen from "api/typesGenerated";
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {

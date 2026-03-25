@@ -1,4 +1,3 @@
-import { paginatedSessions } from "api/queries/aiBridge";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "hooks";
@@ -8,6 +7,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { paginatedSessions } from "#/api/queries/aiBridge";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 

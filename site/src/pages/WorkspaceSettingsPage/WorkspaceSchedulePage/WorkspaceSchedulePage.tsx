@@ -1,8 +1,3 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import { templateByName } from "api/queries/templates";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import {
 	scheduleChanged,
@@ -15,6 +10,11 @@ import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { templateByName } from "#/api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";

@@ -1,6 +1,6 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;

@@ -1,14 +1,14 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import type { WorkspaceAgentStatus } from "api/typesGenerated";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkspaceAgentStatus } from "#/api/typesGenerated";
 import { useGitWatcher } from "./useGitWatcher";
 
 vi.mock("api/api", () => ({
 	watchChatGit: vi.fn(),
 }));
 
-import { watchChatGit } from "api/api";
+import { watchChatGit } from "#/api/api";
 
 const mockWatchChatGit = vi.mocked(watchChatGit);
 

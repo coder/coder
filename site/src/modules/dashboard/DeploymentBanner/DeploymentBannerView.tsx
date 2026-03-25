@@ -1,8 +1,3 @@
-import type {
-	DeploymentStats,
-	HealthcheckReport,
-	WorkspaceStatus,
-} from "api/typesGenerated";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -24,6 +19,11 @@ import {
 } from "react";
 import { Link as RouterLink } from "react-router";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
+import type {
+	DeploymentStats,
+	HealthcheckReport,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { HelpTooltipTitle } from "#/components/HelpTooltip/HelpTooltip";
 import { JetBrainsIcon } from "#/components/Icons/JetBrainsIcon";

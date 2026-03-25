@@ -1,6 +1,6 @@
 import { chromatic } from "testHelpers/chromatic";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { LicenseManagedAgentLimitExceededWarningText } from "api/typesGenerated";
+import { LicenseManagedAgentLimitExceededWarningText } from "#/api/typesGenerated";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
