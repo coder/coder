@@ -32,7 +32,7 @@ It's a good fit if you're:
 - Managing AI workflows against sensitive or regulated codebases
 - Expanding the use of Coder Tasks for AI-driven background work
 
-If you already use other AI governance tools, such as third-party LLM gateways
+If you already use other AI Governance tools, such as third-party LLM gateways
 or vendor-managed policies, you can continue using them. Coder Workspaces can
 still serve as the backend for development environments and AI workflows, with
 or without the AI Governance Add-On.
