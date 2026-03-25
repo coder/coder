@@ -965,7 +965,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// headers (Claude Code, Codex) set the BYOK header themselves; this
 	// handles clients that cannot.
 	//
-	// In centralized mode, Authorization carries the Coder session token
+	// In centralized mode, Authorization carries the Coder token
 	// itself (sent by the client as ANTHROPIC_AUTH_TOKEN), so aibridged
 	// discovers it via ExtractAuthToken without any extra header.
 	if auth := req.Header.Get("Authorization"); auth != "" {
