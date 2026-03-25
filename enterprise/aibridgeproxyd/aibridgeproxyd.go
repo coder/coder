@@ -959,7 +959,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.Host = aiBridgeParsedURL.Host
 
 	// If Authorization carries a bearer token that differs from the Coder
-	// session token, the client is using its own LLM credentials (e.g.
+	// token set during CONNECT, the client is using its own LLM credentials (e.g.
 	// Copilot's per-user GitHub token). Set the BYOK header to indicate
 	// that this request is using BYOK mode. Clients that support custom
 	// headers (Claude Code, Codex) set the BYOK header themselves; this
