@@ -216,7 +216,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 			{titleElement}
 			<div
 				className={cn(
-					"relative flex min-h-0 min-w-0 flex-1 flex-col",
+					"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden",
 					visualExpanded && "hidden",
 					shouldShowSidebar && "max-md:hidden",
 				)}
