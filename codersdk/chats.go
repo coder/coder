@@ -46,20 +46,21 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID       `json:"id" format:"uuid"`
-	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
-	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
-	Title             string          `json:"title"`
-	Status            ChatStatus      `json:"status"`
-	LastError         *string         `json:"last_error"`
-	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
-	Archived          bool            `json:"archived"`
-	MCPServerIDs      []uuid.UUID     `json:"mcp_server_ids" format:"uuid"`
+	ID                uuid.UUID         `json:"id" format:"uuid"`
+	OwnerID           uuid.UUID         `json:"owner_id" format:"uuid"`
+	WorkspaceID       *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID        `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID         `json:"last_model_config_id" format:"uuid"`
+	Title             string            `json:"title"`
+	Status            ChatStatus        `json:"status"`
+	LastError         *string           `json:"last_error"`
+	DiffStatus        *ChatDiffStatus   `json:"diff_status,omitempty"`
+	CreatedAt         time.Time         `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time         `json:"updated_at" format:"date-time"`
+	Archived          bool              `json:"archived"`
+	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
+	Labels            map[string]string `json:"labels"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -311,16 +312,18 @@ type ChatInputPart struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Content       []ChatInputPart `json:"content"`
-	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  []uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Content       []ChatInputPart   `json:"content"`
+	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels        map[string]string `json:"labels,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title    *string `json:"title,omitempty"`
-	Archived *bool   `json:"archived,omitempty"`
+	Title    *string            `json:"title,omitempty"`
+	Archived *bool              `json:"archived,omitempty"`
+	Labels   *map[string]string `json:"labels,omitempty"`
 }
 
 // CreateChatMessageRequest is the request to add a message to a chat.
@@ -1166,7 +1169,8 @@ type ChatUsageLimitConfigResponse struct {
 
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Query string
+	Query  string
+	Labels map[string]string
 	Pagination
 }
 
@@ -1179,6 +1183,15 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
 				q.Set("q", opts.Query)
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if len(opts.Labels) > 0 {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				for k, v := range opts.Labels {
+					q.Add("label", k+":"+v)
+				}
 				r.URL.RawQuery = q.Encode()
 			})
 		}

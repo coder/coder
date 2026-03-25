@@ -1100,6 +1100,7 @@ export interface Chat {
 	readonly updated_at: string;
 	readonly archived: boolean;
 	readonly mcp_server_ids: readonly string[];
+	readonly labels: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -2245,6 +2246,7 @@ export interface CreateChatRequest {
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
+	readonly labels?: Record<string, string>;
 }
 
 // From codersdk/users.go
@@ -3777,6 +3779,7 @@ export interface LinkConfig {
  */
 export interface ListChatsOptions extends Pagination {
 	readonly Query: string;
+	readonly Labels: Record<string, string>;
 }
 
 // From codersdk/inboxnotification.go
@@ -7008,6 +7011,7 @@ export interface UpdateChatProviderConfigRequest {
 export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
+	readonly labels?: Record<string, string>;
 }
 
 // From codersdk/chats.go

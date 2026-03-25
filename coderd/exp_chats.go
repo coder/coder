@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -191,10 +192,38 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var labelFilter pqtype.NullRawMessage
+	if labelParams := r.URL.Query()["label"]; len(labelParams) > 0 {
+		labelMap := make(map[string]string, len(labelParams))
+		for _, lp := range labelParams {
+			key, value, ok := strings.Cut(lp, ":")
+			if !ok || key == "" || value == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Invalid label filter: %q (expected format key:value, both must be non-empty)", lp),
+				})
+				return
+			}
+			labelMap[key] = value
+		}
+		labelsJSON, err := json.Marshal(labelMap)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal label filter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		labelFilter = pqtype.NullRawMessage{
+			RawMessage: labelsJSON,
+			Valid:      true,
+		}
+	}
+
 	params := database.GetChatsParams{
-		OwnerID:  apiKey.UserID,
-		Archived: searchParams.Archived,
-		AfterID:  paginationParams.AfterID,
+		OwnerID:     apiKey.UserID,
+		Archived:    searchParams.Archived,
+		AfterID:     paginationParams.AfterID,
+		LabelFilter: labelFilter,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -320,6 +349,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		mcpServerIDs = []uuid.UUID{}
 	}
 
+	labels := req.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	if errs := httpapi.ValidateChatLabels(labels); len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid labels.",
+			Validations: errs,
+		})
+		return
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -328,6 +369,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
+		Labels:             labels,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -1407,8 +1449,8 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Currently supports toggling the
-// archived state via the Archived field.
+// patchChat updates a chat resource. Supports updating labels and
+// toggling the archived state.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1416,6 +1458,40 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.UpdateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	if req.Labels != nil {
+		if errs := httpapi.ValidateChatLabels(*req.Labels); len(errs) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid labels.",
+				Validations: errs,
+			})
+			return
+		}
+		labelsJSON, err := json.Marshal(*req.Labels)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal labels.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		updatedChat, err := api.Database.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
+			ID:     chat.ID,
+			Labels: labelsJSON,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat labels.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
 	}
 
 	if req.Archived != nil {
@@ -3500,6 +3576,10 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
+	labels := map[string]string(c.Labels)
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
@@ -3510,6 +3590,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
 		MCPServerIDs:      mcpServerIDs,
+		Labels:            labels,
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String

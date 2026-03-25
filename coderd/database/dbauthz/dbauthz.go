@@ -5641,6 +5641,17 @@ func (q *querier) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateCh
 	return q.db.UpdateChatHeartbeat(ctx, arg)
 }
 
+func (q *querier) UpdateChatLabelsByID(ctx context.Context, arg database.UpdateChatLabelsByIDParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatLabelsByID(ctx, arg)
+}
+
 func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.UpdateChatMCPServerIDsParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {

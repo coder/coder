@@ -161,6 +161,10 @@ WHERE
         )
         ELSE true
     END
+    AND CASE
+        WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
+        ELSE true
+    END
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -181,7 +185,8 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
-    mcp_server_ids
+    mcp_server_ids,
+    labels
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -190,7 +195,8 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
-    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[])
+    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
+    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
 )
 RETURNING
     *;
@@ -282,6 +288,17 @@ UPDATE
     chats
 SET
     title = @title::text,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatLabelsByID :one
+UPDATE
+    chats
+SET
+    labels = @labels::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
