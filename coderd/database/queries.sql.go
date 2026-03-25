@@ -5729,7 +5729,7 @@ UPDATE chats SET
     updated_at = NOW()
 WHERE
     id = $3::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, build_id, agent_id
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
 `
 
 type UpdateChatBuildAgentBindingParams struct {
@@ -5759,6 +5759,7 @@ func (q *sqlQuerier) UpdateChatBuildAgentBinding(ctx context.Context, arg Update
 		&i.LastError,
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
 	)
@@ -5845,7 +5846,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
 `
 
 type UpdateChatLabelsByIDParams struct {
@@ -5875,6 +5876,8 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
 	)
 	return i, err
 }
