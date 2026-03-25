@@ -1716,6 +1716,10 @@ func TestGetUser(t *testing.T) {
 
 		user, err := client.User(ctx, exp.Username)
 		require.NoError(t, err)
+		// Timestamps may drift between sequential API calls because
+		// middleware updates LastSeenAt on each request.
+		exp.UpdatedAt = user.UpdatedAt
+		exp.LastSeenAt = user.LastSeenAt
 		require.Equal(t, exp, user)
 	})
 }
