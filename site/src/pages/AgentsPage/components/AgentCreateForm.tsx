@@ -37,7 +37,11 @@ import {
 	isUsageLimitData,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
-import { getDefaultMCPSelection } from "./MCPServerPicker";
+import {
+	getDefaultMCPSelection,
+	getSavedMCPSelection,
+	saveMCPSelection,
+} from "./MCPServerPicker";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
@@ -241,8 +245,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
 		null,
 	);
-	const effectiveMCPServerIds =
-		userMCPServerIds ?? getDefaultMCPSelection(mcpServers ?? []);
+	const effectiveMCPServerIds = (() => {
+		if (userMCPServerIds !== null) {
+			return userMCPServerIds;
+		}
+		const saved = getSavedMCPSelection(mcpServers ?? []);
+		if (saved !== null) {
+			return saved;
+		}
+		return getDefaultMCPSelection(mcpServers ?? []);
+	})();
 	const selectedMCPServerIdsRef = useRef(effectiveMCPServerIds);
 	useEffect(() => {
 		selectedWorkspaceIdRef.current = selectedWorkspaceId;
@@ -374,7 +386,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					textContents={textContents}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
-					onMCPSelectionChange={setUserMCPServerIds}
+					onMCPSelectionChange={(ids) => {
+						setUserMCPServerIds(ids);
+						saveMCPSelection(ids);
+					}}
 					onMCPAuthComplete={onMCPAuthComplete}
 					leftActions={
 						<Popover
