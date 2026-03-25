@@ -987,6 +987,11 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 // itself (sent by the client as ANTHROPIC_AUTH_TOKEN), so aibridged
 // discovers it via ExtractAuthToken without any extra header.
 func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
+	// Don’t overwrite the header if it’s already set.
+	if header.Get(agplaibridge.HeaderCoderBYOKToken) != "" {
+		return
+	}
+
 	bearer := extractCoderTokenFromBearerAuth(header.Get("Authorization"))
 	if bearer != "" && bearer != coderToken {
 		header.Set(agplaibridge.HeaderCoderBYOKToken, coderToken)

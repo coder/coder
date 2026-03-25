@@ -1499,6 +1499,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 	tests := []struct {
 		name          string
 		authzHeader   string
+		byokHeader    string // pre-set by client; empty means not set
 		expectBYOK    bool
 		expectBYOKVal string
 	}{
@@ -1517,6 +1518,15 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			authzHeader:   "Bearer ghu_copilot-user-token",
 			expectBYOK:    true,
 			expectBYOKVal: coderToken,
+		},
+		{
+			// Client already set the BYOK header (Claude Code, Codex).
+			// The proxy must not overwrite it.
+			name:          "BYOK header already set by client — not overwritten",
+			authzHeader:   "Bearer claude-code-user-token",
+			byokHeader:    "client-set-coder-token",
+			expectBYOK:    true,
+			expectBYOKVal: "client-set-coder-token",
 		},
 	}
 
@@ -1546,6 +1556,9 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", tt.authzHeader)
+			if tt.byokHeader != "" {
+				req.Header.Set(agplaibridge.HeaderCoderBYOKToken, tt.byokHeader)
+			}
 
 			resp, err := client.Do(req)
 			require.NoError(t, err)
