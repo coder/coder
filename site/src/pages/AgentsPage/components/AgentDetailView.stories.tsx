@@ -8,6 +8,7 @@ import type { ComponentProps, FC } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
@@ -97,11 +98,8 @@ const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	const props = {
 		agentId: AGENT_ID,
 		chatTitle: "Help me refactor",
-		chatErrorReasons: {} as ComponentProps<
-			typeof AgentDetailView
-		>["chatErrorReasons"],
+		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
-		chatRecord: buildChat(),
 		isArchived: false,
 		hasWorkspace: true,
 		store: createChatStore(),
@@ -187,13 +185,7 @@ export const Default: Story = {
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
-	render: () => (
-		<StoryAgentDetailView
-			isArchived
-			chatRecord={buildChat({ archived: true })}
-			isInputDisabled
-		/>
-	),
+	render: () => <StoryAgentDetailView isArchived isInputDisabled />,
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
@@ -209,8 +201,12 @@ export const WithParentChat: Story = {
 export const WithError: Story = {
 	render: () => (
 		<StoryAgentDetailView
-			chatErrorReasons={{
-				[AGENT_ID]: { kind: "generic", message: "Model rate limited" },
+			persistedError={{
+				kind: "overloaded",
+				message: "Anthropic is currently overloaded. Please try again shortly.",
+				provider: "anthropic",
+				retryable: true,
+				statusCode: 529,
 			}}
 		/>
 	),

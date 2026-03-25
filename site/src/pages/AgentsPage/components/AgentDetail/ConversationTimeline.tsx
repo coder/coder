@@ -3,16 +3,15 @@ import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
+	memo,
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
-import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
-import { Alert } from "#/components/Alert/Alert";
 import {
 	ConversationItem,
 	Message,
@@ -22,7 +21,6 @@ import {
 	Tool,
 } from "#/components/ai-elements";
 import { WebSearchSources } from "#/components/ai-elements/tool";
-import { Button } from "#/components/Button/Button";
 import { FileReferenceChip } from "#/components/ChatMessageInput/FileReferenceNode";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -35,10 +33,11 @@ import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import { ChatStatusCallout } from "./ChatStatusCallout";
+import type { LiveStatusModel } from "./liveStatusModel";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -382,7 +381,7 @@ function renderBlockList({
 	return { elements, renderedToolIDs };
 }
 
-interface ChatMessageItemProps {
+const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	onEditUserMessage?: (
@@ -399,212 +398,313 @@ interface ChatMessageItemProps {
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
-}
+}>(
+	({
+		message,
+		parsed,
+		onEditUserMessage,
+		editingMessageId,
+		savingMessageId,
+		isAfterEditingMessage = false,
+		fadeFromBottom = false,
+		urlTransform,
+		mcpServers,
+	}) => {
+		const isUser = message.role === "user";
+		const isSavingMessage = savingMessageId === message.id;
+		const [previewImage, setPreviewImage] = useState<string | null>(null);
+		const [previewText, setPreviewText] = useState<string | null>(null);
+		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
-const ChatMessageItem: FC<ChatMessageItemProps> = ({
-	message,
-	parsed,
-	onEditUserMessage,
-	editingMessageId,
-	savingMessageId,
-	isAfterEditingMessage = false,
-	fadeFromBottom = false,
+		if (
+			parsed.toolResults.length > 0 &&
+			parsed.toolCalls.length === 0 &&
+			parsed.markdown === "" &&
+			parsed.reasoning === ""
+		) {
+			return null;
+		}
+
+		// Hide messages that consist entirely of provider-executed
+		// tool results. The parser skips these parts, so the parsed
+		// output is empty and would show a "no renderable content"
+		// fallback.
+		const parts = message.content ?? [];
+		if (
+			parts.length > 0 &&
+			parts.every((p) => p.type === "tool-result" && p.provider_executed)
+		) {
+			return null;
+		}
+
+		const hasRenderableContent =
+			parsed.blocks.length > 0 ||
+			parsed.tools.length > 0 ||
+			parsed.sources.length > 0;
+		// Pre-compute the inline content for user messages so we
+		// avoid a filter + map inside the JSX return path.
+		const userInlineContent = isUser
+			? parsed.blocks.filter(
+					(
+						b,
+					): b is
+						| Extract<RenderBlock, { type: "response" }>
+						| Extract<RenderBlock, { type: "file-reference" }> =>
+						b.type === "response" || b.type === "file-reference",
+				)
+			: [];
+		const userFileBlocks = isUser
+			? parsed.blocks.filter(
+					(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
+				)
+			: [];
+		const hasUserMessageBody =
+			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
+		const hasFileBlocks = userFileBlocks.length > 0;
+
+		const conversationItemProps: { role: "user" | "assistant" } = {
+			role: isUser ? "user" : "assistant",
+		};
+		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
+			blocks: parsed.blocks,
+			toolByID,
+			keyPrefix: String(message.id),
+			onImageClick: setPreviewImage,
+			onTextFileClick: (content) => setPreviewText(content),
+			urlTransform,
+			mcpServers,
+		});
+		const remainingTools = parsed.tools.filter(
+			(tool) => !renderedToolIDs.has(tool.id),
+		);
+
+		return (
+			<div
+				className={cn(
+					isAfterEditingMessage && "opacity-40 pointer-events-none",
+					"transition-opacity duration-200",
+				)}
+			>
+				<ConversationItem {...conversationItemProps}>
+					{isUser ? (
+						<Message className="w-full max-w-none">
+							<MessageContent
+								className={cn(
+									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
+									editingMessageId === message.id &&
+										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+									isSavingMessage && "ring-2 ring-content-secondary/40",
+									fadeFromBottom && "relative overflow-hidden",
+								)}
+								style={
+									fadeFromBottom
+										? { maxHeight: "var(--clip-h, none)" }
+										: undefined
+								}
+							>
+								<div className="flex flex-col gap-1.5">
+									{(hasUserMessageBody || hasFileBlocks) && (
+										<div className="flex items-start gap-2">
+											{hasUserMessageBody && (
+												<span className="min-w-0 flex-1">
+													{userInlineContent.length > 0
+														? userInlineContent.map((block, i) =>
+																block.type === "response" ? (
+																	<Fragment key={i}>{block.text}</Fragment>
+																) : (
+																	<FileReferenceChip
+																		key={i}
+																		fileName={block.file_name}
+																		startLine={block.start_line}
+																		endLine={block.end_line}
+																		className="mx-1"
+																	/>
+																),
+															)
+														: parsed.markdown || ""}
+												</span>
+											)}
+											{isSavingMessage && (
+												<Spinner
+													className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
+													aria-label="Saving message edit"
+													loading
+												/>
+											)}
+											{onEditUserMessage && !isSavingMessage && (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<button
+															type="button"
+															className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
+															aria-label="Edit message"
+															onClick={() => {
+																const fileBlocks = parsed.blocks.filter(
+																	(
+																		b,
+																	): b is Extract<
+																		RenderBlock,
+																		{ type: "file" }
+																	> =>
+																		b.type === "file" &&
+																		(b.media_type.startsWith("image/") ||
+																			b.media_type === "text/plain"),
+																);
+																onEditUserMessage(
+																	message.id,
+																	parsed.markdown || "",
+																	fileBlocks.length > 0
+																		? fileBlocks
+																		: undefined,
+																);
+															}}
+														>
+															<PencilIcon className="size-3.5" />
+														</button>
+													</TooltipTrigger>
+													<TooltipContent side="top">
+														Edit message
+													</TooltipContent>
+												</Tooltip>
+											)}
+										</div>
+									)}
+									{(() => {
+										if (userFileBlocks.length === 0) return null;
+										return (
+											<div
+												className={cn(
+													hasUserMessageBody && "mt-2",
+													"flex flex-wrap gap-2",
+												)}
+											>
+												{userFileBlocks.map((block, i) =>
+													renderFileBlock({
+														block,
+														key: `user-file-${block.file_id ?? i}`,
+														onImageClick: setPreviewImage,
+														onTextFileClick: setPreviewText,
+													}),
+												)}
+											</div>
+										);
+									})()}
+									{fadeFromBottom && (
+										<div
+											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
+											style={{
+												background:
+													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
+											}}
+										/>
+									)}
+								</div>
+							</MessageContent>
+						</Message>
+					) : (
+						<Message className="w-full">
+							<MessageContent className="whitespace-normal">
+								<div className="space-y-3">
+									{orderedBlocks}
+									{remainingTools.map((tool) => (
+										<Tool
+											key={tool.id}
+											name={tool.name}
+											args={tool.args}
+											result={tool.result}
+											status={tool.status}
+											isError={tool.isError}
+											mcpServerConfigId={tool.mcpServerConfigId}
+											mcpServers={mcpServers}
+										/>
+									))}
+									{!hasRenderableContent && (
+										<div className="text-xs text-content-secondary">
+											Message has no renderable content.
+										</div>
+									)}
+								</div>
+							</MessageContent>
+						</Message>
+					)}
+				</ConversationItem>
+				{previewImage && (
+					<ImageLightbox
+						src={previewImage}
+						onClose={() => setPreviewImage(null)}
+					/>
+				)}
+				{previewText !== null && (
+					<TextPreviewDialog
+						content={previewText}
+						onClose={() => setPreviewText(null)}
+					/>
+				)}
+			</div>
+		);
+	},
+);
+
+const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
+	liveStatus.phase === "starting" ||
+	liveStatus.phase === "retrying" ||
+	liveStatus.phase === "reconnecting";
+
+export const StreamingOutput: FC<{
+	streamState: StreamState | null;
+	streamTools: readonly MergedTool[];
+	subagentTitles?: Map<string, string>;
+	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	liveStatus: LiveStatusModel;
+	startingResetKey?: string;
+	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+}> = ({
+	streamState,
+	streamTools,
+	subagentTitles,
+	subagentStatusOverrides,
+	liveStatus,
+	startingResetKey,
 	urlTransform,
 	mcpServers,
 }) => {
-	const isUser = message.role === "user";
-	const isSavingMessage = savingMessageId === message.id;
-	const [previewImage, setPreviewImage] = useState<string | null>(null);
-	const [previewText, setPreviewText] = useState<string | null>(null);
-	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
-
-	if (
-		parsed.toolResults.length > 0 &&
-		parsed.toolCalls.length === 0 &&
-		parsed.markdown === "" &&
-		parsed.reasoning === ""
-	) {
+	if (liveStatus.phase === "idle") {
 		return null;
 	}
 
-	// Hide messages that consist entirely of provider-executed
-	// tool results. The parser skips these parts, so the parsed
-	// output is empty and would show a "no renderable content"
-	// fallback.
-	const parts = message.content ?? [];
-	if (
-		parts.length > 0 &&
-		parts.every((p) => p.type === "tool-result" && p.provider_executed)
-	) {
+	const isStreaming = liveStatus.phase === "streaming";
+	const shouldShowBlocks =
+		liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
+	const shouldShowStatusCallout = hasTransientLiveStatus(liveStatus);
+	if (!shouldShowBlocks && !shouldShowStatusCallout) {
 		return null;
 	}
 
-	const hasRenderableContent =
-		parsed.blocks.length > 0 ||
-		parsed.tools.length > 0 ||
-		parsed.sources.length > 0;
-	// Pre-compute the inline content for user messages so we
-	// avoid a filter + map inside the JSX return path.
-	const userInlineContent = isUser
-		? parsed.blocks.filter(
-				(
-					b,
-				): b is
-					| Extract<RenderBlock, { type: "response" }>
-					| Extract<RenderBlock, { type: "file-reference" }> =>
-					b.type === "response" || b.type === "file-reference",
-			)
-		: [];
-
-	const userFileBlocks = isUser
-		? parsed.blocks.filter(
-				(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
-			)
-		: [];
-
-	const hasUserMessageBody =
-		userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
-	const hasFileBlocks = userFileBlocks.length > 0;
-
-	const conversationItemProps: { role: "user" | "assistant" } = {
-		role: isUser ? "user" : "assistant",
-	};
+	const conversationItemProps = { role: "assistant" as const };
+	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
+	const blocks = shouldShowBlocks ? (streamState?.blocks ?? []) : [];
 	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-		blocks: parsed.blocks,
+		blocks,
 		toolByID,
-		keyPrefix: String(message.id),
-		onImageClick: setPreviewImage,
-		onTextFileClick: (content) => setPreviewText(content),
+		keyPrefix: "stream",
+		isStreaming,
+		subagentTitles,
+		subagentStatusOverrides,
 		urlTransform,
 		mcpServers,
 	});
-	const remainingTools = parsed.tools.filter(
-		(tool) => !renderedToolIDs.has(tool.id),
-	);
+	const remainingTools = shouldShowBlocks
+		? streamTools.filter((tool) => !renderedToolIDs.has(tool.id))
+		: [];
 
 	return (
-		<div
-			className={cn(
-				isAfterEditingMessage && "opacity-40 pointer-events-none",
-				"transition-opacity duration-200",
-			)}
-		>
-			<ConversationItem {...conversationItemProps}>
-				{isUser ? (
-					<Message className="w-full max-w-none">
-						<MessageContent
-							className={cn(
-								"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
-								editingMessageId === message.id &&
-									"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-								isSavingMessage && "ring-2 ring-content-secondary/40",
-								fadeFromBottom && "relative overflow-hidden",
-							)}
-							style={
-								fadeFromBottom
-									? { maxHeight: "var(--clip-h, none)" }
-									: undefined
-							}
-						>
-							<div className="flex flex-col gap-1.5">
-								{(hasUserMessageBody || hasFileBlocks) && (
-									<div className="flex items-start gap-2">
-										{hasUserMessageBody && (
-											<span className="min-w-0 flex-1">
-												{userInlineContent.length > 0
-													? userInlineContent.map((block, i) =>
-															block.type === "response" ? (
-																<Fragment key={i}>{block.text}</Fragment>
-															) : (
-																<FileReferenceChip
-																	key={i}
-																	fileName={block.file_name}
-																	startLine={block.start_line}
-																	endLine={block.end_line}
-																	className="mx-1"
-																/>
-															),
-														)
-													: parsed.markdown || ""}
-											</span>
-										)}
-										{isSavingMessage && (
-											<Spinner
-												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
-												aria-label="Saving message edit"
-												loading
-											/>
-										)}
-										{onEditUserMessage && !isSavingMessage && (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<button
-														type="button"
-														className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
-														aria-label="Edit message"
-														onClick={() => {
-															const fileBlocks = parsed.blocks.filter(
-																(
-																	b,
-																): b is Extract<
-																	RenderBlock,
-																	{ type: "file" }
-																> =>
-																	b.type === "file" &&
-																	(b.media_type.startsWith("image/") ||
-																		b.media_type === "text/plain"),
-															);
-															onEditUserMessage(
-																message.id,
-																parsed.markdown || "",
-																fileBlocks.length > 0 ? fileBlocks : undefined,
-															);
-														}}
-													>
-														<PencilIcon className="size-3.5" />
-													</button>
-												</TooltipTrigger>
-												<TooltipContent side="top">Edit message</TooltipContent>
-											</Tooltip>
-										)}
-									</div>
-								)}
-								{(() => {
-									if (userFileBlocks.length === 0) return null;
-									return (
-										<div
-											className={cn(
-												hasUserMessageBody && "mt-2",
-												"flex flex-wrap gap-2",
-											)}
-										>
-											{userFileBlocks.map((block, i) =>
-												renderFileBlock({
-													block,
-													key: `user-file-${block.file_id ?? i}`,
-													onImageClick: setPreviewImage,
-													onTextFileClick: setPreviewText,
-												}),
-											)}
-										</div>
-									);
-								})()}
-								{fadeFromBottom && (
-									<div
-										className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-										style={{
-											background:
-												"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-										}}
-									/>
-								)}
-							</div>
-						</MessageContent>
-					</Message>
-				) : (
-					<Message className="w-full">
-						<MessageContent className="whitespace-normal">
-							<div className="space-y-3">
+		<ConversationItem {...conversationItemProps}>
+			<Message className="w-full">
+				<MessageContent className="whitespace-normal">
+					<div className="space-y-3">
+						{shouldShowBlocks && (
+							<>
 								{orderedBlocks}
 								{remainingTools.map((tool) => (
 									<Tool
@@ -614,112 +714,22 @@ const ChatMessageItem: FC<ChatMessageItemProps> = ({
 										result={tool.result}
 										status={tool.status}
 										isError={tool.isError}
+										subagentTitles={isStreaming ? subagentTitles : undefined}
+										subagentStatusOverrides={
+											isStreaming ? subagentStatusOverrides : undefined
+										}
 										mcpServerConfigId={tool.mcpServerConfigId}
 										mcpServers={mcpServers}
 									/>
 								))}
-								{!hasRenderableContent && (
-									<div className="text-xs text-content-secondary">
-										Message has no renderable content.
-									</div>
-								)}
-							</div>
-						</MessageContent>
-					</Message>
-				)}
-			</ConversationItem>
-			{previewImage && (
-				<ImageLightbox
-					src={previewImage}
-					onClose={() => setPreviewImage(null)}
-				/>
-			)}
-			{previewText !== null && (
-				<TextPreviewDialog
-					content={previewText}
-					onClose={() => setPreviewText(null)}
-				/>
-			)}
-		</div>
-	);
-};
-
-export const StreamingOutput: FC<{
-	streamState: StreamState | null;
-	streamTools: readonly MergedTool[];
-	subagentTitles?: Map<string, string>;
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	showInitialPlaceholder?: boolean;
-	retryState?: { attempt: number; error: string } | null;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-}> = ({
-	streamState,
-	streamTools,
-	subagentTitles,
-	subagentStatusOverrides,
-	showInitialPlaceholder = false,
-	retryState,
-	urlTransform,
-	mcpServers,
-}) => {
-	const conversationItemProps = { role: "assistant" as const };
-	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
-	const blocks = streamState?.blocks ?? [];
-	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-		blocks,
-		toolByID,
-		keyPrefix: "stream",
-		isStreaming: true,
-		subagentTitles,
-		subagentStatusOverrides,
-		urlTransform,
-		mcpServers,
-	});
-	const remainingTools = streamTools.filter(
-		(tool) => !renderedToolIDs.has(tool.id),
-	);
-
-	return (
-		<ConversationItem {...conversationItemProps}>
-			<Message className="w-full">
-				<MessageContent className="whitespace-normal">
-					<div className="space-y-3">
-						{orderedBlocks}
-						{showInitialPlaceholder ||
-						(streamState &&
-							orderedBlocks.length === 0 &&
-							streamTools.length === 0) ? (
-							<div className="relative">
-								<Response aria-hidden className="invisible">
-									{`Thinking...${retryState ? ` attempt ${retryState.attempt}` : ""}`}
-								</Response>
-								<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-									<Shimmer as="div" className="text-[13px] leading-relaxed">
-										Thinking...
-									</Shimmer>
-									{retryState && (
-										<span className="text-[11px] text-content-secondary">
-											attempt {retryState.attempt}
-										</span>
-									)}
-								</div>
-							</div>
-						) : null}
-						{remainingTools.map((tool) => (
-							<Tool
-								key={tool.id}
-								name={tool.name}
-								args={tool.args}
-								result={tool.result}
-								status={tool.status}
-								isError={tool.isError}
-								subagentTitles={subagentTitles}
-								subagentStatusOverrides={subagentStatusOverrides}
-								mcpServerConfigId={tool.mcpServerConfigId}
-								mcpServers={mcpServers}
+							</>
+						)}
+						{shouldShowStatusCallout && (
+							<ChatStatusCallout
+								status={liveStatus}
+								startingResetKey={startingResetKey}
 							/>
-						))}
+						)}
 					</div>
 				</MessageContent>
 			</Message>
@@ -1013,16 +1023,7 @@ const StickyUserMessage: FC<{
 };
 
 interface ConversationTimelineProps {
-	isEmpty: boolean;
 	parsedMessages: readonly ParsedMessageEntry[];
-	hasStreamOutput: boolean;
-	streamState: StreamState | null;
-	streamTools: readonly MergedTool[];
-	subagentTitles: Map<string, string>;
-	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	retryState?: { attempt: number; error: string } | null;
-	isAwaitingFirstStreamChunk: boolean;
-	detailError?: ChatDetailError | null;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -1035,25 +1036,16 @@ interface ConversationTimelineProps {
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
-	isEmpty,
 	parsedMessages,
-	hasStreamOutput,
-	streamState,
-	streamTools,
-	subagentTitles,
-	subagentStatusOverrides,
-	retryState,
-	isAwaitingFirstStreamChunk,
-	detailError,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
 	mcpServers,
 }) => {
-	const shouldRenderStreamAfterMessages =
-		hasStreamOutput && parsedMessages.length > 0;
-	const isUsageLimitError = detailError?.kind === "usage-limit";
+	if (parsedMessages.length === 0) {
+		return null;
+	}
 
 	// Build a set of message IDs that appear after the message
 	// currently being edited so they can be visually faded.
@@ -1072,76 +1064,29 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-3xl space-y-3 py-6">
-			{isEmpty && !hasStreamOutput ? (
-				<div className="py-12 text-center text-content-secondary">
-					<p className="text-sm">Start a conversation with your agent.</p>
-				</div>
-			) : (
-				<div className="flex flex-col gap-3">
-					{parsedMessages.map(({ message, parsed }) =>
-						message.role === "user" ? (
-							<StickyUserMessage
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
-								savingMessageId={savingMessageId}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
-						) : (
-							<ChatMessageItem
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								savingMessageId={savingMessageId}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								mcpServers={mcpServers}
-							/>
-						),
-					)}
-					{shouldRenderStreamAfterMessages && (
-						<StreamingOutput
-							streamState={streamState}
-							streamTools={streamTools}
-							subagentTitles={subagentTitles}
-							subagentStatusOverrides={subagentStatusOverrides}
-							showInitialPlaceholder={isAwaitingFirstStreamChunk}
-							retryState={retryState}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-						/>
-					)}
-					{hasStreamOutput && parsedMessages.length === 0 && (
-						<StreamingOutput
-							streamState={streamState}
-							streamTools={streamTools}
-							subagentTitles={subagentTitles}
-							subagentStatusOverrides={subagentStatusOverrides}
-							showInitialPlaceholder={isAwaitingFirstStreamChunk}
-							retryState={retryState}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-						/>
-					)}
-				</div>
-			)}
-			{detailError && (
-				<Alert
-					severity={isUsageLimitError ? "info" : "error"}
-					className="py-2"
-					actions={
-						isUsageLimitError && (
-							<Button asChild variant="subtle" size="sm">
-								<Link to="/agents/analytics">View Usage</Link>
-							</Button>
-						)
-					}
-				>
-					{detailError.message}
-				</Alert>
+		<div className="flex flex-col gap-3">
+			{parsedMessages.map(({ message, parsed }) =>
+				message.role === "user" ? (
+					<StickyUserMessage
+						key={message.id}
+						message={message}
+						parsed={parsed}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						savingMessageId={savingMessageId}
+						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+					/>
+				) : (
+					<ChatMessageItem
+						key={message.id}
+						message={message}
+						parsed={parsed}
+						savingMessageId={savingMessageId}
+						urlTransform={urlTransform}
+						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+						mcpServers={mcpServers}
+					/>
+				),
 			)}
 		</div>
 	);

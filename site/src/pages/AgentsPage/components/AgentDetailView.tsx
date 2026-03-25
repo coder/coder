@@ -9,11 +9,7 @@ import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
-import {
-	selectChatStatus,
-	useChatSelector,
-	type useChatStore,
-} from "./AgentDetail/ChatContext";
+import type { useChatStore } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetailContent";
 import {
@@ -55,8 +51,7 @@ interface AgentDetailViewProps {
 	agentId: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
-	chatErrorReasons: Record<string, ChatDetailError>;
-	chatRecord: TypesGen.Chat | undefined;
+	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
 
@@ -139,8 +134,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	agentId,
 	chatTitle,
 	parentChat,
-	chatErrorReasons,
-	chatRecord,
+	persistedError,
 	isArchived,
 	hasWorkspace,
 	store,
@@ -192,7 +186,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
-	const chatStatus = useChatSelector(store, selectChatStatus);
 
 	// Compute local diff stats from git watcher unified diffs.
 
@@ -269,13 +262,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				>
 					<div className="px-4">
 						<AgentDetailTimeline
+							chatID={agentId}
 							store={store}
-							persistedErrorReason={
-								chatErrorReasons[agentId] ??
-								(chatStatus === "error" && chatRecord?.last_error
-									? { kind: "generic" as const, message: chatRecord.last_error }
-									: undefined)
-							}
+							persistedError={persistedError}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
