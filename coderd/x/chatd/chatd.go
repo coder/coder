@@ -407,6 +407,7 @@ type CreateOptions struct {
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
 	MCPServerIDs       []uuid.UUID
+	Labels             database.StringMap
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -485,11 +486,19 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.MCPServerIDs == nil {
 		opts.MCPServerIDs = []uuid.UUID{}
 	}
+	if opts.Labels == nil {
+		opts.Labels = database.StringMap{}
+	}
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
 		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID); limitErr != nil {
 			return limitErr
+		}
+
+		labelsJSON, err := json.Marshal(opts.Labels)
+		if err != nil {
+			return xerrors.Errorf("marshal labels: %w", err)
 		}
 
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
@@ -501,6 +510,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
 			MCPServerIDs:      opts.MCPServerIDs,
+			Labels: pqtype.NullRawMessage{
+				RawMessage: labelsJSON,
+				Valid:      true,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
