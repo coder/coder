@@ -9,7 +9,7 @@
 
 The Agents frontend is a single-page chat application embedded within Coder's
 dashboard. It communicates with the backend via REST endpoints under
-`/api/experimental/chats/` and real-time SSE/WebSocket streams.
+`/api/experimental/chats/` and real-time one-way WebSocket streams.
 
 **Naming mismatch**: The frontend routes use `/agents` while the backend API
 uses `/api/experimental/chats/`. The UI calls them "agents", the backend calls
@@ -232,6 +232,77 @@ Multi-section settings view (~1,080 lines):
 
 ---
 
+## Configuration Sources the UI Must Reconcile
+
+The frontend has to stitch together multiple backend configuration layers that
+look similar in the UI but are not the same thing in the API.
+
+### Model/provider data does not come from one source
+
+The create and detail pages need all of the following:
+
+- **`chatProviderConfigs()`** — admin/provider management view over provider
+  configs.
+- **`chatModelConfigs()`** — admin-managed per-model config rows (default,
+  context limit, pricing, compression threshold, provider-specific options).
+- **`chatModels()`** — user-facing runtime availability catalog derived from
+  enabled providers, enabled model configs, and effective API keys.
+
+That means the frontend cannot treat "models" as one resource. It has to map
+between the runtime catalog and the admin config rows.
+
+### Model selection requires ID translation
+
+The UI stores and submits `model_config_id`, but the runtime model selector is
+built from provider/model tuples. `utils/modelOptions.ts` bridges that gap by
+building lookup maps in both directions (`provider:model` ↔ `model_config_id`).
+
+This is why both `AgentCreatePage` and `AgentDetail` query `chatModels()` and
+`chatModelConfigs()` together. The last chosen model config is also cached in
+`localStorage` under `agents.last-model-config-id`.
+
+### Behavior settings are split across admin-owned and user-owned state
+
+The `behavior` settings section is really several scopes grouped into one page:
+
+- **User-owned**: personal instructions (`user-prompt`) and per-model user
+  compaction thresholds.
+- **Admin-owned**: system prompt, desktop enablement, workspace TTL, template
+  allowlist, providers/models, MCP server definitions, usage limits.
+- **Runtime-derived**: whether computer use is actually possible depends on more
+  than the `desktop-enabled` toggle.
+
+The page mostly hides admin controls behind `editDeploymentConfig`, but several
+backend read paths are still available to non-admin users. The UI's mental
+model is simpler than the backend's actual policy matrix.
+
+### MCP state spans deployment, user, chat, and browser layers
+
+`MCPServerPicker` has to reconcile four layers of state:
+
+1. **Deployment config**: admin-defined MCP server configs.
+2. **Per-user auth state**: OAuth connection status (`auth_connected`).
+3. **Per-chat selection**: the `mcp_server_ids` sent when creating/sending
+   messages.
+4. **Browser-local memory**: saved selection in
+   `agents.selected-mcp-server-ids`.
+
+`getDefaultMCPSelection()` and `getSavedMCPSelection()` also encode product
+policy from `force_on`, `default_on`, and `default_off`. Some of the "what is
+selected by default" behavior therefore lives in the client rather than only
+in the server.
+
+### The frontend tolerates several backend ownership quirks
+
+- Provider config lists may contain real DB rows, env-preset providers, and
+  synthetic supported providers in the same response.
+- Runtime model availability is not the same as model-config existence.
+- `desktop-enabled` does not guarantee computer use is actually usable.
+- Config auth failures are not normalized: some endpoints return `403`, others
+  intentionally collapse to `404`.
+
+---
+
 ## API Surface
 
 ### REST Endpoints (via `ExperimentalApiMethods`)
@@ -254,10 +325,80 @@ Multi-section settings view (~1,080 lines):
 
 | Stream | Route | Purpose |
 |---|---|---|
-| `watchChat(chatId)` | `/api/experimental/chats/{id}/stream` | Per-chat SSE events |
-| `watchChats()` | `/api/experimental/chats/watch` | Global chat list SSE |
+| `watchChat(chatId)` | `/api/experimental/chats/{id}/stream` | Per-chat event stream over one-way WebSocket |
+| `watchChats()` | `/api/experimental/chats/watch` | Global chat list watch over one-way WebSocket |
 | `watchChatGit(chatId)` | `/api/experimental/chats/{id}/stream/git` | Git change WebSocket |
 | `watchChatDesktop(chatId)` | `/api/experimental/chats/{id}/stream/desktop` | Desktop VNC WebSocket |
+
+---
+
+## Realtime Reconciliation Model
+
+The frontend does not treat the websocket stream as the single source of truth.
+It uses a **REST + WebSocket hybrid**:
+
+- **REST** owns durable history (`getChat`, paginated `getChatMessages`, chat
+  list queries).
+- **Per-chat websocket** augments that history with live `message_part`,
+  `message`, `status`, `error`, `retry`, and `queue_update` events.
+- **Global watch websocket** augments the sidebar/list cache with owner-scoped
+  chat events.
+
+### Transport details
+
+`watchChat()` and `watchChats()` use `OneWayWebSocket`, not browser
+`EventSource`. The wrapper exists specifically to avoid the browser/HTTP 1.1
+connection-limit problems that real SSE would have caused across tabs. The
+server still sends event-style payloads, but the transport is one-way
+WebSockets.
+
+### Per-chat reconnect strategy
+
+`ChatContext` waits for the initial REST message history before opening the
+socket so it can seed `lastMessageIdRef`. Reconnects then call
+`watchChat(chatId, after_id)` with the last durable message ID.
+
+On a successful reopen, `resetTransportReplayState()` clears:
+- ephemeral stream-part state,
+- transport-scoped stream errors,
+- reconnect/backoff UI state.
+
+This is an explicit trade-off: durable messages recover; partially streamed
+text/thinking/tool-call state may not.
+
+### What is recoverable vs not
+
+| State | Recovery behavior |
+|---|---|
+| Durable messages | Recovered by `after_id` and upserted by message ID |
+| Sidebar/list state | Reconciled by invalidating chat-list queries on reopen |
+| Queue state | WebSocket becomes authoritative after `queue_update` events |
+| In-flight `message_part` state | Not durably recoverable; rebuilt only from newly streamed parts |
+| Edit truncation | Requires explicit REST invalidation because websocket updates cannot remove stale cached messages |
+
+### Per-event ownership
+
+- **`message_part`** -> ephemeral reducer in `streamState.ts`.
+- **`message`** -> durable store + React Query cache via `upsertDurableMessages`.
+- **`status`** -> chat store + sidebar cache.
+- **`error`** -> transport error state, plus persisted error fallback from the
+  chat query.
+- **`retry`** -> clears current stream UI and surfaces retry/backoff state.
+- **`queue_update`** -> replaces queued message state in both the external store
+  and React Query cache.
+
+### Non-stream realtime surfaces
+
+`watchChatGit()`, `watchChatDesktop()`, and `watchWorkspace()` sit beside the
+main chat stream rather than being part of the durable reconciliation path.
+They have their own failure and reconnect semantics.
+
+### Binding-change caveat
+
+Workspace attachment changes are not streamed as a dedicated chat-binding
+event. `useWorkspaceCreationWatcher()` works around that by noticing a
+`create_workspace` tool result and invalidating the chat query so the updated
+`workspace_id` appears in the UI.
 
 ---
 
@@ -292,8 +433,9 @@ flow:
 
 4. **WebSocket events update React Query cache directly.** This avoids flicker
    but means the cache can drift if events are missed (e.g. network blip during
-   reconnection). What is the recovery strategy? Is there periodic
-   reconciliation?
+   reconnection). The current answer is "reopen + invalidate" for durable
+   state, but live `message_part` output is still lossy. Is that acceptable for
+   GA?
 
 5. **`setTimeout(0)` coalescing for stream parts.** The `message_part` buffer
    flushes via `setTimeout(0)`. Under heavy tool-call output, how does this
@@ -322,11 +464,16 @@ flow:
     essentially a mini-page. Should these be separate route-level components
     rather than sections within one view?
 
-11. **Model config schema is generated from Go struct tags** via
+11. **Model/config ownership leaks into the frontend.** Create/detail pages
+    need both `chatModels()` and `chatModelConfigs()`, then map
+    `provider:model` back to `model_config_id`. Is that layering intentional, or
+    should the backend expose a simpler user-facing model selection surface?
+
+12. **Model config schema is generated from Go struct tags** via
     `scripts/modeloptionsgen` → `chatModelOptionsGenerated.json`. How is this
     kept in sync? Is it part of `make gen`?
 
-12. **File uploads go through a separate endpoint** (`uploadChatFile`) that
+13. **File uploads go through a separate endpoint** (`uploadChatFile`) that
     returns a file ID. The file is then referenced in messages via
     `FileReferenceNode`. But as noted in the backend doc, `chat_files` has no
     FK to `chats` — so uploaded files are orphaned when chats are archived.
