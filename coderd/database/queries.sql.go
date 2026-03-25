@@ -17642,6 +17642,18 @@ func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return enable_desktop, err
 }
 
+const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
+SELECT
+    COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_include_default_system_prompt'), true) :: boolean AS include_default_system_prompt
+`
+
+func (q *sqlQuerier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getChatIncludeDefaultSystemPrompt)
+	var include_default_system_prompt bool
+	err := row.Scan(&include_default_system_prompt)
+	return include_default_system_prompt, err
+}
+
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
@@ -17886,6 +17898,28 @@ WHERE site_configs.key = 'agents_desktop_enabled'
 
 func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatDesktopEnabled, enableDesktop)
+	return err
+}
+
+const upsertChatIncludeDefaultSystemPrompt = `-- name: UpsertChatIncludeDefaultSystemPrompt :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_include_default_system_prompt',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_include_default_system_prompt'
+`
+
+func (q *sqlQuerier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
+	_, err := q.db.ExecContext(ctx, upsertChatIncludeDefaultSystemPrompt, includeDefaultSystemPrompt)
 	return err
 }
 

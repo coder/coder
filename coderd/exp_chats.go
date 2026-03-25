@@ -2711,8 +2711,18 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPrompt{
-		SystemPrompt: prompt,
+	includeDefault, err := api.Database.GetChatIncludeDefaultSystemPrompt(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat system prompt configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
+		SystemPrompt:               prompt,
+		IncludeDefaultSystemPrompt: includeDefault,
+		DefaultSystemPrompt:        chatd.DefaultSystemPrompt,
 	})
 }
 
@@ -2721,7 +2731,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-	var req codersdk.ChatSystemPrompt
+	var req codersdk.UpdateChatSystemPromptRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -2742,6 +2752,17 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	err = api.Database.UpsertChatIncludeDefaultSystemPrompt(ctx, req.IncludeDefaultSystemPrompt)
+	if httpapi.Is404Error(err) { // also catches authz error
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat system prompt configuration.",
 			Detail:  err.Error(),
 		})
 		return
@@ -3254,14 +3275,25 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}
+	includeDefault, err := api.Database.GetChatIncludeDefaultSystemPrompt(ctx)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to fetch include-default setting, using default", slog.Error(err))
+		return chatd.DefaultSystemPrompt
+	}
+
 	sanitized := chatd.SanitizePromptText(custom)
 	if sanitized == "" && strings.TrimSpace(custom) != "" {
-		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, using default")
+		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
+	}
+
+	var parts []string
+	if includeDefault {
+		parts = append(parts, chatd.DefaultSystemPrompt)
 	}
 	if sanitized != "" {
-		return sanitized
+		parts = append(parts, sanitized)
 	}
-	return chatd.DefaultSystemPrompt
+	return strings.Join(parts, "\n\n")
 }
 
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {

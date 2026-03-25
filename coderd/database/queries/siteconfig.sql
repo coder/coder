@@ -167,6 +167,26 @@ WHERE site_configs.key = 'agents_desktop_enabled';
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist;
 
+-- name: GetChatIncludeDefaultSystemPrompt :one
+SELECT
+    COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_include_default_system_prompt'), true) :: boolean AS include_default_system_prompt;
+
+-- name: UpsertChatIncludeDefaultSystemPrompt :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_include_default_system_prompt',
+    CASE
+        WHEN sqlc.arg(include_default_system_prompt)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(include_default_system_prompt)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_include_default_system_prompt';
+
 -- name: GetChatWorkspaceTTL :one
 -- Returns the global TTL for chat workspaces as a Go duration string.
 -- Returns "0s" (disabled) when no value has been configured.
