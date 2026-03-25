@@ -19,6 +19,7 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
+import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
 import {
@@ -480,24 +481,30 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
+	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
+
 	return (
-		<>
-			<div className="flex items-center gap-2">
-				<ToolIcon
-					name={name}
-					isError={status === "error" || isError}
-					iconUrl={mcpServer?.icon_url}
-				/>
-				<ToolLabel
-					name={name}
-					args={args}
-					result={result}
-					mcpSlug={mcpServer?.slug}
-				/>
-			</div>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={
+				<>
+					<ToolIcon
+						name={name}
+						isError={status === "error" || isError}
+						iconUrl={mcpServer?.icon_url}
+					/>
+					<ToolLabel
+						name={name}
+						args={args}
+						result={result}
+						mcpSlug={mcpServer?.slug}
+					/>
+				</>
+			}
+		>
 			{writeFileDiff ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
@@ -509,7 +516,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 				</ScrollArea>
 			) : fileContent ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
@@ -524,7 +531,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			) : (
 				resultOutput && (
 					<ScrollArea
-						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 						viewportClassName="max-h-64"
 						scrollBarClassName="w-1.5"
 					>
@@ -539,7 +546,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					</ScrollArea>
 				)
 			)}
-		</>
+		</ToolCollapsible>
 	);
 };
 
