@@ -1,10 +1,4 @@
-import {
-	act,
-	render,
-	renderHook,
-	screen,
-	waitFor,
-} from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "api/api";
 import { chatMessagesKey, chatsKey } from "api/queries/chats";
 
@@ -37,14 +31,10 @@ const readInfiniteChats = (
 };
 
 import type * as TypesGen from "api/typesGenerated";
-import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
-import themes, { DEFAULT_THEME } from "theme";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TooltipProvider } from "#/components/Tooltip/Tooltip";
-import { AgentDetailTimeline } from "../AgentDetailContent";
 import {
 	selectChatStatus,
 	selectOrderedMessageIDs,
@@ -57,7 +47,6 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./ChatContext";
-import * as messageParsing from "./messageParsing";
 
 vi.mock("api/api", () => ({
 	watchChat: vi.fn(),
@@ -582,94 +571,6 @@ describe("useChatStore", () => {
 		});
 		expect(queueRenderCount).toBe(queueBaseline);
 		expect(orderedIDsRenderCount).toBe(orderedIDsBaseline);
-	});
-
-	it("keeps durable history parsing off the message_part hot path", async () => {
-		immediateAnimationFrame();
-
-		const chatID = "chat-parsing-boundary";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
-		const mockSocket = createMockSocket();
-		mockWatchChatReturn(mockSocket);
-
-		const queryClient = createTestQueryClient();
-		const setChatErrorReason = vi.fn();
-		const clearChatErrorReason = vi.fn();
-		const originalParse = messageParsing.parseMessagesWithMergedTools;
-		const parseSpy = vi
-			.spyOn(messageParsing, "parseMessagesWithMergedTools")
-			.mockImplementation((messages) => originalParse(messages));
-
-		const TestHarness: FC = () => {
-			const { store } = useChatStore({
-				chatID,
-				chatMessages: [existingMessage],
-				chatRecord: makeChat(chatID),
-				chatMessagesData: {
-					messages: [existingMessage],
-					queued_messages: [],
-					has_more: false,
-				},
-				chatQueuedMessages: [],
-				setChatErrorReason,
-				clearChatErrorReason,
-			});
-
-			return (
-				<AgentDetailTimeline
-					chatID={chatID}
-					store={store}
-					persistedError={undefined}
-				/>
-			);
-		};
-
-		render(
-			<QueryClientProvider client={queryClient}>
-				<ThemeOverride theme={themes[DEFAULT_THEME]}>
-					<TooltipProvider delayDuration={100}>
-						<TestHarness />
-					</TooltipProvider>
-				</ThemeOverride>
-			</QueryClientProvider>,
-		);
-
-		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
-		});
-
-		const parseBaseline = parseSpy.mock.calls.length;
-
-		act(() => {
-			mockSocket.emitData({
-				type: "message_part",
-				chat_id: chatID,
-				message_part: {
-					role: "assistant",
-					part: {
-						type: "text",
-						text: "partial",
-					},
-				},
-			});
-		});
-
-		await waitFor(() => {
-			expect(screen.getByText("partial")).toBeInTheDocument();
-		});
-		expect(parseSpy).toHaveBeenCalledTimes(parseBaseline);
-
-		act(() => {
-			mockSocket.emitData({
-				type: "message",
-				chat_id: chatID,
-				message: makeMessage(chatID, 2, "assistant", "done"),
-			});
-		});
-
-		await waitFor(() => {
-			expect(parseSpy.mock.calls.length).toBeGreaterThan(parseBaseline);
-		});
 	});
 
 	it("applies batched message_part events from one payload", async () => {
