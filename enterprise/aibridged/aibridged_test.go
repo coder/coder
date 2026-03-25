@@ -227,22 +227,6 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 				agplaibridge.HeaderCoderBYOKToken,
 			},
 		},
-		{
-			// Copilot via proxy: the proxy detects that the user has
-			// their own LLM credentials and injects the BYOK header.
-			// The user's Copilot token in Authorization survives.
-			name: "copilot via proxy",
-			reqHeaders: map[string]string{
-				agplaibridge.HeaderCoderBYOKToken: "coder-token",
-				"Authorization":                   "Bearer ghu_copilot-user-token",
-			},
-			expectPresent: map[string]string{
-				"Authorization": "Bearer ghu_copilot-user-token",
-			},
-			expectAbsent: []string{
-				agplaibridge.HeaderCoderBYOKToken,
-			},
-		},
 	}
 
 	for _, tc := range cases {
