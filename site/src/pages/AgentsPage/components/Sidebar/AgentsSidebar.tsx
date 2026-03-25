@@ -905,7 +905,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										fallback={user.username}
 										src={user.avatar_url}
 										size="sm"
-										className="rounded-full"
 									/>
 									<span className="truncate text-sm text-content-secondary">
 										{user.name || user.username}

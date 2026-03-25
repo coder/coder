@@ -51,7 +51,11 @@ import {
 	AgentDetailNotFoundView,
 	AgentDetailView,
 } from "./components/AgentDetailView";
-import { getDefaultMCPSelection } from "./components/MCPServerPicker";
+import {
+	getDefaultMCPSelection,
+	getSavedMCPSelection,
+	saveMCPSelection,
+} from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
 	buildModelConfigIDByModelID,
@@ -323,6 +327,7 @@ const AgentDetail: FC = () => {
 
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
+		saveMCPSelection(ids);
 	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
@@ -410,6 +415,11 @@ const AgentDetail: FC = () => {
 		// the user deliberately opted out), use those.
 		if (chatRecord?.mcp_server_ids) {
 			return chatRecord.mcp_server_ids;
+		}
+		// Check for a previously saved selection in localStorage.
+		const saved = getSavedMCPSelection(mcpServers);
+		if (saved !== null) {
+			return saved;
 		}
 		// Otherwise, compute defaults from server availability.
 		return getDefaultMCPSelection(mcpServers);

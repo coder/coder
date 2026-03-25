@@ -87,6 +87,62 @@ export const getDefaultMCPSelection = (
 		.map((s) => s.id);
 };
 
+/** localStorage key for persisting the user's MCP server selection. */
+export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
+
+/**
+ * Read the persisted MCP selection from localStorage, filtered to only
+ * include IDs that still exist in the current server list.
+ * Returns `null` when nothing is stored (caller should fall back to defaults).
+ */
+export const getSavedMCPSelection = (
+	servers: readonly TypesGen.MCPServerConfig[],
+): string[] | null => {
+	const raw = localStorage.getItem(mcpSelectionStorageKey);
+	if (raw === null) {
+		return null;
+	}
+	// If the server list is empty (e.g. the query hasn't loaded yet),
+	// we can't validate any IDs so signal "unknown" rather than
+	// returning an empty array that would be mistaken for "user
+	// deliberately deselected everything".
+	if (servers.length === 0) {
+		return null;
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (!Array.isArray(parsed)) {
+			return null;
+		}
+		const enabledIds = new Set(
+			servers.filter((s) => s.enabled).map((s) => s.id),
+		);
+		// Always include force_on servers even if the user didn't save them.
+		const forceOnIds = servers
+			.filter((s) => s.enabled && s.availability === "force_on")
+			.map((s) => s.id);
+		const restored = parsed.filter(
+			(id): id is string => typeof id === "string" && enabledIds.has(id),
+		);
+		// Merge force_on servers that might not be in the saved list.
+		for (const id of forceOnIds) {
+			if (!restored.includes(id)) {
+				restored.push(id);
+			}
+		}
+		return restored;
+	} catch {
+		return null;
+	}
+};
+
+/**
+ * Persist the current MCP selection to localStorage.
+ */
+export const saveMCPSelection = (ids: readonly string[]): void => {
+	localStorage.setItem(mcpSelectionStorageKey, JSON.stringify(ids));
+};
+
 // ── Overlapping icon stack for the trigger ─────────────────────
 
 const ICON_STACK_MAX = 3;
@@ -213,13 +269,13 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 					type="button"
 					disabled={disabled}
 					aria-label="MCP Servers"
-					className="group flex h-8 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+					className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 				>
-					<span className="hidden sm:inline">MCP</span>
+					<span>MCP</span>
 					{activeServers.length > 0 && (
 						<TriggerIconStack servers={activeServers} />
 					)}
-					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
+					<ChevronDownIcon className="ml-auto h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-52 p-0">

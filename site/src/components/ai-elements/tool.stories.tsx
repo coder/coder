@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { Tool } from "./tool";
 
@@ -466,6 +466,187 @@ export const TaskNameGenericRendering: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("task")).toBeInTheDocument();
 		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// MCP tool stories (generic renderer with MCP server context)
+// ---------------------------------------------------------------------------
+
+const sampleMCPServers = [
+	{
+		id: "mcp-server-1",
+		slug: "linear",
+		display_name: "Linear",
+		description: "Project management",
+		icon_url: "https://linear.app/favicon.ico",
+		transport: "streamable_http",
+		url: "https://mcp.linear.app",
+		auth_type: "oauth2",
+		has_oauth2_secret: false,
+		has_api_key: false,
+		has_custom_headers: false,
+		tool_allow_list: [],
+		tool_deny_list: [],
+		availability: "default_on",
+		enabled: true,
+		auth_connected: true,
+		created_at: "2025-01-01T00:00:00Z",
+		updated_at: "2025-01-01T00:00:00Z",
+	},
+] satisfies readonly import("api/typesGenerated").MCPServerConfig[];
+
+export const MCPToolRunning: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "running",
+		args: { project: "backend" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// Spinner should be visible while running.
+		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		// Icon should be monochrome (brightness-0 filter).
+		const icon = canvasElement.querySelector(".brightness-0");
+		expect(icon).not.toBeNull();
+	},
+};
+
+export const MCPToolCompleted: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "completed",
+		args: { project: "backend" },
+		result: {
+			issues: [
+				{ id: "LIN-123", title: "Fix auth flow" },
+				{ id: "LIN-456", title: "Update dashboard" },
+			],
+		},
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// No spinner when completed.
+		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
+		// Icon should still be monochrome when completed.
+		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
+		// Result should be collapsed by default.
+		const toggle = canvas.getByRole("button");
+		expect(toggle).toBeInTheDocument();
+		// Expand to see result content.
+		await userEvent.click(toggle);
+		// @pierre/diffs renders inside a Shadow DOM (<diffs-container>)
+		// so textContent on the host element can't see the content.
+		// Query into the shadow root to verify the JSON rendered.
+		await waitFor(() => {
+			const shadow = canvasElement.querySelector("diffs-container")?.shadowRoot;
+			expect(shadow?.textContent).toContain("Fix auth flow");
+		});
+	},
+};
+
+export const MCPToolError: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		args: { project: "backend" },
+		result: { error: "Authentication token expired" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// Error alert icon should be present.
+		expect(canvasElement.querySelector(".lucide-circle-alert")).not.toBeNull();
+		// Label text should use the destructive color.
+		const label = canvasElement.querySelector(
+			".\\[\\&\\>\\*\\]\\:text-content-destructive",
+		);
+		expect(label).not.toBeNull();
+	},
+};
+
+export const MCPToolNoResult: Story = {
+	args: {
+		name: "linear__create_issue",
+		status: "completed",
+		args: { title: "New issue" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// No toggle button when there is no result content.
+		expect(canvasElement.querySelector("button")).toBeNull();
+	},
+};
+
+export const MCPToolSlackIcon: Story = {
+	args: {
+		name: "slack__post_message",
+		status: "completed",
+		result: { ok: true, channel: "#general" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "slack",
+				display_name: "Slack",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/500px-Slack_icon_2019.svg.png",
+			},
+		],
+	},
+};
+
+export const MCPToolGitHubIcon: Story = {
+	args: {
+		name: "github__list_prs",
+		status: "completed",
+		result: { prs: [{ id: 1, title: "Fix bug" }] },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "github",
+				display_name: "GitHub",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg",
+			},
+		],
+	},
+};
+
+export const MCPToolFigmaIcon: Story = {
+	args: {
+		name: "figma__get_file",
+		status: "completed",
+		result: { file: "design.fig" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "figma",
+				display_name: "Figma",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
+			},
+		],
+	},
+};
+
+export const MCPToolNoServer: Story = {
+	args: {
+		name: "some_custom_tool",
+		status: "completed",
+		result: { output: "Tool finished successfully" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Falls through to generic wrench icon + raw tool name.
+		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
 	},
 };
 
