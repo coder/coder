@@ -28,8 +28,6 @@ const meta: Meta<typeof AgentChatInput> = {
 		modelOptions: [...defaultModelOptions],
 		modelSelectorPlaceholder: "Select model",
 		hasModelOptions: true,
-		inputStatusText: null,
-		modelCatalogStatusMessage: null,
 	},
 };
 

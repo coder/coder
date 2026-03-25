@@ -12,7 +12,6 @@ import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
-	getModelCatalogStatusMessage,
 	getModelSelectorPlaceholder,
 	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
@@ -103,7 +102,6 @@ interface AgentCreateFormProps {
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
-	modelCatalogError: unknown;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
 }
@@ -117,7 +115,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
-	modelCatalogError,
 	mcpServers,
 	onMCPAuthComplete,
 }) => {
@@ -190,18 +187,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		isModelCatalogLoading,
 		hasConfiguredModels,
 	);
-	const modelCatalogStatusMessage = getModelCatalogStatusMessage(
-		modelCatalog,
-		modelOptions,
-		isModelCatalogLoading,
-		Boolean(modelCatalogError),
-	);
-	const inputStatusText = hasModelOptions
-		? null
-		: hasConfiguredModels
-			? "Models are configured but unavailable. Ask an admin."
-			: "No models configured. Ask an admin.";
-
 	useEffect(() => {
 		if (!initialLastModelConfigID) {
 			return;
@@ -350,9 +335,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onModelChange={handleModelChange}
 					modelOptions={modelOptions}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
+					isModelCatalogLoading={isModelCatalogLoading}
 					hasModelOptions={hasModelOptions}
-					inputStatusText={inputStatusText}
-					modelCatalogStatusMessage={modelCatalogStatusMessage}
 					attachments={attachments}
 					onAttach={handleAttach}
 					onRemoveAttachment={handleRemoveAttachment}
