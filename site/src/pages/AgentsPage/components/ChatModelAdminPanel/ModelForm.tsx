@@ -105,9 +105,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+	const selectedProviderConfigCount =
+		selectedProviderState?.providerConfigs?.length ?? 0;
 	const canManageModels = Boolean(
-		selectedProviderState?.providerConfig &&
-			selectedProviderState.hasEffectiveAPIKey,
+		selectedProviderConfigCount && selectedProviderState?.hasEffectiveAPIKey,
 	);
 
 	const form = useFormik<ModelFormValues>({
@@ -164,7 +165,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfig) return;
+				if (!selectedProviderState || selectedProviderConfigCount === 0) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
@@ -281,7 +282,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<div className="space-y-3">
 					{providerSelect}
 					<p className="text-sm text-content-secondary">
-						{!selectedProviderState.providerConfig
+						{selectedProviderConfigCount === 0
 							? "Create a managed provider config on the Providers tab before adding models."
 							: "Set an API key for this provider on the Providers tab before adding models."}
 					</p>
