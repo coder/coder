@@ -187,7 +187,7 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			// Centralized: the client sets Authorization and X-Api-Key,
 			// but does not include HeaderCoderBYOKToken.
 			// All auth headers are stripped.
-			name: "direct centralized",
+			name: "centralized",
 			reqHeaders: map[string]string{
 				"Authorization": "Bearer coder-token",
 				"X-Api-Key":     "sk-ant-api03-user-key",
@@ -270,6 +270,9 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 				require.Empty(t, mockH.headersReceived.Get(header),
 					"header %q should be stripped", header)
 			}
+			// HeaderCoderBYOKToken should always be stripped
+			require.Empty(t, mockH.headersReceived.Get(agplaibridge.HeaderCoderBYOKToken),
+				"header %q should be stripped", agplaibridge.HeaderCoderBYOKToken)
 		})
 	}
 }
