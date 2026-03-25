@@ -62,7 +62,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 				<PaywallPremium
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/")}
+					documentationLink={docs("/admin/provisioners")}
 				/>
 			) : (
 				<Table className="mt-6">
