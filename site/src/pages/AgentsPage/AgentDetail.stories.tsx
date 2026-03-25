@@ -1024,3 +1024,75 @@ export const StreamedReasoning: Story = {
 		).resolves.toBeInTheDocument();
 	},
 };
+
+/**
+ * Validates that text currently being streamed via WebSocket is not lost
+ * when the user sends a follow-up message and the server responds with a
+ * queued acknowledgement. The streaming content must remain visible in the
+ * DOM after the send completes.
+ */
+export const StreamingSurvivesQueuedSend: Story = {
+	beforeEach: () => {
+		const spy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: true,
+			queued_message: {
+				id: 99,
+				chat_id: CHAT_ID,
+				created_at: "2026-02-18T00:00:02.000Z",
+				content: [{ type: "text", text: "follow-up" }],
+			},
+		});
+		return () => spy.mockRestore();
+	},
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Streaming survives queued send",
+				status: "running",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						message_part: {
+							part: {
+								type: "text",
+								text: "I am helping you with the implementation",
+							},
+						},
+					}),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the streamed text to appear.
+		await expect(
+			canvas.findByText("I am helping you with the implementation"),
+		).resolves.toBeInTheDocument();
+
+		// Type a follow-up message and send it.
+		const textbox = canvas.getByRole("textbox");
+		await userEvent.type(textbox, "follow-up");
+		await userEvent.keyboard("{Enter}");
+
+		// After the queued send, the streaming text must still be visible.
+		await waitFor(() => {
+			expect(
+				canvas.getByText("I am helping you with the implementation"),
+			).toBeInTheDocument();
+		});
+	},
+};

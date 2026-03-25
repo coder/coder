@@ -658,10 +658,10 @@ const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 
-		// No optimistic rendering — the message will appear in the
-		// timeline when the server confirms via the POST response or
-		// via the SSE stream.
-		store.clearStreamState();
+		// Don't clear stream state eagerly — let the server-driven
+		// status events (via WebSocket) control when the stream is
+		// reset. Clearing here while the agent is still streaming
+		// causes a visible cutoff when the message is queued.
 		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
 		try {
 			response = await sendMutation.mutateAsync(request);
@@ -670,10 +670,14 @@ const AgentDetail: FC = () => {
 			throw error;
 		}
 		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
+		// queued), clear the stream and insert the user's message
+		// so it appears in the timeline without waiting for the
+		// SSE stream.
+		if (!response.queued) {
+			store.clearStreamState();
+			if (response.message) {
+				store.upsertDurableMessage(response.message);
+			}
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
