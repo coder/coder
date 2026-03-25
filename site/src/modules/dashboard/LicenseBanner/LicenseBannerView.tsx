@@ -1,13 +1,13 @@
-import {
-	LicenseManagedAgentLimitExceededWarningText,
-	LicenseTelemetryRequiredErrorText,
-} from "api/typesGenerated";
-import { Expander } from "components/Expander/Expander";
-import { Link } from "components/Link/Link";
-import { Pill } from "components/Pill/Pill";
 import { useState } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
+import {
+	LicenseManagedAgentLimitExceededWarningText,
+	LicenseTelemetryRequiredErrorText,
+} from "#/api/typesGenerated";
+import { Expander } from "#/components/Expander/Expander";
+import { Link } from "#/components/Link/Link";
+import { Pill } from "#/components/Pill/Pill";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.

@@ -429,11 +429,17 @@ func newMCPTool(
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
+	// Ensure Required is never nil so that it serializes to [] instead
+	// of null. OpenAI rejects null for the JSON Schema "required" field.
+	required := t.required
+	if required == nil {
+		required = []string{}
+	}
 	return fantasy.ToolInfo{
 		Name:        t.prefixedName,
 		Description: t.description,
 		Parameters:  t.parameters,
-		Required:    t.required,
+		Required:    required,
 		Parallel:    true,
 	}
 }
@@ -485,8 +491,9 @@ func (t *mcpToolWrapper) SetProviderOptions(
 // convertCallResult translates an MCP CallToolResult into a
 // fantasy.ToolResponse. The fantasy response model supports a
 // single content type per response, so we prioritize text. All
-// text items are collected first. Binary items (image or audio)
-// are only returned when no text content is available.
+// text items are collected first. Binary items (image, audio,
+// or embedded blob) are only returned when no text content is
+// available.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -540,6 +547,59 @@ func convertCallResult(
 				}
 				binaryResult = &r
 			}
+		case mcp.EmbeddedResource:
+			// Embedded resources wrap either text or blob
+			// content from an MCP resource. We handle each
+			// variant so the LLM receives the content
+			// regardless of form.
+			switch r := c.Resource.(type) {
+			case mcp.TextResourceContents:
+				textParts = append(textParts, r.Text)
+			case mcp.BlobResourceContents:
+				data, err := base64.StdEncoding.DecodeString(
+					r.Blob,
+				)
+				if err != nil {
+					textParts = append(textParts,
+						"[blob decode error: "+err.Error()+"]",
+					)
+					continue
+				}
+				if binaryResult == nil {
+					blobType := "media"
+					if strings.HasPrefix(r.MIMEType, "image/") {
+						blobType = "image"
+					}
+					res := fantasy.ToolResponse{
+						Type:      blobType,
+						Data:      data,
+						MediaType: r.MIMEType,
+						IsError:   result.IsError,
+					}
+					binaryResult = &res
+				}
+			default:
+				textParts = append(textParts,
+					fmt.Sprintf(
+						"[unsupported embedded resource type: %T]",
+						c.Resource,
+					),
+				)
+			}
+		case mcp.ResourceLink:
+			// Resource links point to content the LLM can
+			// reference by URI. Surface the URI so the model
+			// can use it in follow-ups.
+			label := c.URI
+			if c.Name != "" {
+				label = fmt.Sprintf("%s (%s)", c.Name, c.URI)
+			}
+			if c.Description != "" {
+				label += ": " + c.Description
+			}
+			textParts = append(textParts,
+				fmt.Sprintf("[resource: %s]", label),
+			)
 		default:
 			textParts = append(textParts,
 				fmt.Sprintf("[unsupported content type: %T]", c),

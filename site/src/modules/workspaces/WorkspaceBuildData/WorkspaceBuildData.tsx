@@ -1,12 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { WorkspaceBuild } from "api/typesGenerated";
-import { BuildIcon } from "components/BuildIcon/BuildIcon";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
 import { createDayString } from "utils/createDayString";
 import {
@@ -15,6 +8,13 @@ import {
 	getDisplayWorkspaceBuildStatus,
 	systemBuildReasons,
 } from "utils/workspace";
+import type { WorkspaceBuild } from "#/api/typesGenerated";
+import { BuildIcon } from "#/components/BuildIcon/BuildIcon";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 	const theme = useTheme();

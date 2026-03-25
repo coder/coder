@@ -1,5 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
 import { describe, expect, it } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import { createChatStore } from "./ChatContext";
 
 // ---------------------------------------------------------------------------
@@ -198,8 +198,14 @@ describe("setStreamError / clearStreamError", () => {
 	it("stores and clears a stream error", () => {
 		const store = createChatStore();
 
-		store.setStreamError("connection lost");
-		expect(store.getSnapshot().streamError).toBe("connection lost");
+		store.setStreamError({
+			kind: "generic",
+			message: "connection lost",
+		});
+		expect(store.getSnapshot().streamError).toEqual({
+			kind: "generic",
+			message: "connection lost",
+		});
 
 		store.clearStreamError();
 		expect(store.getSnapshot().streamError).toBeNull();
@@ -207,13 +213,19 @@ describe("setStreamError / clearStreamError", () => {
 
 	it("does not notify when setting the same error", () => {
 		const store = createChatStore();
-		store.setStreamError("oops");
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.setStreamError("oops");
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
 
 		expect(notified).toBe(false);
 	});
@@ -239,10 +251,21 @@ describe("setRetryState / clearRetryState", () => {
 	it("stores and clears retry state", () => {
 		const store = createChatStore();
 
-		store.setRetryState({ attempt: 1, error: "rate limited" });
+		store.setRetryState({
+			attempt: 1,
+			error: "rate limited",
+			kind: "rate_limit",
+			provider: "anthropic",
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
 		expect(store.getSnapshot().retryState).toEqual({
 			attempt: 1,
 			error: "rate limited",
+			kind: "rate_limit",
+			provider: "anthropic",
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
 		});
 
 		store.clearRetryState();
@@ -257,6 +280,42 @@ describe("setRetryState / clearRetryState", () => {
 			notified = true;
 		});
 		store.clearRetryState();
+
+		expect(notified).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setReconnectState / clearReconnectState
+// ---------------------------------------------------------------------------
+
+describe("setReconnectState / clearReconnectState", () => {
+	it("stores and clears reconnect state", () => {
+		const store = createChatStore();
+
+		store.setReconnectState({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+		expect(store.getSnapshot().reconnectState).toEqual({
+			attempt: 2,
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
+
+		store.clearReconnectState();
+		expect(store.getSnapshot().reconnectState).toBeNull();
+	});
+
+	it("clearReconnectState is a no-op when already null", () => {
+		const store = createChatStore();
+
+		let notified = false;
+		store.subscribe(() => {
+			notified = true;
+		});
+		store.clearReconnectState();
 
 		expect(notified).toBe(false);
 	});
@@ -427,11 +486,26 @@ describe("applyMessagePart / applyMessageParts", () => {
 // ---------------------------------------------------------------------------
 
 describe("resetTransientState", () => {
-	it("clears streamState, streamError, retryState, and subagentOverrides", () => {
+	it("clears streamState, streamError, retryState, reconnectState, and subagentOverrides", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
-		store.setStreamError("oops");
-		store.setRetryState({ attempt: 2, error: "rate limit" });
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
+		store.setRetryState({
+			attempt: 2,
+			error: "rate limit",
+			kind: "rate_limit",
+			provider: "anthropic",
+			delayMs: 5000,
+			retryingAt: "2025-01-01T00:01:00.000Z",
+		});
+		store.setReconnectState({
+			attempt: 1,
+			delayMs: 1000,
+			retryingAt: "2025-01-01T00:00:01.000Z",
+		});
 		store.setSubagentStatusOverride("sub-1", "error");
 
 		store.resetTransientState();
@@ -440,6 +514,7 @@ describe("resetTransientState", () => {
 		expect(state.streamState).toBeNull();
 		expect(state.streamError).toBeNull();
 		expect(state.retryState).toBeNull();
+		expect(state.reconnectState).toBeNull();
 		expect(state.subagentStatusOverrides.size).toBe(0);
 	});
 
@@ -447,7 +522,10 @@ describe("resetTransientState", () => {
 		const store = createChatStore();
 		store.replaceMessages([makeMessage(1, "user", "hello")]);
 		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
-		store.setStreamError("oops");
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
 
 		store.resetTransientState();
 

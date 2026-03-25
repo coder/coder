@@ -1,17 +1,24 @@
 package chatprovider_test
 
 import (
+	"net/http"
 	"testing"
 
+	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestReasoningEffortFromChat(t *testing.T) {
@@ -28,6 +35,12 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			provider: "openai",
 			input:    ptr.Ref(" HIGH "),
 			want:     ptr.Ref(string(fantasyopenai.ReasoningEffortHigh)),
+		},
+		{
+			name:     "OpenAIXHighEffort",
+			provider: "openai",
+			input:    ptr.Ref("xhigh"),
+			want:     ptr.Ref(string(fantasyopenai.ReasoningEffortXHigh)),
 		},
 		{
 			name:     "AnthropicEffort",
@@ -76,6 +89,207 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestCoderHeaders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RootChatNoWorkspace", func(t *testing.T) {
+		t.Parallel()
+		chatID := uuid.New()
+		ownerID := uuid.New()
+		chat := database.Chat{
+			ID:      chatID,
+			OwnerID: ownerID,
+		}
+		h := chatprovider.CoderHeaders(chat)
+		require.Equal(t, ownerID.String(), h[chatprovider.HeaderCoderOwnerID])
+		require.Equal(t, chatID.String(), h[chatprovider.HeaderCoderChatID])
+		require.NotContains(t, h, chatprovider.HeaderCoderSubchatID)
+		require.NotContains(t, h, chatprovider.HeaderCoderWorkspaceID)
+	})
+
+	t.Run("RootChatWithWorkspace", func(t *testing.T) {
+		t.Parallel()
+		chatID := uuid.New()
+		ownerID := uuid.New()
+		workspaceID := uuid.New()
+		chat := database.Chat{
+			ID:          chatID,
+			OwnerID:     ownerID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}
+		h := chatprovider.CoderHeaders(chat)
+		require.Equal(t, ownerID.String(), h[chatprovider.HeaderCoderOwnerID])
+		require.Equal(t, chatID.String(), h[chatprovider.HeaderCoderChatID])
+		require.NotContains(t, h, chatprovider.HeaderCoderSubchatID)
+		require.Equal(t, workspaceID.String(), h[chatprovider.HeaderCoderWorkspaceID])
+	})
+
+	t.Run("SubchatWithWorkspace", func(t *testing.T) {
+		t.Parallel()
+		parentID := uuid.New()
+		subchatID := uuid.New()
+		ownerID := uuid.New()
+		workspaceID := uuid.New()
+		chat := database.Chat{
+			ID:           subchatID,
+			OwnerID:      ownerID,
+			ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+			WorkspaceID:  uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}
+		h := chatprovider.CoderHeaders(chat)
+		require.Equal(t, ownerID.String(), h[chatprovider.HeaderCoderOwnerID])
+		require.Equal(t, parentID.String(), h[chatprovider.HeaderCoderChatID])
+		require.Equal(t, subchatID.String(), h[chatprovider.HeaderCoderSubchatID])
+		require.Equal(t, workspaceID.String(), h[chatprovider.HeaderCoderWorkspaceID])
+	})
+
+	t.Run("SubchatNoWorkspace", func(t *testing.T) {
+		t.Parallel()
+		parentID := uuid.New()
+		subchatID := uuid.New()
+		ownerID := uuid.New()
+		chat := database.Chat{
+			ID:           subchatID,
+			OwnerID:      ownerID,
+			ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+		}
+		h := chatprovider.CoderHeaders(chat)
+		require.Equal(t, ownerID.String(), h[chatprovider.HeaderCoderOwnerID])
+		require.Equal(t, parentID.String(), h[chatprovider.HeaderCoderChatID])
+		require.Equal(t, subchatID.String(), h[chatprovider.HeaderCoderSubchatID])
+		require.NotContains(t, h, chatprovider.HeaderCoderWorkspaceID)
+	})
+}
+
+// TestModelFromConfig_ExtraHeaders verifies that extra headers passed
+// to ModelFromConfig are sent on outgoing LLM API requests. Only the
+// OpenAI and Anthropic providers are tested end-to-end because the
+// WithHeaders injection is the same mechanical pattern across all
+// eight provider cases, and these are the only two providers with
+// chattest test servers. CoderHeaders construction is tested
+// separately in TestCoderHeaders.
+func TestModelFromConfig_ExtraHeaders(t *testing.T) {
+	t.Parallel()
+
+	parentID := uuid.New()
+	subchatID := uuid.New()
+	ownerID := uuid.New()
+	workspaceID := uuid.New()
+
+	chat := database.Chat{
+		ID:           subchatID,
+		OwnerID:      ownerID,
+		ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+		WorkspaceID:  uuid.NullUUID{UUID: workspaceID, Valid: true},
+	}
+	headers := chatprovider.CoderHeaders(chat)
+
+	assertCoderHeaders := func(t *testing.T, got http.Header) {
+		t.Helper()
+		assert.Equal(t, ownerID.String(), got.Get(chatprovider.HeaderCoderOwnerID))
+		assert.Equal(t, parentID.String(), got.Get(chatprovider.HeaderCoderChatID))
+		assert.Equal(t, subchatID.String(), got.Get(chatprovider.HeaderCoderSubchatID))
+		assert.Equal(t, workspaceID.String(), got.Get(chatprovider.HeaderCoderWorkspaceID))
+	}
+
+	t.Run("OpenAI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		called := make(chan struct{})
+		serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			assertCoderHeaders(t, req.Header)
+			close(called)
+			return chattest.OpenAINonStreamingResponse("hello")
+		})
+
+		keys := chatprovider.ProviderAPIKeys{
+			ByProvider:        map[string]string{"openai": "test-key"},
+			BaseURLByProvider: map[string]string{"openai": serverURL},
+		}
+
+		model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), headers)
+		require.NoError(t, err)
+
+		_, err = model.Generate(ctx, fantasy.Call{
+			Prompt: []fantasy.Message{
+				{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+				},
+			},
+		})
+		require.NoError(t, err)
+		_ = testutil.TryReceive(ctx, t, called)
+	})
+
+	t.Run("Anthropic", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		called := make(chan struct{})
+		serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			assertCoderHeaders(t, req.Header)
+			close(called)
+			return chattest.AnthropicNonStreamingResponse("hello")
+		})
+
+		keys := chatprovider.ProviderAPIKeys{
+			ByProvider:        map[string]string{"anthropic": "test-key"},
+			BaseURLByProvider: map[string]string{"anthropic": serverURL},
+		}
+
+		model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), headers)
+		require.NoError(t, err)
+
+		_, err = model.Generate(ctx, fantasy.Call{
+			Prompt: []fantasy.Message{
+				{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+				},
+			},
+		})
+		require.NoError(t, err)
+		_ = testutil.TryReceive(ctx, t, called)
+	})
+}
+
+func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	called := make(chan struct{})
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		// Coder headers must be absent when nil is passed.
+		assert.Empty(t, req.Header.Get(chatprovider.HeaderCoderOwnerID))
+		assert.Empty(t, req.Header.Get(chatprovider.HeaderCoderChatID))
+		assert.Empty(t, req.Header.Get(chatprovider.HeaderCoderSubchatID))
+		assert.Empty(t, req.Header.Get(chatprovider.HeaderCoderWorkspaceID))
+		close(called)
+		return chattest.OpenAINonStreamingResponse("hello")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{"openai": "test-key"},
+		BaseURLByProvider: map[string]string{"openai": serverURL},
+	}
+
+	model, err := chatprovider.ModelFromConfig("openai", "gpt-4", keys, chatprovider.UserAgent(), nil)
+	require.NoError(t, err)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_ = testutil.TryReceive(ctx, t, called)
 }
 
 func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {

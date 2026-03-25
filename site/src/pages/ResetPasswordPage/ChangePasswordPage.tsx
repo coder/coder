@@ -1,11 +1,3 @@
-import { isApiValidationError } from "api/errors";
-import { changePasswordWithOTP } from "api/queries/users";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { CustomLogo } from "components/CustomLogo/CustomLogo";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useMutation } from "react-query";
@@ -15,6 +7,14 @@ import { getApplicationName } from "utils/appearance";
 import { getFormHelpers } from "utils/formUtils";
 import { pageTitle } from "utils/page";
 import * as yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import { changePasswordWithOTP } from "#/api/queries/users";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 const validationSchema = yup.object({
 	password: yup.string().required("Password is required"),

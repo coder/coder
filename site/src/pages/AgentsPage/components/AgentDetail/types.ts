@@ -1,4 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
+import type { ReconnectSchedule } from "utils/reconnectingWebSocket";
+import type * as TypesGen from "#/api/typesGenerated";
 
 export type ParsedToolCall = {
 	id: string;
@@ -58,6 +59,17 @@ export type ParsedMessageContent = {
 export type ParsedMessageEntry = {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
+};
+
+export type ReconnectState = ReconnectSchedule;
+
+export type RetryState = {
+	attempt: number;
+	error: string;
+	kind: string;
+	provider?: string;
+	delayMs?: number;
+	retryingAt?: string;
 };
 
 type StreamToolCall = {

@@ -3,11 +3,15 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -18,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -99,7 +104,7 @@ func TestRefreshChatWorkspaceSnapshot_ReturnsReloadError(t *testing.T) {
 	require.Equal(t, chat, refreshed)
 }
 
-func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
+func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -125,6 +130,7 @@ func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
 		gomock.Any(),
 		workspaceID,
 	).Return([]database.WorkspaceAgent{workspaceAgent}, nil).Times(1)
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -138,16 +144,15 @@ func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
 		int64(0),
 		int64(maxInstructionFileBytes+1),
 	).Return(
-		nil,
+		io.NopCloser(strings.NewReader("# Project instructions")),
 		"",
-		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
+		nil,
 	).Times(1)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{
-		db:               db,
-		logger:           logger,
-		instructionCache: make(map[uuid.UUID]cachedInstruction),
+		db:     db,
+		logger: logger,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return conn, func() {}, nil
 		},
@@ -163,12 +168,14 @@ func TestResolveInstructionsReusesTurnLocalWorkspaceAgent(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction := server.resolveInstructions(
+	instruction, err := server.persistInstructionFiles(
 		ctx,
 		chat,
+		uuid.New(),
 		workspaceCtx.getWorkspaceAgent,
 		workspaceCtx.getWorkspaceConn,
 	)
+	require.NoError(t, err)
 	require.Contains(t, instruction, "Operating System: linux")
 	require.Contains(t, instruction, "Working Directory: /home/coder/project")
 }
@@ -451,7 +458,10 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 	expected := &codersdk.ChatStreamRetry{
 		Attempt:    1,
 		DelayMs:    (1500 * time.Millisecond).Milliseconds(),
-		Error:      "rate limit exceeded",
+		Error:      "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "openai",
+		StatusCode: 429,
 		RetryingAt: retryingAt,
 	}
 
@@ -459,6 +469,81 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 
 	event := requireStreamRetryEvent(t, events)
 	require.Equal(t, expected, event.Retry)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	classified := chaterror.ClassifiedError{
+		Message:    "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 429,
+	}
+	server.publishError(chatID, classified)
+
+	event := requireStreamErrorEvent(t, events)
+	require.Equal(t, chaterror.StreamErrorPayload(classified), event.Error)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		Error: "legacy error only",
+	})
+
+	event := requireStreamErrorEvent(t, events)
+	require.Equal(t, &codersdk.ChatStreamError{Message: "legacy error only"}, event.Error)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
@@ -498,6 +583,21 @@ func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEven
 		return event
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for chat stream retry event")
+		return codersdk.ChatStreamEvent{}
+	}
+}
+
+func requireStreamErrorEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok, "chat stream closed before delivering an event")
+		require.Equal(t, codersdk.ChatStreamEventTypeError, event.Type)
+		require.NotNil(t, event.Error)
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for chat stream error event")
 		return codersdk.ChatStreamEvent{}
 	}
 }
@@ -697,4 +797,91 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 		}
 	}
 	t.Fatalf("field %q not found in log entry", name)
+}
+
+func TestContextFileAgentID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyMessages", func(t *testing.T) {
+		t.Parallel()
+		id, ok := contextFileAgentID(nil)
+		require.Equal(t, uuid.Nil, id)
+		require.False(t, ok)
+	})
+
+	t.Run("NoContextFileParts", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, uuid.Nil, id)
+		require.False(t, ok)
+	})
+
+	t.Run("SingleContextFile", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath:    "/some/path",
+					ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+				},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, agentID, id)
+		require.True(t, ok)
+	})
+
+	t.Run("MultipleContextFiles", func(t *testing.T) {
+		t.Parallel()
+		agentID1 := uuid.New()
+		agentID2 := uuid.New()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath:    "/first/path",
+					ContextFileAgentID: uuid.NullUUID{UUID: agentID1, Valid: true},
+				},
+			}),
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFilePath:    "/second/path",
+					ContextFileAgentID: uuid.NullUUID{UUID: agentID2, Valid: true},
+				},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, agentID2, id)
+		require.True(t, ok)
+	})
+
+	t.Run("SentinelWithoutAgentID", func(t *testing.T) {
+		t.Parallel()
+		msgs := []database.ChatMessage{
+			chatMessageWithParts([]codersdk.ChatMessagePart{
+				{
+					Type:               codersdk.ChatMessagePartTypeContextFile,
+					ContextFileAgentID: uuid.NullUUID{Valid: false},
+				},
+			}),
+		}
+		id, ok := contextFileAgentID(msgs)
+		require.Equal(t, uuid.Nil, id)
+		require.False(t, ok)
+	})
+}
+
+func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage {
+	raw, _ := json.Marshal(parts)
+	return database.ChatMessage{
+		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
+	}
 }

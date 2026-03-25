@@ -1,9 +1,15 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
-import type * as TypesGen from "api/typesGenerated";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -19,6 +25,7 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
+import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
 import {
@@ -296,6 +303,16 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		subagentToolStatus === "error" ||
 		((status === "error" || isError) && !subagentCompleted);
 
+	// Detect timeout from the result. A timed-out wait_agent
+	// typically returns an error string or an object with an
+	// error field containing "timed out".
+	const resultStr = typeof result === "string" ? result : "";
+	const errorStr = rec ? asString(rec.error) : "";
+	const isTimeout =
+		subagentIsError &&
+		(resultStr.toLowerCase().includes("timed out") ||
+			errorStr.toLowerCase().includes("timed out"));
+
 	return (
 		<SubagentTool
 			toolName={name}
@@ -308,6 +325,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
+			isTimeout={isTimeout}
 		/>
 	);
 };
@@ -480,24 +498,48 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
+	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
+	const isRunning = status === "running";
+	const rec = asRecord(result);
+	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+
 	return (
-		<>
-			<div className="flex items-center gap-2">
-				<ToolIcon
-					name={name}
-					isError={status === "error" || isError}
-					iconUrl={mcpServer?.icon_url}
-				/>
-				<ToolLabel
-					name={name}
-					args={args}
-					result={result}
-					mcpSlug={mcpServer?.slug}
-				/>
-			</div>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={
+				<>
+					<ToolIcon
+						name={name}
+						isError={status === "error" || isError}
+						iconUrl={mcpServer?.icon_url}
+						isRunning={isRunning}
+						serverName={mcpServer?.display_name}
+					/>
+					<ToolLabel
+						name={name}
+						args={args}
+						result={result}
+						mcpSlug={mcpServer?.slug}
+					/>
+					{isError && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{errorMessage || "Tool call failed"}
+							</TooltipContent>
+						</Tooltip>
+					)}
+					{isRunning && (
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
+				</>
+			}
+		>
 			{writeFileDiff ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
@@ -509,7 +551,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 				</ScrollArea>
 			) : fileContent ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
@@ -524,7 +566,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			) : (
 				resultOutput && (
 					<ScrollArea
-						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 						viewportClassName="max-h-64"
 						scrollBarClassName="w-1.5"
 					>
@@ -539,7 +581,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					</ScrollArea>
 				)
 			)}
-		</>
+		</ToolCollapsible>
 	);
 };
 

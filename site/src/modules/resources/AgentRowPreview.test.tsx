@@ -5,7 +5,7 @@ import {
 	type DisplayApp,
 	DisplayApps,
 	type WorkspaceAgent,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import { AgentRowPreview } from "./AgentRowPreview";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 

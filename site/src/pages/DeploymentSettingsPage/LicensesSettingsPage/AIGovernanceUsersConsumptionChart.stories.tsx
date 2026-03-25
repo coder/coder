@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { GetLicensesResponse } from "api/api";
 import { expect, within } from "storybook/test";
+import type { GetLicensesResponse } from "#/api/api";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 
 const licenseWithAiGovernanceAddOn: GetLicensesResponse = {
@@ -120,7 +120,7 @@ export const UsageBarFromLicenseClaims: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("750")).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("heading", { name: "AI governance add-on usage" }),
+			canvas.getByRole("heading", { name: "AI Governance add-on usage" }),
 		).toBeInTheDocument();
 	},
 };

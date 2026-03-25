@@ -1,9 +1,3 @@
-import type {
-	ChatDiffStatus,
-	WorkspaceAgentRepoChanges,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	CheckIcon,
 	CircleDotIcon,
@@ -19,6 +13,12 @@ import {
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
+import type {
+	ChatDiffStatus,
+	WorkspaceAgentRepoChanges,
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {

@@ -4,8 +4,8 @@ import {
 	renderHookWithAuth,
 } from "testHelpers/hooks";
 import { act, waitFor } from "@testing-library/react";
-import type { Workspace } from "api/typesGenerated";
 import CreateWorkspacePage from "pages/CreateWorkspacePage/CreateWorkspacePage";
+import type { Workspace } from "#/api/typesGenerated";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 function render(workspace?: Workspace) {

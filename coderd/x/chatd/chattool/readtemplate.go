@@ -14,8 +14,9 @@ import (
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
-	DB      database.Store
-	OwnerID uuid.UUID
+	DB                 database.Store
+	OwnerID            uuid.UUID
+	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
 type readTemplateArgs struct {
@@ -46,6 +47,10 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("invalid template_id: %w", err).Error(),
 				), nil
+			}
+
+			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
+				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
 			ctx, err = asOwner(ctx, options.DB, options.OwnerID)

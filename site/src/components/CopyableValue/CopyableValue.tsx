@@ -1,12 +1,12 @@
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
 import { type FC, type HTMLAttributes, useState } from "react";
 import { cn } from "utils/cn";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
 

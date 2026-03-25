@@ -1,11 +1,11 @@
-import { MockUserOwner } from "testHelpers/entities";
+import { MockTemplate, MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { userKey } from "api/queries/users";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { userKey } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
 import { AgentSettingsPageView } from "./AgentSettingsPageView";
 
 // ── Usage mock helpers ─────────────────────────────────────────
@@ -170,6 +170,30 @@ const meta = {
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockResolvedValue({
+			template_ids: [],
+		});
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockResolvedValue();
+		spyOn(API, "getTemplates").mockResolvedValue([
+			{
+				...MockTemplate,
+				id: "abc-123",
+				name: "docker-dev",
+				display_name: "Docker Development",
+			},
+			{
+				...MockTemplate,
+				id: "def-456",
+				name: "kubernetes-prod",
+				display_name: "Kubernetes Production",
+			},
+			{
+				...MockTemplate,
+				id: "ghi-789",
+				name: "aws-windows",
+				display_name: "AWS Windows Desktop",
+			},
+		]);
 	},
 } satisfies Meta<typeof AgentSettingsPageView>;
 
@@ -751,5 +775,212 @@ export const UsageUserDrillInAndBack: Story = {
 		await expect(
 			body.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
+	},
+};
+
+// ── Invisible Unicode warning stories ──────────────────────────
+
+export const InvisibleUnicodeWarningSystemPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt:
+				"Normal prompt text\u200b\u200b\u200b\u200bhidden instruction",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the System Instructions section to render.
+		await canvas.findByText("System Instructions");
+
+		// The warning alert should appear with the correct count.
+		const alert = await canvas.findByText(/invisible Unicode/);
+		expect(alert).toBeInTheDocument();
+		expect(alert.textContent).toContain("4");
+	},
+};
+
+export const InvisibleUnicodeWarningUserPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "My custom prompt\u200b\u200c\u200dhidden",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Personal Instructions section to render.
+		await canvas.findByText("Personal Instructions");
+
+		// The warning alert should appear.
+		const alert = await canvas.findByText(/invisible Unicode/);
+		expect(alert).toBeInTheDocument();
+		expect(alert.textContent).toContain("2");
+	},
+};
+
+export const InvisibleUnicodeWarningOnType: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Personal Instructions textarea to render.
+		const textarea = await canvas.findByPlaceholderText(
+			"Additional behavior, style, and tone preferences",
+		);
+
+		// No warning should be present initially.
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+
+		// Type a string containing a ZWS character.
+		await userEvent.type(textarea, "hello\u200bworld");
+
+		// The warning alert should appear dynamically.
+		await waitFor(() => {
+			expect(canvas.getByText(/invisible Unicode/)).toBeInTheDocument();
+		});
+	},
+};
+
+export const NoWarningForCleanPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "You are a helpful coding assistant.",
+		});
+		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "Be concise and use TypeScript.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for both sections to render.
+		await canvas.findByText("Personal Instructions");
+		await canvas.findByText("System Instructions");
+
+		// No invisible Unicode warning should be present.
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+	},
+};
+
+// ── Templates tab stories ──────────────────────────────────────
+
+const manyTemplates = [
+	{ id: "t-01", name: "docker-dev", display_name: "Docker Development" },
+	{
+		id: "t-02",
+		name: "kubernetes-prod",
+		display_name: "Kubernetes Production",
+	},
+	{ id: "t-03", name: "aws-windows", display_name: "AWS Windows Desktop" },
+	{ id: "t-04", name: "gcp-linux", display_name: "GCP Linux Workspace" },
+	{ id: "t-05", name: "azure-dotnet", display_name: "Azure .NET Environment" },
+	{ id: "t-06", name: "ml-jupyter", display_name: "ML Jupyter Notebook" },
+	{
+		id: "t-07",
+		name: "data-eng-spark",
+		display_name: "Data Engineering (Spark)",
+	},
+	{
+		id: "t-08",
+		name: "frontend-vite",
+		display_name: "Frontend (Vite + React)",
+	},
+].map((t) => ({ ...MockTemplate, ...t }));
+
+export const TemplateAllowlist: Story = {
+	args: {
+		activeSection: "templates",
+		canManageChatModelConfigs: true,
+		canSetSystemPrompt: true,
+	},
+	beforeEach: () => {
+		// Track saved allowlist state across mock calls so the
+		// refetch after save returns the updated value.
+		let savedIDs: string[] = [];
+
+		spyOn(API, "getTemplates").mockResolvedValue(manyTemplates);
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockImplementation(
+			async () => ({ template_ids: savedIDs }),
+		);
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockImplementation(
+			async (req) => {
+				savedIDs = [...req.template_ids];
+			},
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("starts empty", async () => {
+			// Status text confirms no restrictions.
+			await canvas.findByText(/no templates selected/i);
+			// Save is disabled — nothing to save.
+			const saveBtn = await canvas.findByRole("button", { name: "Save" });
+			expect(saveBtn).toBeDisabled();
+		});
+
+		await step("select one template and save", async () => {
+			// Open the combobox.
+			const input = canvas.getByPlaceholderText("Select templates...");
+			await userEvent.click(input);
+			// Pick the first template from the dropdown.
+			await userEvent.click(
+				await canvas.findByRole("option", { name: "Docker Development" }),
+			);
+			// Badge pill should appear and status should update.
+			await waitFor(() => {
+				expect(canvas.getByText("1 template selected")).toBeInTheDocument();
+			});
+			// Save should now be enabled.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			expect(saveBtn).toBeEnabled();
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenCalledWith({ template_ids: ["t-01"] });
+			});
+		});
+
+		await step("add the remaining seven and save", async () => {
+			// Open the combobox again.
+			const input = canvas.getByLabelText("Select allowed templates");
+			await userEvent.click(input);
+			// Select the other seven templates one by one.
+			for (const name of [
+				"Kubernetes Production",
+				"AWS Windows Desktop",
+				"GCP Linux Workspace",
+				"Azure .NET Environment",
+				"ML Jupyter Notebook",
+				"Data Engineering (Spark)",
+				"Frontend (Vite + React)",
+			]) {
+				await userEvent.click(await canvas.findByRole("option", { name }));
+			}
+			// All eight should now be selected.
+			await waitFor(() => {
+				expect(canvas.getByText("8 templates selected")).toBeInTheDocument();
+			});
+			// Save.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenLastCalledWith({
+					template_ids: expect.arrayContaining([
+						"t-01",
+						"t-02",
+						"t-03",
+						"t-04",
+						"t-05",
+						"t-06",
+						"t-07",
+						"t-08",
+					]),
+				});
+			});
+		});
 	},
 };

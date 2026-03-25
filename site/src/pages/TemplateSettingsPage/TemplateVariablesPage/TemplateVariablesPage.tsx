@@ -1,16 +1,3 @@
-import {
-	createAndBuildTemplateVersion,
-	templateVersion,
-	templateVersionVariables,
-	updateActiveTemplateVersion,
-} from "api/queries/templates";
-import type {
-	CreateTemplateVersionRequest,
-	TemplateVersionVariable,
-	VariableValue,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback } from "react";
 import {
@@ -22,6 +9,19 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import {
+	createAndBuildTemplateVersion,
+	templateVersion,
+	templateVersionVariables,
+	updateActiveTemplateVersion,
+} from "#/api/queries/templates";
+import type {
+	CreateTemplateVersionRequest,
+	TemplateVersionVariable,
+	VariableValue,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 

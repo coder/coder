@@ -1,6 +1,6 @@
 import RFB from "@novnc/novnc/lib/rfb";
-import { watchChatDesktop } from "api/api";
 import { useEffect, useRef, useState } from "react";
+import { watchChatDesktop } from "#/api/api";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;

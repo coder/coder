@@ -1,6 +1,6 @@
-import { Skeleton } from "components/Skeleton/Skeleton";
 import type { FC } from "react";
 import { cn } from "utils/cn";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 
 /** localStorage keys shared with the agents panel components. */
 const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -10,9 +10,6 @@ const MIN_PANEL_WIDTH = 360;
 
 /** Read persisted right-panel state for use in static skeletons. */
 function getRightPanelState(): { open: boolean; width: number } {
-	if (typeof window === "undefined") {
-		return { open: false, width: DEFAULT_PANEL_WIDTH };
-	}
 	const open = localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
 	let width = DEFAULT_PANEL_WIDTH;

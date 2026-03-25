@@ -1,21 +1,3 @@
-import { API, watchChats } from "api/api";
-import { getErrorMessage } from "api/errors";
-import {
-	archiveChat,
-	chatDiffContentsKey,
-	chatKey,
-	chatModelConfigs,
-	chatModels,
-	infiniteChats,
-	invalidateChatListQueries,
-	prependToInfiniteChatsCache,
-	readInfiniteChatsCache,
-	unarchiveChat,
-	updateInfiniteChatsCache,
-} from "api/queries/chats";
-import { workspaceById } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
@@ -28,6 +10,25 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import { API, watchChats } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
+import {
+	archiveChat,
+	cancelChatListQueries,
+	chatDiffContentsKey,
+	chatKey,
+	chatModelConfigs,
+	chatModels,
+	infiniteChats,
+	invalidateChatListQueries,
+	prependToInfiniteChatsCache,
+	readInfiniteChatsCache,
+	unarchiveChat,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
+import { workspaceById } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
@@ -37,8 +38,11 @@ import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
-import { getModelOptionsFromCatalog } from "./utils/modelOptions";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
+import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./utils/usageLimitMessage";
 
 // Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
@@ -195,27 +199,27 @@ const AgentsPage: FC = () => {
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
-	const catalogModelOptions = getModelOptionsFromCatalog(
-		chatModelsQuery.data,
+	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
+		chatModelsQuery.data,
 	);
 	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
 		const trimmedMessage = reason.message.trim();
 		if (!chatId || !trimmedMessage) {
 			return;
 		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
-			if (
-				existing &&
-				existing.kind === reason.kind &&
-				existing.message === trimmedMessage
-			) {
+			if (chatDetailErrorsEqual(existing, nextReason)) {
 				return current;
 			}
 			return {
 				...current,
-				[chatId]: { kind: reason.kind, message: trimmedMessage },
+				[chatId]: nextReason,
 			};
 		});
 	};
@@ -328,7 +332,7 @@ const AgentsPage: FC = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
-		if (typeof window !== "undefined" && !agentId) {
+		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate("/agents");
@@ -410,6 +414,20 @@ const AgentsPage: FC = () => {
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
 					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
+
+					// Cancel in-flight list and per-chat refetches so
+					// they cannot overwrite the cache update below with
+					// stale server data. This matters when a title_change
+					// event races with a refetch triggered by
+					// createChat.onSuccess or the onOpen invalidation:
+					// the refetch may have been issued before the async
+					// title generation finished, so its response carries
+					// the fallback title.
+					void cancelChatListQueries(queryClient);
+					void queryClient.cancelQueries({
+						queryKey: chatKey(updatedChat.id),
+						exact: true,
+					});
 
 					// For "created" events, use a cross-page existence
 					// check and prepend only to the first page.

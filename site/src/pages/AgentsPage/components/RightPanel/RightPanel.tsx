@@ -15,16 +15,10 @@ const DEFAULT_WIDTH = 480;
 const SNAP_THRESHOLD = 80;
 
 function getMaxWidth(): number {
-	if (typeof window === "undefined") {
-		return 960;
-	}
 	return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * MAX_WIDTH_RATIO));
 }
 
 function loadPersistedWidth(): number {
-	if (typeof window === "undefined") {
-		return DEFAULT_WIDTH;
-	}
 	const stored = localStorage.getItem(STORAGE_KEY);
 	if (!stored) {
 		return DEFAULT_WIDTH;
@@ -228,9 +222,7 @@ export const RightPanel = ({
 	});
 
 	useEffect(() => {
-		if (typeof window !== "undefined") {
-			localStorage.setItem(STORAGE_KEY, String(width));
-		}
+		localStorage.setItem(STORAGE_KEY, String(width));
 	}, [width]);
 
 	return (
@@ -247,7 +239,7 @@ export const RightPanel = ({
 					: cn(
 							"relative min-h-0 min-w-0",
 							visualOpen
-								? "flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
+								? "flex h-full w-[100vw] min-w-0 flex-col border-0 border-solid border-border-default md:border-l md:w-[var(--panel-width)] md:min-w-[360px] md:max-w-[70vw]"
 								: "hidden",
 						),
 			)}
@@ -258,7 +250,7 @@ export const RightPanel = ({
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
 				className={cn(
-					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link sm:block",
+					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link md:block",
 					visualExpanded && "-left-1",
 				)}
 			/>

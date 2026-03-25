@@ -1,7 +1,7 @@
-import { API } from "api/api";
-import type { Task } from "api/typesGenerated";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import type { Task } from "#/api/typesGenerated";
 
 interface UseBatchTaskActionsOptions {
 	onSuccess: () => Promise<void>;

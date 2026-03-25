@@ -1,10 +1,10 @@
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import type { FC, ReactNode } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import type { FC, ReactNode } from "react";
+} from "#/components/Collapsible/Collapsible";
 
 interface ExpanderProps {
 	expanded: boolean;

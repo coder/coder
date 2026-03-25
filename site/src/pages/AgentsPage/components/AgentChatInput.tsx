@@ -1,54 +1,76 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "components/ai-elements";
-import { Button } from "components/Button/Button";
-import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "components/ChatMessageInput/ChatMessageInput";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useSpeechRecognition } from "hooks/useSpeechRecognition";
 import {
 	AlertTriangleIcon,
 	ArrowUpIcon,
+	Check,
 	CheckIcon,
+	ChevronRightIcon,
 	ClipboardPasteIcon,
 	ImageIcon,
 	MicIcon,
+	MonitorIcon,
 	PencilIcon,
+	PlusIcon,
+	ServerIcon,
 	Square,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
 import {
 	type FC,
-	type ReactNode,
 	useEffect,
 	useImperativeHandle,
 	useRef,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
-import { isMobileViewport } from "utils/mobile";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/components/ai-elements";
+import { Button } from "#/components/Button/Button";
+import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "#/components/ChatMessageInput/ChatMessageInput";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { Separator } from "#/components/Separator/Separator";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useSpeechRecognition } from "#/hooks/useSpeechRecognition";
+import { cn } from "#/utils/cn";
+import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
+import { isMobileViewport } from "#/utils/mobile";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
 } from "../utils/fetchTextAttachment";
 import { formatProviderLabel } from "../utils/modelOptions";
 import { ImageLightbox } from "./ImageLightbox";
-import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
-export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 
 export type UploadState = {
 	status: "uploading" | "uploaded" | "error";
@@ -85,16 +107,20 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	// Status messages.
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
 	isInterruptPending?: boolean;
-	// Extra controls rendered in the left action area (e.g. workspace
-	// selector on the create page).
-	leftActions?: ReactNode;
+	// Workspace picker.
+	workspaceOptions?: ReadonlyArray<{
+		id: string;
+		name: string;
+		owner_name: string;
+	}>;
+	selectedWorkspaceId?: string | null;
+	onWorkspaceChange?: (id: string | null) => void;
+	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
@@ -417,7 +443,7 @@ export const AttachmentPreview: FC<{
 						)}
 						<button
 							type="button"
-							onClick={() => onRemove(index)}
+							onClick={() => onRemove(file)}
 							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 							aria-label={`Remove ${file.name}`}
 						>
@@ -443,12 +469,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
-	leftActions,
+	workspaceOptions,
+	selectedWorkspaceId,
+	onWorkspaceChange,
+	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -476,6 +504,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
 		null,
 	);
+	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
+	const mcpPopupRef = useRef<Window | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 
@@ -498,6 +530,73 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Forward the internal ref to the parent-supplied inputRef
 	// so both point to the same ChatMessageInputRef instance.
 	useImperativeHandle(inputRef, () => internalRef.current!, []);
+
+	// Listen for OAuth2 completion postMessage from popup.
+	useEffect(() => {
+		const handler = (event: MessageEvent) => {
+			if (event.origin !== window.location.origin) return;
+			if (
+				event.data?.type === "mcp-oauth2-complete" &&
+				typeof event.data.serverID === "string"
+			) {
+				setMcpConnectingId(null);
+				onMCPAuthComplete?.(event.data.serverID);
+				mcpPopupRef.current = null;
+			}
+		};
+		window.addEventListener("message", handler);
+		return () => window.removeEventListener("message", handler);
+	}, [onMCPAuthComplete]);
+
+	// Poll for popup close and clean up on unmount.
+	useEffect(() => {
+		if (!mcpConnectingId || !mcpPopupRef.current) return;
+		const interval = setInterval(() => {
+			if (mcpPopupRef.current?.closed) {
+				setMcpConnectingId(null);
+				mcpPopupRef.current = null;
+			}
+		}, 500);
+		return () => {
+			clearInterval(interval);
+			if (mcpPopupRef.current && !mcpPopupRef.current.closed) {
+				mcpPopupRef.current.close();
+				mcpPopupRef.current = null;
+			}
+		};
+	}, [mcpConnectingId]);
+
+	const handleMcpToggle = (serverId: string, checked: boolean) => {
+		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
+		if (checked) {
+			onMCPSelectionChange([...selectedMCPServerIds, serverId]);
+		} else {
+			onMCPSelectionChange(
+				selectedMCPServerIds.filter((id) => id !== serverId),
+			);
+		}
+	};
+
+	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
+		setMcpConnectingId(server.id);
+		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		mcpPopupRef.current = window.open(
+			connectUrl,
+			"_blank",
+			"width=900,height=600",
+		);
+	};
+
+	const selectedWorkspace = workspaceOptions?.find(
+		(ws) => ws.id === selectedWorkspaceId,
+	);
+
+	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
+	const activeMcpServers = enabledMcpServers.filter(
+		(s) =>
+			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
+			!(s.auth_type === "oauth2" && !s.auth_connected),
+	);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -565,9 +664,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		Boolean(initialValue?.trim()),
 	);
 
+	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
+		countInvisibleCharacters(initialValue ?? ""),
+	);
+
 	const handleContentChange = (content: string, hasRefs: boolean) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
+		setInvisibleCharCount(countInvisibleCharacters(content));
 		onContentChange?.(content);
 	};
 
@@ -771,62 +875,241 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					disabled={isDisabled || isLoading}
 					autoFocus
 				/>
-
-				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-					<div className="flex min-w-0 items-center gap-2">
-						<ModelSelector
-							value={selectedModel}
-							onValueChange={onModelChange}
-							options={modelOptions}
-							disabled={isDisabled}
-							placeholder={modelSelectorPlaceholder}
-							formatProviderLabel={formatProviderLabel}
-							dropdownSide="top"
-							dropdownAlign="center"
-						/>
-						{mcpServers &&
-							mcpServers.length > 0 &&
-							onMCPSelectionChange &&
-							onMCPAuthComplete && (
-								<MCPServerPicker
-									servers={mcpServers}
-									selectedServerIds={selectedMCPServerIds ?? []}
-									onSelectionChange={onMCPSelectionChange}
-									onAuthComplete={onMCPAuthComplete}
-									disabled={isDisabled}
-								/>
-							)}
-						{leftActions}
-						{inputStatusText && (
-							<span className="hidden text-xs text-content-secondary sm:inline">
-								{inputStatusText}
-							</span>
-						)}
+				{/* Warn about invisible Unicode in the message text.
+				 * Unlike the admin/user prompt textareas (which strip
+				 * invisible chars server-side on save), the chat input
+				 * is the user's free-form message — we don't silently
+				 * mutate it. Instead we surface a warning so the user
+				 * can make an informed decision. This guards against
+				 * social engineering attacks where a user is tricked
+				 * into pasting a "prompt" containing hidden LLM
+				 * instructions encoded as zero-width characters. */}
+				{invisibleCharCount > 0 && (
+					<div className="px-3 pb-1">
+						<Alert severity="warning">
+							This message contains {invisibleCharCount} invisible Unicode
+							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
+							content. Review carefully before sending.
+						</Alert>
 					</div>
-					<div className="flex items-center gap-2">
-						{onAttach && (
-							<>
-								<input
-									ref={fileInputRef}
-									type="file"
-									multiple
-									accept="image/*"
-									onChange={handleFileSelect}
-									className="hidden"
-								/>
+				)}
+				{/* Hidden file input for image attachment */}
+				{onAttach && (
+					<input
+						ref={fileInputRef}
+						type="file"
+						multiple
+						accept="image/*"
+						onChange={handleFileSelect}
+						className="hidden"
+					/>
+				)}
+				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+					<div className="flex min-w-0 items-center gap-1">
+						{/* Plus menu */}
+						<Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
+							<PopoverTrigger asChild>
 								<Button
 									type="button"
 									variant="subtle"
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									onClick={() => fileInputRef.current?.click()}
 									disabled={isDisabled}
-									aria-label="Attach files"
+									aria-label="More options"
 								>
-									<ImageIcon />
+									<PlusIcon />
 								</Button>
-							</>
+							</PopoverTrigger>
+							<PopoverContent
+								side="bottom"
+								align="start"
+								className="w-auto min-w-[200px] p-1"
+							>
+								{onAttach && (
+									<button
+										type="button"
+										onClick={() => {
+											setPlusMenuOpen(false);
+											fileInputRef.current?.click();
+										}}
+										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+									>
+										<ImageIcon className="h-3.5 w-3.5 shrink-0" />
+										Attach image
+									</button>
+								)}
+								{workspaceOptions && onWorkspaceChange && (
+									<Popover
+										open={workspacePickerOpen}
+										onOpenChange={setWorkspacePickerOpen}
+									>
+										<PopoverTrigger asChild>
+											<button
+												type="button"
+												disabled={isDisabled || isWorkspaceLoading}
+												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												<MonitorIcon className="h-3.5 w-3.5 shrink-0" />
+												<span>Attach workspace</span>
+												<ChevronRightIcon
+													className={cn(
+														"ml-auto size-icon-sm transition-transform",
+														workspacePickerOpen && "rotate-180",
+													)}
+												/>
+											</button>
+										</PopoverTrigger>
+										<PopoverContent
+											side="right"
+											align="start"
+											sideOffset={8}
+											className="w-64 p-0"
+										>
+											<Command loop>
+												<CommandInput placeholder="Search workspaces..." />
+												<CommandList>
+													<CommandEmpty>No workspaces found</CommandEmpty>
+													<CommandGroup>
+														{workspaceOptions.map((workspace) => (
+															<CommandItem
+																key={workspace.id}
+																value={workspace.name}
+																onSelect={() => {
+																	onWorkspaceChange(workspace.id);
+																	setWorkspacePickerOpen(false);
+																	setPlusMenuOpen(false);
+																}}
+															>
+																{workspace.name}
+																{selectedWorkspaceId === workspace.id && (
+																	<Check className="ml-auto size-icon-sm shrink-0" />
+																)}
+															</CommandItem>
+														))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
+								)}
+								{enabledMcpServers.length > 0 && (
+									<>
+										<Separator className="my-1" />
+										{enabledMcpServers.map((server) => {
+											const isForceOn = server.availability === "force_on";
+											const isSelected =
+												isForceOn ||
+												(selectedMCPServerIds?.includes(server.id) ?? false);
+											const needsAuth =
+												server.auth_type === "oauth2" && !server.auth_connected;
+											const isConnecting = mcpConnectingId === server.id;
+											return (
+												<div
+													key={server.id}
+													className="flex items-center gap-2 px-2 py-1.5"
+												>
+													{server.icon_url ? (
+														<ExternalImage
+															src={server.icon_url}
+															alt=""
+															className="size-4 shrink-0 rounded-sm"
+														/>
+													) : (
+														<ServerIcon className="size-4 shrink-0 text-content-secondary" />
+													)}
+													<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
+														{server.display_name}
+													</span>
+													{needsAuth ? (
+														<Button
+															variant="outline"
+															size="sm"
+															className="h-6 shrink-0 px-2 text-[10px] leading-none"
+															onClick={() => handleMcpConnect(server)}
+															disabled={isDisabled || mcpConnectingId !== null}
+														>
+															{isConnecting ? (
+																<Spinner loading className="size-2.5" />
+															) : null}
+															Auth
+														</Button>
+													) : (
+														<Switch
+															checked={isSelected}
+															onCheckedChange={(checked) =>
+																handleMcpToggle(server.id, checked)
+															}
+															disabled={isDisabled || isForceOn}
+															aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+														/>
+													)}
+												</div>
+											);
+										})}
+									</>
+								)}
+							</PopoverContent>
+						</Popover>
+						{isModelCatalogLoading ? (
+							<Skeleton className="h-6 w-24 rounded" />
+						) : (
+							<ModelSelector
+								value={selectedModel}
+								onValueChange={onModelChange}
+								options={modelOptions}
+								disabled={isDisabled}
+								placeholder={modelSelectorPlaceholder}
+								formatProviderLabel={formatProviderLabel}
+								dropdownSide="top"
+								dropdownAlign="center"
+							/>
 						)}
+						{selectedWorkspace && onWorkspaceChange && (
+							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+								<MonitorIcon className="size-3" />
+								{selectedWorkspace.name}
+								<button
+									type="button"
+									onClick={() => onWorkspaceChange(null)}
+									className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+									aria-label={`Remove workspace ${selectedWorkspace.name}`}
+								>
+									<XIcon className="!size-2.5" />
+								</button>
+							</span>
+						)}
+						{activeMcpServers.map((server) => {
+							const isForceOn = server.availability === "force_on";
+							return (
+								<span
+									key={server.id}
+									className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary"
+								>
+									{server.icon_url ? (
+										<ExternalImage
+											src={server.icon_url}
+											alt=""
+											className="size-3 rounded-sm"
+										/>
+									) : (
+										<ServerIcon className="size-3" />
+									)}
+									{server.display_name}
+									{!isForceOn && (
+										<button
+											type="button"
+											onClick={() => handleMcpToggle(server.id, false)}
+											className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+											aria-label={`Remove ${server.display_name}`}
+										>
+											<XIcon className="!size-2.5" />
+										</button>
+									)}
+								</span>
+							);
+						})}
+					</div>
+					<div className="flex items-center gap-2">
 						{speech.isSupported && !isStreaming && (
 							<>
 								<Button
@@ -897,16 +1180,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						)}
 					</div>
 				</div>
-				{inputStatusText && (
-					<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-						{inputStatusText}
-					</div>
-				)}
-				{modelCatalogStatusMessage && (
-					<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-						{modelCatalogStatusMessage}
-					</div>
-				)}
 			</div>
 		</div>
 	);

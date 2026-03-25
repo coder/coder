@@ -10,9 +10,9 @@ import {
 import { server } from "testHelpers/server";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API, withDefaultFeatures } from "api/api";
-import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
+import { API, withDefaultFeatures } from "#/api/api";
+import type { UpdateTemplateMeta } from "#/api/typesGenerated";
 import { validationSchema } from "./TemplateSettingsForm";
 import TemplateSettingsPage from "./TemplateSettingsPage";
 

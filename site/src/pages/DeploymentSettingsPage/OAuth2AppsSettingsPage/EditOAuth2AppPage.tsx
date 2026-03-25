@@ -1,12 +1,12 @@
-import { getErrorDetail } from "api/errors";
-import * as oauth2 from "api/queries/oauth2";
-import type * as TypesGen from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { getErrorDetail } from "#/api/errors";
+import * as oauth2 from "#/api/queries/oauth2";
+import type * as TypesGen from "#/api/typesGenerated";
 import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
 
 const EditOAuth2AppPage: FC = () => {

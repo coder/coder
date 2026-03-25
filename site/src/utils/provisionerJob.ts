@@ -1,4 +1,4 @@
-import type { ProvisionerJob } from "api/typesGenerated";
+import type { ProvisionerJob } from "#/api/typesGenerated";
 
 export const getPendingStatusLabel = (
 	provisionerJob?: ProvisionerJob,

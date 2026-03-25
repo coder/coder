@@ -777,18 +777,19 @@ func New(options *Options) *API {
 		}
 
 		api.chatDaemon = chatd.New(chatd.Config{
-			Logger:             options.Logger.Named("chatd"),
-			Database:           options.Database,
-			ReplicaID:          api.ID,
-			SubscribeFn:        options.ChatSubscribeFn,
-			MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-			AgentConn:          api.agentProvider.AgentConn,
-			CreateWorkspace:    api.chatCreateWorkspace,
-			StartWorkspace:     api.chatStartWorkspace,
-			Pubsub:             options.Pubsub,
-			WebpushDispatcher:  options.WebPushDispatcher,
-			UsageTracker:       options.WorkspaceUsageTracker,
+			Logger:                         options.Logger.Named("chatd"),
+			Database:                       options.Database,
+			ReplicaID:                      api.ID,
+			SubscribeFn:                    options.ChatSubscribeFn,
+			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+			ProviderAPIKeys:                chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			AgentConn:                      api.agentProvider.AgentConn,
+			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+			CreateWorkspace:                api.chatCreateWorkspace,
+			StartWorkspace:                 api.chatStartWorkspace,
+			Pubsub:                         options.Pubsub,
+			WebpushDispatcher:              options.WebPushDispatcher,
+			UsageTracker:                   options.WorkspaceUsageTracker,
 		})
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
@@ -1185,6 +1186,8 @@ func New(options *Options) *API {
 				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
 				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
+				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
+				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {

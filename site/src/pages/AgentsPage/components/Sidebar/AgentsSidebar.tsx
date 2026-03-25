@@ -1,30 +1,3 @@
-import type {
-	Chat,
-	ChatDiffStatus,
-	ChatModelConfig,
-	ChatStatus,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { asString } from "components/ai-elements/runtimeTypeUtils";
-import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -43,6 +16,7 @@ import {
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
 	KeyRoundIcon,
+	LayoutTemplateIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
@@ -67,6 +41,33 @@ import {
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import type {
+	Chat,
+	ChatDiffStatus,
+	ChatModelConfig,
+	ChatStatus,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { asString } from "#/components/ai-elements/runtimeTypeUtils";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import { UsageIndicator } from "../UsageIndicator";
@@ -178,33 +179,47 @@ const getModelDisplayName = (
 	modelConfigs: readonly ChatModelConfig[],
 	modelOptions: readonly ModelSelectorOption[],
 ) => {
-	if (!lastModelConfigID) {
+	const normalizedModelConfigID = asString(lastModelConfigID).trim();
+	if (!normalizedModelConfigID) {
 		return "Default model";
 	}
+
+	const modelOption = modelOptions.find(
+		(option) => option.id === normalizedModelConfigID,
+	);
+	if (modelOption?.displayName) {
+		return modelOption.displayName;
+	}
+
 	const modelConfig = modelConfigs.find(
-		(config) => config.id === lastModelConfigID,
+		(config) => config.id === normalizedModelConfigID,
 	);
 	if (!modelConfig) {
+		const legacyModelOption = modelOptions.find(
+			(option) =>
+				`${option.provider}:${option.model}` === normalizedModelConfigID,
+		);
+		if (legacyModelOption?.displayName) {
+			return legacyModelOption.displayName;
+		}
 		return "Default model";
 	}
-	const { provider, model } = getNormalizedModelRef(modelConfig);
+
 	const displayName = asString(modelConfig.display_name).trim();
-	if (!provider || !model) {
-		return displayName || "Default model";
-	}
-
-	// Try to find a matching option with a display name.
-	const match = modelOptions.find(
-		(opt) =>
-			opt.id === `${provider}:${model}` ||
-			(opt.provider === provider && opt.model === model),
-	);
-	if (match?.displayName) {
-		return match.displayName;
-	}
-
 	if (displayName) {
 		return displayName;
+	}
+
+	const { provider, model } = getNormalizedModelRef(modelConfig);
+	if (!provider || !model) {
+		return "Default model";
+	}
+
+	const fallbackModelOption = modelOptions.find(
+		(option) => option.provider === provider && option.model === model,
+	);
+	if (fallbackModelOption?.displayName) {
+		return fallbackModelOption.displayName;
 	}
 
 	return model;
@@ -905,7 +920,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										fallback={user.username}
 										src={user.avatar_url}
 										size="sm"
-										className="rounded-full"
 									/>
 									<span className="truncate text-sm text-content-secondary">
 										{user.name || user.username}
@@ -988,6 +1002,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						/>
 						{isAdmin && (
 							<>
+								<SettingsNavItem
+									icon={LayoutTemplateIcon}
+									label="Templates"
+									active={sidebarView.section === "templates"}
+									to="/agents/settings/templates"
+									state={location.state}
+									adminOnly
+								/>
 								<SettingsNavItem
 									icon={KeyRoundIcon}
 									label="Providers"
@@ -1123,27 +1145,29 @@ const LoadMoreSentinel: FC<{
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const onLoadMoreRef = useRef(onLoadMore);
-	const isFetchingNextPageRef = useRef(isFetchingNextPage);
 
-	// Keep refs in sync with the latest prop values so the
-	// observer callback always reads current state without
-	// needing to tear down and re-create the observer.
+	// Keep the callback ref in sync so the observer closure
+	// always calls the latest onLoadMore without needing to
+	// tear down and re-create the observer.
 	useEffect(() => {
 		onLoadMoreRef.current = onLoadMore;
-		isFetchingNextPageRef.current = isFetchingNextPage;
-	}, [onLoadMore, isFetchingNextPage]);
+	}, [onLoadMore]);
 
 	useEffect(() => {
+		// Don't observe while a fetch is in progress. When the
+		// fetch completes this effect re-runs, creating a fresh
+		// observer whose initial entry detects the sentinel if
+		// it's still visible — fixing the case where loaded items
+		// don't push the sentinel out of view and the previous
+		// observer never re-fires.
+		if (isFetchingNextPage) return;
+
 		const el = sentinelRef.current;
 		if (!el) return;
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (
-					entries[0]?.isIntersecting &&
-					!isFetchingNextPageRef.current &&
-					onLoadMoreRef.current
-				) {
+				if (entries[0]?.isIntersecting && onLoadMoreRef.current) {
 					onLoadMoreRef.current();
 				}
 			},
@@ -1151,7 +1175,7 @@ const LoadMoreSentinel: FC<{
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, []);
+	}, [isFetchingNextPage]);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">

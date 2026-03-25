@@ -35,9 +35,6 @@ const (
 	// agentAttemptTimeout is the timeout for a single connection
 	// attempt to the workspace agent during the retry loop.
 	agentAttemptTimeout = 5 * time.Second
-	// agentPingTimeout is the timeout for a single agent ping
-	// when checking whether an existing workspace is alive.
-	agentPingTimeout = 5 * time.Second
 	// startupScriptTimeout is the maximum time to wait for the
 	// workspace agent's startup scripts to finish after the agent
 	// is reachable.
@@ -62,13 +59,15 @@ type AgentConnFunc func(
 
 // CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
-	DB          database.Store
-	OwnerID     uuid.UUID
-	ChatID      uuid.UUID
-	CreateFn    CreateWorkspaceFn
-	AgentConnFn AgentConnFunc
-	WorkspaceMu *sync.Mutex
-	Logger      slog.Logger
+	DB                             database.Store
+	OwnerID                        uuid.UUID
+	ChatID                         uuid.UUID
+	CreateFn                       CreateWorkspaceFn
+	AgentConnFn                    AgentConnFunc
+	AgentInactiveDisconnectTimeout time.Duration
+	WorkspaceMu                    *sync.Mutex
+	Logger                         slog.Logger
+	AllowedTemplateIDs             func() map[uuid.UUID]bool
 }
 
 type createWorkspaceArgs struct {
@@ -108,6 +107,10 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
+			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
+				return fantasy.NewTextErrorResponse("template not available for chat workspaces; use list_templates to find allowed templates"), nil
+			}
+
 			// Serialize workspace creation to prevent parallel
 			// tool calls from creating duplicate workspaces.
 			if options.WorkspaceMu != nil {
@@ -116,19 +119,13 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			}
 
 			// Check for an existing workspace on the chat.
-			if options.DB != nil && options.ChatID != uuid.Nil {
-				existing, done, existErr := checkExistingWorkspace(
-					ctx, options.DB, options.ChatID,
-					options.AgentConnFn,
-				)
-				if existErr != nil {
-					return fantasy.NewTextErrorResponse(existErr.Error()), nil
-				}
-				if done {
-					return toolResponse(existing), nil
-				}
+			existing, done, existErr := options.checkExistingWorkspace(ctx)
+			if existErr != nil {
+				return fantasy.NewTextErrorResponse(existErr.Error()), nil
 			}
-
+			if done {
+				return toolResponse(existing), nil
+			}
 			ownerID := options.OwnerID
 
 			// Set up dbauthz context for DB lookups.
@@ -251,17 +248,23 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 		})
 }
 
-// checkExistingWorkspace checks whether the chat already has a usable
-// workspace. Returns the result map and true if the caller should
-// return early (workspace exists and is alive or building). Returns
-// false if the caller should proceed with creation (workspace is dead
-// or missing).
-func checkExistingWorkspace(
+// checkExistingWorkspace checks whether the configured chat already has
+// a usable workspace. Returns the result map and true if the caller
+// should return early (workspace exists and is alive or building).
+// Returns false if the caller should proceed with creation (workspace
+// is dead or missing).
+func (o CreateWorkspaceOptions) checkExistingWorkspace(
 	ctx context.Context,
-	db database.Store,
-	chatID uuid.UUID,
-	agentConnFn AgentConnFunc,
 ) (map[string]any, bool, error) {
+	if o.DB == nil || o.ChatID == uuid.Nil {
+		return nil, false, nil
+	}
+
+	db := o.DB
+	chatID := o.ChatID
+	agentConnFn := o.AgentConnFn
+	agentInactiveDisconnectTimeout := o.AgentInactiveDisconnectTimeout
+
 	chat, err := db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return nil, false, xerrors.Errorf("load chat: %w", err)
@@ -327,32 +330,38 @@ func checkExistingWorkspace(
 			}, true, nil
 		}
 
-		// Build succeeded — check if agent is reachable.
+		// Build succeeded — use the agent's recent DB-backed
+		// connection status to decide whether the workspace is
+		// still usable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-		if agentsErr == nil && len(agents) > 0 && agentConnFn != nil {
-			pingCtx, cancel := context.WithTimeout(ctx, agentPingTimeout)
-			conn, release, connErr := agentConnFn(pingCtx, agents[0].ID)
-			cancel()
-			if connErr == nil {
-				release()
-				_ = conn
-				// Agent is reachable; wait for startup scripts.
-				result := map[string]any{
-					"created":        false,
-					"workspace_name": ws.Name,
-					"status":         "already_exists",
-					"message":        "workspace is already running and reachable",
-				}
-				// Pass nil for agentConnFn since we already confirmed connectivity.
+		if agentsErr == nil && len(agents) > 0 {
+			status := agents[0].Status(agentInactiveDisconnectTimeout)
+			result := map[string]any{
+				"created":        false,
+				"workspace_name": ws.Name,
+				"status":         "already_exists",
+			}
+
+			switch status.Status {
+			case database.WorkspaceAgentStatusConnected:
+				result["message"] = "workspace is already running and recently connected"
 				for k, v := range waitForAgentReady(ctx, db, agents[0].ID, nil) {
 					result[k] = v
 				}
 				return result, true, nil
+			case database.WorkspaceAgentStatusConnecting:
+				result["message"] = "workspace exists and the agent is still connecting"
+				for k, v := range waitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
+					result[k] = v
+				}
+				return result, true, nil
+			case database.WorkspaceAgentStatusDisconnected,
+				database.WorkspaceAgentStatusTimeout:
+				// Agent is offline or never became ready — allow
+				// creation.
 			}
-			// Agent unreachable — workspace is dead, allow
-			// creation.
 		}
-		// No agent ID or no conn func — allow creation.
+		// No agent ID or no agent status — allow creation.
 		return nil, false, nil
 
 	default:

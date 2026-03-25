@@ -1,11 +1,3 @@
-import type { User } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { GitIcon } from "components/Icons/GitIcon";
-import {
-	Sidebar as BaseSidebar,
-	SidebarHeader,
-	SidebarNavItem,
-} from "components/Sidebar/Sidebar";
 import {
 	BellIcon,
 	BrushIcon,
@@ -19,6 +11,14 @@ import {
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { isDevBuild } from "utils/buildInfo";
+import type { User } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { GitIcon } from "#/components/Icons/GitIcon";
+import {
+	Sidebar as BaseSidebar,
+	SidebarHeader,
+	SidebarNavItem,
+} from "#/components/Sidebar/Sidebar";
 
 interface SidebarProps {
 	user: User;

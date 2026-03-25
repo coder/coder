@@ -1,7 +1,9 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"path"
@@ -10,6 +12,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -100,9 +103,8 @@ func readInstructionFile(
 }
 
 func sanitizeInstructionMarkdown(content string) string {
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	content = strings.ReplaceAll(content, "\r", "\n")
 	content = markdownCommentPattern.ReplaceAllString(content, "")
+	content = SanitizePromptText(content)
 	return strings.TrimSpace(content)
 }
 
@@ -158,6 +160,46 @@ type instructionFileSection struct {
 	content   string
 	source    string
 	truncated bool
+}
+
+// instructionFromContextFiles reconstructs the formatted instruction
+// string from persisted context-file parts. This is used on non-first
+// turns so the instruction can be re-injected after compaction
+// without re-dialing the workspace agent.
+func instructionFromContextFiles(
+	messages []database.ChatMessage,
+) string {
+	var sections []instructionFileSection
+	var os, dir string
+	for _, msg := range messages {
+		if !msg.Content.Valid ||
+			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeContextFile {
+				continue
+			}
+			if part.ContextFileOS != "" {
+				os = part.ContextFileOS
+			}
+			if part.ContextFileDirectory != "" {
+				dir = part.ContextFileDirectory
+			}
+			if part.ContextFileContent != "" {
+				sections = append(sections, instructionFileSection{
+					content:   part.ContextFileContent,
+					source:    part.ContextFilePath,
+					truncated: part.ContextFileTruncated,
+				})
+			}
+		}
+	}
+	return formatSystemInstructions(os, dir, sections)
 }
 
 // pwdInstructionFilePath returns the absolute path to the AGENTS.md

@@ -161,6 +161,10 @@ WHERE
         )
         ELSE true
     END
+    AND CASE
+        WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
+        ELSE true
+    END
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -181,7 +185,8 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
-    mcp_server_ids
+    mcp_server_ids,
+    labels
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -190,7 +195,8 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
-    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[])
+    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
+    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
 )
 RETURNING
     *;
@@ -282,6 +288,17 @@ UPDATE
     chats
 SET
     title = @title::text,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatLabelsByID :one
+UPDATE
+    chats
+SET
+    labels = @labels::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -543,8 +560,11 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        stale_at = NOW() + INTERVAL '5 minutes',
-        updated_at = NOW()
+        -- NOTE: updated_at is intentionally NOT touched here so
+        -- the worker can read it as "when was this row last
+        -- externally changed" (by MarkStale or a successful
+        -- refresh).
+        stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
         chat_id IN (
             SELECT
@@ -579,8 +599,11 @@ INNER JOIN
 UPDATE
     chat_diff_statuses
 SET
-    stale_at = @stale_at::timestamptz,
-    updated_at = NOW()
+    -- NOTE: updated_at is intentionally NOT touched here so
+    -- the worker can read it as "when was this row last
+    -- externally changed" (by MarkStale or a successful
+    -- refresh).
+    stale_at = @stale_at::timestamptz
 WHERE
     chat_id = @chat_id::uuid;
 

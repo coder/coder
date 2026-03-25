@@ -1,6 +1,6 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { watchChat } from "api/api";
-import { chatMessagesKey, chatsKey } from "api/queries/chats";
+import { watchChat } from "#/api/api";
+import { chatMessagesKey, chatsKey } from "#/api/queries/chats";
 
 // The infinite query key used by useInfiniteQuery(infiniteChats())
 // is [...chatsKey, undefined] = ["chats", undefined].
@@ -30,15 +30,16 @@ const readInfiniteChats = (
 	return data?.pages.flat();
 };
 
-import type * as TypesGen from "api/typesGenerated";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	selectChatStatus,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
 	selectStreamState,
@@ -58,22 +59,37 @@ type ErrorListener = (payload: Event) => void;
 type OpenListener = (payload: Event) => void;
 type CloseListener = (payload: CloseEvent) => void;
 
-interface MockSocket {
-	addEventListener(event: "message", callback: MessageListener): void;
-	addEventListener(event: "error", callback: ErrorListener): void;
-	addEventListener(event: "open", callback: OpenListener): void;
-	addEventListener(event: "close", callback: CloseListener): void;
-	removeEventListener(event: "message", callback: MessageListener): void;
-	removeEventListener(event: "error", callback: ErrorListener): void;
-	removeEventListener(event: "open", callback: OpenListener): void;
-	removeEventListener(event: "close", callback: CloseListener): void;
-	close: () => void;
+type WatchChatSocket = ReturnType<typeof watchChat>;
+
+type MockSocketHelpers = {
 	emitOpen: () => void;
 	emitData: (event: TypesGen.ChatStreamEvent) => void;
 	emitDataBatch: (events: readonly TypesGen.ChatStreamEvent[]) => void;
 	emitError: () => void;
 	emitClose: () => void;
-}
+};
+
+type MockSocket = WatchChatSocket & MockSocketHelpers;
+
+const mockWatchChatReturn = (socket: MockSocket): void => {
+	vi.mocked(watchChat).mockReturnValue(socket);
+};
+
+const mockWatchChatReturnOnce = (socket: MockSocket): void => {
+	vi.mocked(watchChat).mockReturnValueOnce(socket);
+};
+
+const mockWatchChatWithFreshSockets = (
+	watchMock = vi.mocked(watchChat),
+): MockSocket[] => {
+	const sockets: MockSocket[] = [];
+	watchMock.mockImplementation(() => {
+		const socket = createMockSocket();
+		sockets.push(socket);
+		return socket;
+	});
+	return sockets;
+};
 
 const createMockSocket = (): MockSocket => {
 	const messageListeners = new Set<MessageListener>();
@@ -81,7 +97,7 @@ const createMockSocket = (): MockSocket => {
 	const openListeners = new Set<OpenListener>();
 	const closeListeners = new Set<CloseListener>();
 
-	const addEventListener = (
+	const addEventListener = ((
 		event: "message" | "error" | "open" | "close",
 		callback: MessageListener | ErrorListener | OpenListener | CloseListener,
 	): void => {
@@ -98,9 +114,9 @@ const createMockSocket = (): MockSocket => {
 			return;
 		}
 		errorListeners.add(callback as ErrorListener);
-	};
+	}) as WatchChatSocket["addEventListener"];
 
-	const removeEventListener = (
+	const removeEventListener = ((
 		event: "message" | "error" | "open" | "close",
 		callback: MessageListener | ErrorListener | OpenListener | CloseListener,
 	): void => {
@@ -117,9 +133,10 @@ const createMockSocket = (): MockSocket => {
 			return;
 		}
 		errorListeners.delete(callback as ErrorListener);
-	};
+	}) as WatchChatSocket["removeEventListener"];
 
 	return {
+		url: "ws://example.test/api/experimental/chats/mock-stream",
 		addEventListener,
 		removeEventListener,
 		close: vi.fn(),
@@ -184,6 +201,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	owner_id: "owner-1",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
+	labels: {},
 	title: "test",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
@@ -225,6 +243,8 @@ const immediateAnimationFrame = (): void => {
 };
 
 afterEach(() => {
+	vi.clearAllTimers();
+	vi.useRealTimers();
 	vi.restoreAllMocks();
 	vi.mocked(watchChat).mockReset();
 });
@@ -236,7 +256,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -317,7 +337,7 @@ describe("useChatStore", () => {
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const newMessage = makeMessage(chatID, 2, "assistant", "done");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -392,7 +412,7 @@ describe("useChatStore", () => {
 		const existingMessage = makeMessage(chatID, 1, "assistant", "old");
 		const updatedMessage = makeMessage(chatID, 1, "assistant", "updated");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -466,7 +486,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const setChatErrorReason = vi.fn();
@@ -560,7 +580,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -635,7 +655,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -726,7 +746,7 @@ describe("useChatStore", () => {
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -800,7 +820,7 @@ describe("useChatStore", () => {
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -871,7 +891,7 @@ describe("useChatStore", () => {
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -953,11 +973,11 @@ describe("useChatStore", () => {
 		const mockSocket2 = createMockSocket();
 		// Use a fallback so that extra effect re-runs (caused by
 		// dependency changes during rerender) get a valid socket.
-		vi.mocked(watchChat).mockReturnValue(mockSocket2 as never);
+		mockWatchChatReturn(mockSocket2);
 		vi.mocked(watchChat)
-			.mockReturnValueOnce(mockSocket1 as never)
-			.mockReturnValueOnce(mockSocket1 as never)
-			.mockReturnValueOnce(mockSocket1 as never);
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1042,7 +1062,7 @@ describe("useChatStore", () => {
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1098,7 +1118,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1200,7 +1220,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-raf";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1294,11 +1314,11 @@ describe("useChatStore", () => {
 		const mockSocket1 = createMockSocket();
 		const mockSocket2 = createMockSocket();
 		// Use a fallback so that extra effect re-runs get a valid socket.
-		vi.mocked(watchChat).mockReturnValue(mockSocket2 as never);
+		mockWatchChatReturn(mockSocket2);
 		vi.mocked(watchChat)
-			.mockReturnValueOnce(mockSocket1 as never)
-			.mockReturnValueOnce(mockSocket1 as never)
-			.mockReturnValueOnce(mockSocket1 as never);
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1385,11 +1405,11 @@ describe("useChatStore", () => {
 		const mockSocket1 = createMockSocket();
 		const mockSocket2 = createMockSocket();
 		// Use a fallback so that extra effect re-runs get a valid socket.
-		vi.mocked(watchChat).mockReturnValue(mockSocket2 as never);
+		mockWatchChatReturn(mockSocket2);
 		vi.mocked(watchChat)
-			.mockReturnValueOnce(mockSocket1 as never)
-			.mockReturnValueOnce(mockSocket1 as never)
-			.mockReturnValueOnce(mockSocket1 as never);
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1)
+			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1459,7 +1479,7 @@ describe("useChatStore", () => {
 
 		const chatID = "chat-status-guard";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1529,7 +1549,7 @@ describe("useChatStore", () => {
 
 		const chatID = "chat-error";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1570,18 +1590,33 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "Rate limit exceeded" },
+				error: {
+					message: "Rate limit exceeded",
+					kind: "rate_limit",
+					provider: "anthropic",
+					retryable: true,
+					status_code: 429,
+				},
 			});
 		});
 
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("error");
 		});
-		expect(result.current.streamError).toBe("Rate limit exceeded");
+		expect(result.current.streamError).toEqual({
+			kind: "rate_limit",
+			message: "Rate limit exceeded",
+			provider: "anthropic",
+			retryable: true,
+			statusCode: 429,
+		});
 		expect(result.current.retryState).toBeNull();
 		expect(setChatErrorReason).toHaveBeenCalledWith(chatID, {
-			kind: "generic",
+			kind: "rate_limit",
 			message: "Rate limit exceeded",
+			provider: "anthropic",
+			retryable: true,
+			statusCode: 429,
 		});
 	});
 
@@ -1590,7 +1625,7 @@ describe("useChatStore", () => {
 
 		const chatID = "chat-error-empty";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1629,12 +1664,18 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "  " },
+				error: { message: "  ", retryable: false },
 			});
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toBe("Chat processing failed.");
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Chat processing failed.",
+				provider: undefined,
+				retryable: false,
+				statusCode: undefined,
+			});
 		});
 	});
 
@@ -1643,7 +1684,7 @@ describe("useChatStore", () => {
 
 		const chatID = "chat-retry";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1685,17 +1726,22 @@ describe("useChatStore", () => {
 				retry: {
 					attempt: 2,
 					error: "upstream timeout",
+					kind: "timeout",
+					provider: "anthropic",
 					delay_ms: 5000,
 					retrying_at: "2025-01-01T00:01:00.000Z",
 				},
 			});
 		});
 
-		await waitFor(() => {
-			expect(result.current.retryState).toEqual({
-				attempt: 2,
-				error: "upstream timeout",
-			});
+		await act(async () => {});
+		expect(result.current.retryState).toEqual({
+			attempt: 2,
+			error: "upstream timeout",
+			kind: "timeout",
+			provider: "anthropic",
+			delayMs: 5000,
+			retryingAt: "2025-01-01T00:01:00.000Z",
 		});
 	});
 
@@ -1704,7 +1750,7 @@ describe("useChatStore", () => {
 
 		const chatID = "chat-retry-clear";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1748,6 +1794,8 @@ describe("useChatStore", () => {
 				retry: {
 					attempt: 1,
 					error: "rate limited",
+					kind: "rate_limit",
+					provider: "anthropic",
 					delay_ms: 3000,
 					retrying_at: "2025-01-01T00:00:30.000Z",
 				},
@@ -1755,7 +1803,14 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.retryState).not.toBeNull();
+			expect(result.current.retryState).toEqual({
+				attempt: 1,
+				error: "rate limited",
+				kind: "rate_limit",
+				provider: "anthropic",
+				delayMs: 3000,
+				retryingAt: "2025-01-01T00:00:30.000Z",
+			});
 		});
 
 		// Transition to running — should clear retry state.
@@ -1779,7 +1834,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-main";
 		const subagentChatID = "chat-subagent-1";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1836,12 +1891,12 @@ describe("useChatStore", () => {
 		expect(result.current.chatStatus).toBe("running");
 	});
 
-	it("sets streamError on WebSocket disconnect and reconnects", async () => {
+	it("sets reconnectState on WebSocket disconnect and clears it after reconnect", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-disconnect";
 		const mockSocket1 = createMockSocket();
-		vi.mocked(watchChat).mockReturnValueOnce(mockSocket1 as never);
+		mockWatchChatReturnOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1866,7 +1921,8 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					streamError: useChatSelector(store, selectStreamError),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					reconnectState: useChatSelector(store, selectReconnectState),
 				};
 			},
 			{ wrapper },
@@ -1882,15 +1938,20 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toBe(
-				"Chat stream disconnected. Reconnecting\u2026",
+			expect(result.current.reconnectState).toMatchObject({
+				attempt: 1,
+				delayMs: 1000,
+			});
+			expect(result.current.reconnectState?.retryingAt).toEqual(
+				expect.any(String),
 			);
+			expect(result.current.chatStatus).toBe("running");
 		});
 
 		// The reconnect timer fires after 1s. Since we're not
 		// using fake timers, waitFor will naturally wait.
 		const mockSocket2 = createMockSocket();
-		vi.mocked(watchChat).mockReturnValueOnce(mockSocket2 as never);
+		mockWatchChatReturnOnce(mockSocket2);
 
 		await waitFor(
 			() => {
@@ -1905,15 +1966,95 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
+			expect(result.current.reconnectState).toBeNull();
+			expect(result.current.chatStatus).toBe("running");
+		});
+	});
+
+	it("clears stale streamError when a reconnected socket opens", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-reconnect-clear-error";
+		const watchMock = vi.mocked(watchChat);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					store,
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		const socket1 = sockets[0]!;
+		act(() => {
+			socket1.emitOpen();
+			result.current.store.setStreamError({
+				kind: "generic",
+				message: "Stale transport failure.",
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Stale transport failure.",
+			});
+		});
+
+		act(() => {
+			socket1.emitClose();
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+
+		expect(watchMock).toHaveBeenCalledTimes(2);
+		const socket2 = sockets[1]!;
+
+		act(() => {
+			socket2.emitOpen();
+		});
+
+		await waitFor(() => {
 			expect(result.current.streamError).toBeNull();
 		});
 	});
-	it("does not overwrite existing streamError on WebSocket disconnect", async () => {
+
+	it("keeps terminal streamError when a WebSocket disconnect follows it", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-disconnect-existing";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1939,6 +2080,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					streamError: useChatSelector(store, selectStreamError),
+					reconnectState: useChatSelector(store, selectReconnectState),
 				};
 			},
 			{ wrapper },
@@ -1953,25 +2095,86 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "Rate limit exceeded" },
+				error: { message: "Rate limit exceeded", retryable: false },
 			});
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toBe("Rate limit exceeded");
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Rate limit exceeded",
+				provider: undefined,
+				retryable: false,
+				statusCode: undefined,
+			});
+			expect(result.current.reconnectState).toBeNull();
 		});
 
-		// WebSocket disconnect overwrites with reconnecting message
-		// since the reconnect logic always shows the disconnect
-		// notice on first disconnect.
+		// WebSocket disconnect should not overwrite the terminal error
+		// or surface reconnect state once the turn has already failed.
 		act(() => {
 			mockSocket.emitError();
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toBe(
-				"Chat stream disconnected. Reconnecting\u2026",
-			);
+			expect(result.current.streamError).toEqual({
+				kind: "generic",
+				message: "Rate limit exceeded",
+				provider: undefined,
+				retryable: false,
+				statusCode: undefined,
+			});
+			expect(result.current.reconnectState).toBeNull();
+		});
+	});
+
+	it("does not surface reconnectState for completed chats", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-disconnect-completed";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: { ...makeChat(chatID), status: "completed" },
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+					reconnectState: useChatSelector(store, selectReconnectState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("completed");
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitError();
+		});
+
+		await waitFor(() => {
+			expect(result.current.reconnectState).toBeNull();
+			expect(result.current.chatStatus).toBe("completed");
 		});
 	});
 	it("uses exponential backoff on consecutive disconnects", async () => {
@@ -1979,9 +2182,7 @@ describe("useChatStore", () => {
 
 		const chatID = "chat-backoff";
 		const watchMock = vi.mocked(watchChat);
-
-		// Return fresh sockets on each call.
-		watchMock.mockImplementation(() => createMockSocket() as never);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -2011,7 +2212,7 @@ describe("useChatStore", () => {
 		});
 
 		// Get the first socket and disconnect it.
-		const socket1 = watchMock.mock.results[0].value as MockSocket;
+		const socket1 = sockets[0]!;
 		act(() => socket1.emitClose());
 
 		// First reconnect after 1s.
@@ -2020,7 +2221,7 @@ describe("useChatStore", () => {
 		});
 
 		// Second disconnect — reconnect after 2s.
-		const socket2 = watchMock.mock.results[1].value as MockSocket;
+		const socket2 = sockets[1]!;
 		act(() => socket2.emitClose());
 
 		await waitFor(() => expect(watchMock).toHaveBeenCalledTimes(3), {
@@ -2034,7 +2235,7 @@ describe("useChatStore", () => {
 		const chatID = "chat-catchup";
 		const msg = makeMessage(chatID, 42, "assistant", "hello");
 		const watchMock = vi.mocked(watchChat);
-		watchMock.mockImplementation(() => createMockSocket() as never);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -2065,7 +2266,7 @@ describe("useChatStore", () => {
 		});
 
 		// Disconnect and reconnect.
-		const socket1 = watchMock.mock.results[0].value as MockSocket;
+		const socket1 = sockets[0]!;
 		act(() => socket1.emitClose());
 
 		// Second connect should also use the last message ID.
@@ -2097,7 +2298,7 @@ describe("useChatStore", () => {
 		// Return a fresh MockSocket for each connection attempt
 		// so we can control the first and second sockets
 		// independently.
-		watchMock.mockImplementation(() => createMockSocket() as never);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -2133,7 +2334,7 @@ describe("useChatStore", () => {
 			expect(watchMock).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		const socket1 = watchMock.mock.results[0].value as MockSocket;
+		const socket1 = sockets[0]!;
 
 		// Simulate the first socket opening successfully.
 		act(() => socket1.emitOpen());
@@ -2176,10 +2377,10 @@ describe("useChatStore", () => {
 
 		// A second socket should now exist.
 		expect(watchMock).toHaveBeenCalledTimes(2);
-		const socket2 = watchMock.mock.results[1].value as MockSocket;
+		const socket2 = sockets[1]!;
 
 		// Simulate the reconnected socket opening. This is
-		// where onOpen fires clearStreamState().
+		// where onOpen fires resetTransportReplayState().
 		act(() => socket2.emitOpen());
 
 		// Replay the same parts the server would send on the
@@ -2203,8 +2404,9 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Without clearStreamState() in onOpen the replayed
-		// parts would append to the stale accumulator, producing
+		// Without resetTransportReplayState() in onOpen the
+		// replayed parts would append to the stale accumulator,
+		// producing
 		// "Hello worldHello world". The fix ensures a clean
 		// slate so we get the correct single copy.
 		await waitFor(() => {
@@ -2221,7 +2423,7 @@ describe("useChatStore", () => {
 
 		const chatID = "chat-clear-error";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -2279,7 +2481,7 @@ describe("useChatStore", () => {
 		const msg3 = makeMessage(chatID, 3, "user", "third");
 
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper: FC<PropsWithChildren> = ({ children }) => (
@@ -2350,7 +2552,7 @@ describe("useChatStore", () => {
 		const promotedMsg = makeMessage(chatID, 3, "user", "follow-up");
 
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper: FC<PropsWithChildren> = ({ children }) => (
@@ -2459,7 +2661,7 @@ describe("useChatStore", () => {
 		const msg2 = makeMessage(chatID, 2, "assistant", "hi");
 
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
 		const wrapper: FC<PropsWithChildren> = ({ children }) => (
@@ -2563,7 +2765,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		const chatID = "chat-sidebar-status";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -2628,7 +2830,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		const chatID = "chat-sidebar-message";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -2701,7 +2903,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		const chatID = "chat-sidebar-error";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -2750,7 +2952,7 @@ describe("updateSidebarChat via stream events", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "something went wrong" },
+				error: { message: "something went wrong", retryable: false },
 			});
 		});
 
@@ -2766,7 +2968,7 @@ describe("updateSidebarChat via stream events", () => {
 		const chatID = "chat-active";
 		const otherChatID = "chat-other";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -2839,7 +3041,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		const chatID = "chat-no-regress-msg";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -2911,7 +3113,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		const chatID = "chat-no-regress-status";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -2977,7 +3179,7 @@ describe("updateSidebarChat via stream events", () => {
 
 		const chatID = "chat-no-regress-error";
 		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		mockWatchChatReturn(mockSocket);
 
 		const queryClient = new QueryClient({
 			defaultOptions: {
@@ -3026,7 +3228,7 @@ describe("updateSidebarChat via stream events", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "something broke" },
+				error: { message: "something broke", retryable: false },
 			});
 		});
 

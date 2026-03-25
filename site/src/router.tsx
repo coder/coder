@@ -374,6 +374,14 @@ const AIBridgeRequestLogsPage = lazy(
 	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
 
+const AIBridgeSessionsLayout = lazy(
+	() => import("./pages/AIBridgePage/AIBridgeSessionsLayout"),
+);
+
+const AIBridgeListSessionsPage = lazy(
+	() => import("./pages/AIBridgePage/ListSessionsPage/ListSessionsPage"),
+);
+
 const GlobalLayout = () => {
 	return (
 		<Suspense fallback={<Loader fullscreen />}>
@@ -607,6 +615,10 @@ export const router = createBrowserRouter(
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
 						<Route index element={<Navigate to="request-logs" replace />} />
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
+					</Route>
+
+					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>
+						<Route index element={<AIBridgeListSessionsPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>

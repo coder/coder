@@ -1,19 +1,21 @@
+import type { FC } from "react";
+import { docs } from "utils/docs";
 import {
 	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Table,
 	TableBody,
@@ -21,9 +23,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Table/Table";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
 // If the user using provisioner keys for external provisioners you're unlikely to
@@ -62,7 +62,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 				<PaywallPremium
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/")}
+					documentationLink={docs("/admin/provisioners")}
 				/>
 			) : (
 				<Table className="mt-6">

@@ -1,4 +1,4 @@
-import type { LoginType, User, UserStatus } from "api/typesGenerated";
+import type { LoginType, User, UserStatus } from "#/api/typesGenerated";
 
 // The following username, name, and email are generated using ChatGPT to avoid
 // exposing real user data in mock values. While libraries like faker.js could

@@ -1,10 +1,3 @@
-import type { Template } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import {
-	Sidebar as BaseSidebar,
-	SidebarHeader,
-	SidebarNavItem,
-} from "components/Sidebar/Sidebar";
 import {
 	LockIcon,
 	TimerIcon as ScheduleIcon,
@@ -13,6 +6,13 @@ import {
 } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
+import type { Template } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	Sidebar as BaseSidebar,
+	SidebarHeader,
+	SidebarNavItem,
+} from "#/components/Sidebar/Sidebar";
 
 interface SidebarProps {
 	template: Template;

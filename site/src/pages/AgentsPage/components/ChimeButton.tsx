@@ -1,11 +1,11 @@
-import { Button } from "components/Button/Button";
+import { Volume2Icon, VolumeOffIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { Volume2Icon, VolumeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { getChimeEnabled, setChimeEnabled } from "./AgentDetail/useAgentChime";
 
 export const ChimeButton: FC = () => {

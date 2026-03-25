@@ -1,19 +1,19 @@
+import type { FC } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { formatDate } from "utils/time";
 import {
 	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
-} from "components/Chart/Chart";
+} from "#/components/Chart/Chart";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import type { FC } from "react";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { formatDate } from "utils/time";
+} from "#/components/HelpTooltip/HelpTooltip";
 
 const chartConfig = {
 	amount: {

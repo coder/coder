@@ -1,13 +1,13 @@
-import { API } from "api/api";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import type React from "react";
+import { useQuery } from "react-query";
+import { cn } from "utils/cn";
+import { API } from "#/api/api";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
-import type React from "react";
-import { useQuery } from "react-query";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 import { Response } from "../response";
 import type { ToolStatus } from "./utils";
 
@@ -57,22 +57,15 @@ export const ProposePlanTool: React.FC<{
 	return (
 		<div className="w-full">
 			<div className="flex items-center gap-1.5 py-0.5">
-				<span
-					className={cn(
-						"text-sm",
-						effectiveError
-							? "text-content-destructive"
-							: "text-content-secondary",
-					)}
-				>
+				<span className={cn("text-sm", "text-content-secondary")}>
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
 				</span>
 				{effectiveError && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<CircleAlertIcon
+							<TriangleAlertIcon
 								aria-label="Error"
-								className="h-3.5 w-3.5 shrink-0 text-content-destructive"
+								className="h-3.5 w-3.5 shrink-0 text-content-secondary"
 							/>
 						</TooltipTrigger>
 						<TooltipContent>

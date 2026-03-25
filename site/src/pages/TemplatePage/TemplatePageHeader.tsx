@@ -1,31 +1,3 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import { workspaces } from "api/queries/workspaces";
-import type {
-	AuthorizationResponse,
-	Template,
-	TemplateVersion,
-} from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button, Button as ShadcnButton } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Margins } from "components/Margins/Margins";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -41,6 +13,34 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { workspaces } from "#/api/queries/workspaces";
+import type {
+	AuthorizationResponse,
+	Template,
+	TemplateVersion,
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button, Button as ShadcnButton } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Margins } from "#/components/Margins/Margins";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
+import {
+	PageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { Pill } from "#/components/Pill/Pill";
+import { Stack } from "#/components/Stack/Stack";
 import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 

@@ -1,4 +1,4 @@
-import type * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
 import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -168,6 +168,9 @@ export const applyMessagePartToStreamState = (
 		// file-reference parts only appear in persisted messages
 		// from user input, never via SSE streaming.
 		case "file-reference":
+		// context-file parts are metadata-only; no streaming
+		// render needed.
+		case "context-file":
 			return prev;
 		default: {
 			const _exhaustive: never = part;

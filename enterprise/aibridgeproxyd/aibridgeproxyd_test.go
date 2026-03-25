@@ -1370,12 +1370,13 @@ func TestProxy_MITM(t *testing.T) {
 			metrics := aibridgeproxyd.NewMetrics(reg)
 
 			// Track what aibridged receives.
-			var receivedPath, receivedCoderToken, receivedRequestID string
+			var receivedPath, receivedAuthz, receivedBYOK, receivedRequestID string
 
 			// Create a mock aibridged server that captures requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				receivedPath = r.URL.Path
-				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
+				receivedAuthz = r.Header.Get("Authorization")
+				receivedBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
 				receivedRequestID = r.Header.Get(aibridgeproxyd.HeaderAIBridgeRequestID)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
@@ -1427,11 +1428,14 @@ func TestProxy_MITM(t *testing.T) {
 				certPool = getProxyCertPool(t)
 			}
 
-			// Make a request through the proxy to the target URL.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool, false)
+			// Simulate the primary proxy use case: the Coder
+			// token is in Proxy-Authorization, and the user's
+			// own LLM token is in Authorization.
+			client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer user-llm-token")
 
 			resp, err := client.Do(req)
 			require.NoError(t, err)
@@ -1449,7 +1453,7 @@ func TestProxy_MITM(t *testing.T) {
 				// Verify request went to target server, not aibridged.
 				require.Equal(t, "hello from tunneled", string(body))
 				require.Empty(t, receivedPath, "aibridged should not receive tunneled requests")
-				require.Empty(t, receivedCoderToken, "tunneled requests are not authenticated by the proxy")
+				require.Empty(t, receivedAuthz, "tunneled requests should not reach aibridged")
 				require.Empty(t, receivedRequestID, "tunneled requests should not have request ID header")
 
 				// Verify metrics for tunneled requests.
@@ -1464,7 +1468,8 @@ func TestProxy_MITM(t *testing.T) {
 				// Verify the request was routed to aibridged correctly.
 				require.Equal(t, "hello from aibridged", string(body))
 				require.Equal(t, tt.expectedPath, receivedPath)
-				require.Equal(t, "test-token", receivedCoderToken, "MITM'd requests must include Coder token")
+				require.Equal(t, "Bearer user-llm-token", receivedAuthz, "user's LLM credentials must be forwarded")
+				require.Equal(t, "coder-token", receivedBYOK, "proxy must inject BYOK header with Coder token")
 				require.NotEmpty(t, receivedRequestID, "MITM'd requests must include request ID header")
 				_, err := uuid.Parse(receivedRequestID)
 				require.NoError(t, err, "request ID must be a valid UUID")
@@ -1477,6 +1482,95 @@ func TestProxy_MITM(t *testing.T) {
 
 				// Verify tunneled counter was not set.
 				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
+			}
+		})
+	}
+}
+
+// TestProxy_MITM_BYOKInjection verifies that the proxy sets the BYOK header
+// when Authorization carries a bearer token different from the Coder
+// token. This handles clients that send per-user LLM credentials
+// but cannot set custom headers.
+func TestProxy_MITM_BYOKInjection(t *testing.T) {
+	t.Parallel()
+
+	coderToken := "coder-token"
+
+	tests := []struct {
+		name          string
+		authzHeader   string
+		byokHeader    string // pre-set by client; empty means not set
+		expectBYOK    bool
+		expectBYOKVal string
+	}{
+		{
+			// Centralized: Authorization carries the Coder token (same
+			// value as Proxy-Authorization). No BYOK header is set.
+			name:        "Authorization matches Coder token",
+			authzHeader: "Bearer " + coderToken,
+			expectBYOK:  false,
+		},
+		{
+			// BYOK: Authorization carries the user's token,
+			// which differs from the Coder token. The proxy injects
+			// the BYOK header.
+			name:          "Authorization differs from Coder token",
+			authzHeader:   "Bearer client-access-token",
+			expectBYOK:    true,
+			expectBYOKVal: coderToken,
+		},
+		{
+			// Client already set the BYOK header (Claude Code, Codex).
+			// The proxy must not overwrite it.
+			name:          "BYOK header already set by client — not overwritten",
+			authzHeader:   "Bearer client-access-token",
+			byokHeader:    "client-set-coder-token",
+			expectBYOK:    true,
+			expectBYOKVal: "client-set-coder-token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var receivedBYOKHeader, receivedAuthz string
+
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedAuthz = r.Header.Get("Authorization")
+				receivedBYOKHeader = r.Header.Get(agplaibridge.HeaderCoderToken)
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(aibridgedServer.Close)
+
+			srv := newTestProxy(t,
+				withCoderAccessURL(aibridgedServer.URL),
+				withDomainAllowlist(aibridgeproxyd.HostCopilot),
+				withAIBridgeProviderFromHost(nil),
+			)
+
+			certPool := getProxyCertPool(t)
+			client := newProxyClient(t, srv, makeProxyAuthHeader(coderToken), certPool, false)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://"+aibridgeproxyd.HostCopilot+"/chat/completions", strings.NewReader(`{}`))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", tt.authzHeader)
+			if tt.byokHeader != "" {
+				req.Header.Set(agplaibridge.HeaderCoderToken, tt.byokHeader)
+			}
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, tt.authzHeader, receivedAuthz, "Authorization must be forwarded to aibridged")
+
+			if tt.expectBYOK {
+				require.Equal(t, tt.expectBYOKVal, receivedBYOKHeader, "BYOK header must be set when Authorization differs from Coder token")
+			} else {
+				require.Empty(t, receivedBYOKHeader, "BYOK header must not be set")
 			}
 		})
 	}
@@ -1785,7 +1879,8 @@ func TestUpstreamProxy(t *testing.T) {
 				finalDestinationBody         string
 				aibridgeReceived             bool
 				aibridgePath                 string
-				aibridgeCoderToken           string
+				aibridgeAuthz                string
+				aibridgeBYOK                 string
 				aibridgeBody                 string
 			)
 
@@ -1882,7 +1977,8 @@ func TestUpstreamProxy(t *testing.T) {
 			aibridgeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				aibridgeReceived = true
 				aibridgePath = r.URL.Path
-				aibridgeCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
+				aibridgeAuthz = r.Header.Get("Authorization")
+				aibridgeBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
 				body, err := io.ReadAll(r.Body)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1937,7 +2033,8 @@ func TestUpstreamProxy(t *testing.T) {
 				certPool = getProxyCertPool(t)
 			}
 
-			// Create HTTP client configured to use aiproxy.
+			// Create HTTP client configured to use aiproxy. Coder token
+			// in Proxy-Authorization, user's LLM token in Authorization.
 			client := newProxyClient(t, srv, makeProxyAuthHeader("test-coder-token"), certPool, false)
 
 			// Make request through aiproxy.
@@ -1945,6 +2042,7 @@ func TestUpstreamProxy(t *testing.T) {
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(requestBody))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer user-llm-token")
 
 			resp, err := client.Do(req)
 			require.NoError(t, err)
@@ -1966,8 +2064,8 @@ func TestUpstreamProxy(t *testing.T) {
 					"final destination should receive the exact request body")
 				require.False(t, aibridgeReceived,
 					"aibridge should NOT receive request for non-allowlisted domain")
-				require.Empty(t, aibridgeCoderToken,
-					"tunneled requests should not have Coder token")
+				require.Empty(t, aibridgeAuthz,
+					"tunneled requests should not reach aibridge")
 			} else {
 				require.False(t, upstreamProxyCONNECTReceived,
 					"upstream proxy should NOT receive CONNECT for allowlisted domain")
@@ -1975,8 +2073,10 @@ func TestUpstreamProxy(t *testing.T) {
 					"aibridge should receive the MITM'd request")
 				require.Equal(t, tt.expectedAIBridgePath, aibridgePath,
 					"aibridge should receive rewritten path")
-				require.Equal(t, "test-coder-token", aibridgeCoderToken,
-					"aibridge should receive Coder token header")
+				require.Equal(t, "Bearer user-llm-token", aibridgeAuthz,
+					"user's LLM credentials must be forwarded")
+				require.Equal(t, "test-coder-token", aibridgeBYOK,
+					"proxy must inject BYOK header with Coder token")
 				require.Equal(t, requestBody, aibridgeBody,
 					"aibridge should receive the exact request body")
 				require.False(t, finalDestinationReceived,

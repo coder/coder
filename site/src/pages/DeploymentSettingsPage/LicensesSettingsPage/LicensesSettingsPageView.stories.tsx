@@ -1,8 +1,8 @@
 import { chromatic } from "testHelpers/chromatic";
 import { MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Feature } from "api/typesGenerated";
 import { expect, fn, within } from "storybook/test";
+import type { Feature } from "#/api/typesGenerated";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const meta: Meta<typeof LicensesSettingsPageView> = {
@@ -43,7 +43,7 @@ export const Empty: Story = {
 	},
 };
 
-/** Premium + AI governance usage bars; AI governance shows `SeatUsageBarCard` (not the not-entitled placeholder). */
+/** Premium + AI Governance usage bars; AI Governance shows `SeatUsageBarCard` (not the not-entitled placeholder). */
 export const ActiveAIGovernanceAddOnUsage: Story = {
 	args: {
 		userLimitActual: 1923,
@@ -67,7 +67,7 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 		await expect(canvas.getByText("1,923")).toBeInTheDocument();
 		await expect(canvas.getByText("2,500")).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("heading", { name: "AI governance add-on usage" }),
+			canvas.getByRole("heading", { name: "AI Governance add-on usage" }),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("512")).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();

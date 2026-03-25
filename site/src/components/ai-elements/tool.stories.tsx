@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { Tool } from "./tool";
 
@@ -470,6 +470,186 @@ export const TaskNameGenericRendering: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// MCP tool stories (generic renderer with MCP server context)
+// ---------------------------------------------------------------------------
+
+const sampleMCPServers = [
+	{
+		id: "mcp-server-1",
+		slug: "linear",
+		display_name: "Linear",
+		description: "Project management",
+		icon_url: "https://linear.app/favicon.ico",
+		transport: "streamable_http",
+		url: "https://mcp.linear.app",
+		auth_type: "oauth2",
+		has_oauth2_secret: false,
+		has_api_key: false,
+		has_custom_headers: false,
+		tool_allow_list: [],
+		tool_deny_list: [],
+		availability: "default_on",
+		enabled: true,
+		auth_connected: true,
+		created_at: "2025-01-01T00:00:00Z",
+		updated_at: "2025-01-01T00:00:00Z",
+	},
+] satisfies readonly import("api/typesGenerated").MCPServerConfig[];
+
+export const MCPToolRunning: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "running",
+		args: { project: "backend" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// Spinner should be visible while running.
+		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		// Icon should be monochrome (brightness-0 filter).
+		const icon = canvasElement.querySelector(".brightness-0");
+		expect(icon).not.toBeNull();
+	},
+};
+
+export const MCPToolCompleted: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "completed",
+		args: { project: "backend" },
+		result: {
+			issues: [
+				{ id: "LIN-123", title: "Fix auth flow" },
+				{ id: "LIN-456", title: "Update dashboard" },
+			],
+		},
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// No spinner when completed.
+		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
+		// Icon should still be monochrome when completed.
+		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
+		// Result should be collapsed by default.
+		const toggle = canvas.getByRole("button");
+		expect(toggle).toBeInTheDocument();
+		// Expand to see result content.
+		await userEvent.click(toggle);
+		// @pierre/diffs renders inside a Shadow DOM (<diffs-container>)
+		// so textContent on the host element can't see the content.
+		// Query into the shadow root to verify the JSON rendered.
+		await waitFor(() => {
+			const shadow = canvasElement.querySelector("diffs-container")?.shadowRoot;
+			expect(shadow?.textContent).toContain("Fix auth flow");
+		});
+	},
+};
+
+export const MCPToolError: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		args: { project: "backend" },
+		result: { error: "Authentication token expired" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// Warning triangle icon should be present.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Label text should NOT use the destructive color.
+		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
+	},
+};
+
+export const MCPToolNoResult: Story = {
+	args: {
+		name: "linear__create_issue",
+		status: "completed",
+		args: { title: "New issue" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// No toggle button when there is no result content.
+		expect(canvasElement.querySelector("button")).toBeNull();
+	},
+};
+
+export const MCPToolSlackIcon: Story = {
+	args: {
+		name: "slack__post_message",
+		status: "completed",
+		result: { ok: true, channel: "#general" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "slack",
+				display_name: "Slack",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/500px-Slack_icon_2019.svg.png",
+			},
+		],
+	},
+};
+
+export const MCPToolGitHubIcon: Story = {
+	args: {
+		name: "github__list_prs",
+		status: "completed",
+		result: { prs: [{ id: 1, title: "Fix bug" }] },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "github",
+				display_name: "GitHub",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg",
+			},
+		],
+	},
+};
+
+export const MCPToolFigmaIcon: Story = {
+	args: {
+		name: "figma__get_file",
+		status: "completed",
+		result: { file: "design.fig" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "figma",
+				display_name: "Figma",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
+			},
+		],
+	},
+};
+
+export const MCPToolNoServer: Story = {
+	args: {
+		name: "some_custom_tool",
+		status: "completed",
+		result: { output: "Tool finished successfully" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Falls through to generic wrench icon + raw tool name.
+		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
 // WriteFile stories
 // ---------------------------------------------------------------------------
 
@@ -668,9 +848,9 @@ export const ComputerScreenshot: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
-		// Image should be wrapped in a link that opens in a new tab.
-		const link = img.closest("a");
-		expect(link).toHaveAttribute("target", "_blank");
+		// Image should be wrapped in a button that opens the lightbox.
+		const button = img.closest("button");
+		expect(button).toBeInTheDocument();
 	},
 };
 
@@ -724,9 +904,10 @@ export const ComputerError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
-		// Icon and label should have the destructive color class.
-		const label = canvas.getByText("Screenshot");
-		expect(label.className).toContain("text-content-destructive");
+		// Warning icon should be present, not the old destructive style.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
 	},
 };
 
@@ -750,5 +931,166 @@ export const ComputerArrayResult: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Tool failure display stories
+// ---------------------------------------------------------------------------
+
+export const GenericToolFailed: Story = {
+	args: {
+		name: "some_custom_tool",
+		status: "error",
+		isError: true,
+		args: { input: "test data" },
+		result: { error: "Connection refused: could not reach upstream service" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show "Failed" badge instead of scary red alert.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Label should NOT have destructive color.
+		const label = canvas.getByText("some_custom_tool");
+		expect(label.className).not.toContain("text-content-destructive");
+		// Error icon should not be present (replaced by warning triangle).
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+	},
+};
+
+export const GenericToolFailedNoResult: Story = {
+	args: {
+		name: "web_search",
+		status: "error",
+		isError: true,
+	},
+	play: async ({ canvasElement }) => {
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+	},
+};
+
+export const SubagentWaitTimedOut: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: "timed out waiting for delegated subagent completion",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show clock icon for timeout.
+		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
+		// Should NOT show red alert icon.
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+		// Should show timeout verb.
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitTimedOutWithTitle: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: {
+			chat_id: "timed-out-child",
+			error: "timed out waiting for delegated subagent completion",
+			title: "Fix login bug",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+		expect(canvas.getByText("Fix login bug")).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitTimedOutTitleFromMap: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "timed-out-child" },
+		result: "timed out waiting for delegated subagent completion",
+		subagentTitles: new Map([["timed-out-child", "Refactor auth module"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Refactor auth module")).toBeInTheDocument();
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+	},
+};
+
+export const SubagentSpawnError: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "error",
+		isError: true,
+		args: {
+			title: "Database migration",
+			prompt: "Run the pending migrations.",
+		},
+		result: {
+			chat_id: "failed-child",
+			error: "workspace not found",
+			status: "error",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show the muted X icon, not the red alert.
+		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+		// Should show error verb.
+		expect(canvas.getByText(/Failed to spawn/)).toBeInTheDocument();
+		expect(canvas.getByText("Database migration")).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitError: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "error-child" },
+		result: {
+			chat_id: "error-child",
+			error: "subagent crashed unexpectedly",
+			status: "error",
+			title: "Lint codebase",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
+		expect(canvas.getByText(/Failed waiting for/)).toBeInTheDocument();
+		expect(canvas.getByText("Lint codebase")).toBeInTheDocument();
+	},
+};
+
+export const MCPToolFailedUnifiedStyle: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		args: { project: "backend" },
+		result: { error: "Authentication token expired" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		// Should show warning triangle icon.
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Icon should NOT be red.
+		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
 	},
 };

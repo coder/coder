@@ -174,44 +174,107 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 	}
 }
 
-func TestServeHTTP_CoderTokenRemoved(t *testing.T) {
+func TestServeHTTP_StripCoderToken(t *testing.T) {
 	t.Parallel()
 
-	mockHandler := &mockHandler{}
+	cases := []struct {
+		name          string
+		reqHeaders    map[string]string
+		expectPresent map[string]string // header → expected value
+		expectAbsent  []string          // headers that must be gone
+	}{
+		{
+			// Centralized: the client sets Authorization and X-Api-Key,
+			// but does not include HeaderCoderToken.
+			// All auth headers are stripped.
+			name: "centralized",
+			reqHeaders: map[string]string{
+				"Authorization": "Bearer coder-token",
+				"X-Api-Key":     "sk-ant-api03-user-key",
+			},
+			expectAbsent: []string{
+				"Authorization",
+				"X-Api-Key",
+				agplaibridge.HeaderCoderToken,
+			},
+		},
+		{
+			// BYOK with access token: Coder token in BYOK header,
+			// user's access token in Authorization. Only the
+			// BYOK header is stripped.
+			name: "byok bearer token",
+			reqHeaders: map[string]string{
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer sk-ant-oat01-user-oauth-token",
+			},
+			expectPresent: map[string]string{
+				"Authorization": "Bearer sk-ant-oat01-user-oauth-token",
+			},
+			expectAbsent: []string{
+				agplaibridge.HeaderCoderToken,
+			},
+		},
+		{
+			// BYOK with personal API key: Coder token in BYOK header,
+			// user's API key in X-Api-Key. Only the BYOK header is
+			// stripped.
+			name: "byok api key",
+			reqHeaders: map[string]string{
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"X-Api-Key":                   "sk-ant-api03-user-key",
+			},
+			expectPresent: map[string]string{
+				"X-Api-Key": "sk-ant-api03-user-key",
+			},
+			expectAbsent: []string{
+				agplaibridge.HeaderCoderToken,
+			},
+		},
+	}
 
-	srv, client, pool := newTestServer(t)
-	conn := &mockDRPCConn{}
-	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockHandler, nil)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	httpSrv := httptest.NewServer(srv)
-	t.Cleanup(httpSrv.Close)
+			mockH := &mockHandler{}
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, httpSrv.URL+"/openai/v1/chat/completions", nil)
-	require.NoError(t, err)
+			srv, client, pool := newTestServer(t)
+			conn := &mockDRPCConn{}
+			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
 
-	// X-Coder-Token is used for authentication and should be stripped.
-	// Other authorization headers should be preserved.
-	req.Header.Set(agplaibridge.HeaderCoderAuth, "coder-token")
-	req.Header.Set("Authorization", "Bearer some-token")
-	req.Header.Set("X-Api-Key", "some-api-key")
+			httpSrv := httptest.NewServer(srv)
+			t.Cleanup(httpSrv.Close)
 
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, httpSrv.URL+"/openai/v1/chat/completions", nil)
+			require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+			for k, v := range tc.reqHeaders {
+				req.Header.Set(k, v)
+			}
 
-	// Verify X-Coder-Token was removed before forwarding to handler.
-	require.NotNil(t, mockHandler.headersReceived)
-	require.Empty(t, mockHandler.headersReceived.Get(agplaibridge.HeaderCoderAuth),
-		"X-Coder-Token should be removed before forwarding to handler")
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
 
-	// Verify other headers were preserved.
-	require.Equal(t, "Bearer some-token", mockHandler.headersReceived.Get("Authorization"))
-	require.Equal(t, "some-api-key", mockHandler.headersReceived.Get("X-Api-Key"))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.NotNil(t, mockH.headersReceived)
+
+			for header, expected := range tc.expectPresent {
+				require.Equal(t, expected, mockH.headersReceived.Get(header),
+					"header %q should be preserved with value %q", header, expected)
+			}
+			for _, header := range tc.expectAbsent {
+				require.Empty(t, mockH.headersReceived.Get(header),
+					"header %q should be stripped", header)
+			}
+			// HeaderCoderToken should always be stripped
+			require.Empty(t, mockH.headersReceived.Get(agplaibridge.HeaderCoderToken),
+				"header %q should be stripped", agplaibridge.HeaderCoderToken)
+		})
+	}
 }
 
 func TestExtractAuthToken(t *testing.T) {
@@ -224,31 +287,6 @@ func TestExtractAuthToken(t *testing.T) {
 	}{
 		{
 			name: "none",
-		},
-		{
-			name:    "x-coder-token/empty",
-			headers: map[string]string{agplaibridge.HeaderCoderAuth: ""},
-		},
-		{
-			name:        "x-coder-token/ok",
-			headers:     map[string]string{agplaibridge.HeaderCoderAuth: "coder-token"},
-			expectedKey: "coder-token",
-		},
-		{
-			name: "x-coder-token/priority over authorization",
-			headers: map[string]string{
-				agplaibridge.HeaderCoderAuth: "coder-token",
-				"Authorization":              "Bearer other-token",
-			},
-			expectedKey: "coder-token",
-		},
-		{
-			name: "x-coder-token/priority over x-api-key",
-			headers: map[string]string{
-				agplaibridge.HeaderCoderAuth: "coder-token",
-				"X-Api-Key":                  "api-key",
-			},
-			expectedKey: "coder-token",
 		},
 		{
 			name:    "authorization/invalid",
@@ -284,6 +322,27 @@ func TestExtractAuthToken(t *testing.T) {
 			name:        "x-api-key/ok",
 			headers:     map[string]string{"X-Api-Key": "key"},
 			expectedKey: "key",
+		},
+
+		// BYOK: X-Coder-AI-Governance-Token carries the Coder
+		// token and has the highest priority.
+		{
+			name:    "byok/empty",
+			headers: map[string]string{agplaibridge.HeaderCoderToken: ""},
+		},
+		{
+			name:        "byok/ok",
+			headers:     map[string]string{agplaibridge.HeaderCoderToken: "coder-token"},
+			expectedKey: "coder-token",
+		},
+		{
+			name: "byok/priority over all",
+			headers: map[string]string{
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer oauth-token",
+				"X-Api-Key":                   "api-key",
+			},
+			expectedKey: "coder-token",
 		},
 	}
 

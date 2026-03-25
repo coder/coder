@@ -6,10 +6,10 @@ import {
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { workspaceAgentContainersKey } from "api/queries/workspaces";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
 import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [

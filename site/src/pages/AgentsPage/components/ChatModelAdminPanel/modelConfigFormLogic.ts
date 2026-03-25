@@ -1,3 +1,4 @@
+import * as Yup from "yup";
 import {
 	type FieldSchema,
 	getGeneralFields,
@@ -5,9 +6,8 @@ import {
 	getProviderNames,
 	resolveProvider,
 	snakeToCamel,
-} from "api/chatModelOptions";
-import type * as TypesGen from "api/typesGenerated";
-import * as Yup from "yup";
+} from "#/api/chatModelOptions";
+import type * as TypesGen from "#/api/typesGenerated";
 import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────

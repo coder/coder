@@ -1,6 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { appearanceConfigKey, updateAppearance } from "api/queries/appearance";
-import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -9,6 +6,12 @@ import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	appearanceConfigKey,
+	updateAppearance,
+} from "#/api/queries/appearance";
+import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
 // ServiceBanner is unlike the other Deployment Settings pages because it

@@ -1,25 +1,3 @@
-import { API } from "api/api";
-import {
-	type ApiError,
-	getErrorDetail,
-	getErrorMessage,
-	isApiError,
-} from "api/errors";
-import { templateVersion } from "api/queries/templates";
-import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
-import {
-	activate,
-	cancelBuild,
-	deleteWorkspace,
-	startWorkspace,
-	stopWorkspace,
-	toggleFavorite,
-} from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import {
-	ConfirmDialog,
-	type ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
@@ -33,6 +11,28 @@ import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import {
+	type ApiError,
+	getErrorDetail,
+	getErrorMessage,
+	isApiError,
+} from "#/api/errors";
+import { templateVersion } from "#/api/queries/templates";
+import { workspaceBuildTimings } from "#/api/queries/workspaceBuilds";
+import {
+	activate,
+	cancelBuild,
+	deleteWorkspace,
+	startWorkspace,
+	stopWorkspace,
+	toggleFavorite,
+} from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import {
+	ConfirmDialog,
+	type ConfirmDialogProps,
+} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Workspace } from "./Workspace";
 
 interface WorkspaceReadyPageProps {

@@ -1,21 +1,3 @@
-import type {
-	DeploymentStats,
-	HealthcheckReport,
-	WorkspaceStatus,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
-import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
-import { RocketIcon } from "components/Icons/RocketIcon";
-import { TerminalIcon } from "components/Icons/TerminalIcon";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { Link } from "components/Link/Link";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -37,6 +19,24 @@ import {
 } from "react";
 import { Link as RouterLink } from "react-router";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
+import type {
+	DeploymentStats,
+	HealthcheckReport,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { HelpTooltipTitle } from "#/components/HelpTooltip/HelpTooltip";
+import { JetBrainsIcon } from "#/components/Icons/JetBrainsIcon";
+import { RocketIcon } from "#/components/Icons/RocketIcon";
+import { TerminalIcon } from "#/components/Icons/TerminalIcon";
+import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { Link } from "#/components/Link/Link";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;

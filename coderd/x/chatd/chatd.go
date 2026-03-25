@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -30,9 +31,11 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
@@ -49,7 +52,6 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	homeInstructionLookupTimeout = 5 * time.Second
-	instructionCacheTTL          = 5 * time.Minute
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
@@ -96,22 +98,18 @@ type Server struct {
 
 	subscribeFn SubscribeFn
 
-	agentConnFn       AgentConnFunc
-	createWorkspaceFn chattool.CreateWorkspaceFn
-	startWorkspaceFn  chattool.StartWorkspaceFn
-	pubsub            pubsub.Pubsub
-	webpushDispatcher webpush.Dispatcher
-	providerAPIKeys   chatprovider.ProviderAPIKeys
+	agentConnFn                    AgentConnFunc
+	agentInactiveDisconnectTimeout time.Duration
+	createWorkspaceFn              chattool.CreateWorkspaceFn
+	startWorkspaceFn               chattool.StartWorkspaceFn
+	pubsub                         pubsub.Pubsub
+	webpushDispatcher              webpush.Dispatcher
+	providerAPIKeys                chatprovider.ProviderAPIKeys
 
 	// chatStreams stores per-chat stream state. Using sync.Map
 	// gives each chat independent locking — concurrent chats
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
-
-	// instructionCache caches home instruction file contents by
-	// workspace agent ID so we don't re-dial on every chat turn.
-	instructionCacheMu sync.RWMutex
-	instructionCache   map[uuid.UUID]cachedInstruction
 
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
@@ -121,11 +119,6 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
-}
-
-type cachedInstruction struct {
-	instruction string
-	fetchedAt   time.Time
 }
 
 type turnWorkspaceContext struct {
@@ -404,6 +397,7 @@ type CreateOptions struct {
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
 	MCPServerIDs       []uuid.UUID
+	Labels             database.StringMap
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -482,11 +476,19 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.MCPServerIDs == nil {
 		opts.MCPServerIDs = []uuid.UUID{}
 	}
+	if opts.Labels == nil {
+		opts.Labels = database.StringMap{}
+	}
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
 		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID); limitErr != nil {
 			return limitErr
+		}
+
+		labelsJSON, err := json.Marshal(opts.Labels)
+		if err != nil {
+			return xerrors.Errorf("marshal labels: %w", err)
 		}
 
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
@@ -498,6 +500,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
 			MCPServerIDs:      opts.MCPServerIDs,
+			Labels: pqtype.NullRawMessage{
+				RawMessage: labelsJSON,
+				Valid:      true,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -1431,22 +1437,23 @@ func shouldQueueUserMessage(status database.ChatStatus) bool {
 
 // Config configures a chat processor.
 type Config struct {
-	Logger                     slog.Logger
-	Database                   database.Store
-	ReplicaID                  uuid.UUID
-	SubscribeFn                SubscribeFn
-	PendingChatAcquireInterval time.Duration
-	MaxChatsPerAcquire         int32
-	InFlightChatStaleAfter     time.Duration
-	ChatHeartbeatInterval      time.Duration
-	AgentConn                  AgentConnFunc
-	CreateWorkspace            chattool.CreateWorkspaceFn
-	StartWorkspace             chattool.StartWorkspaceFn
-	Pubsub                     pubsub.Pubsub
-	ProviderAPIKeys            chatprovider.ProviderAPIKeys
-	WebpushDispatcher          webpush.Dispatcher
-	UsageTracker               *workspacestats.UsageTracker
-	Clock                      quartz.Clock
+	Logger                         slog.Logger
+	Database                       database.Store
+	ReplicaID                      uuid.UUID
+	SubscribeFn                    SubscribeFn
+	PendingChatAcquireInterval     time.Duration
+	MaxChatsPerAcquire             int32
+	InFlightChatStaleAfter         time.Duration
+	ChatHeartbeatInterval          time.Duration
+	AgentConn                      AgentConnFunc
+	AgentInactiveDisconnectTimeout time.Duration
+	CreateWorkspace                chattool.CreateWorkspaceFn
+	StartWorkspace                 chattool.StartWorkspaceFn
+	Pubsub                         pubsub.Pubsub
+	ProviderAPIKeys                chatprovider.ProviderAPIKeys
+	WebpushDispatcher              webpush.Dispatcher
+	UsageTracker                   *workspacestats.UsageTracker
+	Clock                          quartz.Clock
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -1486,25 +1493,25 @@ func New(cfg Config) *Server {
 	}
 
 	p := &Server{
-		cancel:                     cancel,
-		closed:                     make(chan struct{}),
-		db:                         cfg.Database,
-		workerID:                   workerID,
-		logger:                     cfg.Logger.Named("processor"),
-		subscribeFn:                cfg.SubscribeFn,
-		agentConnFn:                cfg.AgentConn,
-		createWorkspaceFn:          cfg.CreateWorkspace,
-		startWorkspaceFn:           cfg.StartWorkspace,
-		pubsub:                     cfg.Pubsub,
-		webpushDispatcher:          cfg.WebpushDispatcher,
-		providerAPIKeys:            cfg.ProviderAPIKeys,
-		instructionCache:           make(map[uuid.UUID]cachedInstruction),
-		pendingChatAcquireInterval: pendingChatAcquireInterval,
-		maxChatsPerAcquire:         maxChatsPerAcquire,
-		inFlightChatStaleAfter:     inFlightChatStaleAfter,
-		chatHeartbeatInterval:      chatHeartbeatInterval,
-		usageTracker:               cfg.UsageTracker,
-		clock:                      clk,
+		cancel:                         cancel,
+		closed:                         make(chan struct{}),
+		db:                             cfg.Database,
+		workerID:                       workerID,
+		logger:                         cfg.Logger.Named("processor"),
+		subscribeFn:                    cfg.SubscribeFn,
+		agentConnFn:                    cfg.AgentConn,
+		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
+		createWorkspaceFn:              cfg.CreateWorkspace,
+		startWorkspaceFn:               cfg.StartWorkspace,
+		pubsub:                         cfg.Pubsub,
+		webpushDispatcher:              cfg.WebpushDispatcher,
+		providerAPIKeys:                cfg.ProviderAPIKeys,
+		pendingChatAcquireInterval:     pendingChatAcquireInterval,
+		maxChatsPerAcquire:             maxChatsPerAcquire,
+		inFlightChatStaleAfter:         inFlightChatStaleAfter,
+		chatHeartbeatInterval:          chatHeartbeatInterval,
+		usageTracker:                   cfg.UsageTracker,
+		clock:                          clk,
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -2075,7 +2082,17 @@ func (p *Server) Subscribe(
 					}:
 					}
 				}
-				if notify.Error != "" {
+				if notify.ErrorPayload != nil {
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeError,
+						ChatID: chatID,
+						Error:  notify.ErrorPayload,
+					}:
+					}
+				} else if notify.Error != "" {
 					select {
 					case <-mergedCtx.Done():
 						return
@@ -2294,30 +2311,31 @@ func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetr
 	})
 }
 
-func (p *Server) publishError(chatID uuid.UUID, message string) {
-	message = strings.TrimSpace(message)
-	if message == "" {
+func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedError) {
+	payload := chaterror.StreamErrorPayload(classified)
+	if payload == nil {
 		return
 	}
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:  codersdk.ChatStreamEventTypeError,
-		Error: &codersdk.ChatStreamError{Message: message},
+		Error: payload,
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		Error: message,
+		ErrorPayload: payload,
+		Error:        payload.Message,
 	})
 }
 
-func processingFailureReason(err error) (string, bool) {
+func processingFailure(err error) (chaterror.ClassifiedError, bool) {
 	if err == nil {
-		return "", false
+		return chaterror.ClassifiedError{}, false
 	}
 
-	reason := strings.TrimSpace(err.Error())
-	if reason == "" {
-		return "", false
+	classified := chaterror.Classify(err)
+	if classified.Message == "" {
+		return chaterror.ClassifiedError{}, false
 	}
-	return reason, true
+	return classified, true
 }
 
 func panicFailureReason(recovered any) string {
@@ -2654,7 +2672,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if r := recover(); r != nil {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			lastError = panicFailureReason(r)
-			p.publishError(chat.ID, lastError)
+			p.publishError(chat.ID, chaterror.ClassifiedError{
+				Message: lastError,
+				Kind:    chaterror.KindGeneric,
+			})
 			status = database.ChatStatusError
 		}
 
@@ -2763,9 +2784,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			return
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
-		if reason, ok := processingFailureReason(err); ok {
-			lastError = reason
-			p.publishError(chat.ID, lastError)
+		if classified, ok := processingFailure(err); ok {
+			lastError = classified.Message
+			p.publishError(chat.ID, classified)
 		}
 		status = database.ChatStatusError
 		return
@@ -2990,16 +3011,48 @@ func (p *Server) runChat(
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
 	)
+	// Check if instruction files need to be (re-)persisted.
+	// This happens when no context-file parts exist yet, or when
+	// the workspace agent has changed (e.g. workspace rebuilt).
+	needsInstructionPersist := false
+	hasContextFiles := false
+	if chat.WorkspaceID.Valid {
+		persistedAgentID, found := contextFileAgentID(messages)
+		hasContextFiles = found
+		if !hasContextFiles {
+			needsInstructionPersist = true
+		} else if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID != persistedAgentID {
+			// Agent changed — persist fresh instruction files.
+			// Old context-file messages remain in the conversation
+			// to preserve the prompt cache prefix.
+			needsInstructionPersist = true
+		}
+	}
 	var g2 errgroup.Group
-	g2.Go(func() error {
-		instruction = p.resolveInstructions(
-			ctx,
-			chat,
-			workspaceCtx.getWorkspaceAgent,
-			workspaceCtx.getWorkspaceConn,
-		)
-		return nil
-	})
+	if needsInstructionPersist {
+		g2.Go(func() error {
+			var persistErr error
+			instruction, persistErr = p.persistInstructionFiles(
+				ctx,
+				chat,
+				modelConfig.ID,
+				workspaceCtx.getWorkspaceAgent,
+				workspaceCtx.getWorkspaceConn,
+			)
+			if persistErr != nil {
+				p.logger.Warn(ctx, "failed to persist instruction files",
+					slog.F("chat_id", chat.ID),
+					slog.Error(persistErr),
+				)
+			}
+			return nil
+		})
+	} else if hasContextFiles {
+		// On subsequent turns, extract the instruction text from
+		// the persisted context-file parts so it can be re-injected
+		// via InsertSystem after compaction drops those messages.
+		instruction = instructionFromContextFiles(messages)
+	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
@@ -3321,6 +3374,7 @@ func (p *Server) runChat(
 			chattool.ComputerUseModelName,
 			providerKeys,
 			chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
 		)
 		if cuErr != nil {
 			return result, xerrors.Errorf("resolve computer use model: %w", cuErr)
@@ -3367,13 +3421,14 @@ func (p *Server) runChat(
 				OwnerID: chat.OwnerID,
 			}),
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-				DB:          p.db,
-				OwnerID:     chat.OwnerID,
-				ChatID:      chat.ID,
-				CreateFn:    p.createWorkspaceFn,
-				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-				WorkspaceMu: &workspaceMu,
-				Logger:      p.logger,
+				DB:                             p.db,
+				OwnerID:                        chat.OwnerID,
+				ChatID:                         chat.ID,
+				CreateFn:                       p.createWorkspaceFn,
+				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+				WorkspaceMu:                    &workspaceMu,
+				Logger:                         p.logger,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,
@@ -3505,26 +3560,10 @@ func (p *Server) runChat(
 			if chat.ParentChatID.Valid {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
 			}
-			var reloadInstruction, reloadUserPrompt string
-			var rg errgroup.Group
-			rg.Go(func() error {
-				reloadInstruction = p.resolveInstructions(
-					reloadCtx,
-					chat,
-					workspaceCtx.getWorkspaceAgent,
-					workspaceCtx.getWorkspaceConn,
-				)
-				return nil
-			})
-			rg.Go(func() error {
-				reloadUserPrompt = p.resolveUserPrompt(reloadCtx, chat.OwnerID)
-				return nil
-			})
-			_ = rg.Wait()
-
-			if reloadInstruction != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadInstruction)
+			if instruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
 			}
+			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
 			if reloadUserPrompt != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadUserPrompt)
 			}
@@ -3540,7 +3579,12 @@ func (p *Server) runChat(
 			chainModeActive = false
 		},
 
-		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
+		OnRetry: func(
+			attempt int,
+			retryErr error,
+			classified chatretry.ClassifiedError,
+			delay time.Duration,
+		) {
 			if val, ok := p.chatStreams.Load(chat.ID); ok {
 				if rs, ok := val.(*chatStreamState); ok {
 					rs.mu.Lock()
@@ -3554,12 +3598,8 @@ func (p *Server) runChat(
 				slog.F("delay", delay.String()),
 				slog.Error(retryErr),
 			)
-			p.publishRetry(chat.ID, &codersdk.ChatStreamRetry{
-				Attempt:    attempt,
-				DelayMs:    delay.Milliseconds(),
-				Error:      retryErr.Error(),
-				RetryingAt: time.Now().Add(delay),
-			})
+			payload := chaterror.StreamRetryPayload(attempt, delay, classified)
+			p.publishRetry(chat.ID, payload)
 		},
 
 		OnInterruptedPersistError: func(err error) {
@@ -3567,7 +3607,8 @@ func (p *Server) runChat(
 		},
 	})
 	if err != nil {
-		return result, err
+		classified := chaterror.Classify(err).WithProvider(model.Provider())
+		return result, chaterror.WithClassification(err, classified)
 	}
 	result.FinalAssistantText = finalAssistantText
 	return result, nil
@@ -3665,7 +3706,7 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary result payload: %w", err)
 	}
 	toolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageToolResult(toolCallID, "chat_summarized", summaryResult, false),
+		codersdk.ChatMessageToolResult(toolCallID, "chat_summarized", summaryResult, false, false),
 	})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool result: %w", err)
@@ -3773,6 +3814,7 @@ func (p *Server) resolveChatModel(
 
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
 	)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
@@ -3837,32 +3879,50 @@ func refreshChatWorkspaceSnapshot(
 	return refreshedChat, nil
 }
 
-// resolveInstructions returns the combined system instructions for the
-// workspace agent. It reads the home-level (~/.coder/AGENTS.md) and
-// working-directory-level (<pwd>/AGENTS.md) instruction files, combines
-// them with agent metadata (OS, directory), and caches the result.
-func (p *Server) resolveInstructions(
+// contextFileAgentID extracts the workspace agent ID from the most
+// recent persisted context-file parts. Returns uuid.Nil, false if no
+// context-file parts exist.
+func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
+	var lastID uuid.UUID
+	found := false
+	for _, msg := range messages {
+		if !msg.Content.Valid || !bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, p := range parts {
+			if p.Type == codersdk.ChatMessagePartTypeContextFile && p.ContextFileAgentID.Valid {
+				lastID = p.ContextFileAgentID.UUID
+				found = true
+				break
+			}
+		}
+	}
+	return lastID, found
+}
+
+// persistInstructionFiles reads instruction files from the workspace
+// agent and persists them as context-file message parts. This is called
+// once when a workspace is first attached to a chat. Returns the
+// formatted instruction string for injection into the current turn's
+// prompt.
+func (p *Server) persistInstructionFiles(
 	ctx context.Context,
 	chat database.Chat,
+	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) string {
+) (string, error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return ""
+		return "", nil
 	}
 
-	agent, agentErr := getWorkspaceAgent(ctx)
-	if agentErr != nil {
-		return ""
-	}
-	agentID := agent.ID
-
-	p.instructionCacheMu.RLock()
-	cached, ok := p.instructionCache[agentID]
-	p.instructionCacheMu.RUnlock()
-
-	if ok && time.Since(cached.fetchedAt) < instructionCacheTTL {
-		return cached.instruction
+	agent, err := getWorkspaceAgent(ctx)
+	if err != nil {
+		return "", nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -3883,19 +3943,17 @@ func (p *Server) resolveInstructions(
 				slog.Error(connErr),
 			)
 		} else {
-			// ~/.coder/AGENTS.md
-			if content, source, truncated, err := readHomeInstructionFile(instructionCtx, conn); err != nil {
+			if content, source, truncated, readErr := readHomeInstructionFile(instructionCtx, conn); readErr != nil {
 				p.logger.Debug(ctx, "failed to load home instruction file",
-					slog.F("chat_id", chat.ID), slog.Error(err))
+					slog.F("chat_id", chat.ID), slog.Error(readErr))
 			} else if content != "" {
 				sections = append(sections, instructionFileSection{content, source, truncated})
 			}
 
-			// <pwd>/AGENTS.md
 			if pwdPath := pwdInstructionFilePath(directory); pwdPath != "" {
-				if content, source, truncated, err := readInstructionFile(instructionCtx, conn, pwdPath); err != nil {
+				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
 					p.logger.Debug(ctx, "failed to load working directory instruction file",
-						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(err))
+						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
 				} else if content != "" {
 					sections = append(sections, instructionFileSection{content, source, truncated})
 				}
@@ -3903,16 +3961,69 @@ func (p *Server) resolveInstructions(
 		}
 	}
 
-	instruction := formatSystemInstructions(agent.OperatingSystem, directory, sections)
-
-	p.instructionCacheMu.Lock()
-	p.instructionCache[agentID] = cachedInstruction{
-		instruction: instruction,
-		fetchedAt:   time.Now(),
+	if len(sections) == 0 {
+		// Persist a sentinel so subsequent turns skip the
+		// workspace agent dial.
+		parts := []codersdk.ChatMessagePart{{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "",
+			ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+		}}
+		content, err := chatprompt.MarshalParts(parts)
+		if err != nil {
+			return "", nil
+		}
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: chat.ID,
+		}
+		appendChatMessage(&msgParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			content,
+			database.ChatMessageVisibilityBoth,
+			modelConfigID,
+			chatprompt.CurrentContentVersion,
+		))
+		_, _ = p.db.InsertChatMessages(ctx, msgParams)
+		return "", nil
 	}
-	p.instructionCacheMu.Unlock()
 
-	return instruction
+	// Build context-file parts, one per instruction file.
+	parts := make([]codersdk.ChatMessagePart, 0, len(sections))
+	for _, s := range sections {
+		parts = append(parts, codersdk.ChatMessagePart{
+			Type:                 codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:      s.source,
+			ContextFileContent:   s.content,
+			ContextFileTruncated: s.truncated,
+			ContextFileAgentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
+			ContextFileOS:        agent.OperatingSystem,
+			ContextFileDirectory: directory,
+		})
+	}
+
+	content, err := chatprompt.MarshalParts(parts)
+	if err != nil {
+		return "", xerrors.Errorf("marshal context-file parts: %w", err)
+	}
+
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: chat.ID,
+	}
+	appendChatMessage(&msgParams, newChatMessage(
+		database.ChatMessageRoleUser,
+		content,
+		database.ChatMessageVisibilityBoth,
+		modelConfigID,
+		chatprompt.CurrentContentVersion,
+	))
+	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
+		return "", xerrors.Errorf("persist instruction files: %w", err)
+	}
+
+	// Return the formatted instruction text so the caller can inject
+	// it into this turn's prompt (since the prompt was built before
+	// we persisted).
+	return formatSystemInstructions(agent.OperatingSystem, directory, sections), nil
 }
 
 // resolveUserCompactionThreshold looks up the user's per-model
@@ -4069,7 +4180,7 @@ func (p *Server) maybeSendPushNotification(
 			if assistantText != "" && runResult.PushSummaryModel != nil {
 				if summary := generatePushSummary(
 					pushCtx,
-					chat.Title,
+					chat,
 					assistantText,
 					runResult.PushSummaryModel,
 					runResult.ProviderKeys,

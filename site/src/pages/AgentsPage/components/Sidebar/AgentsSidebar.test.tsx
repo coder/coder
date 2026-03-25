@@ -6,8 +6,6 @@ import {
 	MockUserOwner,
 } from "testHelpers/entities";
 import { act, render } from "@testing-library/react";
-import type * as TypesGen from "api/typesGenerated";
-import type { Chat } from "api/typesGenerated";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import type { FC, PropsWithChildren } from "react";
@@ -15,6 +13,8 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import themes, { DEFAULT_THEME } from "theme";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -64,6 +64,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	archived: false,
 	last_error: null,
 	mcp_server_ids: [],
+	labels: {},
 	...overrides,
 });
 
@@ -258,6 +259,50 @@ describe("AgentsSidebar load-more behavior", () => {
 		expect(onLoadMore).toHaveBeenCalledTimes(1);
 	});
 
+	it("recreates the observer when isFetchingNextPage transitions to false so visible sentinels re-trigger", () => {
+		const onLoadMore = vi.fn();
+		const { rerender } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					hasNextPage
+					onLoadMore={onLoadMore}
+					isFetchingNextPage={false}
+				/>
+			</Wrapper>,
+		);
+
+		const countAfterMount = observeCount;
+		expect(countAfterMount).toBe(1);
+
+		// Start fetching — observer is torn down.
+		rerender(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					hasNextPage
+					onLoadMore={onLoadMore}
+					isFetchingNextPage={true}
+				/>
+			</Wrapper>,
+		);
+
+		// Fetch completes — a fresh observer is created, firing
+		// an initial entry that detects the still-visible sentinel.
+		rerender(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					hasNextPage
+					onLoadMore={onLoadMore}
+					isFetchingNextPage={false}
+				/>
+			</Wrapper>,
+		);
+
+		expect(observeCount).toBe(countAfterMount + 1);
+	});
+
 	it("does NOT render the sentinel when hasNextPage is false", () => {
 		const onLoadMore = vi.fn();
 		render(
@@ -273,5 +318,97 @@ describe("AgentsSidebar load-more behavior", () => {
 		// No observer should have been created since the sentinel
 		// is not rendered.
 		expect(observeCount).toBe(0);
+	});
+});
+
+describe("AgentsSidebar model display names", () => {
+	it("uses the chat model config ID to pick the correct duplicate model label", () => {
+		const modelOptions = [
+			{
+				id: "config-fast",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o (Fast)",
+			},
+			{
+				id: "config-quality",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o (Quality)",
+			},
+		];
+		const modelConfigs: TypesGen.ChatModelConfig[] = [
+			{
+				id: "config-fast",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o (Fast)",
+				enabled: true,
+				is_default: false,
+				context_limit: 128_000,
+				compression_threshold: 70,
+				created_at: oneWeekAgo,
+				updated_at: oneWeekAgo,
+			},
+			{
+				id: "config-quality",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o (Quality)",
+				enabled: true,
+				is_default: false,
+				context_limit: 128_000,
+				compression_threshold: 70,
+				created_at: oneWeekAgo,
+				updated_at: oneWeekAgo,
+			},
+		];
+
+		const { getByText, queryByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-quality",
+							title: "Quality chat",
+							last_model_config_id: "config-quality",
+						}),
+					]}
+					modelOptions={modelOptions}
+					modelConfigs={modelConfigs}
+				/>
+			</Wrapper>,
+		);
+
+		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
+		expect(queryByText("GPT-4o (Fast)")).not.toBeInTheDocument();
+	});
+
+	it("falls back to legacy provider/model matching when no config ID match exists", () => {
+		const { getByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "legacy-chat",
+							title: "Legacy chat",
+							last_model_config_id: "openai:gpt-4o",
+						}),
+					]}
+					modelOptions={[
+						{
+							id: "config-quality",
+							provider: "openai",
+							model: "gpt-4o",
+							displayName: "GPT-4o (Quality)",
+						},
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
 	});
 });
