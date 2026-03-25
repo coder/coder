@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect } from "react";
+import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -33,6 +33,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
+import { useOnRenderProfiler } from "./AgentDetail/useOnRenderProfiler";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -94,23 +95,26 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	});
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
+	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
-		<ConversationTimeline
-			isEmpty={messages.length === 0}
-			parsedMessages={parsedMessages}
-			streamState={streamState}
-			streamTools={streamTools}
-			liveStatus={liveStatus}
-			startingResetKey={chatID}
-			subagentTitles={subagentTitles}
-			subagentStatusOverrides={subagentStatusOverrides}
-			onOpenAnalytics={onOpenAnalytics}
-			onEditUserMessage={onEditUserMessage}
-			editingMessageId={editingMessageId}
-			savingMessageId={savingMessageId}
-			urlTransform={urlTransform}
-		/>
+		<Profiler id="AgentChat" onRender={onRenderProfiler}>
+			<ConversationTimeline
+				isEmpty={messages.length === 0}
+				parsedMessages={parsedMessages}
+				streamState={streamState}
+				streamTools={streamTools}
+				liveStatus={liveStatus}
+				startingResetKey={chatID}
+				subagentTitles={subagentTitles}
+				subagentStatusOverrides={subagentStatusOverrides}
+				onOpenAnalytics={onOpenAnalytics}
+				onEditUserMessage={onEditUserMessage}
+				editingMessageId={editingMessageId}
+				savingMessageId={savingMessageId}
+				urlTransform={urlTransform}
+			/>
+		</Profiler>
 	);
 };
 
