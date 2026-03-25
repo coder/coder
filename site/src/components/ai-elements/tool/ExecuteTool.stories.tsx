@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const meta: Meta<typeof ExecuteTool> = {
@@ -28,12 +29,23 @@ export const ShortCommand: Story = {
 	},
 };
 
-/** A command long enough to overflow the container and show the expand chevron. */
+/** A long command expanded to show the full text, with the chevron visible on hover. */
 export const LongCommand: Story = {
 	args: {
 		command:
 			"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50",
 		output: "",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Hover the container to reveal the chevron.
+		const container = canvasElement.querySelector(".group\\/exec")!;
+		await userEvent.hover(container);
+		// Click the chevron to expand the command.
+		const chevronButton = canvas.getByRole("button", {
+			name: /expand command/i,
+		});
+		await userEvent.click(chevronButton);
 	},
 };
 
@@ -94,13 +106,5 @@ export const ErrorOutput: Story = {
 			"coderd/workspaces.go:155:19: ws.OwnerID undefined (type *database.Workspace has no field or method OwnerID)",
 			"make: *** [build] Error 1",
 		].join("\n"),
-	},
-};
-
-/** A completed command with no output shows only the command header. */
-export const NoOutput: Story = {
-	args: {
-		command: "mkdir -p /home/coder/project/src/components",
-		output: "",
 	},
 };
