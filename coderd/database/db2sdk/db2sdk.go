@@ -1326,9 +1326,6 @@ func Automation(a database.Automation, accessURL string) codersdk.Automation {
 		OrganizationID:        a.OrganizationID,
 		Name:                  a.Name,
 		Description:           a.Description,
-		WebhookURL:            accessURL + "/api/v2/automations/" + a.ID.String() + "/webhook",
-		Filter:                a.Filter.RawMessage,
-		LabelPaths:            a.LabelPaths.RawMessage,
 		Instructions:          a.Instructions,
 		MCPServerIDs:          a.MCPServerIDs,
 		AllowedTools:          a.AllowedTools,
@@ -1341,9 +1338,6 @@ func Automation(a database.Automation, accessURL string) codersdk.Automation {
 	if a.ModelConfigID.Valid {
 		result.ModelConfigID = &a.ModelConfigID.UUID
 	}
-	if a.CronSchedule.Valid {
-		result.CronSchedule = &a.CronSchedule.String
-	}
 	if a.MCPServerIDs == nil {
 		result.MCPServerIDs = []uuid.UUID{}
 	}
@@ -1353,17 +1347,20 @@ func Automation(a database.Automation, accessURL string) codersdk.Automation {
 	return result
 }
 
-// AutomationWebhookEvent converts a database AutomationWebhookEvent to
-// a codersdk AutomationWebhookEvent.
-func AutomationWebhookEvent(e database.AutomationWebhookEvent) codersdk.AutomationWebhookEvent {
-	result := codersdk.AutomationWebhookEvent{
+// AutomationEvent converts a database AutomationEvent to a codersdk
+// AutomationEvent.
+func AutomationEvent(e database.AutomationEvent) codersdk.AutomationEvent {
+	result := codersdk.AutomationEvent{
 		ID:             e.ID,
 		AutomationID:   e.AutomationID,
 		ReceivedAt:     e.ReceivedAt,
 		Payload:        e.Payload,
 		FilterMatched:  e.FilterMatched,
 		ResolvedLabels: e.ResolvedLabels.RawMessage,
-		Status:         codersdk.AutomationWebhookEventStatus(e.Status),
+		Status:         codersdk.AutomationEventStatus(e.Status),
+	}
+	if e.TriggerID.Valid {
+		result.TriggerID = &e.TriggerID.UUID
 	}
 	if e.MatchedChatID.Valid {
 		result.MatchedChatID = &e.MatchedChatID.UUID
@@ -1373,6 +1370,27 @@ func AutomationWebhookEvent(e database.AutomationWebhookEvent) codersdk.Automati
 	}
 	if e.Error.Valid {
 		result.Error = &e.Error.String
+	}
+	return result
+}
+
+// AutomationTrigger converts a database AutomationTrigger to a codersdk
+// AutomationTrigger.
+func AutomationTrigger(t database.AutomationTrigger, accessURL string) codersdk.AutomationTrigger {
+	result := codersdk.AutomationTrigger{
+		ID:           t.ID,
+		AutomationID: t.AutomationID,
+		Type:         codersdk.AutomationTriggerType(t.Type),
+		Filter:       t.Filter.RawMessage,
+		LabelPaths:   t.LabelPaths.RawMessage,
+		CreatedAt:    t.CreatedAt,
+		UpdatedAt:    t.UpdatedAt,
+	}
+	if t.Type == "webhook" {
+		result.WebhookURL = accessURL + "/api/v2/automations/triggers/" + t.ID.String() + "/webhook"
+	}
+	if t.CronSchedule.Valid {
+		result.CronSchedule = &t.CronSchedule.String
 	}
 	return result
 }

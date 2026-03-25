@@ -103,6 +103,7 @@ type sqlcQuerier interface {
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAutomationByID(ctx context.Context, id uuid.UUID) error
+	DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -227,7 +228,9 @@ type sqlcQuerier interface {
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
 	GetAutomationByID(ctx context.Context, id uuid.UUID) (Automation, error)
-	GetAutomationWebhookEvents(ctx context.Context, arg GetAutomationWebhookEventsParams) ([]AutomationWebhookEvent, error)
+	GetAutomationEvents(ctx context.Context, arg GetAutomationEventsParams) ([]AutomationEvent, error)
+	GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (AutomationTrigger, error)
+	GetAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]AutomationTrigger, error)
 	GetAutomations(ctx context.Context, arg GetAutomationsParams) ([]Automation, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -685,7 +688,8 @@ type sqlcQuerier interface {
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertAutomation(ctx context.Context, arg InsertAutomationParams) (Automation, error)
-	InsertAutomationWebhookEvent(ctx context.Context, arg InsertAutomationWebhookEventParams) (AutomationWebhookEvent, error)
+	InsertAutomationEvent(ctx context.Context, arg InsertAutomationEventParams) (AutomationEvent, error)
+	InsertAutomationTrigger(ctx context.Context, arg InsertAutomationTriggerParams) (AutomationTrigger, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
 	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
@@ -798,7 +802,7 @@ type sqlcQuerier interface {
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error)
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
-	PurgeOldAutomationWebhookEvents(ctx context.Context) error
+	PurgeOldAutomationEvents(ctx context.Context) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -829,7 +833,8 @@ type sqlcQuerier interface {
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
-	UpdateAutomationWebhookSecret(ctx context.Context, arg UpdateAutomationWebhookSecretParams) (Automation, error)
+	UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomationTriggerParams) (AutomationTrigger, error)
+	UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg UpdateAutomationTriggerWebhookSecretParams) (AutomationTrigger, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Bumps the heartbeat timestamp for a running chat so that other
 	// replicas know the worker is still alive.

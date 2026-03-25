@@ -1518,6 +1518,8 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -1860,6 +1862,21 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 
 func (q *querier) DeleteAutomationByID(ctx context.Context, id uuid.UUID) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionDelete, q.db.GetAutomationByID, q.db.DeleteAutomationByID)(ctx, id)
+}
+
+func (q *querier) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID) error {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, automation); err != nil {
+		return err
+	}
+	return q.db.DeleteAutomationTriggerByID(ctx, id)
 }
 
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
@@ -2501,7 +2518,7 @@ func (q *querier) GetAutomationByID(ctx context.Context, id uuid.UUID) (database
 	return fetch(q.log, q.auth, q.db.GetAutomationByID)(ctx, id)
 }
 
-func (q *querier) GetAutomationWebhookEvents(ctx context.Context, arg database.GetAutomationWebhookEventsParams) ([]database.AutomationWebhookEvent, error) {
+func (q *querier) GetAutomationEvents(ctx context.Context, arg database.GetAutomationEventsParams) ([]database.AutomationEvent, error) {
 	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
 	if err != nil {
 		return nil, err
@@ -2509,7 +2526,33 @@ func (q *querier) GetAutomationWebhookEvents(ctx context.Context, arg database.G
 	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
 		return nil, err
 	}
-	return q.db.GetAutomationWebhookEvents(ctx, arg)
+	return q.db.GetAutomationEvents(ctx, arg)
+}
+
+func (q *querier) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (database.AutomationTrigger, error) {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, id)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (q *querier) GetAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]database.AutomationTrigger, error) {
+	automation, err := q.db.GetAutomationByID(ctx, automationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, automation); err != nil {
+		return nil, err
+	}
+	return q.db.GetAutomationTriggersByAutomationID(ctx, automationID)
 }
 
 func (q *querier) GetAutomations(ctx context.Context, arg database.GetAutomationsParams) ([]database.Automation, error) {
@@ -4764,11 +4807,22 @@ func (q *querier) InsertAutomation(ctx context.Context, arg database.InsertAutom
 	return insert(q.log, q.auth, rbac.ResourceAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertAutomation)(ctx, arg)
 }
 
-func (q *querier) InsertAutomationWebhookEvent(ctx context.Context, arg database.InsertAutomationWebhookEventParams) (database.AutomationWebhookEvent, error) {
+func (q *querier) InsertAutomationEvent(ctx context.Context, arg database.InsertAutomationEventParams) (database.AutomationEvent, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAutomation); err != nil {
-		return database.AutomationWebhookEvent{}, err
+		return database.AutomationEvent{}, err
 	}
-	return q.db.InsertAutomationWebhookEvent(ctx, arg)
+	return q.db.InsertAutomationEvent(ctx, arg)
+}
+
+func (q *querier) InsertAutomationTrigger(ctx context.Context, arg database.InsertAutomationTriggerParams) (database.AutomationTrigger, error) {
+	automation, err := q.db.GetAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	return q.db.InsertAutomationTrigger(ctx, arg)
 }
 
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
@@ -5538,11 +5592,11 @@ func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (d
 	return q.db.PopNextQueuedMessage(ctx, chatID)
 }
 
-func (q *querier) PurgeOldAutomationWebhookEvents(ctx context.Context) error {
+func (q *querier) PurgeOldAutomationEvents(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAutomation); err != nil {
 		return err
 	}
-	return q.db.PurgeOldAutomationWebhookEvents(ctx)
+	return q.db.PurgeOldAutomationEvents(ctx)
 }
 
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
@@ -5691,15 +5745,34 @@ func (q *querier) UpdateAutomation(ctx context.Context, arg database.UpdateAutom
 	return q.db.UpdateAutomation(ctx, arg)
 }
 
-func (q *querier) UpdateAutomationWebhookSecret(ctx context.Context, arg database.UpdateAutomationWebhookSecretParams) (database.Automation, error) {
-	automation, err := q.db.GetAutomationByID(ctx, arg.ID)
+func (q *querier) UpdateAutomationTrigger(ctx context.Context, arg database.UpdateAutomationTriggerParams) (database.AutomationTrigger, error) {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, arg.ID)
 	if err != nil {
-		return database.Automation{}, err
+		return database.AutomationTrigger{}, err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
-		return database.Automation{}, err
+		return database.AutomationTrigger{}, err
 	}
-	return q.db.UpdateAutomationWebhookSecret(ctx, arg)
+	return q.db.UpdateAutomationTrigger(ctx, arg)
+}
+
+func (q *querier) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg database.UpdateAutomationTriggerWebhookSecretParams) (database.AutomationTrigger, error) {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, arg.ID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.AutomationTrigger{}, err
+	}
+	return q.db.UpdateAutomationTriggerWebhookSecret(ctx, arg)
 }
 
 func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {

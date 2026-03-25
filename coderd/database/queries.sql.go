@@ -2519,7 +2519,7 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 
 const countAutomationChatCreatesInWindow = `-- name: CountAutomationChatCreatesInWindow :one
 SELECT COUNT(*)
-FROM automation_webhook_events
+FROM automation_events
 WHERE automation_id = $1::uuid
     AND status = 'created'
     AND received_at > $2::timestamptz
@@ -2539,7 +2539,7 @@ func (q *sqlQuerier) CountAutomationChatCreatesInWindow(ctx context.Context, arg
 
 const countAutomationMessagesInWindow = `-- name: CountAutomationMessagesInWindow :one
 SELECT COUNT(*)
-FROM automation_webhook_events
+FROM automation_events
 WHERE automation_id = $1::uuid
     AND status = 'continued'
     AND received_at > $2::timestamptz
@@ -2557,11 +2557,11 @@ func (q *sqlQuerier) CountAutomationMessagesInWindow(ctx context.Context, arg Co
 	return count, err
 }
 
-const getAutomationWebhookEvents = `-- name: GetAutomationWebhookEvents :many
+const getAutomationEvents = `-- name: GetAutomationEvents :many
 SELECT
-    id, automation_id, received_at, payload, filter_matched, resolved_labels, matched_chat_id, created_chat_id, status, error
+    id, automation_id, trigger_id, received_at, payload, filter_matched, resolved_labels, matched_chat_id, created_chat_id, status, error
 FROM
-    automation_webhook_events
+    automation_events
 WHERE
     automation_id = $1::uuid
     AND CASE
@@ -2575,15 +2575,15 @@ LIMIT
     COALESCE(NULLIF($4 :: int, 0), 50)
 `
 
-type GetAutomationWebhookEventsParams struct {
+type GetAutomationEventsParams struct {
 	AutomationID uuid.UUID      `db:"automation_id" json:"automation_id"`
 	StatusFilter sql.NullString `db:"status_filter" json:"status_filter"`
 	OffsetOpt    int32          `db:"offset_opt" json:"offset_opt"`
 	LimitOpt     int32          `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetAutomationWebhookEvents(ctx context.Context, arg GetAutomationWebhookEventsParams) ([]AutomationWebhookEvent, error) {
-	rows, err := q.db.QueryContext(ctx, getAutomationWebhookEvents,
+func (q *sqlQuerier) GetAutomationEvents(ctx context.Context, arg GetAutomationEventsParams) ([]AutomationEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getAutomationEvents,
 		arg.AutomationID,
 		arg.StatusFilter,
 		arg.OffsetOpt,
@@ -2593,12 +2593,13 @@ func (q *sqlQuerier) GetAutomationWebhookEvents(ctx context.Context, arg GetAuto
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AutomationWebhookEvent
+	var items []AutomationEvent
 	for rows.Next() {
-		var i AutomationWebhookEvent
+		var i AutomationEvent
 		if err := rows.Scan(
 			&i.ID,
 			&i.AutomationID,
+			&i.TriggerID,
 			&i.ReceivedAt,
 			&i.Payload,
 			&i.FilterMatched,
@@ -2621,9 +2622,10 @@ func (q *sqlQuerier) GetAutomationWebhookEvents(ctx context.Context, arg GetAuto
 	return items, nil
 }
 
-const insertAutomationWebhookEvent = `-- name: InsertAutomationWebhookEvent :one
-INSERT INTO automation_webhook_events (
+const insertAutomationEvent = `-- name: InsertAutomationEvent :one
+INSERT INTO automation_events (
     automation_id,
+    trigger_id,
     payload,
     filter_matched,
     resolved_labels,
@@ -2633,18 +2635,20 @@ INSERT INTO automation_webhook_events (
     error
 ) VALUES (
     $1::uuid,
-    $2::jsonb,
-    $3::boolean,
-    $4::jsonb,
-    $5::uuid,
+    $2::uuid,
+    $3::jsonb,
+    $4::boolean,
+    $5::jsonb,
     $6::uuid,
-    $7::text,
-    $8::text
-) RETURNING id, automation_id, received_at, payload, filter_matched, resolved_labels, matched_chat_id, created_chat_id, status, error
+    $7::uuid,
+    $8::text,
+    $9::text
+) RETURNING id, automation_id, trigger_id, received_at, payload, filter_matched, resolved_labels, matched_chat_id, created_chat_id, status, error
 `
 
-type InsertAutomationWebhookEventParams struct {
+type InsertAutomationEventParams struct {
 	AutomationID   uuid.UUID             `db:"automation_id" json:"automation_id"`
+	TriggerID      uuid.NullUUID         `db:"trigger_id" json:"trigger_id"`
 	Payload        json.RawMessage       `db:"payload" json:"payload"`
 	FilterMatched  bool                  `db:"filter_matched" json:"filter_matched"`
 	ResolvedLabels pqtype.NullRawMessage `db:"resolved_labels" json:"resolved_labels"`
@@ -2654,9 +2658,10 @@ type InsertAutomationWebhookEventParams struct {
 	Error          sql.NullString        `db:"error" json:"error"`
 }
 
-func (q *sqlQuerier) InsertAutomationWebhookEvent(ctx context.Context, arg InsertAutomationWebhookEventParams) (AutomationWebhookEvent, error) {
-	row := q.db.QueryRowContext(ctx, insertAutomationWebhookEvent,
+func (q *sqlQuerier) InsertAutomationEvent(ctx context.Context, arg InsertAutomationEventParams) (AutomationEvent, error) {
+	row := q.db.QueryRowContext(ctx, insertAutomationEvent,
 		arg.AutomationID,
+		arg.TriggerID,
 		arg.Payload,
 		arg.FilterMatched,
 		arg.ResolvedLabels,
@@ -2665,10 +2670,11 @@ func (q *sqlQuerier) InsertAutomationWebhookEvent(ctx context.Context, arg Inser
 		arg.Status,
 		arg.Error,
 	)
-	var i AutomationWebhookEvent
+	var i AutomationEvent
 	err := row.Scan(
 		&i.ID,
 		&i.AutomationID,
+		&i.TriggerID,
 		&i.ReceivedAt,
 		&i.Payload,
 		&i.FilterMatched,
@@ -2681,13 +2687,13 @@ func (q *sqlQuerier) InsertAutomationWebhookEvent(ctx context.Context, arg Inser
 	return i, err
 }
 
-const purgeOldAutomationWebhookEvents = `-- name: PurgeOldAutomationWebhookEvents :exec
-DELETE FROM automation_webhook_events
+const purgeOldAutomationEvents = `-- name: PurgeOldAutomationEvents :exec
+DELETE FROM automation_events
 WHERE received_at < NOW() - INTERVAL '7 days'
 `
 
-func (q *sqlQuerier) PurgeOldAutomationWebhookEvents(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, purgeOldAutomationWebhookEvents)
+func (q *sqlQuerier) PurgeOldAutomationEvents(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, purgeOldAutomationEvents)
 	return err
 }
 
@@ -2701,7 +2707,7 @@ func (q *sqlQuerier) DeleteAutomationByID(ctx context.Context, id uuid.UUID) err
 }
 
 const getAutomationByID = `-- name: GetAutomationByID :one
-SELECT id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at FROM automations WHERE id = $1::uuid
+SELECT id, owner_id, organization_id, name, description, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at FROM automations WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetAutomationByID(ctx context.Context, id uuid.UUID) (Automation, error) {
@@ -2713,11 +2719,6 @@ func (q *sqlQuerier) GetAutomationByID(ctx context.Context, id uuid.UUID) (Autom
 		&i.OrganizationID,
 		&i.Name,
 		&i.Description,
-		&i.WebhookSecret,
-		&i.WebhookSecretKeyID,
-		&i.CronSchedule,
-		&i.Filter,
-		&i.LabelPaths,
 		&i.Instructions,
 		&i.ModelConfigID,
 		pq.Array(&i.MCPServerIDs),
@@ -2733,7 +2734,7 @@ func (q *sqlQuerier) GetAutomationByID(ctx context.Context, id uuid.UUID) (Autom
 
 const getAutomations = `-- name: GetAutomations :many
 SELECT
-    id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+    id, owner_id, organization_id, name, description, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
 FROM
     automations
 WHERE
@@ -2781,11 +2782,6 @@ func (q *sqlQuerier) GetAutomations(ctx context.Context, arg GetAutomationsParam
 			&i.OrganizationID,
 			&i.Name,
 			&i.Description,
-			&i.WebhookSecret,
-			&i.WebhookSecretKeyID,
-			&i.CronSchedule,
-			&i.Filter,
-			&i.LabelPaths,
 			&i.Instructions,
 			&i.ModelConfigID,
 			pq.Array(&i.MCPServerIDs),
@@ -2815,10 +2811,6 @@ INSERT INTO automations (
     organization_id,
     name,
     description,
-    webhook_secret,
-    cron_schedule,
-    filter,
-    label_paths,
     instructions,
     model_config_id,
     mcp_server_ids,
@@ -2832,35 +2824,27 @@ INSERT INTO automations (
     $3::text,
     $4::text,
     $5::text,
-    $6::text,
-    $7::jsonb,
-    $8::jsonb,
+    $6::uuid,
+    COALESCE($7::uuid[], '{}'::uuid[]),
+    COALESCE($8::text[], '{}'::text[]),
     $9::text,
-    $10::uuid,
-    COALESCE($11::uuid[], '{}'::uuid[]),
-    COALESCE($12::text[], '{}'::text[]),
-    $13::text,
-    $14::integer,
-    $15::integer
-) RETURNING id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+    $10::integer,
+    $11::integer
+) RETURNING id, owner_id, organization_id, name, description, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
 `
 
 type InsertAutomationParams struct {
-	OwnerID               uuid.UUID             `db:"owner_id" json:"owner_id"`
-	OrganizationID        uuid.UUID             `db:"organization_id" json:"organization_id"`
-	Name                  string                `db:"name" json:"name"`
-	Description           string                `db:"description" json:"description"`
-	WebhookSecret         sql.NullString        `db:"webhook_secret" json:"webhook_secret"`
-	CronSchedule          sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
-	Filter                pqtype.NullRawMessage `db:"filter" json:"filter"`
-	LabelPaths            pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
-	Instructions          string                `db:"instructions" json:"instructions"`
-	ModelConfigID         uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
-	MCPServerIDs          []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	AllowedTools          []string              `db:"allowed_tools" json:"allowed_tools"`
-	Status                string                `db:"status" json:"status"`
-	MaxChatCreatesPerHour int32                 `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
-	MaxMessagesPerHour    int32                 `db:"max_messages_per_hour" json:"max_messages_per_hour"`
+	OwnerID               uuid.UUID     `db:"owner_id" json:"owner_id"`
+	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name                  string        `db:"name" json:"name"`
+	Description           string        `db:"description" json:"description"`
+	Instructions          string        `db:"instructions" json:"instructions"`
+	ModelConfigID         uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
+	MCPServerIDs          []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
+	AllowedTools          []string      `db:"allowed_tools" json:"allowed_tools"`
+	Status                string        `db:"status" json:"status"`
+	MaxChatCreatesPerHour int32         `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
+	MaxMessagesPerHour    int32         `db:"max_messages_per_hour" json:"max_messages_per_hour"`
 }
 
 func (q *sqlQuerier) InsertAutomation(ctx context.Context, arg InsertAutomationParams) (Automation, error) {
@@ -2869,10 +2853,6 @@ func (q *sqlQuerier) InsertAutomation(ctx context.Context, arg InsertAutomationP
 		arg.OrganizationID,
 		arg.Name,
 		arg.Description,
-		arg.WebhookSecret,
-		arg.CronSchedule,
-		arg.Filter,
-		arg.LabelPaths,
 		arg.Instructions,
 		arg.ModelConfigID,
 		pq.Array(arg.MCPServerIDs),
@@ -2888,11 +2868,6 @@ func (q *sqlQuerier) InsertAutomation(ctx context.Context, arg InsertAutomationP
 		&i.OrganizationID,
 		&i.Name,
 		&i.Description,
-		&i.WebhookSecret,
-		&i.WebhookSecretKeyID,
-		&i.CronSchedule,
-		&i.Filter,
-		&i.LabelPaths,
 		&i.Instructions,
 		&i.ModelConfigID,
 		pq.Array(&i.MCPServerIDs),
@@ -2910,44 +2885,35 @@ const updateAutomation = `-- name: UpdateAutomation :one
 UPDATE automations SET
     name = $1::text,
     description = $2::text,
-    cron_schedule = $3::text,
-    filter = $4::jsonb,
-    label_paths = $5::jsonb,
-    instructions = $6::text,
-    model_config_id = $7::uuid,
-    mcp_server_ids = $8::uuid[],
-    allowed_tools = $9::text[],
-    status = $10::text,
-    max_chat_creates_per_hour = $11::integer,
-    max_messages_per_hour = $12::integer,
+    instructions = $3::text,
+    model_config_id = $4::uuid,
+    mcp_server_ids = $5::uuid[],
+    allowed_tools = $6::text[],
+    status = $7::text,
+    max_chat_creates_per_hour = $8::integer,
+    max_messages_per_hour = $9::integer,
     updated_at = NOW()
-WHERE id = $13::uuid
-RETURNING id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+WHERE id = $10::uuid
+RETURNING id, owner_id, organization_id, name, description, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
 `
 
 type UpdateAutomationParams struct {
-	Name                  string                `db:"name" json:"name"`
-	Description           string                `db:"description" json:"description"`
-	CronSchedule          sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
-	Filter                pqtype.NullRawMessage `db:"filter" json:"filter"`
-	LabelPaths            pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
-	Instructions          string                `db:"instructions" json:"instructions"`
-	ModelConfigID         uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
-	MCPServerIDs          []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	AllowedTools          []string              `db:"allowed_tools" json:"allowed_tools"`
-	Status                string                `db:"status" json:"status"`
-	MaxChatCreatesPerHour int32                 `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
-	MaxMessagesPerHour    int32                 `db:"max_messages_per_hour" json:"max_messages_per_hour"`
-	ID                    uuid.UUID             `db:"id" json:"id"`
+	Name                  string        `db:"name" json:"name"`
+	Description           string        `db:"description" json:"description"`
+	Instructions          string        `db:"instructions" json:"instructions"`
+	ModelConfigID         uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
+	MCPServerIDs          []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
+	AllowedTools          []string      `db:"allowed_tools" json:"allowed_tools"`
+	Status                string        `db:"status" json:"status"`
+	MaxChatCreatesPerHour int32         `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
+	MaxMessagesPerHour    int32         `db:"max_messages_per_hour" json:"max_messages_per_hour"`
+	ID                    uuid.UUID     `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error) {
 	row := q.db.QueryRowContext(ctx, updateAutomation,
 		arg.Name,
 		arg.Description,
-		arg.CronSchedule,
-		arg.Filter,
-		arg.LabelPaths,
 		arg.Instructions,
 		arg.ModelConfigID,
 		pq.Array(arg.MCPServerIDs),
@@ -2964,11 +2930,6 @@ func (q *sqlQuerier) UpdateAutomation(ctx context.Context, arg UpdateAutomationP
 		&i.OrganizationID,
 		&i.Name,
 		&i.Description,
-		&i.WebhookSecret,
-		&i.WebhookSecretKeyID,
-		&i.CronSchedule,
-		&i.Filter,
-		&i.LabelPaths,
 		&i.Instructions,
 		&i.ModelConfigID,
 		pq.Array(&i.MCPServerIDs),
@@ -2982,40 +2943,194 @@ func (q *sqlQuerier) UpdateAutomation(ctx context.Context, arg UpdateAutomationP
 	return i, err
 }
 
-const updateAutomationWebhookSecret = `-- name: UpdateAutomationWebhookSecret :one
-UPDATE automations SET
-    webhook_secret = $1::text,
-    updated_at = NOW()
-WHERE id = $2::uuid
-RETURNING id, owner_id, organization_id, name, description, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, instructions, model_config_id, mcp_server_ids, allowed_tools, status, max_chat_creates_per_hour, max_messages_per_hour, created_at, updated_at
+const deleteAutomationTriggerByID = `-- name: DeleteAutomationTriggerByID :exec
+DELETE FROM automation_triggers WHERE id = $1::uuid
 `
 
-type UpdateAutomationWebhookSecretParams struct {
-	WebhookSecret sql.NullString `db:"webhook_secret" json:"webhook_secret"`
-	ID            uuid.UUID      `db:"id" json:"id"`
+func (q *sqlQuerier) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAutomationTriggerByID, id)
+	return err
 }
 
-func (q *sqlQuerier) UpdateAutomationWebhookSecret(ctx context.Context, arg UpdateAutomationWebhookSecretParams) (Automation, error) {
-	row := q.db.QueryRowContext(ctx, updateAutomationWebhookSecret, arg.WebhookSecret, arg.ID)
-	var i Automation
+const getAutomationTriggerByID = `-- name: GetAutomationTriggerByID :one
+SELECT id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at FROM automation_triggers WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (AutomationTrigger, error) {
+	row := q.db.QueryRowContext(ctx, getAutomationTriggerByID, id)
+	var i AutomationTrigger
 	err := row.Scan(
 		&i.ID,
-		&i.OwnerID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Description,
+		&i.AutomationID,
+		&i.Type,
 		&i.WebhookSecret,
 		&i.WebhookSecretKeyID,
 		&i.CronSchedule,
 		&i.Filter,
 		&i.LabelPaths,
-		&i.Instructions,
-		&i.ModelConfigID,
-		pq.Array(&i.MCPServerIDs),
-		pq.Array(&i.AllowedTools),
-		&i.Status,
-		&i.MaxChatCreatesPerHour,
-		&i.MaxMessagesPerHour,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAutomationTriggersByAutomationID = `-- name: GetAutomationTriggersByAutomationID :many
+SELECT id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at FROM automation_triggers
+WHERE automation_id = $1::uuid
+ORDER BY created_at ASC
+`
+
+func (q *sqlQuerier) GetAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]AutomationTrigger, error) {
+	rows, err := q.db.QueryContext(ctx, getAutomationTriggersByAutomationID, automationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AutomationTrigger
+	for rows.Next() {
+		var i AutomationTrigger
+		if err := rows.Scan(
+			&i.ID,
+			&i.AutomationID,
+			&i.Type,
+			&i.WebhookSecret,
+			&i.WebhookSecretKeyID,
+			&i.CronSchedule,
+			&i.Filter,
+			&i.LabelPaths,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAutomationTrigger = `-- name: InsertAutomationTrigger :one
+INSERT INTO automation_triggers (
+    automation_id,
+    type,
+    webhook_secret,
+    cron_schedule,
+    filter,
+    label_paths
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::text,
+    $5::jsonb,
+    $6::jsonb
+) RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
+`
+
+type InsertAutomationTriggerParams struct {
+	AutomationID  uuid.UUID             `db:"automation_id" json:"automation_id"`
+	Type          string                `db:"type" json:"type"`
+	WebhookSecret sql.NullString        `db:"webhook_secret" json:"webhook_secret"`
+	CronSchedule  sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
+	Filter        pqtype.NullRawMessage `db:"filter" json:"filter"`
+	LabelPaths    pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+}
+
+func (q *sqlQuerier) InsertAutomationTrigger(ctx context.Context, arg InsertAutomationTriggerParams) (AutomationTrigger, error) {
+	row := q.db.QueryRowContext(ctx, insertAutomationTrigger,
+		arg.AutomationID,
+		arg.Type,
+		arg.WebhookSecret,
+		arg.CronSchedule,
+		arg.Filter,
+		arg.LabelPaths,
+	)
+	var i AutomationTrigger
+	err := row.Scan(
+		&i.ID,
+		&i.AutomationID,
+		&i.Type,
+		&i.WebhookSecret,
+		&i.WebhookSecretKeyID,
+		&i.CronSchedule,
+		&i.Filter,
+		&i.LabelPaths,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAutomationTrigger = `-- name: UpdateAutomationTrigger :one
+UPDATE automation_triggers SET
+    cron_schedule = $1::text,
+    filter = $2::jsonb,
+    label_paths = $3::jsonb,
+    updated_at = NOW()
+WHERE id = $4::uuid
+RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
+`
+
+type UpdateAutomationTriggerParams struct {
+	CronSchedule sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
+	Filter       pqtype.NullRawMessage `db:"filter" json:"filter"`
+	LabelPaths   pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+	ID           uuid.UUID             `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomationTriggerParams) (AutomationTrigger, error) {
+	row := q.db.QueryRowContext(ctx, updateAutomationTrigger,
+		arg.CronSchedule,
+		arg.Filter,
+		arg.LabelPaths,
+		arg.ID,
+	)
+	var i AutomationTrigger
+	err := row.Scan(
+		&i.ID,
+		&i.AutomationID,
+		&i.Type,
+		&i.WebhookSecret,
+		&i.WebhookSecretKeyID,
+		&i.CronSchedule,
+		&i.Filter,
+		&i.LabelPaths,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAutomationTriggerWebhookSecret = `-- name: UpdateAutomationTriggerWebhookSecret :one
+UPDATE automation_triggers SET
+    webhook_secret = $1::text,
+    updated_at = NOW()
+WHERE id = $2::uuid
+RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
+`
+
+type UpdateAutomationTriggerWebhookSecretParams struct {
+	WebhookSecret sql.NullString `db:"webhook_secret" json:"webhook_secret"`
+	ID            uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg UpdateAutomationTriggerWebhookSecretParams) (AutomationTrigger, error) {
+	row := q.db.QueryRowContext(ctx, updateAutomationTriggerWebhookSecret, arg.WebhookSecret, arg.ID)
+	var i AutomationTrigger
+	err := row.Scan(
+		&i.ID,
+		&i.AutomationID,
+		&i.Type,
+		&i.WebhookSecret,
+		&i.WebhookSecretKeyID,
+		&i.CronSchedule,
+		&i.Filter,
+		&i.LabelPaths,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

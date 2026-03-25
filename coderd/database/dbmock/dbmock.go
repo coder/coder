@@ -686,6 +686,20 @@ func (mr *MockStoreMockRecorder) DeleteAutomationByID(ctx, id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAutomationByID", reflect.TypeOf((*MockStore)(nil).DeleteAutomationByID), ctx, id)
 }
 
+// DeleteAutomationTriggerByID mocks base method.
+func (m *MockStore) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAutomationTriggerByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAutomationTriggerByID indicates an expected call of DeleteAutomationTriggerByID.
+func (mr *MockStoreMockRecorder) DeleteAutomationTriggerByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAutomationTriggerByID", reflect.TypeOf((*MockStore)(nil).DeleteAutomationTriggerByID), ctx, id)
+}
+
 // DeleteChatModelConfigByID mocks base method.
 func (m *MockStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -1967,19 +1981,49 @@ func (mr *MockStoreMockRecorder) GetAutomationByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationByID", reflect.TypeOf((*MockStore)(nil).GetAutomationByID), ctx, id)
 }
 
-// GetAutomationWebhookEvents mocks base method.
-func (m *MockStore) GetAutomationWebhookEvents(ctx context.Context, arg database.GetAutomationWebhookEventsParams) ([]database.AutomationWebhookEvent, error) {
+// GetAutomationEvents mocks base method.
+func (m *MockStore) GetAutomationEvents(ctx context.Context, arg database.GetAutomationEventsParams) ([]database.AutomationEvent, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAutomationWebhookEvents", ctx, arg)
-	ret0, _ := ret[0].([]database.AutomationWebhookEvent)
+	ret := m.ctrl.Call(m, "GetAutomationEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.AutomationEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAutomationWebhookEvents indicates an expected call of GetAutomationWebhookEvents.
-func (mr *MockStoreMockRecorder) GetAutomationWebhookEvents(ctx, arg any) *gomock.Call {
+// GetAutomationEvents indicates an expected call of GetAutomationEvents.
+func (mr *MockStoreMockRecorder) GetAutomationEvents(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationWebhookEvents", reflect.TypeOf((*MockStore)(nil).GetAutomationWebhookEvents), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationEvents", reflect.TypeOf((*MockStore)(nil).GetAutomationEvents), ctx, arg)
+}
+
+// GetAutomationTriggerByID mocks base method.
+func (m *MockStore) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAutomationTriggerByID", ctx, id)
+	ret0, _ := ret[0].(database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAutomationTriggerByID indicates an expected call of GetAutomationTriggerByID.
+func (mr *MockStoreMockRecorder) GetAutomationTriggerByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationTriggerByID", reflect.TypeOf((*MockStore)(nil).GetAutomationTriggerByID), ctx, id)
+}
+
+// GetAutomationTriggersByAutomationID mocks base method.
+func (m *MockStore) GetAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAutomationTriggersByAutomationID", ctx, automationID)
+	ret0, _ := ret[0].([]database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAutomationTriggersByAutomationID indicates an expected call of GetAutomationTriggersByAutomationID.
+func (mr *MockStoreMockRecorder) GetAutomationTriggersByAutomationID(ctx, automationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAutomationTriggersByAutomationID", reflect.TypeOf((*MockStore)(nil).GetAutomationTriggersByAutomationID), ctx, automationID)
 }
 
 // GetAutomations mocks base method.
@@ -6076,19 +6120,34 @@ func (mr *MockStoreMockRecorder) InsertAutomation(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAutomation", reflect.TypeOf((*MockStore)(nil).InsertAutomation), ctx, arg)
 }
 
-// InsertAutomationWebhookEvent mocks base method.
-func (m *MockStore) InsertAutomationWebhookEvent(ctx context.Context, arg database.InsertAutomationWebhookEventParams) (database.AutomationWebhookEvent, error) {
+// InsertAutomationEvent mocks base method.
+func (m *MockStore) InsertAutomationEvent(ctx context.Context, arg database.InsertAutomationEventParams) (database.AutomationEvent, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAutomationWebhookEvent", ctx, arg)
-	ret0, _ := ret[0].(database.AutomationWebhookEvent)
+	ret := m.ctrl.Call(m, "InsertAutomationEvent", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// InsertAutomationWebhookEvent indicates an expected call of InsertAutomationWebhookEvent.
-func (mr *MockStoreMockRecorder) InsertAutomationWebhookEvent(ctx, arg any) *gomock.Call {
+// InsertAutomationEvent indicates an expected call of InsertAutomationEvent.
+func (mr *MockStoreMockRecorder) InsertAutomationEvent(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAutomationWebhookEvent", reflect.TypeOf((*MockStore)(nil).InsertAutomationWebhookEvent), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAutomationEvent", reflect.TypeOf((*MockStore)(nil).InsertAutomationEvent), ctx, arg)
+}
+
+// InsertAutomationTrigger mocks base method.
+func (m *MockStore) InsertAutomationTrigger(ctx context.Context, arg database.InsertAutomationTriggerParams) (database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAutomationTrigger", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAutomationTrigger indicates an expected call of InsertAutomationTrigger.
+func (mr *MockStoreMockRecorder) InsertAutomationTrigger(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAutomationTrigger", reflect.TypeOf((*MockStore)(nil).InsertAutomationTrigger), ctx, arg)
 }
 
 // InsertChat mocks base method.
@@ -7470,18 +7529,18 @@ func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
 }
 
-// PurgeOldAutomationWebhookEvents mocks base method.
-func (m *MockStore) PurgeOldAutomationWebhookEvents(ctx context.Context) error {
+// PurgeOldAutomationEvents mocks base method.
+func (m *MockStore) PurgeOldAutomationEvents(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PurgeOldAutomationWebhookEvents", ctx)
+	ret := m.ctrl.Call(m, "PurgeOldAutomationEvents", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// PurgeOldAutomationWebhookEvents indicates an expected call of PurgeOldAutomationWebhookEvents.
-func (mr *MockStoreMockRecorder) PurgeOldAutomationWebhookEvents(ctx any) *gomock.Call {
+// PurgeOldAutomationEvents indicates an expected call of PurgeOldAutomationEvents.
+func (mr *MockStoreMockRecorder) PurgeOldAutomationEvents(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeOldAutomationWebhookEvents", reflect.TypeOf((*MockStore)(nil).PurgeOldAutomationWebhookEvents), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeOldAutomationEvents", reflect.TypeOf((*MockStore)(nil).PurgeOldAutomationEvents), ctx)
 }
 
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
@@ -7715,19 +7774,34 @@ func (mr *MockStoreMockRecorder) UpdateAutomation(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomation", reflect.TypeOf((*MockStore)(nil).UpdateAutomation), ctx, arg)
 }
 
-// UpdateAutomationWebhookSecret mocks base method.
-func (m *MockStore) UpdateAutomationWebhookSecret(ctx context.Context, arg database.UpdateAutomationWebhookSecretParams) (database.Automation, error) {
+// UpdateAutomationTrigger mocks base method.
+func (m *MockStore) UpdateAutomationTrigger(ctx context.Context, arg database.UpdateAutomationTriggerParams) (database.AutomationTrigger, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAutomationWebhookSecret", ctx, arg)
-	ret0, _ := ret[0].(database.Automation)
+	ret := m.ctrl.Call(m, "UpdateAutomationTrigger", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationTrigger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateAutomationWebhookSecret indicates an expected call of UpdateAutomationWebhookSecret.
-func (mr *MockStoreMockRecorder) UpdateAutomationWebhookSecret(ctx, arg any) *gomock.Call {
+// UpdateAutomationTrigger indicates an expected call of UpdateAutomationTrigger.
+func (mr *MockStoreMockRecorder) UpdateAutomationTrigger(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomationWebhookSecret", reflect.TypeOf((*MockStore)(nil).UpdateAutomationWebhookSecret), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomationTrigger", reflect.TypeOf((*MockStore)(nil).UpdateAutomationTrigger), ctx, arg)
+}
+
+// UpdateAutomationTriggerWebhookSecret mocks base method.
+func (m *MockStore) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg database.UpdateAutomationTriggerWebhookSecretParams) (database.AutomationTrigger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAutomationTriggerWebhookSecret", ctx, arg)
+	ret0, _ := ret[0].(database.AutomationTrigger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAutomationTriggerWebhookSecret indicates an expected call of UpdateAutomationTriggerWebhookSecret.
+func (mr *MockStoreMockRecorder) UpdateAutomationTriggerWebhookSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomationTriggerWebhookSecret", reflect.TypeOf((*MockStore)(nil).UpdateAutomationTriggerWebhookSecret), ctx, arg)
 }
 
 // UpdateChatByID mocks base method.

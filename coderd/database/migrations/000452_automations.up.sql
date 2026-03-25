@@ -4,11 +4,6 @@ CREATE TABLE automations (
     organization_id uuid NOT NULL,
     name text NOT NULL,
     description text NOT NULL DEFAULT '',
-    webhook_secret text,
-    webhook_secret_key_id text,
-    cron_schedule text,
-    filter jsonb,
-    label_paths jsonb,
     instructions text NOT NULL DEFAULT '',
     model_config_id uuid,
     mcp_server_ids uuid[] NOT NULL DEFAULT '{}',
@@ -27,17 +22,37 @@ CREATE TABLE automations (
     CONSTRAINT automations_max_messages_per_hour_check CHECK (max_messages_per_hour > 0)
 );
 
-COMMENT ON COLUMN automations.webhook_secret_key_id IS 'The ID of the key used to encrypt the webhook secret. If this is NULL, the webhook secret is not encrypted';
-COMMENT ON COLUMN automations.cron_schedule IS 'Cron expression for scheduled automations. NULL means webhook-only. Mutually exclusive with webhook_secret in v1.';
-COMMENT ON COLUMN automations.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads. Used for session resolution.';
-COMMENT ON COLUMN automations.instructions IS 'User message sent to the chat when the automation triggers. Replaces what would otherwise be a system prompt.';
+COMMENT ON COLUMN automations.instructions IS 'User message sent to the chat when the automation triggers.';
 
 CREATE INDEX idx_automations_owner_id ON automations (owner_id);
 CREATE INDEX idx_automations_organization_id ON automations (organization_id);
 
-CREATE TABLE automation_webhook_events (
+CREATE TABLE automation_triggers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     automation_id uuid NOT NULL,
+    type text NOT NULL,
+    webhook_secret text,
+    webhook_secret_key_id text,
+    cron_schedule text,
+    filter jsonb,
+    label_paths jsonb,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    PRIMARY KEY (id),
+    FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE,
+    CONSTRAINT automation_triggers_type_check CHECK (type IN ('webhook', 'cron'))
+);
+
+COMMENT ON COLUMN automation_triggers.webhook_secret_key_id IS 'The ID of the key used to encrypt the webhook secret. If NULL, the secret is not encrypted.';
+COMMENT ON COLUMN automation_triggers.filter IS 'gjson filter conditions for webhook triggers. NULL means match everything.';
+COMMENT ON COLUMN automation_triggers.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads.';
+
+CREATE INDEX idx_automation_triggers_automation_id ON automation_triggers (automation_id);
+
+CREATE TABLE automation_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    automation_id uuid NOT NULL,
+    trigger_id uuid,
     received_at timestamp with time zone NOT NULL DEFAULT now(),
     payload jsonb NOT NULL,
     filter_matched boolean NOT NULL,
@@ -48,9 +63,10 @@ CREATE TABLE automation_webhook_events (
     error text,
     PRIMARY KEY (id),
     FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE,
-    CONSTRAINT automation_webhook_events_status_check CHECK (status IN ('filtered', 'preview', 'created', 'continued', 'rate_limited', 'error'))
+    FOREIGN KEY (trigger_id) REFERENCES automation_triggers(id) ON DELETE SET NULL,
+    CONSTRAINT automation_events_status_check CHECK (status IN ('filtered', 'preview', 'created', 'continued', 'rate_limited', 'error'))
 );
 
-CREATE INDEX idx_automation_webhook_events_automation_id_received_at ON automation_webhook_events (automation_id, received_at DESC);
+CREATE INDEX idx_automation_events_automation_id_received_at ON automation_events (automation_id, received_at DESC);
 
 ALTER TABLE chats ADD COLUMN automation_id uuid REFERENCES automations(id) ON DELETE SET NULL;

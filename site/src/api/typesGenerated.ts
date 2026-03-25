@@ -934,7 +934,7 @@ export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
 
 // From codersdk/automations.go
 /**
- * Automation represents an automation that bridges external webhooks to
+ * Automation represents an automation that bridges external triggers to
  * Coder chats.
  */
 export interface Automation {
@@ -943,12 +943,8 @@ export interface Automation {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly description: string;
-	readonly webhook_url: string;
-	readonly filter: Record<string, string>;
-	readonly label_paths: Record<string, string>;
 	readonly instructions: string;
 	readonly model_config_id?: string;
-	readonly cron_schedule?: string;
 	readonly mcp_server_ids: readonly string[];
 	readonly allowed_tools: readonly string[];
 	readonly status: AutomationStatus;
@@ -957,6 +953,42 @@ export interface Automation {
 	readonly created_at: string;
 	readonly updated_at: string;
 }
+
+// From codersdk/automations.go
+/**
+ * AutomationEvent records the outcome of a single automation event.
+ */
+export interface AutomationEvent {
+	readonly id: string;
+	readonly automation_id: string;
+	readonly trigger_id?: string;
+	readonly received_at: string;
+	readonly payload: Record<string, string>;
+	readonly filter_matched: boolean;
+	readonly resolved_labels: Record<string, string>;
+	readonly matched_chat_id?: string;
+	readonly created_chat_id?: string;
+	readonly status: AutomationEventStatus;
+	readonly error?: string;
+}
+
+// From codersdk/automations.go
+export type AutomationEventStatus =
+	| "continued"
+	| "created"
+	| "error"
+	| "filtered"
+	| "preview"
+	| "rate_limited";
+
+export const AutomationEventStatuses: AutomationEventStatus[] = [
+	"continued",
+	"created",
+	"error",
+	"filtered",
+	"preview",
+	"rate_limited",
+];
 
 // From codersdk/automations.go
 export type AutomationStatus = "active" | "disabled" | "preview";
@@ -970,7 +1002,7 @@ export const AutomationStatuses: AutomationStatus[] = [
 // From codersdk/automations.go
 /**
  * AutomationTestResult is the result of a dry-run test against an
- * automation's filter and session resolution logic.
+ * automation trigger's filter and session resolution logic.
  */
 export interface AutomationTestResult {
 	readonly filter_matched: boolean;
@@ -981,38 +1013,26 @@ export interface AutomationTestResult {
 
 // From codersdk/automations.go
 /**
- * AutomationWebhookEvent records the outcome of a single webhook
- * delivery.
+ * AutomationTrigger represents a trigger attached to an automation.
  */
-export interface AutomationWebhookEvent {
+export interface AutomationTrigger {
 	readonly id: string;
 	readonly automation_id: string;
-	readonly received_at: string;
-	readonly payload: Record<string, string>;
-	readonly filter_matched: boolean;
-	readonly resolved_labels: Record<string, string>;
-	readonly matched_chat_id?: string;
-	readonly created_chat_id?: string;
-	readonly status: AutomationWebhookEventStatus;
-	readonly error?: string;
+	readonly type: AutomationTriggerType;
+	readonly webhook_url?: string;
+	readonly cron_schedule?: string;
+	readonly filter: Record<string, string>;
+	readonly label_paths: Record<string, string>;
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/automations.go
-export type AutomationWebhookEventStatus =
-	| "continued"
-	| "created"
-	| "error"
-	| "filtered"
-	| "preview"
-	| "rate_limited";
+export type AutomationTriggerType = "cron" | "webhook";
 
-export const AutomationWebhookEventStatuses: AutomationWebhookEventStatus[] = [
-	"continued",
-	"created",
-	"error",
-	"filtered",
-	"preview",
-	"rate_limited",
+export const AutomationTriggerTypes: AutomationTriggerType[] = [
+	"cron",
+	"webhook",
 ];
 
 // From codersdk/deployment.go
@@ -2290,15 +2310,24 @@ export interface ConvertLoginRequest {
 export interface CreateAutomationRequest {
 	readonly name: string;
 	readonly description?: string;
-	readonly filter?: Record<string, string>;
-	readonly label_paths?: Record<string, string>;
 	readonly instructions?: string;
 	readonly model_config_id?: string;
-	readonly cron_schedule?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly allowed_tools?: readonly string[];
 	readonly max_chat_creates_per_hour?: number;
 	readonly max_messages_per_hour?: number;
+}
+
+// From codersdk/automations.go
+/**
+ * CreateAutomationTriggerRequest is the request body for creating a
+ * trigger.
+ */
+export interface CreateAutomationTriggerRequest {
+	readonly type: AutomationTriggerType;
+	readonly cron_schedule?: string;
+	readonly filter?: Record<string, string>;
+	readonly label_paths?: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -7090,16 +7119,24 @@ export interface UpdateAppearanceConfig {
 export interface UpdateAutomationRequest {
 	readonly name?: string;
 	readonly description?: string;
-	readonly filter?: Record<string, string>;
-	readonly label_paths?: Record<string, string>;
 	readonly instructions?: string;
 	readonly model_config_id?: string;
-	readonly cron_schedule?: string;
 	readonly mcp_server_ids?: string[];
 	readonly allowed_tools?: string[];
 	readonly status?: AutomationStatus;
 	readonly max_chat_creates_per_hour?: number;
 	readonly max_messages_per_hour?: number;
+}
+
+// From codersdk/automations.go
+/**
+ * UpdateAutomationTriggerRequest is the request body for updating a
+ * trigger.
+ */
+export interface UpdateAutomationTriggerRequest {
+	readonly cron_schedule?: string;
+	readonly filter?: Record<string, string>;
+	readonly label_paths?: Record<string, string>;
 }
 
 // From codersdk/chats.go

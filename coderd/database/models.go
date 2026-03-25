@@ -4135,20 +4135,12 @@ type AuditLog struct {
 }
 
 type Automation struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	OwnerID        uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID      `db:"organization_id" json:"organization_id"`
-	Name           string         `db:"name" json:"name"`
-	Description    string         `db:"description" json:"description"`
-	WebhookSecret  sql.NullString `db:"webhook_secret" json:"webhook_secret"`
-	// The ID of the key used to encrypt the webhook secret. If this is NULL, the webhook secret is not encrypted
-	WebhookSecretKeyID sql.NullString `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
-	// Cron expression for scheduled automations. NULL means webhook-only. Mutually exclusive with webhook_secret in v1.
-	CronSchedule sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
-	Filter       pqtype.NullRawMessage `db:"filter" json:"filter"`
-	// Map of chat label keys to gjson paths for extracting values from webhook payloads. Used for session resolution.
-	LabelPaths pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
-	// User message sent to the chat when the automation triggers. Replaces what would otherwise be a system prompt.
+	ID             uuid.UUID `db:"id" json:"id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	// User message sent to the chat when the automation triggers.
 	Instructions          string        `db:"instructions" json:"instructions"`
 	ModelConfigID         uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
 	MCPServerIDs          []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
@@ -4160,9 +4152,10 @@ type Automation struct {
 	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
 }
 
-type AutomationWebhookEvent struct {
+type AutomationEvent struct {
 	ID             uuid.UUID             `db:"id" json:"id"`
 	AutomationID   uuid.UUID             `db:"automation_id" json:"automation_id"`
+	TriggerID      uuid.NullUUID         `db:"trigger_id" json:"trigger_id"`
 	ReceivedAt     time.Time             `db:"received_at" json:"received_at"`
 	Payload        json.RawMessage       `db:"payload" json:"payload"`
 	FilterMatched  bool                  `db:"filter_matched" json:"filter_matched"`
@@ -4171,6 +4164,22 @@ type AutomationWebhookEvent struct {
 	CreatedChatID  uuid.NullUUID         `db:"created_chat_id" json:"created_chat_id"`
 	Status         string                `db:"status" json:"status"`
 	Error          sql.NullString        `db:"error" json:"error"`
+}
+
+type AutomationTrigger struct {
+	ID            uuid.UUID      `db:"id" json:"id"`
+	AutomationID  uuid.UUID      `db:"automation_id" json:"automation_id"`
+	Type          string         `db:"type" json:"type"`
+	WebhookSecret sql.NullString `db:"webhook_secret" json:"webhook_secret"`
+	// The ID of the key used to encrypt the webhook secret. If NULL, the secret is not encrypted.
+	WebhookSecretKeyID sql.NullString `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
+	CronSchedule       sql.NullString `db:"cron_schedule" json:"cron_schedule"`
+	// gjson filter conditions for webhook triggers. NULL means match everything.
+	Filter pqtype.NullRawMessage `db:"filter" json:"filter"`
+	// Map of chat label keys to gjson paths for extracting values from webhook payloads.
+	LabelPaths pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time             `db:"updated_at" json:"updated_at"`
 }
 
 // Per-replica boundary usage statistics for telemetry aggregation.

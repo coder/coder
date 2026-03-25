@@ -4,10 +4,6 @@ INSERT INTO automations (
     organization_id,
     name,
     description,
-    webhook_secret,
-    cron_schedule,
-    filter,
-    label_paths,
     instructions,
     model_config_id,
     mcp_server_ids,
@@ -20,10 +16,6 @@ INSERT INTO automations (
     @organization_id::uuid,
     @name::text,
     @description::text,
-    sqlc.narg('webhook_secret')::text,
-    sqlc.narg('cron_schedule')::text,
-    sqlc.narg('filter')::jsonb,
-    sqlc.narg('label_paths')::jsonb,
     @instructions::text,
     sqlc.narg('model_config_id')::uuid,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
@@ -62,9 +54,6 @@ LIMIT
 UPDATE automations SET
     name = @name::text,
     description = @description::text,
-    cron_schedule = sqlc.narg('cron_schedule')::text,
-    filter = sqlc.narg('filter')::jsonb,
-    label_paths = sqlc.narg('label_paths')::jsonb,
     instructions = @instructions::text,
     model_config_id = sqlc.narg('model_config_id')::uuid,
     mcp_server_ids = @mcp_server_ids::uuid[],
@@ -72,13 +61,6 @@ UPDATE automations SET
     status = @status::text,
     max_chat_creates_per_hour = @max_chat_creates_per_hour::integer,
     max_messages_per_hour = @max_messages_per_hour::integer,
-    updated_at = NOW()
-WHERE id = @id::uuid
-RETURNING *;
-
--- name: UpdateAutomationWebhookSecret :one
-UPDATE automations SET
-    webhook_secret = sqlc.narg('webhook_secret')::text,
     updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING *;

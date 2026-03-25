@@ -1212,9 +1212,10 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
-CREATE TABLE automation_webhook_events (
+CREATE TABLE automation_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     automation_id uuid NOT NULL,
+    trigger_id uuid,
     received_at timestamp with time zone DEFAULT now() NOT NULL,
     payload jsonb NOT NULL,
     filter_matched boolean NOT NULL,
@@ -1223,8 +1224,28 @@ CREATE TABLE automation_webhook_events (
     created_chat_id uuid,
     status text NOT NULL,
     error text,
-    CONSTRAINT automation_webhook_events_status_check CHECK ((status = ANY (ARRAY['filtered'::text, 'preview'::text, 'created'::text, 'continued'::text, 'rate_limited'::text, 'error'::text])))
+    CONSTRAINT automation_events_status_check CHECK ((status = ANY (ARRAY['filtered'::text, 'preview'::text, 'created'::text, 'continued'::text, 'rate_limited'::text, 'error'::text])))
 );
+
+CREATE TABLE automation_triggers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    automation_id uuid NOT NULL,
+    type text NOT NULL,
+    webhook_secret text,
+    webhook_secret_key_id text,
+    cron_schedule text,
+    filter jsonb,
+    label_paths jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT automation_triggers_type_check CHECK ((type = ANY (ARRAY['webhook'::text, 'cron'::text])))
+);
+
+COMMENT ON COLUMN automation_triggers.webhook_secret_key_id IS 'The ID of the key used to encrypt the webhook secret. If NULL, the secret is not encrypted.';
+
+COMMENT ON COLUMN automation_triggers.filter IS 'gjson filter conditions for webhook triggers. NULL means match everything.';
+
+COMMENT ON COLUMN automation_triggers.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads.';
 
 CREATE TABLE automations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1232,11 +1253,6 @@ CREATE TABLE automations (
     organization_id uuid NOT NULL,
     name text NOT NULL,
     description text DEFAULT ''::text NOT NULL,
-    webhook_secret text,
-    webhook_secret_key_id text,
-    cron_schedule text,
-    filter jsonb,
-    label_paths jsonb,
     instructions text DEFAULT ''::text NOT NULL,
     model_config_id uuid,
     mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
@@ -1251,13 +1267,7 @@ CREATE TABLE automations (
     CONSTRAINT automations_status_check CHECK ((status = ANY (ARRAY['disabled'::text, 'preview'::text, 'active'::text])))
 );
 
-COMMENT ON COLUMN automations.webhook_secret_key_id IS 'The ID of the key used to encrypt the webhook secret. If this is NULL, the webhook secret is not encrypted';
-
-COMMENT ON COLUMN automations.cron_schedule IS 'Cron expression for scheduled automations. NULL means webhook-only. Mutually exclusive with webhook_secret in v1.';
-
-COMMENT ON COLUMN automations.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads. Used for session resolution.';
-
-COMMENT ON COLUMN automations.instructions IS 'User message sent to the chat when the automation triggers. Replaces what would otherwise be a system prompt.';
+COMMENT ON COLUMN automations.instructions IS 'User message sent to the chat when the automation triggers.';
 
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
@@ -3359,8 +3369,11 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY automation_webhook_events
-    ADD CONSTRAINT automation_webhook_events_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY automation_events
+    ADD CONSTRAINT automation_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY automation_triggers
+    ADD CONSTRAINT automation_triggers_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY automations
     ADD CONSTRAINT automations_pkey PRIMARY KEY (id);
@@ -3753,7 +3766,9 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
-CREATE INDEX idx_automation_webhook_events_automation_id_received_at ON automation_webhook_events USING btree (automation_id, received_at DESC);
+CREATE INDEX idx_automation_events_automation_id_received_at ON automation_events USING btree (automation_id, received_at DESC);
+
+CREATE INDEX idx_automation_triggers_automation_id ON automation_triggers USING btree (automation_id);
 
 CREATE INDEX idx_automations_organization_id ON automations USING btree (organization_id);
 
@@ -4060,8 +4075,14 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY automation_webhook_events
-    ADD CONSTRAINT automation_webhook_events_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY automation_events
+    ADD CONSTRAINT automation_events_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY automation_events
+    ADD CONSTRAINT automation_events_trigger_id_fkey FOREIGN KEY (trigger_id) REFERENCES automation_triggers(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY automation_triggers
+    ADD CONSTRAINT automation_triggers_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES automations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY automations
     ADD CONSTRAINT automations_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL;

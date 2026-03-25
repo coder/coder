@@ -1,6 +1,7 @@
--- name: InsertAutomationWebhookEvent :one
-INSERT INTO automation_webhook_events (
+-- name: InsertAutomationEvent :one
+INSERT INTO automation_events (
     automation_id,
+    trigger_id,
     payload,
     filter_matched,
     resolved_labels,
@@ -10,6 +11,7 @@ INSERT INTO automation_webhook_events (
     error
 ) VALUES (
     @automation_id::uuid,
+    sqlc.narg('trigger_id')::uuid,
     @payload::jsonb,
     @filter_matched::boolean,
     sqlc.narg('resolved_labels')::jsonb,
@@ -19,11 +21,11 @@ INSERT INTO automation_webhook_events (
     sqlc.narg('error')::text
 ) RETURNING *;
 
--- name: GetAutomationWebhookEvents :many
+-- name: GetAutomationEvents :many
 SELECT
     *
 FROM
-    automation_webhook_events
+    automation_events
 WHERE
     automation_id = @automation_id::uuid
     AND CASE
@@ -38,18 +40,18 @@ LIMIT
 
 -- name: CountAutomationChatCreatesInWindow :one
 SELECT COUNT(*)
-FROM automation_webhook_events
+FROM automation_events
 WHERE automation_id = @automation_id::uuid
     AND status = 'created'
     AND received_at > @window_start::timestamptz;
 
 -- name: CountAutomationMessagesInWindow :one
 SELECT COUNT(*)
-FROM automation_webhook_events
+FROM automation_events
 WHERE automation_id = @automation_id::uuid
     AND status = 'continued'
     AND received_at > @window_start::timestamptz;
 
--- name: PurgeOldAutomationWebhookEvents :exec
-DELETE FROM automation_webhook_events
+-- name: PurgeOldAutomationEvents :exec
+DELETE FROM automation_events
 WHERE received_at < NOW() - INTERVAL '7 days';

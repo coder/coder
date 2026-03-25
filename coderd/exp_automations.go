@@ -46,15 +46,6 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secret, err := generateWebhookSecret()
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to generate webhook secret.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	// Use the first organization the user belongs to.
 	orgs, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
 		UserID: apiKey.UserID,
@@ -81,7 +72,6 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		OrganizationID:        orgID,
 		Name:                  req.Name,
 		Description:           req.Description,
-		WebhookSecret:         sql.NullString{String: secret, Valid: true},
 		Instructions:          req.Instructions,
 		MCPServerIDs:          req.MCPServerIDs,
 		AllowedTools:          req.AllowedTools,
@@ -89,17 +79,8 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		MaxChatCreatesPerHour: maxCreates,
 		MaxMessagesPerHour:    maxMessages,
 	}
-	if len(req.Filter) > 0 {
-		arg.Filter = pqtype.NullRawMessage{RawMessage: req.Filter, Valid: true}
-	}
-	if len(req.LabelPaths) > 0 {
-		arg.LabelPaths = pqtype.NullRawMessage{RawMessage: req.LabelPaths, Valid: true}
-	}
 	if req.ModelConfigID != nil {
 		arg.ModelConfigID = uuid.NullUUID{UUID: *req.ModelConfigID, Valid: true}
-	}
-	if req.CronSchedule != nil {
-		arg.CronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
 	}
 
 	automation, err := api.Database.InsertAutomation(ctx, arg)
@@ -159,11 +140,8 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 		ID:                    automation.ID,
 		Name:                  automation.Name,
 		Description:           automation.Description,
-		Filter:                automation.Filter,
-		LabelPaths:            automation.LabelPaths,
 		Instructions:          automation.Instructions,
 		ModelConfigID:         automation.ModelConfigID,
-		CronSchedule:          automation.CronSchedule,
 		MCPServerIDs:          automation.MCPServerIDs,
 		AllowedTools:          automation.AllowedTools,
 		Status:                automation.Status,
@@ -176,20 +154,11 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 	if req.Description != nil {
 		arg.Description = *req.Description
 	}
-	if req.Filter != nil {
-		arg.Filter = pqtype.NullRawMessage{RawMessage: req.Filter, Valid: true}
-	}
-	if req.LabelPaths != nil {
-		arg.LabelPaths = pqtype.NullRawMessage{RawMessage: req.LabelPaths, Valid: true}
-	}
 	if req.Instructions != nil {
 		arg.Instructions = *req.Instructions
 	}
 	if req.ModelConfigID != nil {
 		arg.ModelConfigID = uuid.NullUUID{UUID: *req.ModelConfigID, Valid: true}
-	}
-	if req.CronSchedule != nil {
-		arg.CronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
 	}
 	if req.MCPServerIDs != nil {
 		arg.MCPServerIDs = *req.MCPServerIDs
@@ -236,82 +205,57 @@ func (api *API) deleteAutomation(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// regenerateAutomationSecret generates a new webhook secret for an
-// automation.
-func (api *API) regenerateAutomationSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	automation := httpmw.AutomationParam(r)
-
-	secret, err := generateWebhookSecret()
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to generate webhook secret.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	updated, err := api.Database.UpdateAutomationWebhookSecret(ctx, database.UpdateAutomationWebhookSecretParams{
-		ID:            automation.ID,
-		WebhookSecret: sql.NullString{String: secret, Valid: true},
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update webhook secret.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(updated, api.AccessURL.String()))
-}
-
-// listAutomationEvents returns recent webhook events for an
-// automation.
+// listAutomationEvents returns recent events for an automation.
 func (api *API) listAutomationEvents(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	automation := httpmw.AutomationParam(r)
 
-	events, err := api.Database.GetAutomationWebhookEvents(ctx, database.GetAutomationWebhookEventsParams{
+	events, err := api.Database.GetAutomationEvents(ctx, database.GetAutomationEventsParams{
 		AutomationID: automation.ID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list webhook events.",
+			Message: "Failed to list automation events.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	result := make([]codersdk.AutomationWebhookEvent, 0, len(events))
+	result := make([]codersdk.AutomationEvent, 0, len(events))
 	for _, e := range events {
-		result = append(result, db2sdk.AutomationWebhookEvent(e))
+		result = append(result, db2sdk.AutomationEvent(e))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
 
 // testAutomation performs a dry-run of the filter and session
-// resolution logic against a sample payload.
+// resolution logic against a sample payload. Filter and label_paths
+// are accepted in the request body so callers can test without an
+// existing trigger.
 func (api *API) testAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	automation := httpmw.AutomationParam(r)
 
-	var payload json.RawMessage
-	if !httpapi.Read(ctx, rw, r, &payload) {
+	var body struct {
+		Payload    json.RawMessage `json:"payload"`
+		Filter     json.RawMessage `json:"filter,omitempty"`
+		LabelPaths json.RawMessage `json:"label_paths,omitempty"`
+	}
+	if !httpapi.Read(ctx, rw, r, &body) {
 		return
 	}
 
-	payloadStr := string(payload)
-	matched := automations.MatchFilter(payloadStr, automation.Filter.RawMessage)
+	payloadStr := string(body.Payload)
+	matched := automations.MatchFilter(payloadStr, body.Filter)
 
 	result := codersdk.AutomationTestResult{
 		FilterMatched: matched,
 	}
 
-	// If filter matched and label_paths are configured, resolve them.
-	if matched && automation.LabelPaths.Valid {
+	// If filter matched and label_paths are provided, resolve them.
+	if matched && len(body.LabelPaths) > 0 {
 		var labelPaths map[string]string
-		if err := json.Unmarshal(automation.LabelPaths.RawMessage, &labelPaths); err == nil {
+		if err := json.Unmarshal(body.LabelPaths, &labelPaths); err == nil {
 			resolvedLabels := automations.ResolveLabels(payloadStr, labelPaths)
 			if labelsJSON, err := json.Marshal(resolvedLabels); err == nil {
 				result.ResolvedLabels = labelsJSON
@@ -340,21 +284,162 @@ func (api *API) testAutomation(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
 
+// postAutomationTrigger creates a new trigger for an automation.
+func (api *API) postAutomationTrigger(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.AutomationParam(r)
+
+	var req codersdk.CreateAutomationTriggerRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.Type == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Type is required.",
+		})
+		return
+	}
+
+	arg := database.InsertAutomationTriggerParams{
+		AutomationID: automation.ID,
+		Type:         string(req.Type),
+	}
+
+	// Generate webhook secret for webhook triggers.
+	if req.Type == codersdk.AutomationTriggerTypeWebhook {
+		secret, err := generateWebhookSecret()
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to generate webhook secret.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		arg.WebhookSecret = sql.NullString{String: secret, Valid: true}
+	}
+
+	if req.CronSchedule != nil {
+		arg.CronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
+	}
+	if len(req.Filter) > 0 {
+		arg.Filter = pqtype.NullRawMessage{RawMessage: req.Filter, Valid: true}
+	}
+	if len(req.LabelPaths) > 0 {
+		arg.LabelPaths = pqtype.NullRawMessage{RawMessage: req.LabelPaths, Valid: true}
+	}
+
+	trigger, err := api.Database.InsertAutomationTrigger(ctx, arg)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create trigger.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.AutomationTrigger(trigger, api.AccessURL.String()))
+}
+
+// listAutomationTriggers lists triggers for an automation.
+func (api *API) listAutomationTriggers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.AutomationParam(r)
+
+	triggers, err := api.Database.GetAutomationTriggersByAutomationID(ctx, automation.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list triggers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	result := make([]codersdk.AutomationTrigger, 0, len(triggers))
+	for _, t := range triggers {
+		result = append(result, db2sdk.AutomationTrigger(t, api.AccessURL.String()))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, result)
+}
+
+// deleteAutomationTrigger deletes a trigger from an automation.
+func (api *API) deleteAutomationTrigger(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	triggerID, parsed := httpmw.ParseUUIDParam(rw, r, "trigger")
+	if !parsed {
+		return
+	}
+
+	err := api.Database.DeleteAutomationTriggerByID(ctx, triggerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete trigger.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// regenerateAutomationTriggerSecret generates a new webhook secret for
+// a trigger.
+func (api *API) regenerateAutomationTriggerSecret(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	triggerID, parsed := httpmw.ParseUUIDParam(rw, r, "trigger")
+	if !parsed {
+		return
+	}
+
+	secret, err := generateWebhookSecret()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to generate webhook secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updated, err := api.Database.UpdateAutomationTriggerWebhookSecret(ctx, database.UpdateAutomationTriggerWebhookSecretParams{
+		ID:            triggerID,
+		WebhookSecret: sql.NullString{String: secret, Valid: true},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update webhook secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.AutomationTrigger(updated, api.AccessURL.String()))
+}
+
 // postAutomationWebhook is the unauthenticated stable v2 endpoint
-// that receives webhook deliveries from external systems.
+// that receives webhook deliveries from external systems. The URL
+// identifies a specific trigger rather than an automation.
 func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	automationID, parsed := httpmw.ParseUUIDParam(rw, r, "automation_id")
+	triggerID, parsed := httpmw.ParseUUIDParam(rw, r, "trigger_id")
 	if !parsed {
 		return
 	}
 
 	// Always return 200 to prevent source-system retries.
-	//nolint:gocritic // Webhook handler must bypass auth to look up automation.
-	automation, err := api.Database.GetAutomationByID(dbauthz.AsSystemRestricted(ctx), automationID)
+	//nolint:gocritic // Webhook handler must bypass auth to look up trigger.
+	trigger, err := api.Database.GetAutomationTriggerByID(dbauthz.AsSystemRestricted(ctx), triggerID)
 	if err != nil {
-		// Still return 200 even if automation not found.
+		// Still return 200 even if trigger not found.
+		rw.WriteHeader(http.StatusOK)
+		return
+	}
+
+	//nolint:gocritic // Webhook handler must bypass auth to look up automation.
+	automation, err := api.Database.GetAutomationByID(dbauthz.AsSystemRestricted(ctx), trigger.AutomationID)
+	if err != nil {
 		rw.WriteHeader(http.StatusOK)
 		return
 	}
@@ -374,11 +459,12 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 
 	// Verify HMAC signature.
 	sig := r.Header.Get("X-Hub-Signature-256")
-	if !automations.VerifySignature(payload, automation.WebhookSecret.String, sig) {
+	if !automations.VerifySignature(payload, trigger.WebhookSecret.String, sig) {
 		// Log event as error but still return 200.
 		//nolint:gocritic // System context for event logging.
-		_, _ = api.Database.InsertAutomationWebhookEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationWebhookEventParams{
+		_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationEventParams{
 			AutomationID:  automation.ID,
+			TriggerID:     uuid.NullUUID{UUID: trigger.ID, Valid: true},
 			Payload:       truncatePayload(payload),
 			FilterMatched: false,
 			Status:        "error",
@@ -389,12 +475,13 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	payloadStr := string(payload)
-	matched := automations.MatchFilter(payloadStr, automation.Filter.RawMessage)
+	matched := automations.MatchFilter(payloadStr, trigger.Filter.RawMessage)
 
 	if !matched {
 		//nolint:gocritic // System context for event logging.
-		_, _ = api.Database.InsertAutomationWebhookEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationWebhookEventParams{
+		_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationEventParams{
 			AutomationID:  automation.ID,
+			TriggerID:     uuid.NullUUID{UUID: trigger.ID, Valid: true},
 			Payload:       truncatePayload(payload),
 			FilterMatched: false,
 			Status:        "filtered",
@@ -406,9 +493,9 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	// Resolve labels.
 	var resolvedLabels map[string]string
 	var resolvedLabelsJSON pqtype.NullRawMessage
-	if automation.LabelPaths.Valid {
+	if trigger.LabelPaths.Valid {
 		var labelPaths map[string]string
-		if err := json.Unmarshal(automation.LabelPaths.RawMessage, &labelPaths); err == nil {
+		if err := json.Unmarshal(trigger.LabelPaths.RawMessage, &labelPaths); err == nil {
 			resolvedLabels = automations.ResolveLabels(payloadStr, labelPaths)
 			if j, err := json.Marshal(resolvedLabels); err == nil {
 				resolvedLabelsJSON = pqtype.NullRawMessage{RawMessage: j, Valid: true}
@@ -418,8 +505,9 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 
 	// Preview mode: log but don't act.
 	if automation.Status == "preview" {
-		eventArg := database.InsertAutomationWebhookEventParams{
+		eventArg := database.InsertAutomationEventParams{
 			AutomationID:   automation.ID,
+			TriggerID:      uuid.NullUUID{UUID: trigger.ID, Valid: true},
 			Payload:        truncatePayload(payload),
 			FilterMatched:  true,
 			ResolvedLabels: resolvedLabelsJSON,
@@ -444,7 +532,7 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		//nolint:gocritic // System context for event logging.
-		_, _ = api.Database.InsertAutomationWebhookEvent(dbauthz.AsSystemRestricted(ctx), eventArg)
+		_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), eventArg)
 		rw.WriteHeader(http.StatusOK)
 		return
 	}
@@ -452,8 +540,9 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	// Active mode: TODO — implement rate limiting and chat
 	// creation/continuation. For now, log the event.
 	//nolint:gocritic // System context for event logging.
-	_, _ = api.Database.InsertAutomationWebhookEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationWebhookEventParams{
+	_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationEventParams{
 		AutomationID:   automation.ID,
+		TriggerID:      uuid.NullUUID{UUID: trigger.ID, Valid: true},
 		Payload:        truncatePayload(payload),
 		FilterMatched:  true,
 		ResolvedLabels: resolvedLabelsJSON,
