@@ -34,11 +34,11 @@ export const InputTokensCell: FC<{
 			<TooltipContent side="top">
 				<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
 					<span className="text-content-secondary">Input</span>
-					<span className="text-right font-mono">
+					<span className="text-right tabular-nums">
 						{inputTokens.toLocaleString()}
 					</span>
 					<span className="text-content-secondary">Cache read</span>
-					<span className="text-right font-mono">
+					<span className="text-right tabular-nums">
 						{cacheReadTokens.toLocaleString()}
 					</span>
 				</div>
@@ -59,11 +59,11 @@ export const OutputTokensCell: FC<{
 			<TooltipContent side="top">
 				<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
 					<span className="text-content-secondary">Output</span>
-					<span className="text-right font-mono">
+					<span className="text-right tabular-nums">
 						{outputTokens.toLocaleString()}
 					</span>
 					<span className="text-content-secondary">Cache write</span>
-					<span className="text-right font-mono">
+					<span className="text-right tabular-nums">
 						{cacheWriteTokens.toLocaleString()}
 					</span>
 				</div>
