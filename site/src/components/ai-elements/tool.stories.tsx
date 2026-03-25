@@ -554,6 +554,15 @@ export const MCPToolError: Story = {
 		mcpServerConfigId: "mcp-server-1",
 		mcpServers: sampleMCPServers,
 	},
+	play: async ({ canvasElement }) => {
+		// Error alert icon should be present.
+		expect(canvasElement.querySelector(".lucide-circle-alert")).not.toBeNull();
+		// Label text should use the destructive color.
+		const label = canvasElement.querySelector(
+			".\\[\\&\\>\\*\\]\\:text-content-destructive",
+		);
+		expect(label).not.toBeNull();
+	},
 };
 
 export const MCPToolNoResult: Story = {

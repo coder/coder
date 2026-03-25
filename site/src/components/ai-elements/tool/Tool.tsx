@@ -1,10 +1,15 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import type * as TypesGen from "api/typesGenerated";
-import { LoaderIcon } from "lucide-react";
+import { CircleAlertIcon, LoaderIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -484,6 +489,8 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 
 	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
 	const isRunning = status === "running";
+	const rec = asRecord(result);
+	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 
 	return (
 		<ToolCollapsible
@@ -497,12 +504,24 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 							iconUrl={mcpServer?.icon_url}
 						/>
 					</div>
-					<ToolLabel
-						name={name}
-						args={args}
-						result={result}
-						mcpSlug={mcpServer?.slug}
-					/>
+					<span className={cn(isError && "[&>*]:text-content-destructive")}>
+						<ToolLabel
+							name={name}
+							args={args}
+							result={result}
+							mcpSlug={mcpServer?.slug}
+						/>
+					</span>
+					{isError && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{errorMessage || "Tool call failed"}
+							</TooltipContent>
+						</Tooltip>
+					)}
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 					)}
