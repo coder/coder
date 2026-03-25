@@ -1149,43 +1149,43 @@ func New(options *Options) *API {
 				})
 			})
 		})
-				// Experimental(agents): automation API routes gated by ExperimentAgents.
-				r.Route("/automations", func(r chi.Router) {
-					r.Use(
-						apiKeyMiddleware,
-						httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
-					)
-					r.Post("/", api.postAutomation)
-					r.Get("/", api.listAutomations)
-					r.Route("/{automation}", func(r chi.Router) {
-						r.Use(httpmw.ExtractAutomationParam(options.Database))
-						r.Get("/", api.getAutomation)
-						r.Patch("/", api.patchAutomation)
-						r.Delete("/", api.deleteAutomation)
-						r.Get("/events", api.listAutomationEvents)
-						r.Post("/test", api.testAutomation)
-						r.Route("/triggers", func(r chi.Router) {
-							r.Post("/", api.postAutomationTrigger)
-							r.Get("/", api.listAutomationTriggers)
-							r.Route("/{trigger}", func(r chi.Router) {
-								r.Delete("/", api.deleteAutomationTrigger)
-								r.Post("/regenerate-secret", api.regenerateAutomationTriggerSecret)
-							})
-						})
+		// Experimental(agents): automation API routes gated by ExperimentAgents.
+		r.Route("/automations", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
+			)
+			r.Post("/", api.postAutomation)
+			r.Get("/", api.listAutomations)
+			r.Route("/{automation}", func(r chi.Router) {
+				r.Use(httpmw.ExtractAutomationParam(options.Database))
+				r.Get("/", api.getAutomation)
+				r.Patch("/", api.patchAutomation)
+				r.Delete("/", api.deleteAutomation)
+				r.Get("/events", api.listAutomationEvents)
+				r.Post("/test", api.testAutomation)
+				r.Route("/triggers", func(r chi.Router) {
+					r.Post("/", api.postAutomationTrigger)
+					r.Get("/", api.listAutomationTriggers)
+					r.Route("/{trigger}", func(r chi.Router) {
+						r.Delete("/", api.deleteAutomationTrigger)
+						r.Post("/regenerate-secret", api.regenerateAutomationTriggerSecret)
 					})
 				})
-				// Experimental(agents): chat API routes gated by ExperimentAgents.
-				r.Route("/chats", func(r chi.Router) {
-					r.Use(
-						apiKeyMiddleware,
-						httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
-					)
-						r.Get("/", api.listChats)
-						r.Post("/", api.postChats)
-						r.Get("/models", api.listChatModels)
-						r.Get("/watch", api.watchChats)
-						r.Route("/cost", func(r chi.Router) {
-							r.Get("/users", api.chatCostUsers)
+			})
+		})
+		// Experimental(agents): chat API routes gated by ExperimentAgents.
+		r.Route("/chats", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
+			)
+			r.Get("/", api.listChats)
+			r.Post("/", api.postChats)
+			r.Get("/models", api.listChatModels)
+			r.Get("/watch", api.watchChats)
+			r.Route("/cost", func(r chi.Router) {
+				r.Get("/users", api.chatCostUsers)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/summary", api.chatCostSummary)
@@ -1320,16 +1320,17 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/regions", api.regions)
 		})
-			r.Route("/derp-map", func(r chi.Router) {
-				// r.Use(apiKeyMiddleware)
-				r.Get("/", api.derpMapUpdates)
-			})
-			// Unauthenticated webhook endpoint for automation triggers.
-			// Authentication is via HMAC signature, not API key.
-			r.Route("/automations/triggers/{trigger_id}/webhook", func(r chi.Router) {
-				r.Post("/", api.postAutomationWebhook)
-				})
-				r.Route("/deployment", func(r chi.Router) {			r.Use(apiKeyMiddleware)
+		r.Route("/derp-map", func(r chi.Router) {
+			// r.Use(apiKeyMiddleware)
+			r.Get("/", api.derpMapUpdates)
+		})
+		// Unauthenticated webhook endpoint for automation triggers.
+		// Authentication is via HMAC signature, not API key.
+		r.Route("/automations/triggers/{trigger_id}/webhook", func(r chi.Router) {
+			r.Post("/", api.postAutomationWebhook)
+		})
+		r.Route("/deployment", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)

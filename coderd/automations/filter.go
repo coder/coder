@@ -2,6 +2,7 @@ package automations
 
 import (
 	"encoding/json"
+	"reflect"
 
 	"github.com/tidwall/gjson"
 )
@@ -25,7 +26,7 @@ func MatchFilter(payload string, filter json.RawMessage) bool {
 		if !result.Exists() {
 			return false
 		}
-		if result.Value() != expected {
+		if !reflect.DeepEqual(result.Value(), expected) {
 			return false
 		}
 	}

@@ -12,7 +12,7 @@ import (
 func TestMatchFilter(t *testing.T) {
 	t.Parallel()
 
-	payload := `{"action":"opened","repository":{"full_name":"coder/coder"},"pull_request":{"number":42}}`
+	payload := `{"action":"opened","repository":{"full_name":"coder/coder","private":true},"pull_request":{"number":42},"labels":["bug","urgent"],"sender":{"login":"octocat"}}`
 
 	tests := []struct {
 		name   string
@@ -31,6 +31,11 @@ func TestMatchFilter(t *testing.T) {
 		{"numeric match", json.RawMessage(`{"pull_request.number":42}`), true},
 		{"numeric mismatch", json.RawMessage(`{"pull_request.number":99}`), false},
 		{"invalid filter json", json.RawMessage(`not json`), false},
+		{"boolean match", json.RawMessage(`{"repository.private":true}`), true},
+		{"boolean mismatch", json.RawMessage(`{"repository.private":false}`), false},
+		{"array value match", json.RawMessage(`{"labels":["bug","urgent"]}`), true},
+		{"array value mismatch", json.RawMessage(`{"labels":["bug"]}`), false},
+		{"object value match", json.RawMessage(`{"sender":{"login":"octocat"}}`), true},
 	}
 
 	for _, tt := range tests {

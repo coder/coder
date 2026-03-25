@@ -69,6 +69,19 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		maxMessages = *req.MaxMessagesPerHour
 	}
 
+	if maxCreates <= 0 || maxCreates > 1000 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "max_chat_creates_per_hour must be between 1 and 1000.",
+		})
+		return
+	}
+	if maxMessages <= 0 || maxMessages > 1000 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "max_messages_per_hour must be between 1 and 1000.",
+		})
+		return
+	}
+
 	arg := database.InsertAutomationParams{
 		OwnerID:               apiKey.UserID,
 		OrganizationID:        orgID,
@@ -87,10 +100,18 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 
 	automation, err := api.Database.InsertAutomation(ctx, arg)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create automation.",
-			Detail:  err.Error(),
-		})
+		switch {
+		case database.IsUniqueViolation(err, database.UniqueIndexAutomationsOwnerOrgName):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "An automation with this name already exists.",
+				Detail:  err.Error(),
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to create automation.",
+				Detail:  err.Error(),
+			})
+		}
 		return
 	}
 
@@ -154,6 +175,18 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if req.MaxChatCreatesPerHour != nil && (*req.MaxChatCreatesPerHour <= 0 || *req.MaxChatCreatesPerHour > 1000) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "max_chat_creates_per_hour must be between 1 and 1000.",
+		})
+		return
+	}
+	if req.MaxMessagesPerHour != nil && (*req.MaxMessagesPerHour <= 0 || *req.MaxMessagesPerHour > 1000) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "max_messages_per_hour must be between 1 and 1000.",
+		})
+		return
+	}
 
 	// Merge: start from current values, apply updates.
 	arg := database.UpdateAutomationParams{
@@ -198,10 +231,18 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 
 	updated, err := api.Database.UpdateAutomation(ctx, arg)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update automation.",
-			Detail:  err.Error(),
-		})
+		switch {
+		case database.IsUniqueViolation(err, database.UniqueIndexAutomationsOwnerOrgName):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "An automation with this name already exists.",
+				Detail:  err.Error(),
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update automation.",
+				Detail:  err.Error(),
+			})
+		}
 		return
 	}
 
@@ -275,26 +316,32 @@ func (api *API) testAutomation(rw http.ResponseWriter, r *http.Request) {
 	// If filter matched and label_paths are provided, resolve them.
 	if matched && len(body.LabelPaths) > 0 {
 		var labelPaths map[string]string
-		if err := json.Unmarshal(body.LabelPaths, &labelPaths); err == nil {
-			resolvedLabels := automations.ResolveLabels(payloadStr, labelPaths)
-			if labelsJSON, err := json.Marshal(resolvedLabels); err == nil {
-				result.ResolvedLabels = labelsJSON
-			}
+		if err := json.Unmarshal(body.LabelPaths, &labelPaths); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid label_paths: must be a JSON object mapping label names to gjson paths.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 
-			// Look for existing chat with these labels.
-			if len(resolvedLabels) > 0 {
-				labelsJSON, _ := json.Marshal(resolvedLabels)
-				chats, err := api.Database.GetChats(ctx, database.GetChatsParams{
-					OwnerID: automation.OwnerID,
-					LabelFilter: pqtype.NullRawMessage{
-						RawMessage: labelsJSON,
-						Valid:      true,
-					},
-					LimitOpt: 1,
-				})
-				if err == nil && len(chats) > 0 {
-					result.ExistingChatID = &chats[0].ID
-				}
+		resolvedLabels := automations.ResolveLabels(payloadStr, labelPaths)
+		if labelsJSON, err := json.Marshal(resolvedLabels); err == nil {
+			result.ResolvedLabels = labelsJSON
+		}
+
+		// Look for existing chat with these labels.
+		if len(resolvedLabels) > 0 {
+			labelsJSON, _ := json.Marshal(resolvedLabels)
+			chats, err := api.Database.GetChats(ctx, database.GetChatsParams{
+				OwnerID: automation.OwnerID,
+				LabelFilter: pqtype.NullRawMessage{
+					RawMessage: labelsJSON,
+					Valid:      true,
+				},
+				LimitOpt: 1,
+			})
+			if err == nil && len(chats) > 0 {
+				result.ExistingChatID = &chats[0].ID
 			}
 		}
 	}
@@ -432,6 +479,13 @@ func (api *API) regenerateAutomationTriggerSecret(rw http.ResponseWriter, r *htt
 	trigger, err := api.Database.GetAutomationTriggerByID(ctx, triggerID)
 	if err != nil || trigger.AutomationID != automation.ID {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	if trigger.Type != "webhook" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Can only regenerate secrets for webhook triggers.",
+		})
 		return
 	}
 
