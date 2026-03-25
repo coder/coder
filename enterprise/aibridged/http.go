@@ -58,7 +58,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		// In BYOK mode the token is in X-Coder-AI-Governance-BYOK-Token;
 		// Authorization and X-Api-Key carry the user's own LLM credentials
 		// and must be preserved.
-		r.Header.Del(agplaibridge.HeaderCoderBYOKToken)
+		r.Header.Del(agplaibridge.HeaderCoderToken)
 	} else {
 		// In centralized mode the token may be in Authorization (the
 		// documented path) or X-Api-Key (legacy clients that set

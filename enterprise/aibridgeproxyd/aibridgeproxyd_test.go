@@ -1376,7 +1376,7 @@ func TestProxy_MITM(t *testing.T) {
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				receivedPath = r.URL.Path
 				receivedAuthz = r.Header.Get("Authorization")
-				receivedBYOK = r.Header.Get(agplaibridge.HeaderCoderBYOKToken)
+				receivedBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
 				receivedRequestID = r.Header.Get(aibridgeproxyd.HeaderAIBridgeRequestID)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
@@ -1538,7 +1538,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				receivedAuthz = r.Header.Get("Authorization")
-				receivedBYOKHeader = r.Header.Get(agplaibridge.HeaderCoderBYOKToken)
+				receivedBYOKHeader = r.Header.Get(agplaibridge.HeaderCoderToken)
 				w.WriteHeader(http.StatusOK)
 			}))
 			t.Cleanup(aibridgedServer.Close)
@@ -1557,7 +1557,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", tt.authzHeader)
 			if tt.byokHeader != "" {
-				req.Header.Set(agplaibridge.HeaderCoderBYOKToken, tt.byokHeader)
+				req.Header.Set(agplaibridge.HeaderCoderToken, tt.byokHeader)
 			}
 
 			resp, err := client.Do(req)
@@ -1978,7 +1978,7 @@ func TestUpstreamProxy(t *testing.T) {
 				aibridgeReceived = true
 				aibridgePath = r.URL.Path
 				aibridgeAuthz = r.Header.Get("Authorization")
-				aibridgeBYOK = r.Header.Get(agplaibridge.HeaderCoderBYOKToken)
+				aibridgeBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
 				body, err := io.ReadAll(r.Body)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)

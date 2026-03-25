@@ -185,7 +185,7 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 	}{
 		{
 			// Centralized: the client sets Authorization and X-Api-Key,
-			// but does not include HeaderCoderBYOKToken.
+			// but does not include HeaderCoderToken.
 			// All auth headers are stripped.
 			name: "centralized",
 			reqHeaders: map[string]string{
@@ -195,7 +195,7 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			expectAbsent: []string{
 				"Authorization",
 				"X-Api-Key",
-				agplaibridge.HeaderCoderBYOKToken,
+				agplaibridge.HeaderCoderToken,
 			},
 		},
 		{
@@ -204,14 +204,14 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			// BYOK header is stripped.
 			name: "byok bearer token",
 			reqHeaders: map[string]string{
-				agplaibridge.HeaderCoderBYOKToken: "coder-token",
-				"Authorization":                   "Bearer sk-ant-oat01-user-oauth-token",
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer sk-ant-oat01-user-oauth-token",
 			},
 			expectPresent: map[string]string{
 				"Authorization": "Bearer sk-ant-oat01-user-oauth-token",
 			},
 			expectAbsent: []string{
-				agplaibridge.HeaderCoderBYOKToken,
+				agplaibridge.HeaderCoderToken,
 			},
 		},
 		{
@@ -220,14 +220,14 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			// stripped.
 			name: "byok api key",
 			reqHeaders: map[string]string{
-				agplaibridge.HeaderCoderBYOKToken: "coder-token",
-				"X-Api-Key":                       "sk-ant-api03-user-key",
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"X-Api-Key":                   "sk-ant-api03-user-key",
 			},
 			expectPresent: map[string]string{
 				"X-Api-Key": "sk-ant-api03-user-key",
 			},
 			expectAbsent: []string{
-				agplaibridge.HeaderCoderBYOKToken,
+				agplaibridge.HeaderCoderToken,
 			},
 		},
 	}
@@ -270,9 +270,9 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 				require.Empty(t, mockH.headersReceived.Get(header),
 					"header %q should be stripped", header)
 			}
-			// HeaderCoderBYOKToken should always be stripped
-			require.Empty(t, mockH.headersReceived.Get(agplaibridge.HeaderCoderBYOKToken),
-				"header %q should be stripped", agplaibridge.HeaderCoderBYOKToken)
+			// HeaderCoderToken should always be stripped
+			require.Empty(t, mockH.headersReceived.Get(agplaibridge.HeaderCoderToken),
+				"header %q should be stripped", agplaibridge.HeaderCoderToken)
 		})
 	}
 }
@@ -328,19 +328,19 @@ func TestExtractAuthToken(t *testing.T) {
 		// token and has the highest priority.
 		{
 			name:    "byok/empty",
-			headers: map[string]string{agplaibridge.HeaderCoderBYOKToken: ""},
+			headers: map[string]string{agplaibridge.HeaderCoderToken: ""},
 		},
 		{
 			name:        "byok/ok",
-			headers:     map[string]string{agplaibridge.HeaderCoderBYOKToken: "coder-token"},
+			headers:     map[string]string{agplaibridge.HeaderCoderToken: "coder-token"},
 			expectedKey: "coder-token",
 		},
 		{
 			name: "byok/priority over all",
 			headers: map[string]string{
-				agplaibridge.HeaderCoderBYOKToken: "coder-token",
-				"Authorization":                   "Bearer oauth-token",
-				"X-Api-Key":                       "api-key",
+				agplaibridge.HeaderCoderToken: "coder-token",
+				"Authorization":               "Bearer oauth-token",
+				"X-Api-Key":                   "api-key",
 			},
 			expectedKey: "coder-token",
 		},

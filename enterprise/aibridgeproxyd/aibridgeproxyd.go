@@ -977,7 +977,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	return req, nil
 }
 
-// injectBYOKHeaderIfNeeded sets HeaderCoderBYOKToken when the
+// injectBYOKHeaderIfNeeded sets HeaderCoderToken when the
 // Authorization header carries a bearer token that differs from the
 // Coder token, indicating the client is using its own LLM
 // credentials. Clients that can set custom headers
@@ -988,13 +988,13 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 // discovers it via ExtractAuthToken without any extra header.
 func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
 	// Don’t overwrite the header if it’s already set.
-	if header.Get(agplaibridge.HeaderCoderBYOKToken) != "" {
+	if header.Get(agplaibridge.HeaderCoderToken) != "" {
 		return
 	}
 
 	bearer := extractCoderTokenFromBearerAuth(header.Get("Authorization"))
 	if bearer != "" && bearer != coderToken {
-		header.Set(agplaibridge.HeaderCoderBYOKToken, coderToken)
+		header.Set(agplaibridge.HeaderCoderToken, coderToken)
 	}
 }
 
