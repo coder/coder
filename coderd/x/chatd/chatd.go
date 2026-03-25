@@ -30,9 +30,11 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
@@ -2075,7 +2077,17 @@ func (p *Server) Subscribe(
 					}:
 					}
 				}
-				if notify.Error != "" {
+				if notify.ErrorPayload != nil {
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeError,
+						ChatID: chatID,
+						Error:  notify.ErrorPayload,
+					}:
+					}
+				} else if notify.Error != "" {
 					select {
 					case <-mergedCtx.Done():
 						return
@@ -2294,30 +2306,31 @@ func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetr
 	})
 }
 
-func (p *Server) publishError(chatID uuid.UUID, message string) {
-	message = strings.TrimSpace(message)
-	if message == "" {
+func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedError) {
+	payload := chaterror.StreamErrorPayload(classified)
+	if payload == nil {
 		return
 	}
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:  codersdk.ChatStreamEventTypeError,
-		Error: &codersdk.ChatStreamError{Message: message},
+		Error: payload,
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		Error: message,
+		ErrorPayload: payload,
+		Error:        payload.Message,
 	})
 }
 
-func processingFailureReason(err error) (string, bool) {
+func processingFailure(err error) (chaterror.ClassifiedError, bool) {
 	if err == nil {
-		return "", false
+		return chaterror.ClassifiedError{}, false
 	}
 
-	reason := strings.TrimSpace(err.Error())
-	if reason == "" {
-		return "", false
+	classified := chaterror.Classify(err)
+	if classified.Message == "" {
+		return chaterror.ClassifiedError{}, false
 	}
-	return reason, true
+	return classified, true
 }
 
 func panicFailureReason(recovered any) string {
@@ -2654,7 +2667,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if r := recover(); r != nil {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			lastError = panicFailureReason(r)
-			p.publishError(chat.ID, lastError)
+			p.publishError(chat.ID, chaterror.ClassifiedError{
+				Message: lastError,
+				Kind:    chaterror.KindGeneric,
+			})
 			status = database.ChatStatusError
 		}
 
@@ -2763,9 +2779,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			return
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
-		if reason, ok := processingFailureReason(err); ok {
-			lastError = reason
-			p.publishError(chat.ID, lastError)
+		if classified, ok := processingFailure(err); ok {
+			lastError = classified.Message
+			p.publishError(chat.ID, classified)
 		}
 		status = database.ChatStatusError
 		return
@@ -3540,7 +3556,12 @@ func (p *Server) runChat(
 			chainModeActive = false
 		},
 
-		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
+		OnRetry: func(
+			attempt int,
+			retryErr error,
+			classified chatretry.ClassifiedError,
+			delay time.Duration,
+		) {
 			if val, ok := p.chatStreams.Load(chat.ID); ok {
 				if rs, ok := val.(*chatStreamState); ok {
 					rs.mu.Lock()
@@ -3554,12 +3575,8 @@ func (p *Server) runChat(
 				slog.F("delay", delay.String()),
 				slog.Error(retryErr),
 			)
-			p.publishRetry(chat.ID, &codersdk.ChatStreamRetry{
-				Attempt:    attempt,
-				DelayMs:    delay.Milliseconds(),
-				Error:      retryErr.Error(),
-				RetryingAt: time.Now().Add(delay),
-			})
+			payload := chaterror.StreamRetryPayload(attempt, delay, classified)
+			p.publishRetry(chat.ID, payload)
 		},
 
 		OnInterruptedPersistError: func(err error) {
@@ -3567,7 +3584,8 @@ func (p *Server) runChat(
 		},
 	})
 	if err != nil {
-		return result, err
+		classified := chaterror.Classify(err).WithProvider(model.Provider())
+		return result, chaterror.WithClassification(err, classified)
 	}
 	result.FinalAssistantText = finalAssistantText
 	return result, nil

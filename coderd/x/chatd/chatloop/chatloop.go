@@ -17,6 +17,7 @@ import (
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
@@ -24,15 +25,24 @@ import (
 
 const (
 	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
-
 	// maxCompactionRetries limits how many times the post-run
 	// compaction safety net can re-enter the step loop. This
 	// prevents infinite compaction loops when the model keeps
 	// hitting the context limit after summarization.
 	maxCompactionRetries = 3
+	// defaultStartupTimeout bounds how long an individual
+	// model attempt may spend starting to respond before
+	// the attempt is canceled and retried.
+	defaultStartupTimeout = 60 * time.Second
 )
 
-var ErrInterrupted = xerrors.New("chat interrupted")
+var (
+	ErrInterrupted = xerrors.New("chat interrupted")
+
+	errStartupTimeout = xerrors.New(
+		"chat response did not start before the startup timeout",
+	)
+)
 
 // PersistedStep contains the full content of a completed or
 // interrupted agent step. Content includes both assistant blocks
@@ -57,6 +67,11 @@ type RunOptions struct {
 	Messages []fantasy.Message
 	Tools    []fantasy.AgentTool
 	MaxSteps int
+	// StartupTimeout bounds how long each model attempt may
+	// spend opening the provider stream and waiting for its
+	// first stream part before the attempt is canceled and
+	// retried. Zero uses the production default.
+	StartupTimeout time.Duration
 
 	ActiveTools          []string
 	ContextLimitFallback int64
@@ -88,10 +103,11 @@ type RunOptions struct {
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
-	// number, error, and backoff delay so callers can publish status
-	// events to connected clients. Callers should also clear any
-	// buffered stream state from the failed attempt in this callback
-	// to avoid sending duplicated content.
+	// number, raw error, normalized classification, and backoff
+	// delay so callers can publish status events to connected
+	// clients. Callers should also clear any buffered stream state
+	// from the failed attempt in this callback to avoid sending
+	// duplicated content.
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
@@ -234,6 +250,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
 	}
+	if opts.StartupTimeout <= 0 {
+		opts.StartupTimeout = defaultStartupTimeout
+	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -306,19 +325,37 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 			var result stepResult
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-				stream, streamErr := opts.Model.Stream(retryCtx, call)
+				attempt, streamErr := guardedStream(
+					retryCtx,
+					opts.Model.Provider(),
+					opts.StartupTimeout,
+					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
+						return opts.Model.Stream(attemptCtx, call)
+					},
+				)
 				if streamErr != nil {
 					return streamErr
 				}
+				defer attempt.release()
 				var processErr error
-				result, processErr = processStepStream(retryCtx, stream, publishMessagePart)
-				return processErr
-			}, func(attempt int, retryErr error, delay time.Duration) {
+				result, processErr = processStepStream(
+					attempt.ctx,
+					attempt.stream,
+					publishMessagePart,
+				)
+				return attempt.finish(processErr)
+			}, func(
+				attempt int,
+				retryErr error,
+				classified chatretry.ClassifiedError,
+				delay time.Duration,
+			) {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
 				if opts.OnRetry != nil {
-					opts.OnRetry(attempt, retryErr, delay)
+					classified = classified.WithProvider(opts.Model.Provider())
+					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
 			})
 			if err != nil {
@@ -514,6 +551,105 @@ func Run(ctx context.Context, opts RunOptions) error {
 	return nil
 }
 
+// guardedAttempt owns an attempt-scoped context and startup guard
+// around a provider stream. release is idempotent and frees the
+// attempt-scoped timer/context. finish canonicalizes startup timeout
+// errors before the retry loop classifies them.
+type guardedAttempt struct {
+	ctx     context.Context
+	stream  fantasy.StreamResponse
+	release func()
+	finish  func(error) error
+}
+
+// startupGuard arbitrates whether an attempt times out during
+// stream startup. Exactly one outcome wins: the timer cancels
+// the attempt, or the first-part path disarms the timer.
+type startupGuard struct {
+	timer  *time.Timer
+	cancel context.CancelCauseFunc
+	once   sync.Once
+}
+
+func newStartupGuard(
+	timeout time.Duration,
+	cancel context.CancelCauseFunc,
+) *startupGuard {
+	guard := &startupGuard{cancel: cancel}
+	guard.timer = time.AfterFunc(timeout, guard.onTimeout)
+	return guard
+}
+
+func (g *startupGuard) onTimeout() {
+	g.once.Do(func() {
+		g.cancel(errStartupTimeout)
+	})
+}
+
+func (g *startupGuard) Disarm() {
+	g.once.Do(func() {
+		g.timer.Stop()
+	})
+}
+
+func classifyStartupTimeout(
+	attemptCtx context.Context,
+	provider string,
+	err error,
+) error {
+	if !errors.Is(context.Cause(attemptCtx), errStartupTimeout) {
+		return err
+	}
+	if err == nil {
+		err = errStartupTimeout
+	}
+	return chaterror.WithClassification(err, chaterror.ClassifiedError{
+		Kind:      chaterror.KindStartupTimeout,
+		Provider:  provider,
+		Retryable: true,
+	})
+}
+
+func guardedStream(
+	parent context.Context,
+	provider string,
+	timeout time.Duration,
+	openStream func(context.Context) (fantasy.StreamResponse, error),
+) (guardedAttempt, error) {
+	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+	guard := newStartupGuard(timeout, cancelAttempt)
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			guard.Disarm()
+			cancelAttempt(nil)
+		})
+	}
+
+	stream, err := openStream(attemptCtx)
+	if err != nil {
+		err = classifyStartupTimeout(attemptCtx, provider, err)
+		release()
+		return guardedAttempt{}, err
+	}
+
+	return guardedAttempt{
+		ctx: attemptCtx,
+		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
+			for part := range stream {
+				guard.Disarm()
+				if !yield(part) {
+					return
+				}
+			}
+		}),
+		release: release,
+		finish: func(err error) error {
+			return classifyStartupTimeout(attemptCtx, provider, err)
+		},
+	}, nil
+}
+
 // processStepStream consumes a fantasy StreamResponse and
 // accumulates all content into a stepResult. Callbacks fire
 // inline and their errors propagate directly.
@@ -703,7 +839,6 @@ func processStepStream(
 		)
 		return result, ErrInterrupted
 	}
-
 	hasLocalToolCalls := false
 	for _, tc := range result.toolCalls {
 		if !tc.ProviderExecuted {

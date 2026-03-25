@@ -778,7 +778,16 @@ type ChatStreamStatus struct {
 
 // ChatStreamError represents an error event in the stream.
 type ChatStreamError struct {
+	// Message is the normalized, user-facing error message.
 	Message string `json:"message"`
+	// Kind classifies the error for consistent client rendering.
+	Kind string `json:"kind,omitempty"`
+	// Provider identifies the upstream model provider when known.
+	Provider string `json:"provider,omitempty"`
+	// Retryable reports whether the underlying error is transient.
+	Retryable bool `json:"retryable"`
+	// StatusCode is the best-effort upstream HTTP status code.
+	StatusCode int `json:"status_code,omitempty"`
 }
 
 // ChatStreamRetry represents an auto-retry status event in the stream.
@@ -788,8 +797,14 @@ type ChatStreamRetry struct {
 	Attempt int `json:"attempt"`
 	// DelayMs is the backoff delay in milliseconds before the retry.
 	DelayMs int64 `json:"delay_ms"`
-	// Error is the error message from the failed attempt.
+	// Error is the normalized error message from the failed attempt.
 	Error string `json:"error"`
+	// Kind classifies the retry reason for consistent client rendering.
+	Kind string `json:"kind,omitempty"`
+	// Provider identifies the upstream model provider when known.
+	Provider string `json:"provider,omitempty"`
+	// StatusCode is the best-effort upstream HTTP status code.
+	StatusCode int `json:"status_code,omitempty"`
 	// RetryingAt is the timestamp when the retry will be attempted.
 	RetryingAt time.Time `json:"retrying_at" format:"date-time"`
 }
