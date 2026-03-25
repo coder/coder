@@ -1379,6 +1379,9 @@ func (p *Server) RegenerateChatTitle(
 
 	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
+		if recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); recordErr != nil {
+			return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
+		}
 		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
 	}
 	if err := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); err != nil {

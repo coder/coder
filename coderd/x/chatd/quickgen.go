@@ -443,7 +443,7 @@ func generateManualTitle(
 
 	title = normalizeTitleOutput(title)
 	if title == "" {
-		return "", fantasy.Usage{}, xerrors.New("generated title was empty")
+		return "", usage, xerrors.New("generated title was empty")
 	}
 
 	return title, usage, nil

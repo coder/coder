@@ -428,6 +428,44 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("refresh chat title"),
+		),
+	}
+
+	model := &deadlineCapturingModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "\"\""},
+				},
+				Usage: fantasy.Usage{
+					InputTokens:  11,
+					OutputTokens: 7,
+					TotalTokens:  18,
+				},
+			}, nil
+		},
+	}
+
+	_, usage, err := generateManualTitle(
+		context.Background(),
+		messages,
+		model,
+	)
+	require.ErrorContains(t, err, "generated title was empty")
+	require.Equal(t, int64(11), usage.InputTokens)
+	require.Equal(t, int64(7), usage.OutputTokens)
+	require.Equal(t, int64(18), usage.TotalTokens)
+}
+
 type deadlineCapturingModel struct {
 	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
 }
