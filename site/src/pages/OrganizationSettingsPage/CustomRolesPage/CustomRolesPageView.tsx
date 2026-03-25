@@ -1,17 +1,21 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import type { AssignableRoles, Role } from "api/typesGenerated";
-import { Button, Button as ShadcnButton } from "components/Button/Button";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EllipsisVertical, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router";
+import { docs } from "utils/docs";
+import { Button, Button as ShadcnButton } from "#/components/Button/Button";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -19,15 +23,11 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
+} from "#/components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
-import { EllipsisVertical, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router";
-import { docs } from "utils/docs";
+} from "#/components/TableLoader/TableLoader";
 import { PermissionPillsList } from "./PermissionPillsList";
 
 interface CustomRolesPageViewProps {

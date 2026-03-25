@@ -1,13 +1,3 @@
-import {
-	Filter,
-	MenuSkeleton,
-	type UseFilterResult,
-} from "components/Filter/Filter";
-import {
-	DEFAULT_USER_FILTER_WIDTH,
-	type UserFilterMenu,
-	UserMenu,
-} from "components/Filter/UserFilter";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type OrganizationsFilterMenu,
@@ -15,6 +5,16 @@ import {
 } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import {
+	Filter,
+	MenuSkeleton,
+	type UseFilterResult,
+} from "#/components/Filter/Filter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "#/components/Filter/UserFilter";
 import {
 	type StatusFilterMenu,
 	StatusMenu,

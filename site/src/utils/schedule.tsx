@@ -1,6 +1,5 @@
 import Link from "@mui/material/Link";
 import type { Template, Workspace } from "api/typesGenerated";
-import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import cronParser from "cron-parser";
 import cronstrue from "cronstrue";
 import dayjs, { type Dayjs } from "dayjs";
@@ -11,6 +10,7 @@ import utc from "dayjs/plugin/utc";
 import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
 import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
+import { HelpTooltipTitle } from "#/components/HelpTooltip/HelpTooltip";
 import { isWorkspaceOn } from "./workspace";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're

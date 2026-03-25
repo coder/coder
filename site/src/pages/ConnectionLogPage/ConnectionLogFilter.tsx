@@ -4,20 +4,6 @@ import {
 	type ConnectionType,
 	ConnectionTypes,
 } from "api/typesGenerated";
-import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
-import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "components/Filter/menu";
-import {
-	SelectFilter,
-	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import {
-	DEFAULT_USER_FILTER_WIDTH,
-	type UserFilterMenu,
-	UserMenu,
-} from "components/Filter/UserFilter";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
@@ -26,6 +12,24 @@ import {
 import type { FC } from "react";
 import { connectionTypeToFriendlyName } from "utils/connection";
 import { docs } from "utils/docs";
+import {
+	Filter,
+	MenuSkeleton,
+	type useFilter,
+} from "#/components/Filter/Filter";
+import {
+	type UseFilterMenuOptions,
+	useFilterMenu,
+} from "#/components/Filter/menu";
+import {
+	SelectFilter,
+	type SelectFilterOption,
+} from "#/components/Filter/SelectFilter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "#/components/Filter/UserFilter";
 
 type ConnectionLogFilterValues = {
 	status?: ConnectionLogStatus;

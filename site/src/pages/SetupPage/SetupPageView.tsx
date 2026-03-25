@@ -6,15 +6,6 @@ import TextField from "@mui/material/TextField";
 import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { FormFields, VerticalForm } from "components/Form/Form";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { PasswordField } from "components/PasswordField/PasswordField";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
 import {
@@ -23,6 +14,15 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { FormFields, VerticalForm } from "#/components/Form/Form";
+import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { PasswordField } from "#/components/PasswordField/PasswordField";
+import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 
 export const Language = {
 	emailLabel: "Email",

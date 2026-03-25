@@ -1,7 +1,5 @@
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
-import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { InfoIcon } from "lucide-react";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
@@ -10,6 +8,8 @@ import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";

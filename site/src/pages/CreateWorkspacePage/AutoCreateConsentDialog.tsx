@@ -1,4 +1,7 @@
-import { Button } from "components/Button/Button";
+import { TriangleAlertIcon } from "lucide-react";
+import type { FC } from "react";
+import type { AutofillBuildParameter } from "utils/richParameters";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
@@ -6,10 +9,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
-import type { AutofillBuildParameter } from "utils/richParameters";
+} from "#/components/Dialog/Dialog";
 
 interface AutoCreateConsentDialogProps {
 	open: boolean;

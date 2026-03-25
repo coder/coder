@@ -11,7 +11,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	getDefaultFilterProps,
 	MockMenu,
-} from "components/Filter/storyHelpers";
+} from "#/components/Filter/storyHelpers";
 import type { TemplateFilterState } from "./TemplatesPage";
 import { TemplatesPageView } from "./TemplatesPageView";
 

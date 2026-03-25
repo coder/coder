@@ -3,8 +3,6 @@ import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon, XIcon } from "lucide-react";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
@@ -12,6 +10,8 @@ import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { FC } from "react";
 import { navHeight } from "theme/constants";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 
 type BuildLogsDrawerProps = {
 	error: unknown;

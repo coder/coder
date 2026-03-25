@@ -5,12 +5,6 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -23,6 +17,12 @@ import {
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 type ItemStatus = "stale" | "valid" | "loading";
 

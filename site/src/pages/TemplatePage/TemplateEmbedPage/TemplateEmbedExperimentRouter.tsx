@@ -1,9 +1,9 @@
 import { templateByName } from "api/queries/templates";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import TemplateEmbedPage from "./TemplateEmbedPage";
 import TemplateEmbedPageExperimental from "./TemplateEmbedPageExperimental";
 

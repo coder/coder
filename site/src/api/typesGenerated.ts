@@ -75,6 +75,12 @@ export interface AIBridgeListInterceptionsResponse {
 	readonly results: readonly AIBridgeInterception[];
 }
 
+// From codersdk/aibridge.go
+export interface AIBridgeListSessionsResponse {
+	readonly count: number;
+	readonly sessions: readonly AIBridgeSession[];
+}
+
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
@@ -93,6 +99,28 @@ export interface AIBridgeProxyConfig {
 	readonly upstream_proxy: string;
 	readonly upstream_proxy_ca: string;
 	readonly allowed_private_cidrs: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeSession {
+	readonly id: string;
+	readonly initiator: MinimalUser;
+	readonly providers: readonly string[];
+	readonly models: readonly string[];
+	readonly client: string | null;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly threads: number;
+	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
+	readonly last_prompt?: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeSessionTokenUsageSummary {
+	readonly input_tokens: number;
+	readonly output_tokens: number;
 }
 
 // From codersdk/aibridge.go
@@ -1074,6 +1102,14 @@ export interface Chat {
 	readonly mcp_server_ids: readonly string[];
 }
 
+// From codersdk/chats.go
+/**
+ * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
+ * threshold settings.
+ */
+export const ChatCompactionThresholdKeyPrefix =
+	"chat_compaction_threshold_pct:";
+
 // From codersdk/deployment.go
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
@@ -1727,7 +1763,26 @@ export const ChatStatuses: ChatStatus[] = [
  * ChatStreamError represents an error event in the stream.
  */
 export interface ChatStreamError {
+	/**
+	 * Message is the normalized, user-facing error message.
+	 */
 	readonly message: string;
+	/**
+	 * Kind classifies the error for consistent client rendering.
+	 */
+	readonly kind?: string;
+	/**
+	 * Provider identifies the upstream model provider when known.
+	 */
+	readonly provider?: string;
+	/**
+	 * Retryable reports whether the underlying error is transient.
+	 */
+	readonly retryable: boolean;
+	/**
+	 * StatusCode is the best-effort upstream HTTP status code.
+	 */
+	readonly status_code?: number;
 }
 
 // From codersdk/chats.go
@@ -1787,9 +1842,21 @@ export interface ChatStreamRetry {
 	 */
 	readonly delay_ms: number;
 	/**
-	 * Error is the error message from the failed attempt.
+	 * Error is the normalized error message from the failed attempt.
 	 */
 	readonly error: string;
+	/**
+	 * Kind classifies the retry reason for consistent client rendering.
+	 */
+	readonly kind?: string;
+	/**
+	 * Provider identifies the upstream model provider when known.
+	 */
+	readonly provider?: string;
+	/**
+	 * StatusCode is the best-effort upstream HTTP status code.
+	 */
+	readonly status_code?: number;
 	/**
 	 * RetryingAt is the timestamp when the retry will be attempted.
 	 */
@@ -1824,6 +1891,7 @@ export interface ChatToolCallPart {
 	readonly type: "tool-call";
 	readonly tool_call_id?: string;
 	readonly tool_name?: string;
+	readonly mcp_server_config_id?: string;
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
 	/**
@@ -1838,6 +1906,7 @@ export interface ChatToolResultPart {
 	readonly type: "tool-result";
 	readonly tool_call_id?: string;
 	readonly tool_name?: string;
+	readonly mcp_server_config_id?: string;
 	readonly result?: Record<string, string>;
 	readonly is_error?: boolean;
 	/**
@@ -1939,6 +2008,19 @@ export interface ChatUsageLimitStatus {
 	readonly current_spend: number;
 	readonly period_start?: string;
 	readonly period_end?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatWorkspaceTTLResponse is the response for getting the chat
+ * workspace TTL setting.
+ */
+export interface ChatWorkspaceTTLResponse {
+	/**
+	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	 * Zero means disabled — the template's own autostop setting applies.
+	 */
+	readonly workspace_ttl_ms: number;
 }
 
 // From codersdk/client.go
@@ -2716,6 +2798,13 @@ export interface DebugProfileOptions {
 	readonly Profiles: readonly string[];
 }
 
+// From codersdk/chats.go
+/**
+ * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
+ * Zero means disabled — the template's own autostop setting applies.
+ */
+export const DefaultChatWorkspaceTTL = 0;
+
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
 	/**
@@ -3329,6 +3418,17 @@ export interface GroupArguments {
 	 * If not set, all groups will be returned.
 	 */
 	readonly GroupIDs: readonly string[];
+}
+
+// From codersdk/groups.go
+export interface GroupMembersResponse {
+	readonly users: readonly ReducedUser[];
+	readonly count: number;
+}
+
+// From codersdk/groups.go
+export interface GroupRequest {
+	readonly exclude_members: boolean;
 }
 
 // From codersdk/groups.go
@@ -4520,6 +4620,12 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly name?: string;
 	readonly avatar_url?: string;
 	readonly email: string;
+	readonly status: UserStatus;
+	readonly login_type: LoginType;
+	readonly last_seen_at?: string;
+	readonly user_created_at: string;
+	readonly user_updated_at: string;
+	readonly is_service_account?: boolean;
 	readonly global_roles: readonly SlimRole[];
 }
 
@@ -6884,6 +6990,19 @@ export interface UpdateChatUsageLimitOverrideRequest {
 	readonly spend_limit_micros: number; // Must be greater than 0.
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateChatWorkspaceTTLRequest is the request to update the chat
+ * workspace TTL setting.
+ */
+export interface UpdateChatWorkspaceTTLRequest {
+	/**
+	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	 * Zero means disabled — the template's own autostop setting applies.
+	 */
+	readonly workspace_ttl_ms: number;
+}
+
 // From codersdk/updatecheck.go
 /**
  * UpdateCheckResponse contains information on the latest release of Coder.
@@ -7070,6 +7189,15 @@ export interface UpdateUserAppearanceSettingsRequest {
 	readonly terminal_font: TerminalFontName;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateUserChatCompactionThresholdRequest sets a user's per-model
+ * chat compaction threshold override.
+ */
+export interface UpdateUserChatCompactionThresholdRequest {
+	readonly threshold_percent: number;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -7187,7 +7315,7 @@ export interface UpdateWorkspaceSharingSettingsRequest {
 	 * purposes.
 	 * Deprecated: use `ShareableWorkspaceOwners` instead
 	 */
-	readonly sharing_disabled: boolean;
+	readonly sharing_disabled?: boolean;
 	/**
 	 * ShareableWorkspaceOwners controls whose workspaces can be shared
 	 * within the organization.
@@ -7320,6 +7448,25 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCompactionThreshold is a user's per-model chat compaction
+ * threshold override.
+ */
+export interface UserChatCompactionThreshold {
+	readonly model_config_id: string;
+	readonly threshold_percent: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCompactionThresholds wraps the user's per-model chat
+ * compaction threshold overrides.
+ */
+export interface UserChatCompactionThresholds {
+	readonly thresholds: readonly UserChatCompactionThreshold[];
 }
 
 // From codersdk/chats.go

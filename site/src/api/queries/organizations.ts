@@ -11,6 +11,7 @@ import type {
 	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
+	UpdateWorkspaceSharingSettingsRequest,
 } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
@@ -272,7 +273,7 @@ export const patchWorkspaceSharingSettings = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (request: { sharing_disabled: boolean }) =>
+		mutationFn: (request: UpdateWorkspaceSharingSettingsRequest) =>
 			API.patchWorkspaceSharingSettings(organization, request),
 		onSuccess: async () =>
 			await queryClient.invalidateQueries({

@@ -1,8 +1,8 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { WorkspaceAgentStatus } from "api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Link } from "components/Link/Link";
 import type { FC } from "react";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
 
 interface WorkspaceAlertProps {
 	workspace: TypesGen.Workspace;

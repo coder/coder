@@ -1,5 +1,27 @@
 import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
 
+const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+
+/**
+ * Parse a port string from a URL, falling back to the protocol default
+ * (80 for http, 443 for https) when the port is empty (i.e. not
+ * specified).
+ *
+ * @param portStr - The port string from `URL.port` (empty when the URL
+ *   uses the protocol's default port).
+ * @param protocol - The protocol string from `URL.protocol`, which
+ *   always includes a trailing colon (e.g. `"https:"`).
+ */
+export const resolveLocalhostPort = (
+	portStr: string,
+	protocol: string,
+): number => {
+	if (portStr) {
+		return Number.parseInt(portStr, 10);
+	}
+	return protocol === "https:" ? 443 : 80;
+};
+
 export const portForwardURL = (
 	host: string,
 	port: number,
@@ -24,6 +46,42 @@ export const portForwardURL = (
 		url.search = search;
 	}
 	return url.toString();
+};
+
+/**
+ * Rewrite a localhost URL to use the workspace port-forward subdomain.
+ * Returns the original URL unchanged when it is not a recognized
+ * localhost address or when parsing fails.
+ */
+export const rewriteLocalhostURL = (
+	url: string,
+	proxyHost: string,
+	agentName: string,
+	workspaceName: string,
+	username: string,
+): string => {
+	try {
+		const parsed = new URL(url);
+		if (!localHosts.has(parsed.hostname)) {
+			return url;
+		}
+		const protocol = parsed.protocol.replace(
+			":",
+			"",
+		) as WorkspaceAgentPortShareProtocol;
+		return portForwardURL(
+			proxyHost,
+			resolveLocalhostPort(parsed.port, parsed.protocol),
+			agentName,
+			workspaceName,
+			username,
+			protocol,
+			parsed.pathname,
+			parsed.search,
+		);
+	} catch {
+		return url;
+	}
 };
 
 // openMaybePortForwardedURL tries to open the provided URI through the
@@ -55,28 +113,7 @@ export const openMaybePortForwardedURL = (
 		return;
 	}
 
-	try {
-		const url = new URL(uri);
-		const localHosts = ["0.0.0.0", "127.0.0.1", "localhost"];
-		if (!localHosts.includes(url.hostname)) {
-			open(uri);
-			return;
-		}
-		open(
-			portForwardURL(
-				proxyHost,
-				Number.parseInt(url.port, 10),
-				agentName,
-				workspaceName,
-				username,
-				url.protocol.replace(":", "") as WorkspaceAgentPortShareProtocol,
-				url.pathname,
-				url.search,
-			),
-		);
-	} catch (_ex) {
-		open(uri);
-	}
+	open(rewriteLocalhostURL(uri, proxyHost, agentName, workspaceName, username));
 };
 
 export const saveWorkspaceListeningPortsProtocol = (

@@ -6,22 +6,22 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import type { TemplateVersionParameter } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
-import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { CircleAlertIcon, SettingsIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import type {
 	AutofillBuildParameter,
 	AutofillSource,
 } from "utils/richParameters";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import { Pill } from "#/components/Pill/Pill";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { TagInput } from "../TagInput/TagInput";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {

@@ -1,11 +1,11 @@
 import type { ProvisionerJobStatus } from "api/typesGenerated";
+import { TriangleAlertIcon } from "lucide-react";
+import type { FC } from "react";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/StatusIndicator/StatusIndicator";
 
 const variantByStatus: Record<
 	ProvisionerJobStatus,

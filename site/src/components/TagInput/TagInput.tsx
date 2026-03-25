@@ -1,7 +1,7 @@
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
 import { X } from "lucide-react";
 import { type FC, useId, useMemo } from "react";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 
 type TagInputProps = {
 	label: string;

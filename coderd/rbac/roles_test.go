@@ -1023,12 +1023,29 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "AIBridgeInterceptions",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			// Members can create/update records but can't read them afterwards.
+			Name:     "AIBridgeInterceptionsCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
 			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, memberMe},
 				false: {
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			// Only owners and site-wide auditors can view interceptions and their sub-resources.
+			Name:     "AIBridgeInterceptionsRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, auditor},
+				false: {
+					memberMe,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,

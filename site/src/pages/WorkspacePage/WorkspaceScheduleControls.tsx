@@ -6,13 +6,6 @@ import {
 	workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
 import type { Template, Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
@@ -30,6 +23,13 @@ import {
 	getMinDeadline,
 } from "utils/schedule";
 import { isWorkspaceOn } from "utils/workspace";
+import { Button } from "#/components/Button/Button";
+import { TopbarData, TopbarIcon } from "#/components/FullPageLayout/Topbar";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 interface WorkspaceScheduleContainerProps {
 	children?: ReactNode;

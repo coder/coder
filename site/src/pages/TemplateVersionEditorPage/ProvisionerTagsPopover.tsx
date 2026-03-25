@@ -1,17 +1,17 @@
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
 import type { ProvisionerDaemon } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { FormSection } from "components/Form/Form";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
+import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
+import type { FC } from "react";
+import { docs } from "utils/docs";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { FormSection } from "#/components/Form/Form";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Popover/Popover";
 
 interface ProvisionerTagsPopoverProps {
 	tags: ProvisionerDaemon["tags"];

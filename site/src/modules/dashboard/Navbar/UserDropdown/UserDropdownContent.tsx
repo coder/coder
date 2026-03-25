@@ -1,14 +1,4 @@
 import type * as TypesGen from "api/typesGenerated";
-import { CheckIcon } from "components/AnimatedIcons/Check";
-import {
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-} from "components/DropdownMenu/DropdownMenu";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useClipboard } from "hooks/useClipboard";
 import {
 	CircleUserIcon,
@@ -19,6 +9,16 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import {
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+} from "#/components/DropdownMenu/DropdownMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { SupportIcon } from "../SupportIcon";
 
 export const Language = {

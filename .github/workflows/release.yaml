@@ -34,7 +34,7 @@ env:
 jobs:
   # Only allow maintainers/admins to release.
   check-perms:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Allow only maintainers/admins
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
@@ -61,7 +61,7 @@ jobs:
   release:
     name: Build and publish
     needs: [check-perms]
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest-16-cores
     permissions:
       # Required to publish a release
       contents: write
@@ -163,6 +163,8 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          use-cache: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node

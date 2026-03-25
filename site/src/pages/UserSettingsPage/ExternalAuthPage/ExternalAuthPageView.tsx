@@ -5,18 +5,22 @@ import type {
 	ExternalAuthLinkProvider,
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
+import { type FC, useCallback, useEffect, useState } from "react";
+import { useQuery } from "react-query";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Loader } from "components/Loader/Loader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Loader } from "#/components/Loader/Loader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -24,17 +28,13 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
-import { type FC, useCallback, useEffect, useState } from "react";
-import { useQuery } from "react-query";
+} from "#/components/Tooltip/Tooltip";
 
 type ExternalAuthPageViewProps = {
 	isLoading: boolean;

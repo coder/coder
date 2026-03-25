@@ -8,7 +8,7 @@ import {
 	BreadcrumbList,
 	BreadcrumbPage,
 	BreadcrumbSeparator,
-} from "components/Breadcrumb/Breadcrumb";
+} from "#/components/Breadcrumb/Breadcrumb";
 
 const meta: Meta<typeof Breadcrumb> = {
 	title: "components/Breadcrumb",

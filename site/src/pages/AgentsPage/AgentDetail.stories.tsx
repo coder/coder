@@ -17,6 +17,7 @@ import {
 	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
+	mcpServerConfigsKey,
 } from "api/queries/chats";
 import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -51,49 +52,7 @@ const AgentDetailLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
-							modelOptions: [
-								{
-									id: "openai:gpt-4o",
-									provider: "openai",
-									model: "gpt-4o",
-									displayName: "GPT-4o",
-								},
-							],
-							modelConfigIDByModelID: new Map([["openai:gpt-4o", "config-1"]]),
-							modelIDByConfigID: new Map([["config-1", "openai:gpt-4o"]]),
-							modelConfigs: [
-								{
-									id: "config-1",
-									provider: "openai",
-									model: "gpt-4o",
-									display_name: "GPT-4o",
-									enabled: true,
-									is_default: false,
-									context_limit: 200000,
-									compression_threshold: 70,
-									created_at: "2026-01-01T00:00:00Z",
-									updated_at: "2026-01-01T00:00:00Z",
-								},
-							],
-							modelCatalog: {
-								providers: [
-									{
-										provider: "openai",
-										available: true,
-										models: [
-											{
-												id: "openai:gpt-4o",
-												provider: "openai",
-												model: "gpt-4o",
-												display_name: "GPT-4o",
-											},
-										],
-									},
-								],
-							},
-							isModelCatalogLoading: false,
-							modelCatalogError: null,
-							desktopEnabled: false,
+							onExpandSidebar: () => {},
 						} satisfies AgentsOutletContext
 					}
 				/>
@@ -218,6 +177,7 @@ const buildQueries = (
 			data: mockWorkspace,
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
+		{ key: mcpServerConfigsKey, data: [] },
 	];
 };
 
@@ -256,6 +216,7 @@ const meta: Meta<typeof AgentDetailLayout> = {
 	beforeEach: () => {
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };

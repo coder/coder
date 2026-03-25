@@ -1,8 +1,8 @@
 import type { AuthMethods } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { KeyIcon } from "lucide-react";
 import { type FC, useId } from "react";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Language } from "./Language";
 
 type OAuthSignInFormProps = {

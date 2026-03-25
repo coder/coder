@@ -6,12 +6,12 @@ import {
 	templateVersionVariables,
 } from "api/queries/templates";
 import type { Template, TemplateVersion } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";

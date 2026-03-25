@@ -111,7 +111,7 @@ func (p *portableDesktop) Start(ctx context.Context) (DisplayConfig, error) {
 
 	//nolint:gosec // portabledesktop is a trusted binary resolved via ensureBinary.
 	cmd := p.execer.CommandContext(sessionCtx, p.binPath, "up", "--json",
-		"--geometry", fmt.Sprintf("%dx%d", workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight))
+		"--geometry", fmt.Sprintf("%dx%d", workspacesdk.DesktopNativeWidth, workspacesdk.DesktopNativeHeight))
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		sessionCancel()

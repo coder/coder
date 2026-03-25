@@ -1,11 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessageInputRef } from "./AgentChatInput";
 import {
 	draftInputStorageKeyPrefix,
 	useConversationEditingState,
 } from "./AgentDetail";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 
 describe("useConversationEditingState", () => {
 	const chatID = "chat-abc-123";
@@ -118,6 +118,24 @@ describe("useConversationEditingState", () => {
 		expect(mockClear).toHaveBeenCalled();
 		expect(mockFocus).toHaveBeenCalled();
 		unmount();
+	});
+
+	it("initializes with the correct draft for each chatID", () => {
+		const chatA = "chat-aaa";
+		const chatB = "chat-bbb";
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
+		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
+
+		// Each chatID should initialize with its own draft — this is
+		// what the key={agentId} wrapper guarantees at the component
+		// level (a new chatID means a full remount).
+		const hookA = renderEditing(chatA);
+		expect(hookA.result.current.editorInitialValue).toBe("draft A");
+		hookA.unmount();
+
+		const hookB = renderEditing(chatB);
+		expect(hookB.result.current.editorInitialValue).toBe("draft B");
+		hookB.unmount();
 	});
 
 	it("clears the draft from localStorage on successful send", async () => {

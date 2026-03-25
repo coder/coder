@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -35,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -10415,6 +10415,49 @@ func TestGetPRInsights(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, recent, 1)
 		assert.Equal(t, int64(0), recent[0].CostMicros)
+	})
+
+	t.Run("BlankDisplayNameFallsBackToModel", func(t *testing.T) {
+		t.Parallel()
+		store, userID, _ := setupChatInfra(t)
+
+		const modelName = "claude-4.1"
+		emptyDisplayModel, err := store.InsertChatModelConfig(context.Background(), database.InsertChatModelConfigParams{
+			Provider:             "anthropic",
+			Model:                modelName,
+			DisplayName:          "",
+			CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			Enabled:              true,
+			IsDefault:            false,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		chat := createChat(t, store, userID, emptyDisplayModel.ID, "chat-empty-display-name")
+		insertCostMessage(t, store, chat.ID, userID, emptyDisplayModel.ID, 1_000_000)
+		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/72", "merged", "fix: blank display name", 10, 2, 1)
+
+		byModel, err := store.GetPRInsightsPerModel(context.Background(), database.GetPRInsightsPerModelParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		require.Len(t, byModel, 1)
+		assert.Equal(t, modelName, byModel[0].DisplayName)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, modelName, recent[0].ModelDisplayName)
 	})
 
 	t.Run("MergedCostMicros_OnlyCountsMerged", func(t *testing.T) {

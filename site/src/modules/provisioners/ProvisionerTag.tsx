@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
-import { Pill } from "components/Pill/Pill";
 import { CircleCheckIcon, CircleMinusIcon, TagIcon, XIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
+import { Pill } from "#/components/Pill/Pill";
 
 const parseBool = (s: string): { valid: boolean; value: boolean } => {
 	switch (s.toLowerCase()) {

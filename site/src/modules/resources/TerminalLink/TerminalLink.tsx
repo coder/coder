@@ -1,6 +1,6 @@
-import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { getTerminalHref, openAppInNewWindow } from "modules/apps/apps";
 import type { FC, MouseEvent } from "react";
+import { TerminalIcon } from "#/components/Icons/TerminalIcon";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 

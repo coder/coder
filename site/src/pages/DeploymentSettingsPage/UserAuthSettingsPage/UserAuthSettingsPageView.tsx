@@ -1,18 +1,22 @@
 import type { SerpentOption } from "api/typesGenerated";
-import { Badges, DisabledBadge, EnabledBadge } from "components/Badges/Badges";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderDocsLink,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
 import type { JSX } from "react";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
 } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import {
+	Badges,
+	DisabledBadge,
+	EnabledBadge,
+} from "#/components/Badges/Badges";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Stack } from "#/components/Stack/Stack";
 import OptionsTable from "../OptionsTable";
 
 type UserAuthSettingsPageViewProps = {

@@ -4,16 +4,16 @@ import {
 	getGitHubDeviceFlowCallback,
 } from "api/queries/oauth2";
 import { isAxiosError } from "axios";
-import {
-	isExchangeErrorRetryable,
-	newRetryDelay,
-} from "components/GitDeviceAuth/GitDeviceAuth";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Welcome } from "components/Welcome/Welcome";
 import type { FC } from "react";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import {
+	isExchangeErrorRetryable,
+	newRetryDelay,
+} from "#/components/GitDeviceAuth/GitDeviceAuth";
+import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
+import { Welcome } from "#/components/Welcome/Welcome";
 import LoginOAuthDevicePageView from "./LoginOAuthDevicePageView";
 
 // The page is hardcoded to only use GitHub,

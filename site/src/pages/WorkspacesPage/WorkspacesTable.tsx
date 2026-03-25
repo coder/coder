@@ -1,48 +1,4 @@
 import Skeleton from "@mui/material/Skeleton";
-import { API } from "api/api";
-import { templateVersion } from "api/queries/templates";
-import {
-	cancelBuild,
-	deleteWorkspace,
-	startWorkspace,
-	stopWorkspace,
-} from "api/queries/workspaces";
-import type {
-	Template,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
-} from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import {
-	TableLoaderSkeleton,
-	TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import {
@@ -83,6 +39,50 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
+import { API } from "#/api/api";
+import { templateVersion } from "#/api/queries/templates";
+import {
+	cancelBuild,
+	deleteWorkspace,
+	startWorkspace,
+	stopWorkspace,
+} from "#/api/queries/workspaces";
+import type {
+	Template,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import {
+	TableLoaderSkeleton,
+	TableRowSkeleton,
+} from "#/components/TableLoader/TableLoader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 

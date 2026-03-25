@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/client/transport"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -107,9 +111,147 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
-		if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
+		// When the admin does not provide OAuth2 credentials, attempt
+		// automatic discovery and Dynamic Client Registration (RFC 7591)
+		// using the MCP server URL.  This follows the MCP authorization
+		// spec: discover the authorization server via Protected Resource
+		// Metadata (RFC 9728) and Authorization Server Metadata
+		// (RFC 8414), then register a client dynamically.
+		if req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == "" {
+			// Auto-discovery flow: we need the config ID first to
+			// build the correct callback URL.  Insert the record
+			// with empty OAuth2 fields, perform discovery, then
+			// update.
+			customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid custom headers.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+				DisplayName:             strings.TrimSpace(req.DisplayName),
+				Slug:                    strings.TrimSpace(req.Slug),
+				Description:             strings.TrimSpace(req.Description),
+				IconURL:                 strings.TrimSpace(req.IconURL),
+				Transport:               strings.TrimSpace(req.Transport),
+				Url:                     strings.TrimSpace(req.URL),
+				AuthType:                strings.TrimSpace(req.AuthType),
+				OAuth2ClientID:          "",
+				OAuth2ClientSecret:      "",
+				OAuth2ClientSecretKeyID: sql.NullString{},
+				OAuth2AuthURL:           "",
+				OAuth2TokenURL:          "",
+				OAuth2Scopes:            "",
+				APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
+				APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
+				APIKeyValueKeyID:        sql.NullString{},
+				CustomHeaders:           customHeadersJSON,
+				CustomHeadersKeyID:      sql.NullString{},
+				ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
+				ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+				Availability:            strings.TrimSpace(req.Availability),
+				Enabled:                 req.Enabled,
+				CreatedBy:               apiKey.UserID,
+				UpdatedBy:               apiKey.UserID,
+			})
+			if err != nil {
+				switch {
+				case database.IsUniqueViolation(err):
+					httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+						Message: "MCP server config already exists.",
+						Detail:  err.Error(),
+					})
+					return
+				case database.IsCheckViolation(err):
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Invalid MCP server config.",
+						Detail:  err.Error(),
+					})
+					return
+				default:
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Failed to create MCP server config.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+			}
+
+			// Now build the callback URL with the actual ID.
+			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), inserted.ID)
+			result, err := discoverAndRegisterMCPOAuth2(ctx, strings.TrimSpace(req.URL), callbackURL)
+			if err != nil {
+				// Clean up: delete the partially created config.
+				deleteErr := api.Database.DeleteMCPServerConfigByID(ctx, inserted.ID)
+				if deleteErr != nil {
+					api.Logger.Warn(ctx, "failed to clean up MCP server config after OAuth2 discovery failure",
+						slog.F("config_id", inserted.ID),
+						slog.Error(deleteErr),
+					)
+				}
+
+				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
+					slog.F("url", req.URL),
+					slog.Error(err),
+				)
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "OAuth2 auto-discovery failed. Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata) and RFC 7591 (Dynamic Client Registration).",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			// Determine scopes: use the request value if provided,
+			// otherwise fall back to the discovered value.
+			oauth2Scopes := strings.TrimSpace(req.OAuth2Scopes)
+			if oauth2Scopes == "" {
+				oauth2Scopes = result.scopes
+			}
+
+			// Update the record with discovered OAuth2 credentials.
+			updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+				ID:                      inserted.ID,
+				DisplayName:             inserted.DisplayName,
+				Slug:                    inserted.Slug,
+				Description:             inserted.Description,
+				IconURL:                 inserted.IconURL,
+				Transport:               inserted.Transport,
+				Url:                     inserted.Url,
+				AuthType:                inserted.AuthType,
+				OAuth2ClientID:          result.clientID,
+				OAuth2ClientSecret:      result.clientSecret,
+				OAuth2ClientSecretKeyID: sql.NullString{},
+				OAuth2AuthURL:           result.authURL,
+				OAuth2TokenURL:          result.tokenURL,
+				OAuth2Scopes:            oauth2Scopes,
+				APIKeyHeader:            inserted.APIKeyHeader,
+				APIKeyValue:             inserted.APIKeyValue,
+				APIKeyValueKeyID:        inserted.APIKeyValueKeyID,
+				CustomHeaders:           inserted.CustomHeaders,
+				CustomHeadersKeyID:      inserted.CustomHeadersKeyID,
+				ToolAllowList:           inserted.ToolAllowList,
+				ToolDenyList:            inserted.ToolDenyList,
+				Availability:            inserted.Availability,
+				Enabled:                 inserted.Enabled,
+				UpdatedBy:               apiKey.UserID,
+			})
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to update MCP server config with OAuth2 credentials.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(updated))
+			return
+		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
+			// Partial manual config: all three fields are required together.
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "OAuth2 auth type requires oauth2_client_id, oauth2_auth_url, and oauth2_token_url.",
+				Message: "OAuth2 auth type requires either all of oauth2_client_id, oauth2_auth_url, and oauth2_token_url (manual configuration), or none of them (automatic discovery via RFC 7591).",
 			})
 			return
 		}
@@ -601,10 +743,24 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
 	state := uuid.New().String()
+	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    state,
-		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
+		Path:     callbackPath,
+		MaxAge:   600, // 10 minutes
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
+
+	// PKCE (RFC 7636) is required by many OAuth2 providers (e.g.
+	// Linear). We always send it because it is harmless when the
+	// server ignores it and essential when it does not.
+	verifier := oauth2.GenerateVerifier()
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_verifier_" + config.ID.String(),
+		Value:    verifier,
+		Path:     callbackPath,
 		MaxAge:   600, // 10 minutes
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -617,14 +773,14 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 			AuthURL:  config.OAuth2AuthURL,
 			TokenURL: config.OAuth2TokenURL,
 		},
-		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
+		RedirectURL: fmt.Sprintf("%s%s", api.AccessURL.String(), callbackPath),
 	}
 	var scopes []string
 	if config.OAuth2Scopes != "" {
 		scopes = strings.Split(config.OAuth2Scopes, " ")
 	}
 	oauth2Config.Scopes = scopes
-	authURL := oauth2Config.AuthCodeURL(state)
+	authURL := oauth2Config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -706,10 +862,26 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Clear the state cookie.
+	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    "",
-		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
+		Path:     callbackPath,
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
+
+	// Recover the PKCE code_verifier set during the connect step.
+	var exchangeOpts []oauth2.AuthCodeOption
+	if verifierCookie, err := r.Cookie("mcp_oauth2_verifier_" + config.ID.String()); err == nil {
+		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifierCookie.Value))
+	}
+	// Clear the verifier cookie regardless of whether it was present.
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_verifier_" + config.ID.String(),
+		Value:    "",
+		Path:     callbackPath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -723,7 +895,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 			AuthURL:  config.OAuth2AuthURL,
 			TokenURL: config.OAuth2TokenURL,
 		},
-		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
+		RedirectURL: fmt.Sprintf("%s%s", api.AccessURL.String(), callbackPath),
 	}
 	var scopes []string
 	if config.OAuth2Scopes != "" {
@@ -733,8 +905,13 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 
 	// Use the deployment's HTTP client for the token exchange to
 	// respect proxy settings and avoid using http.DefaultClient.
-	exchangeCtx := context.WithValue(ctx, oauth2.HTTPClient, api.HTTPClient)
-	token, err := oauth2Config.Exchange(exchangeCtx, code)
+	// Guard against nil so the oauth2 library falls back to the
+	// default client instead of panicking.
+	exchangeCtx := ctx
+	if api.HTTPClient != nil {
+		exchangeCtx = context.WithValue(ctx, oauth2.HTTPClient, api.HTTPClient)
+	}
+	token, err := oauth2Config.Exchange(exchangeCtx, code, exchangeOpts...)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to exchange authorization code for token.",
@@ -918,4 +1095,67 @@ func coalesceStringSlice(ss []string) []string {
 		return []string{}
 	}
 	return ss
+}
+
+// mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
+// and Dynamic Client Registration.
+type mcpOAuth2Discovery struct {
+	clientID     string
+	clientSecret string
+	authURL      string
+	tokenURL     string
+	scopes       string // space-separated
+}
+
+// discoverAndRegisterMCPOAuth2 uses the mcp-go library's OAuthHandler to
+// perform the MCP OAuth2 discovery and Dynamic Client Registration flow:
+//
+//  1. Discover the authorization server via Protected Resource Metadata
+//     (RFC 9728) and Authorization Server Metadata (RFC 8414).
+//  2. Register a client via Dynamic Client Registration (RFC 7591).
+//  3. Return the discovered endpoints and generated credentials.
+func discoverAndRegisterMCPOAuth2(ctx context.Context, mcpServerURL, callbackURL string) (*mcpOAuth2Discovery, error) {
+	// Per the MCP spec, the authorization base URL is the MCP server
+	// URL with the path component discarded (scheme + host only).
+	parsed, err := url.Parse(mcpServerURL)
+	if err != nil {
+		return nil, xerrors.Errorf("parse MCP server URL: %w", err)
+	}
+	origin := fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+
+	oauthHandler := transport.NewOAuthHandler(transport.OAuthConfig{
+		RedirectURI: callbackURL,
+		TokenStore:  transport.NewMemoryTokenStore(),
+	})
+	oauthHandler.SetBaseURL(origin)
+
+	// Step 1: Discover authorization server metadata (RFC 9728 + RFC 8414).
+	metadata, err := oauthHandler.GetServerMetadata(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("discover authorization server: %w", err)
+	}
+	if metadata.AuthorizationEndpoint == "" {
+		return nil, xerrors.New("authorization server metadata missing authorization_endpoint")
+	}
+	if metadata.TokenEndpoint == "" {
+		return nil, xerrors.New("authorization server metadata missing token_endpoint")
+	}
+	if metadata.RegistrationEndpoint == "" {
+		return nil, xerrors.New("authorization server does not advertise a registration_endpoint (dynamic client registration may not be supported)")
+	}
+
+	// Step 2: Register a client via Dynamic Client Registration (RFC 7591).
+	if err := oauthHandler.RegisterClient(ctx, "Coder"); err != nil {
+		return nil, xerrors.Errorf("dynamic client registration: %w", err)
+	}
+
+	scopes := strings.Join(metadata.ScopesSupported, " ")
+
+	return &mcpOAuth2Discovery{
+		clientID:     oauthHandler.GetClientID(),
+		clientSecret: oauthHandler.GetClientSecret(),
+		authURL:      metadata.AuthorizationEndpoint,
+		tokenURL:     metadata.TokenEndpoint,
+		scopes:       scopes,
+	}, nil
 }

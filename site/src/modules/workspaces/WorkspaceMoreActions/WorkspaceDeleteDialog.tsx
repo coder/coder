@@ -6,10 +6,10 @@ import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
 } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { docs } from "utils/docs";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;

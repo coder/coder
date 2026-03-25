@@ -27,10 +27,12 @@ var _ agentdesktop.Desktop = (*fakeDesktop)(nil)
 // fakeDesktop is a minimal Desktop implementation for unit tests.
 type fakeDesktop struct {
 	startErr      error
+	cursorPos     [2]int
 	startCfg      agentdesktop.DisplayConfig
 	vncConnErr    error
 	screenshotErr error
 	screenshotRes agentdesktop.ScreenshotResult
+	lastShotOpts  agentdesktop.ScreenshotOptions
 	closed        bool
 
 	// Track calls for assertions.
@@ -51,7 +53,8 @@ func (f *fakeDesktop) VNCConn(context.Context) (net.Conn, error) {
 	return nil, f.vncConnErr
 }
 
-func (f *fakeDesktop) Screenshot(_ context.Context, _ agentdesktop.ScreenshotOptions) (agentdesktop.ScreenshotResult, error) {
+func (f *fakeDesktop) Screenshot(_ context.Context, opts agentdesktop.ScreenshotOptions) (agentdesktop.ScreenshotResult, error) {
+	f.lastShotOpts = opts
 	return f.screenshotRes, f.screenshotErr
 }
 
@@ -100,8 +103,8 @@ func (f *fakeDesktop) Type(_ context.Context, text string) error {
 	return nil
 }
 
-func (*fakeDesktop) CursorPosition(context.Context) (x int, y int, err error) {
-	return 10, 20, nil
+func (f *fakeDesktop) CursorPosition(context.Context) (x int, y int, err error) {
+	return f.cursorPos[0], f.cursorPos[1], nil
 }
 
 func (f *fakeDesktop) Close() error {
@@ -135,8 +138,12 @@ func TestHandleAction_Screenshot(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
+	geometry := workspacesdk.DefaultDesktopGeometry()
 	fake := &fakeDesktop{
-		startCfg:      agentdesktop.DisplayConfig{Width: workspacesdk.DesktopDisplayWidth, Height: workspacesdk.DesktopDisplayHeight},
+		startCfg: agentdesktop.DisplayConfig{
+			Width:  geometry.NativeWidth,
+			Height: geometry.NativeHeight,
+		},
 		screenshotRes: agentdesktop.ScreenshotResult{Data: "base64data"},
 	}
 	api := agentdesktop.NewAPI(logger, fake, nil)
@@ -158,11 +165,52 @@ func TestHandleAction_Screenshot(t *testing.T) {
 	var result agentdesktop.DesktopActionResponse
 	err = json.NewDecoder(rr.Body).Decode(&result)
 	require.NoError(t, err)
-	// Dimensions come from DisplayConfig, not the screenshot CLI.
 	assert.Equal(t, "screenshot", result.Output)
 	assert.Equal(t, "base64data", result.ScreenshotData)
-	assert.Equal(t, workspacesdk.DesktopDisplayWidth, result.ScreenshotWidth)
-	assert.Equal(t, workspacesdk.DesktopDisplayHeight, result.ScreenshotHeight)
+	assert.Equal(t, geometry.NativeWidth, result.ScreenshotWidth)
+	assert.Equal(t, geometry.NativeHeight, result.ScreenshotHeight)
+	assert.Equal(t, agentdesktop.ScreenshotOptions{
+		TargetWidth:  geometry.NativeWidth,
+		TargetHeight: geometry.NativeHeight,
+	}, fake.lastShotOpts)
+}
+
+func TestHandleAction_ScreenshotUsesDeclaredDimensionsFromRequest(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg:      agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		screenshotRes: agentdesktop.ScreenshotResult{Data: "base64data"},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	sw := 1280
+	sh := 720
+	body := agentdesktop.DesktopAction{
+		Action:       "screenshot",
+		ScaledWidth:  &sw,
+		ScaledHeight: &sh,
+	}
+	b, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	handler := api.Routes()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, agentdesktop.ScreenshotOptions{TargetWidth: 1280, TargetHeight: 720}, fake.lastShotOpts)
+
+	var result agentdesktop.DesktopActionResponse
+	err = json.NewDecoder(rr.Body).Decode(&result)
+	require.NoError(t, err)
+	assert.Equal(t, 1280, result.ScreenshotWidth)
+	assert.Equal(t, 720, result.ScreenshotHeight)
 }
 
 func TestHandleAction_LeftClick(t *testing.T) {
@@ -315,7 +363,6 @@ func TestHandleAction_HoldKey(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 	}()
 
-	// Wait for the timer to be created, then advance past it.
 	trap.MustWait(req.Context()).MustRelease(req.Context())
 	mClk.Advance(time.Duration(dur) * time.Millisecond).MustWait(req.Context())
 
@@ -389,7 +436,6 @@ func TestHandleAction_ScrollDown(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	// dy should be positive 5 for "down".
 	assert.Equal(t, [4]int{500, 400, 0, 5}, fake.lastScroll)
 }
 
@@ -398,13 +444,11 @@ func TestHandleAction_CoordinateScaling(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	fake := &fakeDesktop{
-		// Native display is 1920x1080.
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
 	api := agentdesktop.NewAPI(logger, fake, nil)
 	defer api.Close()
 
-	// Model is working in a 1280x720 coordinate space.
 	sw := 1280
 	sh := 720
 	body := agentdesktop.DesktopAction{
@@ -424,10 +468,41 @@ func TestHandleAction_CoordinateScaling(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	// 640 in 1280-space → 960 in 1920-space (midpoint maps to
-	// midpoint).
 	assert.Equal(t, 960, fake.lastMove[0])
 	assert.Equal(t, 540, fake.lastMove[1])
+}
+
+func TestHandleAction_CoordinateScalingClampsToLastPixel(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	sw := 1366
+	sh := 768
+	body := agentdesktop.DesktopAction{
+		Action:       "mouse_move",
+		Coordinate:   &[2]int{1365, 767},
+		ScaledWidth:  &sw,
+		ScaledHeight: &sh,
+	}
+	b, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	handler := api.Routes()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, 1919, fake.lastMove[0])
+	assert.Equal(t, 1079, fake.lastMove[1])
 }
 
 func TestClose_DelegatesToDesktop(t *testing.T) {
@@ -446,15 +521,12 @@ func TestClose_PreventsNewSessions(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	// After Close(), Start() will return an error because the
-	// underlying Desktop is closed.
 	fake := &fakeDesktop{}
 	api := agentdesktop.NewAPI(logger, fake, nil)
 
 	err := api.Close()
 	require.NoError(t, err)
 
-	// Simulate the closed desktop returning an error on Start().
 	fake.startErr = xerrors.New("desktop is closed")
 
 	rr := httptest.NewRecorder()
@@ -464,4 +536,41 @@ func TestClose_PreventsNewSessions(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestHandleAction_CursorPositionReturnsDeclaredCoordinates(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	fake := &fakeDesktop{
+		startCfg:  agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
+		cursorPos: [2]int{960, 540},
+	}
+	api := agentdesktop.NewAPI(logger, fake, nil)
+	defer api.Close()
+
+	sw := 1280
+	sh := 720
+	body := agentdesktop.DesktopAction{
+		Action:       "cursor_position",
+		ScaledWidth:  &sw,
+		ScaledHeight: &sh,
+	}
+	b, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	handler := api.Routes()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var resp agentdesktop.DesktopActionResponse
+	err = json.NewDecoder(rr.Body).Decode(&resp)
+	require.NoError(t, err)
+	// Native (960,540) in 1920x1080 should map to declared space in 1280x720.
+	assert.Equal(t, "x=640,y=360", resp.Output)
 }

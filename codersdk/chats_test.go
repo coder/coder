@@ -87,7 +87,7 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		client := codersdk.New(serverURL)
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
 		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
@@ -121,7 +121,7 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		client := codersdk.New(serverURL)
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
 		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
@@ -361,4 +361,36 @@ func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	err = json.Unmarshal(raw, &decoded)
 	require.NoError(t, err)
 	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
+}
+
+//nolint:tparallel,paralleltest
+func TestParseChatWorkspaceTTL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    time.Duration
+		wantErr bool
+	}{
+		{"Empty_ReturnsDefault", "", 0, false},
+		{"ValidDuration_Hours", "2h", 2 * time.Hour, false},
+		{"ValidDuration_HoursAndMinutes", "2h30m", 2*time.Hour + 30*time.Minute, false},
+		{"ValidDuration_Minutes", "90m", 90 * time.Minute, false},
+		{"Zero", "0s", 0, false},
+		{"Negative", "-1h", 0, true},
+		{"Invalid", "not-a-duration", 0, true},
+		{"LargeDuration", "720h", 720 * time.Hour, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := codersdk.ParseChatWorkspaceTTL(tc.input)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }

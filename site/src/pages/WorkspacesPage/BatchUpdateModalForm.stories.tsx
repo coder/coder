@@ -1,15 +1,15 @@
 import { MockTemplateVersion, MockWorkspace } from "testHelpers/entities";
 import type { Meta, Parameters, StoryObj } from "@storybook/react-vite";
-import { templateVersionRoot } from "api/queries/templates";
-import type {
-	TemplateVersion,
-	Workspace,
-	WorkspaceBuild,
-} from "api/typesGenerated";
 import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { useQueryClient } from "react-query";
 import { action } from "storybook/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
+import { templateVersionRoot } from "#/api/queries/templates";
+import type {
+	TemplateVersion,
+	Workspace,
+	WorkspaceBuild,
+} from "#/api/typesGenerated";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };

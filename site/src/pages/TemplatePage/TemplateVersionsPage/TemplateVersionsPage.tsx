@@ -4,13 +4,13 @@ import {
 	templateVersions,
 	templateVersionsQueryKey,
 } from "api/queries/templates";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
 

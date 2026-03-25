@@ -36,6 +36,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
         "organization_id": "string"
       }
     ],
+    "is_service_account": true,
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "roles": [
@@ -45,8 +48,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
         "organization_id": "string"
       }
     ],
+    "status": "active",
     "updated_at": "2019-08-24T14:15:22Z",
+    "user_created_at": "2019-08-24T14:15:22Z",
     "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+    "user_updated_at": "2019-08-24T14:15:22Z",
     "username": "string"
   }
 ]
@@ -62,22 +68,35 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Status Code **200**
 
-| Name                 | Type              | Required | Restrictions | Description |
-|----------------------|-------------------|----------|--------------|-------------|
-| `[array item]`       | array             | false    |              |             |
-| `» avatar_url`       | string            | false    |              |             |
-| `» created_at`       | string(date-time) | false    |              |             |
-| `» email`            | string            | false    |              |             |
-| `» global_roles`     | array             | false    |              |             |
-| `»» display_name`    | string            | false    |              |             |
-| `»» name`            | string            | false    |              |             |
-| `»» organization_id` | string            | false    |              |             |
-| `» name`             | string            | false    |              |             |
-| `» organization_id`  | string(uuid)      | false    |              |             |
-| `» roles`            | array             | false    |              |             |
-| `» updated_at`       | string(date-time) | false    |              |             |
-| `» user_id`          | string(uuid)      | false    |              |             |
-| `» username`         | string            | false    |              |             |
+| Name                   | Type                                                 | Required | Restrictions | Description |
+|------------------------|------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`         | array                                                | false    |              |             |
+| `» avatar_url`         | string                                               | false    |              |             |
+| `» created_at`         | string(date-time)                                    | false    |              |             |
+| `» email`              | string                                               | false    |              |             |
+| `» global_roles`       | array                                                | false    |              |             |
+| `»» display_name`      | string                                               | false    |              |             |
+| `»» name`              | string                                               | false    |              |             |
+| `»» organization_id`   | string                                               | false    |              |             |
+| `» is_service_account` | boolean                                              | false    |              |             |
+| `» last_seen_at`       | string(date-time)                                    | false    |              |             |
+| `» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
+| `» name`               | string                                               | false    |              |             |
+| `» organization_id`    | string(uuid)                                         | false    |              |             |
+| `» roles`              | array                                                | false    |              |             |
+| `» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
+| `» updated_at`         | string(date-time)                                    | false    |              |             |
+| `» user_created_at`    | string(date-time)                                    | false    |              |             |
+| `» user_id`            | string(uuid)                                         | false    |              |             |
+| `» user_updated_at`    | string(date-time)                                    | false    |              |             |
+| `» username`           | string                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -576,6 +595,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
       "organization_id": "string"
     }
   ],
+  "is_service_account": true,
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
@@ -585,8 +607,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
       "organization_id": "string"
     }
   ],
+  "status": "active",
   "updated_at": "2019-08-24T14:15:22Z",
+  "user_created_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "user_updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -749,11 +774,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 ### Parameters
 
-| Name           | In    | Type    | Required | Description                          |
-|----------------|-------|---------|----------|--------------------------------------|
-| `organization` | path  | string  | true     | Organization ID                      |
-| `limit`        | query | integer | false    | Page limit, if 0 returns all members |
-| `offset`       | query | integer | false    | Page offset                          |
+| Name           | In    | Type         | Required | Description                          |
+|----------------|-------|--------------|----------|--------------------------------------|
+| `organization` | path  | string       | true     | Organization ID                      |
+| `q`            | query | string       | false    | Member search query                  |
+| `after_id`     | query | string(uuid) | false    | After ID                             |
+| `limit`        | query | integer      | false    | Page limit, if 0 returns all members |
+| `offset`       | query | integer      | false    | Page offset                          |
 
 ### Example responses
 
@@ -775,6 +802,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
             "organization_id": "string"
           }
         ],
+        "is_service_account": true,
+        "last_seen_at": "2019-08-24T14:15:22Z",
+        "login_type": "",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
         "roles": [
@@ -784,8 +814,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
             "organization_id": "string"
           }
         ],
+        "status": "active",
         "updated_at": "2019-08-24T14:15:22Z",
+        "user_created_at": "2019-08-24T14:15:22Z",
         "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "user_updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       }
     ]
@@ -803,24 +836,37 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 Status Code **200**
 
-| Name                  | Type              | Required | Restrictions | Description |
-|-----------------------|-------------------|----------|--------------|-------------|
-| `[array item]`        | array             | false    |              |             |
-| `» count`             | integer           | false    |              |             |
-| `» members`           | array             | false    |              |             |
-| `»» avatar_url`       | string            | false    |              |             |
-| `»» created_at`       | string(date-time) | false    |              |             |
-| `»» email`            | string            | false    |              |             |
-| `»» global_roles`     | array             | false    |              |             |
-| `»»» display_name`    | string            | false    |              |             |
-| `»»» name`            | string            | false    |              |             |
-| `»»» organization_id` | string            | false    |              |             |
-| `»» name`             | string            | false    |              |             |
-| `»» organization_id`  | string(uuid)      | false    |              |             |
-| `»» roles`            | array             | false    |              |             |
-| `»» updated_at`       | string(date-time) | false    |              |             |
-| `»» user_id`          | string(uuid)      | false    |              |             |
-| `»» username`         | string            | false    |              |             |
+| Name                    | Type                                                 | Required | Restrictions | Description |
+|-------------------------|------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`          | array                                                | false    |              |             |
+| `» count`               | integer                                              | false    |              |             |
+| `» members`             | array                                                | false    |              |             |
+| `»» avatar_url`         | string                                               | false    |              |             |
+| `»» created_at`         | string(date-time)                                    | false    |              |             |
+| `»» email`              | string                                               | false    |              |             |
+| `»» global_roles`       | array                                                | false    |              |             |
+| `»»» display_name`      | string                                               | false    |              |             |
+| `»»» name`              | string                                               | false    |              |             |
+| `»»» organization_id`   | string                                               | false    |              |             |
+| `»» is_service_account` | boolean                                              | false    |              |             |
+| `»» last_seen_at`       | string(date-time)                                    | false    |              |             |
+| `»» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
+| `»» name`               | string                                               | false    |              |             |
+| `»» organization_id`    | string(uuid)                                         | false    |              |             |
+| `»» roles`              | array                                                | false    |              |             |
+| `»» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
+| `»» updated_at`         | string(date-time)                                    | false    |              |             |
+| `»» user_created_at`    | string(date-time)                                    | false    |              |             |
+| `»» user_id`            | string(uuid)                                         | false    |              |             |
+| `»» user_updated_at`    | string(date-time)                                    | false    |              |             |
+| `»» username`           | string                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value(s)                                          |
+|--------------|---------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
+| `status`     | `active`, `suspended`                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

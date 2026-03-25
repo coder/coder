@@ -9,22 +9,6 @@ import {
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
-import { PremiumBadge } from "components/Badges/Badges";
-import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import {
-	StackLabel,
-	StackLabelHelperText,
-} from "components/StackLabel/StackLabel";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -36,6 +20,22 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { PremiumBadge } from "#/components/Badges/Badges";
+import { Button } from "#/components/Button/Button";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	StackLabel,
+	StackLabelHelperText,
+} from "#/components/StackLabel/StackLabel";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;

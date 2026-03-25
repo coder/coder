@@ -1,20 +1,21 @@
 import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import type React from "react";
+import { cn } from "utils/cn";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
-import type React from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
 	type EditFilesFileEntry,
 	getDiffViewerOptions,
+	stripNoNewline,
 	type ToolStatus,
 } from "./utils";
 
@@ -94,7 +95,7 @@ export const EditFilesTool: React.FC<{
 							scrollBarClassName="w-1.5"
 						>
 							<FileDiff
-								fileDiff={diff}
+								fileDiff={stripNoNewline(diff)}
 								options={getDiffViewerOptions(isDark)}
 								style={DIFFS_FONT_STYLE}
 							/>

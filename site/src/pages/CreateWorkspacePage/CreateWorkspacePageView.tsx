@@ -1,28 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import {
-	Combobox,
-	ComboboxButton,
-	ComboboxContent,
-	ComboboxItem,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { WorkspaceUserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import { useDebouncedFunction } from "hooks/debounce";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
@@ -48,6 +25,29 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxItem,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { WorkspaceUserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
