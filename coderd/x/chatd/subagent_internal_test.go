@@ -129,6 +129,7 @@ func seedInternalChatDeps(
 		ApiKeyKeyID: sql.NullString{},
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 

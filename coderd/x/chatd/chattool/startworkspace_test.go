@@ -238,6 +238,7 @@ func seedModelConfig(
 		ApiKeyKeyID: sql.NullString{},
 		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 

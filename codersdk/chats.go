@@ -481,32 +481,35 @@ const (
 
 // ChatProviderConfig is an admin-managed provider configuration.
 type ChatProviderConfig struct {
-	ID          uuid.UUID                `json:"id" format:"uuid"`
-	Provider    string                   `json:"provider"`
-	DisplayName string                   `json:"display_name"`
-	Enabled     bool                     `json:"enabled"`
-	HasAPIKey   bool                     `json:"has_api_key"`
-	BaseURL     string                   `json:"base_url,omitempty"`
-	Source      ChatProviderConfigSource `json:"source"`
-	CreatedAt   time.Time                `json:"created_at,omitempty" format:"date-time"`
-	UpdatedAt   time.Time                `json:"updated_at,omitempty" format:"date-time"`
+	ID               uuid.UUID                `json:"id" format:"uuid"`
+	Provider         string                   `json:"provider"`
+	DisplayName      string                   `json:"display_name"`
+	Enabled          bool                     `json:"enabled"`
+	HasAPIKey        bool                     `json:"has_api_key"`
+	HasCustomHeaders bool                     `json:"has_custom_headers"`
+	BaseURL          string                   `json:"base_url,omitempty"`
+	Source           ChatProviderConfigSource `json:"source"`
+	CreatedAt        time.Time                `json:"created_at,omitempty" format:"date-time"`
+	UpdatedAt        time.Time                `json:"updated_at,omitempty" format:"date-time"`
 }
 
 // CreateChatProviderConfigRequest creates a chat provider config.
 type CreateChatProviderConfigRequest struct {
-	Provider    string `json:"provider"`
-	DisplayName string `json:"display_name,omitempty"`
-	APIKey      string `json:"api_key,omitempty"`
-	BaseURL     string `json:"base_url,omitempty"`
-	Enabled     *bool  `json:"enabled,omitempty"`
+	Provider      string            `json:"provider"`
+	DisplayName   string            `json:"display_name,omitempty"`
+	APIKey        string            `json:"api_key,omitempty"`
+	BaseURL       string            `json:"base_url,omitempty"`
+	Enabled       *bool             `json:"enabled,omitempty"`
+	CustomHeaders map[string]string `json:"custom_headers,omitempty"`
 }
 
 // UpdateChatProviderConfigRequest updates a chat provider config.
 type UpdateChatProviderConfigRequest struct {
-	DisplayName string  `json:"display_name,omitempty"`
-	APIKey      *string `json:"api_key,omitempty"`
-	BaseURL     *string `json:"base_url,omitempty"`
-	Enabled     *bool   `json:"enabled,omitempty"`
+	DisplayName   string             `json:"display_name,omitempty"`
+	APIKey        *string            `json:"api_key,omitempty"`
+	BaseURL       *string            `json:"base_url,omitempty"`
+	Enabled       *bool              `json:"enabled,omitempty"`
+	CustomHeaders *map[string]string `json:"custom_headers,omitempty"`
 }
 
 // ChatModelConfig is an admin-managed model configuration.

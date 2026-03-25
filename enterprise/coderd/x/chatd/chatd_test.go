@@ -103,6 +103,7 @@ func seedChatDependencies(
 		ApiKeyKeyID: sql.NullString{},
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
+		CustomHeaders: "{}",
 	})
 	require.NoError(t, err)
 	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
@@ -139,6 +140,8 @@ func setOpenAIProviderBaseURL(
 		BaseUrl:     baseURL,
 		ApiKeyKeyID: provider.ApiKeyKeyID,
 		Enabled:     provider.Enabled,
+		CustomHeaders:      "{}",
+		CustomHeadersKeyID: sql.NullString{},
 	})
 	require.NoError(t, err)
 }

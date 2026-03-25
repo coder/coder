@@ -3803,9 +3803,10 @@ func (p *Server) resolveChatModel(
 	)
 	for _, provider := range providers {
 		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
+			Provider:      provider.Provider,
+			APIKey:        provider.APIKey,
+			BaseURL:       provider.BaseUrl,
+			CustomHeaders: provider.CustomHeaders,
 		})
 	}
 	keys := chatprovider.MergeProviderAPIKeys(

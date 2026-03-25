@@ -14,6 +14,7 @@ const providerState: ProviderState = {
 		display_name: "OpenAI",
 		enabled: true,
 		has_api_key: true,
+		has_custom_headers: false,
 		base_url: undefined,
 		source: "database",
 		created_at: "2025-01-01T00:00:00Z",

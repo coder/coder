@@ -40,7 +40,9 @@ INSERT INTO chat_providers (
     base_url,
     api_key_key_id,
     created_by,
-    enabled
+    enabled,
+    custom_headers,
+    custom_headers_key_id
 ) VALUES (
     @provider::text,
     @display_name::text,
@@ -48,7 +50,9 @@ INSERT INTO chat_providers (
     @base_url::text,
     sqlc.narg('api_key_key_id')::text,
     sqlc.narg('created_by')::uuid,
-    @enabled::boolean
+    @enabled::boolean,
+    @custom_headers::text,
+    sqlc.narg('custom_headers_key_id')::text
 )
 RETURNING
     *;
@@ -62,6 +66,8 @@ SET
     base_url = @base_url::text,
     api_key_key_id = sqlc.narg('api_key_key_id')::text,
     enabled = @enabled::boolean,
+    custom_headers = @custom_headers::text,
+    custom_headers_key_id = sqlc.narg('custom_headers_key_id')::text,
     updated_at = NOW()
 WHERE
     id = @id::uuid

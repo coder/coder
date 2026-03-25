@@ -46,6 +46,7 @@ func TestChatParam(t *testing.T) {
 			ApiKeyKeyID: sql.NullString{},
 			CreatedBy:   uuid.NullUUID{UUID: ownerID, Valid: true},
 			Enabled:     true,
+			CustomHeaders: "{}",
 		})
 		require.NoError(t, err)
 

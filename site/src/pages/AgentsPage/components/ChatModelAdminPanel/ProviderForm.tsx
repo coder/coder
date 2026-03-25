@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import { ChevronLeftIcon, InfoIcon } from "lucide-react";
+import { ChevronLeftIcon, InfoIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -19,6 +19,12 @@ import { ProviderIcon } from "./ProviderIcon";
 // backend won't reveal. If the user hasn't touched the field,
 // we know nothing changed.
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
+
+// Sentinel value used when the provider already has custom headers
+// stored on the backend.
+const CUSTOM_HEADERS_PLACEHOLDER = "••••••••";
+
+type HeaderEntry = { key: string; value: string };
 
 interface ProviderFormProps {
 	providerState: ProviderState;
@@ -71,6 +77,17 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+	// Custom headers state — a list of key-value pairs.
+	const hasExistingHeaders = providerConfig?.has_custom_headers ?? false;
+	const [headers, setHeaders] = useState<HeaderEntry[]>(() => {
+		// For existing providers with headers, show placeholder row.
+		if (hasExistingHeaders) {
+			return [{ key: CUSTOM_HEADERS_PLACEHOLDER, value: CUSTOM_HEADERS_PLACEHOLDER }];
+		}
+		return [];
+	});
+	const [headersTouched, setHeadersTouched] = useState(false);
+
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
 	const requiresAPIKey = !providerConfig && !isAPIKeyEnvManaged;
 
@@ -78,11 +95,26 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const effectiveApiKey =
 		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER ? apiKey.trim() : "";
 
+	// Build the effective custom headers map to submit.
+	const buildEffectiveHeaders = (): Record<string, string> | undefined => {
+		if (!headersTouched) return undefined;
+		const result: Record<string, string> = {};
+		for (const h of headers) {
+			const key = h.key.trim();
+			const value = h.value.trim();
+			if (key && key !== CUSTOM_HEADERS_PLACEHOLDER) {
+				result[key] = value;
+			}
+		}
+		return result;
+	};
+
 	// Dirty detection: has anything changed from the initial state?
 	const isDirty =
 		displayName.trim() !== initialValues.displayName ||
 		effectiveApiKey !== "" ||
-		baseURLValue.trim() !== initialValues.baseURL.trim();
+		baseURLValue.trim() !== initialValues.baseURL.trim() ||
+		headersTouched;
 
 	const canSave =
 		!providerConfigsUnavailable &&
@@ -103,6 +135,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 		const trimmedDisplayName = displayName.trim();
 		const trimmedBaseURL = baseURLValue.trim();
+		const effectiveHeaders = buildEffectiveHeaders();
 
 		if (providerConfig) {
 			const currentDisplayName =
@@ -116,9 +149,17 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				...(trimmedBaseURL !== currentBaseURL && {
 					base_url: trimmedBaseURL,
 				}),
+				...(effectiveHeaders !== undefined && {
+					custom_headers: effectiveHeaders,
+				}),
 			};
 
-			if (!req.display_name && !req.api_key && !req.base_url) {
+			if (
+				!req.display_name &&
+				!req.api_key &&
+				!req.base_url &&
+				req.custom_headers === undefined
+			) {
 				return;
 			}
 
@@ -141,6 +182,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					display_name: trimmedDisplayName,
 				}),
 				...(trimmedBaseURL && { base_url: trimmedBaseURL }),
+				...(effectiveHeaders !== undefined &&
+					Object.keys(effectiveHeaders).length > 0 && {
+						custom_headers: effectiveHeaders,
+					}),
 			};
 
 			try {
@@ -153,6 +198,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 
 		setApiKeyTouched(false);
+		setHeadersTouched(false);
 	};
 
 	const handleApiKeyFocus = () => {
@@ -162,6 +208,38 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			setApiKey("");
 			setApiKeyTouched(true);
 		}
+	};
+
+	// ── Custom header helpers ──────────────────────────────────
+
+	const handleHeaderFocus = (_index: number) => {
+		if (!headersTouched && hasExistingHeaders) {
+			// First interaction — clear placeholder rows and start fresh.
+			setHeaders([{ key: "", value: "" }]);
+			setHeadersTouched(true);
+			return;
+		}
+	};
+
+	const addHeader = () => {
+		setHeaders((prev) => [...prev, { key: "", value: "" }]);
+		setHeadersTouched(true);
+	};
+
+	const removeHeader = (index: number) => {
+		setHeaders((prev) => prev.filter((_, i) => i !== index));
+		setHeadersTouched(true);
+	};
+
+	const updateHeader = (
+		index: number,
+		field: "key" | "value",
+		value: string,
+	) => {
+		setHeaders((prev) =>
+			prev.map((h, i) => (i === index ? { ...h, [field]: value } : h)),
+		);
+		setHeadersTouched(true);
 	};
 
 	const isDisabled = providerConfigsUnavailable || isProviderMutationPending;
@@ -261,6 +339,66 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								onChange={(e) => setBaseURLValue(e.target.value)}
 								disabled={isDisabled}
 							/>
+						</ProviderField>
+
+						<ProviderField
+							label="Custom Headers"
+							description="Additional HTTP headers sent with every request to this provider."
+						>
+							<div className="space-y-2">
+								{headers.map((header, index) => (
+									<div key={index} className="flex items-center gap-2">
+										<Input
+											className="h-9 flex-1 text-[13px]"
+											placeholder="Header name"
+											value={header.key}
+											onFocus={() => handleHeaderFocus(index)}
+											onChange={(e) =>
+												updateHeader(index, "key", e.target.value)
+											}
+											disabled={isDisabled}
+											style={
+												header.key === CUSTOM_HEADERS_PLACEHOLDER
+													? ({ WebkitTextSecurity: "disc" } as React.CSSProperties)
+													: undefined
+											}
+										/>
+										<Input
+											className="h-9 flex-1 text-[13px]"
+											placeholder="Value"
+											value={header.value}
+											onFocus={() => handleHeaderFocus(index)}
+											onChange={(e) =>
+												updateHeader(index, "value", e.target.value)
+											}
+											disabled={isDisabled}
+											style={
+												header.value === CUSTOM_HEADERS_PLACEHOLDER
+													? ({ WebkitTextSecurity: "disc" } as React.CSSProperties)
+													: undefined
+											}
+										/>
+										<button
+											type="button"
+											onClick={() => removeHeader(index)}
+											disabled={isDisabled}
+											className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-solid border-border bg-transparent text-content-secondary transition-colors hover:border-border-hover hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+											aria-label="Remove header"
+										>
+											<TrashIcon className="h-4 w-4" />
+										</button>
+									</div>
+								))}
+								<button
+									type="button"
+									onClick={addHeader}
+									disabled={isDisabled}
+									className="inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<PlusIcon className="h-3.5 w-3.5" />
+									Add header
+								</button>
+							</div>
 						</ProviderField>
 					</div>
 
