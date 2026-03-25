@@ -299,6 +299,42 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 	},
 };
 
+/** Visual regression: text and image attachments render at the same height. */
+export const UserMessageWithMixedAttachments: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Here is a screenshot and some context" },
+					{
+						type: "file",
+						media_type: "image/png",
+						data: TEST_PNG_B64,
+					},
+					{
+						type: "file",
+						file_id: "storybook-test-text",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(1);
+		const textButtons = await canvas.findAllByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButtons).toHaveLength(1);
+	},
+};
+
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
