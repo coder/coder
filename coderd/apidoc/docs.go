@@ -9908,6 +9908,14 @@ const docTemplate = `{
                 ],
                 "summary": "Get workspace agent reinitialization",
                 "operationId": "get-workspace-agent-reinitialization",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Opt in to durable reinit checks",
+                        "name": "wait",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

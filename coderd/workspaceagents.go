@@ -1459,6 +1459,7 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
+// @Param wait query bool false "Opt in to durable reinit checks"
 // @Success 200 {object} agentsdk.ReinitializationEvent
 // @Failure 409 {object} codersdk.Response
 // @Router /workspaceagents/me/reinit [get]
@@ -1498,12 +1499,18 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer cancelSub()
 
-	// If the workspace has already been claimed (i.e. the owner is no
-	// longer the prebuilds system user), check whether it was originally
-	// a prebuild by inspecting the first build's initiator. The
-	// prebuild reconciler always uses PrebuildsSystemUserID as the
-	// initiator for the initial build.
-	if !workspace.IsPrebuild() {
+	// Only perform the durable claim check when the agent opts in via
+	// the "wait" query parameter. Old agents (pre-v2.X) don't send
+	// this and lack the duplicate-reinit guard, so they would enter
+	// an infinite reinit loop if we pre-seeded the channel on every
+	// connection.
+	//
+	// If the workspace has already been claimed (i.e. the owner is
+	// no longer the prebuilds system user), check whether it was
+	// originally a prebuild by inspecting the first build's
+	// initiator. The prebuild reconciler always uses
+	// PrebuildsSystemUserID as the initiator for the initial build.
+	if r.URL.Query().Has("wait") && !workspace.IsPrebuild() {
 		firstBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx,
 			database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 				WorkspaceID: workspace.ID,
@@ -1527,7 +1534,12 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 
 		// This workspace was a prebuild that got claimed. Check if
 		// the claim build completed successfully before sending
-		// reinit.
+		// reinit. We assume the latest build is the claim build
+		// (build 2). If a third build (e.g. a restart) starts
+		// between the claim and the agent's reconnection, this
+		// would check that build instead. The window is extremely
+		// small in practice, and a restart would trigger its own
+		// reinit path.
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil {
 			log.Error(ctx, "failed to get latest workspace build", slog.Error(err))
@@ -1541,7 +1553,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if job.CompletedAt.Valid && !job.Error.Valid {
+		if job.CompletedAt.Valid && !job.Error.Valid && !job.CanceledAt.Valid {
 			// Claim build succeeded — cancel the subscription
 			// (we no longer need pubsub) and pre-seed the
 			// channel so the transmitter delivers exactly one
@@ -1578,7 +1590,15 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 
 		// Claim build still in progress — fall through to the
 		// transmitter. The pubsub subscription (set up above)
-		// will deliver the event when the build completes.
+		// will deliver the event when the build completes
+		// successfully. Note: FailJob does not publish a claim
+		// event, so a failed in-progress build will leave the
+		// agent blocking here until it disconnects and
+		// reconnects (at which point the durable check above
+		// handles it).
+		// TODO(prebuilds): consider publishing a failure event
+		// from FailJob so the agent doesn't have to wait for
+		// reconnection.
 	}
 
 	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
