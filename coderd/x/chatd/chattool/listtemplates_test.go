@@ -181,7 +181,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c8", Name: "create_workspace", Input: input})
 			require.NoError(t, err)
 			require.True(t, resp.IsError)
-			require.Contains(t, resp.Content, "not found")
+			require.Contains(t, resp.Content, "template not available for chat workspaces")
 			require.False(t, createCalled, "CreateFn should not be called for blocked template")
 		})
 	})
