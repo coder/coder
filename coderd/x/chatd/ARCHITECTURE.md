@@ -2,7 +2,7 @@
 
 > **Status**: Early Access (formerly experimental).
 > Moved from `coderd/chatd/` to `coderd/x/chatd/` in March 2025.
-> ~120 commits in the first month of development, ~26,700 lines of Go (including ~13,300 lines of tests).
+> ~120 commits in the first month of development, ~31,900 lines of Go (including ~16,800 lines of tests).
 
 ## What is chatd?
 
@@ -79,10 +79,11 @@ flowchart TB
         direction TB
         FT["File Tools<br/><small>read · write · edit</small>"]
         ET["Execute Tool<br/><small>shell commands<br/>fg/bg · process mgmt</small>"]
-        WT["Workspace Tools<br/><small>list/read templates<br/>create/start workspace</small>"]
+        WT["Workspace / Planning Tools<br/><small>list/read templates<br/>create/start workspace<br/>propose plan</small>"]
         CU["Computer Use<br/><small>Anthropic-only<br/>screenshots · clicks</small>"]
         SA["Subagent Tools<br/><small>spawn · wait · message · close</small>"]
         MT["MCP Tools<br/><small>slug__toolName prefix<br/>allow/deny filtering</small>"]
+        PT["Provider-native Tools<br/><small>e.g. web_search</small>"]
     end
 
     %% ── Supporting packages ──────────────────────────────
@@ -121,6 +122,8 @@ flowchart TB
     SA -->|"create child chat"| DB
     TOOLS --> MT
     MT <-->|"SSE / streamable HTTP"| MCP
+    TOOLS --> PT
+    PT -->|"provider executes"| LLM
 
     CC -.->|"calculate after persist"| PERSIST
 
@@ -137,7 +140,7 @@ flowchart TB
     class DB,PS storage
     class REST,SSE api
     class ACQ,HB,STALE,QUEUE,RC core
-    class FT,ET,WT,CU,SA,MT tool
+    class FT,ET,WT,CU,SA,MT,PT tool
     class CP,CV,CC,UL,QG support
     class STREAM,TOOLS,PERSIST,COMPACT,RETRY loop
 ```
@@ -156,9 +159,10 @@ flowchart TB
 
 ```
 coderd/x/chatd/
-├── chatd.go              # Core Server: polling, acquire, processChat, runChat (~3,900 lines)
+├── chatd.go              # Core Server: polling, acquire, processChat, runChat (~4,200 lines)
 ├── prompt.go             # DefaultSystemPrompt constant
 ├── instruction.go        # AGENTS.md file reading from workspaces
+├── sanitize.go           # Prompt/input sanitization for invisible Unicode + blank-line collapse
 ├── subagent.go           # Delegated child agent (subagent) tools
 ├── usagelimit.go         # Spend-limit enforcement (per-user, per-period)
 ├── quickgen.go           # Lightweight LLM tasks: title generation, push summaries
@@ -172,7 +176,7 @@ coderd/x/chatd/
 │
 ├── chatprovider/         # LLM provider abstraction (model catalog, API key management)
 │   ├── chatprovider.go   # ModelCatalog, ProviderAPIKeys, supported providers
-│   └── useragent.go      # User-agent header construction for LLM API calls
+│   └── useragent.go      # User-agent + Coder identity headers for LLM API calls
 │
 ├── chattool/             # Tool implementations
 │   ├── chattool.go       # Shared helpers (toolResponse, truncateRunes)
@@ -181,10 +185,11 @@ coderd/x/chatd/
 │   ├── writefile.go      # File writing
 │   ├── editfiles.go      # Search-and-replace file editing
 │   ├── computeruse.go    # Anthropic computer use (desktop screenshots, clicks, typing)
-│   ├── listtemplates.go  # List workspace templates (with popularity sorting)
+│   ├── listtemplates.go  # List workspace templates (with popularity sorting + allowlist)
 │   ├── readtemplate.go   # Get template details + parameters
 │   ├── createworkspace.go # Create workspace from template (idempotent, waits for build)
-│   └── startworkspace.go # Start a stopped workspace
+│   ├── startworkspace.go # Start a stopped workspace
+│   └── proposeplan.go    # Present a markdown plan file for user review
 │
 ├── chatcost/             # Token cost calculation (microdollar precision)
 │   └── chatcost.go       # CalculateTotalCostMicros
@@ -261,11 +266,20 @@ OpenAI-Compatible, OpenRouter, Vercel AI Gateway.
 
 The `ModelCatalog` resolves model names to `fantasy.LanguageModel` instances.
 API keys come from a layered system: env presets → database config → static keys.
+Outgoing LLM requests also attach Coder identity headers (`X-Coder-Owner-Id`,
+`X-Coder-Chat-Id`, optional subchat/workspace IDs) so intermediaries such as
+`aibridged` can correlate traffic back to Coder entities.
 
 ### 5. Tools (chattool/)
 
 Tools are implemented as `fantasy.AgentTool` values. Each tool gets a
 `GetWorkspaceConn` function that lazily connects to the workspace agent.
+
+Notable tool groupings:
+- **Process tools**: `execute`, `process_output`, `process_list`, `process_signal`
+- **Workspace tools**: `list_templates`, `read_template`, `create_workspace`, `start_workspace`
+- **Planning tool**: `propose_plan` for presenting Markdown plans to the user
+- **Provider-native tools**: e.g. `web_search`, defined separately from `chattool/`
 
 The execute tool has notable complexity:
 - Detects shell-style backgrounding (trailing `&`) and promotes to background mode
@@ -282,6 +296,9 @@ separation.
 
 Auth types: `oauth2`, `api_key`, `custom_headers`, `none`.
 Transport types: `sse`, `streamable_http` (default).
+
+Result conversion now handles text, images, audio, structured content,
+`EmbeddedResource`, and `ResourceLink` payloads from MCP servers.
 
 ### 7. Subagents (subagent.go)
 
@@ -379,8 +396,9 @@ significant gap that needs addressing before scale becomes a concern.
   indexed by `(chat_id)` and `(chat_id, created_at)`. At high row counts,
   index maintenance and vacuum costs will grow.
 - **Compaction summaries don't reduce storage.** Compaction summarizes context
-  for the LLM but does not delete the original messages. The summary is added
-  as an additional system message, so compaction *increases* total storage.
+  for the LLM but does not delete the original messages. The summary is stored
+  as an additional hidden model-only message plus visible tool call/result
+  messages, so compaction *increases* total storage.
 - **Subagent chats are invisible to users** but still consume storage. A parent
   chat spawning multiple subagents creates additional chats and messages that
   are never surfaced in the UI and have no independent cleanup path.
@@ -416,8 +434,8 @@ be resolved before GA.
 - The `chatd` RBAC subject (`subjectChatd`) has **site-wide** permissions on
   `ResourceChat` (create/read/update/delete) with no org-scoped `ByOrgID`
   rules. It operates as a single global actor.
-- `chatd.go` calls `dbauthz.AsChatd(ctx)` exactly once (line 1413), bypassing
-  any per-user or per-org authorization for background processing.
+- `chatd.go` uses `dbauthz.AsChatd(ctx)` for background processing, bypassing
+  any per-user or per-org authorization for the daemon's own DB operations.
 - Chat queries (`GetChatsByOwnerID`, `GetChatByID`, etc.) filter by `owner_id`
   only, with no organization predicate.
 - The `chat_model_configs` and `chat_providers` tables are global deployment
@@ -441,7 +459,7 @@ be resolved before GA.
 
 ## Known Technical Debt
 
-1. **`chatd.go` needs decomposition.** At ~3,900 lines, this single file contains
+1. **`chatd.go` needs decomposition.** At ~4,200 lines, this single file contains
    the Server struct, all HTTP-facing methods (Create/Send/Edit/Archive/Delete/
    Promote/Interrupt/RefreshStatus/Subscribe), the background processing loop,
    the full `runChat` orchestration, stream management, push notifications,
@@ -524,9 +542,9 @@ be resolved before GA.
 
 9. **Subagent nesting depth needs a policy decision.** The ancestry check in
    `isSubagentDescendant` is O(depth), but the more pressing question is: how
-   deep should the family tree be allowed to go? Currently, line 360 of
-   `subagent.go` enforces a hard limit of **one level** — a child chat with a
-   `ParentChatID` cannot spawn further children. The underlying architecture
+   deep should the family tree be allowed to go? Currently,
+   `createChildSubagentChat` enforces a hard limit of **one level** — a child
+   chat with a `ParentChatID` cannot spawn further children. The underlying architecture
    (parent/root chain tracking) supports arbitrary depth, but the guard
    prevents it. TODO: decide on a nesting policy. If depth > 1 is ever
    allowed, the O(depth) ancestry walk should be revisited (e.g. materialized

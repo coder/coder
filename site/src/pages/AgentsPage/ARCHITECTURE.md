@@ -1,9 +1,9 @@
 # Agents Frontend — Architecture & State of the Code
 
 > **Status**: Early Access (formerly experimental).
-> ~40,100 lines of TypeScript/TSX in `site/src/pages/AgentsPage/`,
-> ~5,800 lines in shared `ai-elements` and `ChatMessageInput` components,
-> ~880 lines in the API query layer.
+> ~46,800 lines of TypeScript/TSX in `site/src/pages/AgentsPage/`,
+> ~6,800 lines in shared `ai-elements` and `ChatMessageInput` components,
+> ~950 lines in the API query layer.
 
 ## Overview
 
@@ -55,9 +55,11 @@ AgentsPage (state owner: chat list, models, archive mutations, watchChats WS)
             │    ├─ AgentChatInput (Lexical-based rich text input)
             │    └─ RightPanel (desktop VNC, git panel, diff viewer)
             ├─ AgentSettingsPageView (multi-section admin settings)
+            │    ├─ UserCompactionThresholdSettings (per-model personal compaction thresholds)
             │    ├─ ChatModelAdminPanel (provider + model CRUD)
             │    ├─ MCPServerAdminPanel (MCP server config CRUD)
-            │    └─ LimitsTab (usage limit configuration)
+            │    ├─ LimitsTab (usage limit configuration)
+            │    └─ TemplateAllowlistSection (deployment-wide template allowlist)
             └─ AgentAnalyticsPage (cost summary, PR insights)
 
 AgentEmbedPage (alternate root for VS Code iframe)
@@ -80,14 +82,22 @@ AgentEmbedPage (alternate root for VS Code iframe)
 
 ### Real-time updates
 
-Two WebSocket/SSE connections:
+Primary real-time connections:
 1. **`watchChats()`** — global, owned by `AgentsPage`. Receives status, title,
    and diff_status changes for all chats. Updates the sidebar in real time.
 2. **`watchChat(chatId)`** — per-chat, owned by `useChatStore` inside
    `AgentDetail`. Receives `message_part`, `message`, `status`, `error`,
    `retry`, and `queue_update` events.
+3. **`watchChatGit(chatId)`** — chat-scoped Git WebSocket used by the right
+   panel / diff flows.
+4. **`watchChatDesktop(chatId)`** — chat-scoped desktop WebSocket for the
+   embedded VNC/desktop experience.
 
-Both use `createReconnectingWebSocket` for automatic reconnection.
+There is also an ancillary `watchWorkspace()` subscription for workspace agent
+status that isn't part of `/api/experimental/chats` but is part of the Agent
+Detail experience.
+
+The chat streams use `createReconnectingWebSocket` for automatic reconnection.
 
 ### React Query cache management
 
@@ -107,13 +117,13 @@ the server if events are missed.
 
 ## Chat Store (`ChatContext.ts`)
 
-The chat store is the most complex piece of frontend state (~970 lines). It is
+The chat store is the most complex piece of frontend state (~1,100 lines). It is
 a **framework-agnostic external store** consumed via `useSyncExternalStore`.
 
 ### Architecture
 
 ```
-createChatStore()          — Pure store: Map<id, ChatMessage>, StreamState, etc.
+createChatStore()          — Pure store: Map<id, ChatMessage>, StreamState, retry/reconnect state, etc.
   ↓
 useChatStore()             — React hook: wires store to REST queries + WebSocket
   ↓
@@ -138,8 +148,9 @@ useChatSelector(selector)  — Thin wrapper: only re-renders on selected slice c
 | `message_part` | Buffered → `applyMessageParts` | Updates `StreamState` via reducer |
 | `message` | Collected → `upsertDurableMessages` | Updates `messagesByID` + `orderedMessageIDs` |
 | `status` | `setChatStatus` | Clears stream/retry state, updates sidebar |
-| `error` | `setStreamError` | Sets error state, updates sidebar |
+| `error` | `setStreamError` | Sets terminal error state, updates sidebar |
 | `retry` | Clears stream state | Sets retry info |
+| socket reconnect schedule | `setReconnectState` | Surfaces reconnect/backoff state when appropriate |
 | `queue_update` | `setQueuedMessages` | Updates store + React Query cache |
 
 ---
@@ -206,17 +217,18 @@ Exposes an imperative ref (`ChatMessageInputRef`) with: `insertText`, `clear`,
 
 ## Admin Settings (`AgentSettingsPageView`)
 
-Multi-section settings view (~820 lines):
+Multi-section settings view (~1,080 lines):
 
 | Section | Content | Access |
 |---|---|---|
-| `behavior` | Personal prompt, system prompt, desktop toggle, autostop TTL | Personal: all users. System: admin only |
+| `behavior` | Personal prompt, system prompt, user compaction thresholds, desktop toggle, autostop TTL | Personal: all users. System/desktop/TTL: admin only |
 | `providers` | Provider CRUD (API keys, base URLs) | Admin |
 | `models` | Model config CRUD (per-provider settings, pricing) | Admin |
 | `mcp-servers` | MCP server config CRUD | Admin |
 | `limits` | Usage limit config (global, per-user, per-group overrides) | Admin |
 | `usage` | Cost summaries, per-user drill-down | Admin |
 | `insights` | PR insights | Admin |
+| `templates` | Deployment-wide template allowlist for chat-created workspaces | Admin |
 
 ---
 
@@ -224,18 +236,19 @@ Multi-section settings view (~820 lines):
 
 ### REST Endpoints (via `ExperimentalApiMethods`)
 
-~40 methods organized into:
+~50 methods organized into:
 - **Core Chat CRUD**: getChats, getChat, createChat, updateChat, getChatMessages,
   createChatMessage, editChatMessage, interruptChat
 - **Queue**: deleteChatQueuedMessage, promoteChatQueuedMessage
 - **Git/Diff**: getChatGitChanges, getChatDiffContents
 - **Models**: getChatModels
-- **Config**: system prompt, desktop enabled, workspace TTL, user prompt
+- **Config**: system prompt, desktop enabled, workspace TTL, template allowlist,
+  user prompt, per-model user compaction thresholds
 - **Provider/Model Config**: CRUD for providers and model configs
 - **Cost/Insights**: cost summaries, per-user costs, PR insights
 - **Usage Limits**: config, status, user overrides, group overrides
 - **MCP Servers**: CRUD for MCP server configs
-- **Files**: uploadChatFile
+- **Files**: uploadChatFile, getChatFileText
 
 ### SSE/WebSocket Streams
 
@@ -263,12 +276,12 @@ flow:
 
 ### Architecture
 
-1. **`AgentDetail.tsx` is ~900 lines.** It fetches individual chat, paginated
+1. **`AgentDetail.tsx` is ~980 lines.** It fetches individual chat, paginated
    messages, parent chat, workspace, models, SSH config, desktop enabled, and
    owns model selection, send/edit/interrupt mutations, and streaming state. Is
    there a decomposition plan?
 
-2. **`ChatContext.ts` is ~970 lines.** The chat store mixes framework-agnostic
+2. **`ChatContext.ts` is ~1,100 lines.** The chat store mixes framework-agnostic
    store logic with React-specific wiring (WebSocket lifecycle, REST sync, React
    Query cache updates). Should these be separated?
 
@@ -288,10 +301,10 @@ flow:
 
 ### Testing
 
-6. **`ChatContext.test.tsx` is 3,039 lines** — the largest test file. Is this
+6. **`ChatContext.test.tsx` is 3,240 lines** — the largest test file. Is this
    sustainable? Are there flakiness issues?
 
-7. **`AgentDetail.stories.tsx` is 1,023 lines.** How much of the agent UX is
+7. **`AgentDetail.stories.tsx` is 1,026 lines.** How much of the agent UX is
    covered by Storybook vs integration tests?
 
 ### Design
@@ -305,7 +318,7 @@ flow:
    to ensure new tools get dedicated renderers, or is the generic fallback
    considered sufficient?
 
-10. **`AgentSettingsPageView` is ~820 lines with 7 sections.** Each section is
+10. **`AgentSettingsPageView` is ~1,080 lines with 8 sections.** Each section is
     essentially a mini-page. Should these be separate route-level components
     rather than sections within one view?
 
