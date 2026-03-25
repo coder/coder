@@ -121,7 +121,10 @@ func TestCloserStack_Context(t *testing.T) {
 	err = uut.push("fc1", fc1)
 	require.NoError(t, err)
 	cancel()
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+	// Use a fresh context for Eventually since we just canceled
+	// ctx above to trigger the closer stack's context handler.
+	waitCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(waitCtx, t, func(_ context.Context) bool {
 		uut.Lock()
 		defer uut.Unlock()
 		return uut.closed
