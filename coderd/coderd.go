@@ -1155,7 +1155,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
-			r.Post("/by-workspace", api.chatsByWorkspace)
+			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)

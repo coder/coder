@@ -3028,8 +3028,8 @@ class ExperimentalApiMethods {
 	getChatsByWorkspace = async (
 		workspaceIds: readonly string[],
 	): Promise<Record<string, string>> => {
-		const res = await this.axios.post("/api/experimental/chats/by-workspace", {
-			workspace_ids: workspaceIds,
+		const res = await this.axios.get("/api/experimental/chats/by-workspace", {
+			params: { workspace_ids: workspaceIds.join(",") },
 		});
 		return res.data;
 	};

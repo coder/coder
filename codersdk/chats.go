@@ -2032,12 +2032,11 @@ func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (Cha
 // non-archived chat ID for each requested workspace. Workspaces with
 // no chats are omitted from the response.
 func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
-	req := struct {
-		WorkspaceIDs []uuid.UUID `json:"workspace_ids"`
-	}{
-		WorkspaceIDs: workspaceIDs,
+	ids := make([]string, 0, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		ids = append(ids, id.String())
 	}
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/by-workspace", req)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/by-workspace?workspace_ids=%s", strings.Join(ids, ",")), nil)
 	if err != nil {
 		return nil, err
 	}

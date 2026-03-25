@@ -220,32 +220,38 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// TODO: promote to a named codersdk type when the endpoint
-	// stabilizes and is included in public API docs.
-	var req struct {
-		WorkspaceIDs []uuid.UUID `json:"workspace_ids"`
-	}
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	if len(req.WorkspaceIDs) == 0 {
+	idsParam := r.URL.Query().Get("workspace_ids")
+	if idsParam == "" {
 		httpapi.Write(ctx, rw, http.StatusOK, map[uuid.UUID]uuid.UUID{})
 		return
 	}
+
+	raw := strings.Split(idsParam, ",")
 
 	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
 	// site/src/components/PaginationWidget/utils.ts.
 	// If the page size changes, this limit should too.
 	const maxWorkspaceIDs = 25
-	if len(req.WorkspaceIDs) > maxWorkspaceIDs {
+	if len(raw) > maxWorkspaceIDs {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Too many workspace IDs, maximum is %d.", maxWorkspaceIDs),
 		})
 		return
 	}
 
-	chats, err := api.Database.GetChatsByWorkspaceIDs(ctx, req.WorkspaceIDs)
+	workspaceIDs := make([]uuid.UUID, 0, len(raw))
+	for _, s := range raw {
+		id, err := uuid.Parse(strings.TrimSpace(s))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid workspace ID %q: %s", s, err),
+			})
+			return
+		}
+		workspaceIDs = append(workspaceIDs, id)
+	}
+
+	chats, err := api.Database.GetChatsByWorkspaceIDs(ctx, workspaceIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chats by workspace.",
