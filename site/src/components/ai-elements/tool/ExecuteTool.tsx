@@ -39,9 +39,14 @@ export const ExecuteTool: React.FC<{
 	const [commandExpanded, setCommandExpanded] = useState(false);
 	const [commandOverflows, setCommandOverflows] = useState(false);
 	const commandRef = (node: HTMLElement | null) => {
-		if (node) {
+		if (!node) return;
+		const measure = () => {
 			setCommandOverflows(node.scrollWidth > node.clientWidth);
-		}
+		};
+		measure();
+		const ro = new ResizeObserver(measure);
+		ro.observe(node);
+		return () => ro.disconnect();
 	};
 
 	// Check whether the output overflows the collapsed height so we
