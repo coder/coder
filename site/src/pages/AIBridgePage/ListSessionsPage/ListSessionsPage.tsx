@@ -9,7 +9,6 @@ import type { FC } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
-// import { useClientFilterMenu } from "./AISessionListFilter/ClientFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 const AISessionListPage: FC = () => {
