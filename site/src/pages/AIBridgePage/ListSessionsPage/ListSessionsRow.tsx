@@ -18,6 +18,7 @@ import {
 	getProviderIconName,
 	roundTokenDisplay,
 } from "../utils";
+import { TokenBadges } from "../TokenBadges";
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
@@ -111,40 +112,10 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-32">
 				<div className="flex items-center">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-0 rounded-e-none">
-									<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
-									<span className="truncate min-w-0 w-full">
-										{roundTokenDisplay(
-											session.token_usage_summary.input_tokens,
-										)}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{session.token_usage_summary.input_tokens} Input Tokens
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
-									<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
-									<span className="truncate min-w-0 w-full">
-										{roundTokenDisplay(
-											session.token_usage_summary.output_tokens,
-										)}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{session.token_usage_summary.output_tokens} Output Tokens
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<TokenBadges
+						inputTokens={session.token_usage_summary.input_tokens}
+						outputTokens={session.token_usage_summary.output_tokens}
+					/>
 				</div>
 			</TableCell>
 			<TableCell className="w-32">
