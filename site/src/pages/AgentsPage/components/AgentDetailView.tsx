@@ -572,11 +572,21 @@ const ScrollAnchoredContainer: FC<{
 		observer.observe(sentinel);
 	}, [isFetchingMoreMessages]);
 
+	// Pagination prepend: preserve scroll position when older
+	// messages are loaded. Track scrollHeight continuously during
+	// fetch to exclude concurrent streaming growth from the delta.
 	useEffect(() => {
 		if (isFetchingMoreMessages) {
-			prevScrollHeightRef.current =
-				scrollContainerRef.current?.scrollHeight ?? 0;
-			return;
+			const container = scrollContainerRef.current;
+			if (!container) return;
+			prevScrollHeightRef.current = container.scrollHeight;
+			const observer = new ResizeObserver(() => {
+				if (scrollContainerRef.current) {
+					prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+				}
+			});
+			observer.observe(container);
+			return () => observer.disconnect();
 		}
 
 		const container = scrollContainerRef.current;
