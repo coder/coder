@@ -880,7 +880,7 @@ func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string
 //   - Requests to known AI providers are rewritten to point at aibridged.
 //     In centralized mode the Coder token is already in the
 //     Authorization header. For BYOK clients that cannot set custom
-//     headers (e.g. Copilot), the proxy injects the BYOK header.
+//     headers, the proxy injects the BYOK header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -980,8 +980,8 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 // injectBYOKHeaderIfNeeded sets HeaderCoderBYOKToken when the
 // Authorization header carries a bearer token that differs from the
 // Coder token, indicating the client is using its own LLM
-// credentials. Clients that can set custom headers (Claude Code, Codex)
-// do this themselves; this handles clients that cannot (e.g. Copilot).
+// credentials. Clients that can set custom headers
+// do this themselves; this handles clients that cannot.
 //
 // In centralized mode, Authorization carries the Coder token
 // itself (sent by the client as ANTHROPIC_AUTH_TOKEN), so aibridged

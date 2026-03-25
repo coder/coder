@@ -13,8 +13,7 @@ import (
 // headers unchanged instead of injecting the centralized key.
 //
 // The AI Bridge proxy also sets this header automatically for clients
-// that use per-user LLM credentials but cannot set custom headers
-// (e.g. GitHub Copilot).
+// that use per-user LLM credentials but cannot set custom headers.
 const HeaderCoderBYOKToken = "X-Coder-AI-Governance-BYOK-Token" //nolint:gosec // This is a header name, not a credential.
 
 // IsBYOK reports whether the request is using BYOK mode, determined

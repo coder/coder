@@ -1428,7 +1428,7 @@ func TestProxy_MITM(t *testing.T) {
 				certPool = getProxyCertPool(t)
 			}
 
-			// Simulate the primary proxy use case (Copilot): the Coder
+			// Simulate the primary proxy use case: the Coder
 			// token is in Proxy-Authorization, and the user's
 			// own LLM token is in Authorization.
 			client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
@@ -1489,7 +1489,7 @@ func TestProxy_MITM(t *testing.T) {
 
 // TestProxy_MITM_BYOKInjection verifies that the proxy sets the BYOK header
 // when Authorization carries a bearer token different from the Coder
-// token. This handles clients like Copilot that send per-user LLM credentials
+// token. This handles clients that send per-user LLM credentials
 // but cannot set custom headers.
 func TestProxy_MITM_BYOKInjection(t *testing.T) {
 	t.Parallel()
@@ -1514,8 +1514,8 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			// BYOK: Authorization carries the user's token,
 			// which differs from the Coder token. The proxy injects
 			// the BYOK header.
-			name:          "Authorization differs from Coder token (Copilot)",
-			authzHeader:   "Bearer ghu_copilot-user-token",
+			name:          "Authorization differs from Coder token",
+			authzHeader:   "Bearer client-access-token",
 			expectBYOK:    true,
 			expectBYOKVal: coderToken,
 		},
@@ -1523,7 +1523,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			// Client already set the BYOK header (Claude Code, Codex).
 			// The proxy must not overwrite it.
 			name:          "BYOK header already set by client — not overwritten",
-			authzHeader:   "Bearer claude-code-user-token",
+			authzHeader:   "Bearer client-access-token",
 			byokHeader:    "client-set-coder-token",
 			expectBYOK:    true,
 			expectBYOKVal: "client-set-coder-token",
@@ -2033,9 +2033,8 @@ func TestUpstreamProxy(t *testing.T) {
 				certPool = getProxyCertPool(t)
 			}
 
-			// Create HTTP client configured to use aiproxy. Simulate
-			// the Copilot pattern: Coder token in Proxy-Authorization,
-			// user's LLM token in Authorization.
+			// Create HTTP client configured to use aiproxy. Coder token
+			// in Proxy-Authorization, user's LLM token in Authorization.
 			client := newProxyClient(t, srv, makeProxyAuthHeader("test-coder-token"), certPool, false)
 
 			// Make request through aiproxy.
