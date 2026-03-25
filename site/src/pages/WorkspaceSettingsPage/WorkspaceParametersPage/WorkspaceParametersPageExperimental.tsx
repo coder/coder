@@ -16,6 +16,7 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
@@ -37,6 +38,11 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
+
+	const [confirmingRestart, setConfirmingRestart] = useState<{
+		open: boolean;
+		buildParameters?: WorkspaceBuildParameter[];
+	}>({ open: false });
 
 	// autofill the form with the workspace build parameters from the latest build
 	const {
@@ -217,7 +223,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		// manually loaded the page or workspace state changed after load) then we
 		// could still submit a build that will fail.
 		if (workspace.latest_build.status === "running") {
-			restartWithParameters.mutate(onlyMutableValues);
+			setConfirmingRestart({ open: true, buildParameters: onlyMutableValues });
 		} else {
 			startWithParameters.mutate(onlyMutableValues);
 		}
@@ -316,6 +322,25 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					}
 				/>
 			)}
+
+			<ConfirmDialog
+				type="info"
+				hideCancel={false}
+				open={confirmingRestart.open}
+				onConfirm={() => {
+					restartWithParameters.mutate(confirmingRestart.buildParameters ?? []);
+					setConfirmingRestart({ open: false });
+				}}
+				onClose={() => setConfirmingRestart({ open: false })}
+				title="Restart your workspace?"
+				confirmText="Restart"
+				description={
+					<>
+						Restarting your workspace will stop all running processes and{" "}
+						<strong>delete non-persistent data</strong>.
+					</>
+				}
+			/>
 		</div>
 	);
 };
