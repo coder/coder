@@ -4500,7 +4500,6 @@ func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
 }
 
-
 func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
 	if strings.TrimSpace(provider.APIKey) != "" {
 		return true
