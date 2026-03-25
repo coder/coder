@@ -3,7 +3,6 @@ import type {
 	AIBridgeThread,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { Link } from "components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
@@ -13,9 +12,9 @@ import {
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import type { FC, PropsWithChildren } from "react";
 import { Link as RouterLink } from "react-router";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
-import { Spinner } from "#/components/Spinner/Spinner";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
