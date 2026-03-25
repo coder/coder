@@ -4812,9 +4812,9 @@ func TestChatSystemPrompt(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		resp := getChatSystemPrompt(t, ctx)
-		require.Empty(t, resp.SystemPrompt)
-		require.True(t, resp.IncludeDefaultSystemPrompt)
-		require.NotEmpty(t, resp.DefaultSystemPrompt)
+		require.Equal(t, "", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt, "should default to true")
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt, "should return the built-in default prompt for preview")
 	})
 
 	t.Run("AdminCanSet", func(t *testing.T) {
@@ -4875,6 +4875,29 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		resp := getChatSystemPrompt(t, ctx)
 		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+		require.NotEmpty(t, resp.DefaultSystemPrompt, "built-in default prompt should not be empty")
+	})
+
+	t.Run("SavesBothFieldsTogether", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Custom instructions for all users.",
+			IncludeDefaultSystemPrompt: false,
+		})
+
+		resp := getChatSystemPrompt(t, ctx)
+		require.Equal(t, "Custom instructions for all users.", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Different instructions.",
+			IncludeDefaultSystemPrompt: true,
+		})
+
+		resp = getChatSystemPrompt(t, ctx)
+		require.Equal(t, "Different instructions.", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
 	})
 
 	t.Run("PromptComposition", func(t *testing.T) {
