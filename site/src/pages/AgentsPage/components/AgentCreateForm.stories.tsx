@@ -16,21 +16,6 @@ const modelOptions = [
 	},
 ] as const;
 
-const modelConfigs = [
-	{
-		id: modelConfigID,
-		provider: "openai",
-		model: "gpt-4o",
-		display_name: "GPT-4o",
-		enabled: true,
-		is_default: true,
-		context_limit: 200000,
-		compression_threshold: 70,
-		created_at: "2026-02-18T00:00:00.000Z",
-		updated_at: "2026-02-18T00:00:00.000Z",
-	},
-] as const;
-
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
@@ -39,25 +24,10 @@ const meta: Meta<typeof AgentCreateForm> = {
 		onCreateChat: fn(),
 		isCreating: false,
 		createError: undefined,
-		modelCatalog: {
-			providers: [
-				{
-					provider: "openai",
-					available: true,
-					models: [
-						{
-							id: "openai:gpt-4o",
-							provider: "openai",
-							model: "gpt-4o",
-							display_name: "GPT-4o",
-						},
-					],
-				},
-			],
-		},
+		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
-		modelConfigs: [...modelConfigs],
+		modelConfigs: [],
 		isModelConfigsLoading: false,
 	},
 	beforeEach: () => {
