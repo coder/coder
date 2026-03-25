@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { docs } from "utils/docs";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	Building2Icon,
@@ -98,7 +99,7 @@ export const AppLink: FC<AppLinkProps> = ({
 			<>
 				Port forwarding will not work because hostname is too long, see the{" "}
 				<Link
-					href="https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard"
+					href={docs("/user-guides/workspace-access/port-forwarding#dashboard")}
 					target="_blank"
 					size="sm"
 				>

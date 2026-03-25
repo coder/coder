@@ -2,6 +2,7 @@ import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
+import { docs } from "utils/docs";
 import {
 	Badges,
 	EnterpriseBadge,
@@ -89,7 +90,7 @@ export const AppearanceSettingsPageView: FC<
 						<PopoverPaywall
 							message="Appearance"
 							description="With a Premium license, you can customize the appearance and branding of your deployment."
-							documentationLink="https://coder.com/docs/admin/appearance"
+							documentationLink={docs("/admin/appearance")}
 						/>
 					</TooltipContent>
 				</Tooltip>

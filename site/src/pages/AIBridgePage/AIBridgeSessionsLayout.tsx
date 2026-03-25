@@ -1,4 +1,5 @@
 import { Link } from "components/Link/Link";
+import { docs } from "utils/docs";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
@@ -20,7 +21,7 @@ const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
 				<PageHeaderSubtitle>
 					Centralized auditing for LLM usage across your organization.{" "}
 					<Link
-						href="https://coder.com/docs/ai-coder/ai-governance"
+						href={docs("/ai-coder/ai-governance")}
 						className="ml-auto"
 						target="_blank"
 					>
