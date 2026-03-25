@@ -23,7 +23,7 @@ export const WorkspaceBuildCancelDialog: FC<
 			title="Cancel workspace build"
 			description={`Are you sure you want to cancel the build for workspace "${workspace.name}"? This will ${action}.`}
 			confirmText="Confirm"
-			cancelText="Discard"
+			cancelText="Never mind"
 			onClose={onClose}
 			onConfirm={onConfirm}
 			type="delete"

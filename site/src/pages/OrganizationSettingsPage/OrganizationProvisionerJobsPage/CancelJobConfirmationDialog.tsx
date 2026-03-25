@@ -44,7 +44,7 @@ export const CancelJobConfirmationDialog: FC<
 			title="Cancel provisioner job"
 			description={`Are you sure you want to cancel the provisioner job "${job.id}"? This operation will result in the associated workspaces not getting created.`}
 			confirmText="Confirm"
-			cancelText="Discard"
+			cancelText="Never mind"
 			confirmLoading={cancelMutation.isPending}
 			onConfirm={async () => {
 				const mutation = cancelMutation.mutateAsync(job, {
