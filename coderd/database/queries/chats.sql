@@ -241,7 +241,8 @@ INSERT INTO chat_messages (
     context_limit,
     compressed,
     total_cost_micros,
-    runtime_ms
+    runtime_ms,
+    provider_response_id
 )
 SELECT
     @chat_id::uuid,
@@ -260,7 +261,8 @@ SELECT
     NULLIF(UNNEST(@context_limit::bigint[]), 0),
     UNNEST(@compressed::boolean[]),
     NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
-    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
+    NULLIF(UNNEST(@runtime_ms::bigint[]), 0),
+    NULLIF(UNNEST(@provider_response_id::text[]), '')
 RETURNING
     *;
 

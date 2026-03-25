@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
+import { asRecord, asString } from "#/components/ai-elements/runtimeTypeUtils";
 import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
@@ -97,6 +97,7 @@ export const mergeTools = (
 			result: result?.result,
 			isError: result?.isError ?? false,
 			status: result ? (result.isError ? "error" : "completed") : "completed",
+			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 		});
 	}
 
@@ -108,6 +109,7 @@ export const mergeTools = (
 				result: result.result,
 				isError: result.isError,
 				status: result.isError ? "error" : "completed",
+				mcpServerConfigId: result.mcpServerConfigId,
 			});
 		}
 	}
@@ -148,6 +150,7 @@ export const parseMessageContent = (
 					id,
 					name: part.tool_name || "Tool",
 					args: part.args,
+					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -168,6 +171,7 @@ export const parseMessageContent = (
 					name,
 					result: part.result,
 					isError: parseToolResultIsError(name, part, part.result),
+					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;

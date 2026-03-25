@@ -4,11 +4,11 @@ import type {
 	Organization,
 	RoleSyncSettings,
 } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "#/components/Button/Button";
 
 interface DownloadPolicyButtonProps {
 	syncSettings: RoleSyncSettings | GroupSyncSettings | undefined;

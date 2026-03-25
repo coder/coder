@@ -3,27 +3,29 @@ import type {
 	DiffLineAnnotation,
 	FileDiffMetadata,
 	SelectedLineRange,
+	VirtualFileMetrics,
 } from "@pierre/diffs";
-import { FileDiff } from "@pierre/diffs/react";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import {
-	DIFFS_FONT_STYLE,
-	getDiffViewerOptions,
-} from "components/ai-elements/tool/utils";
-import { FileIcon } from "components/FileIcon/FileIcon";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Skeleton } from "components/Skeleton/Skeleton";
+import { Virtualizer } from "@pierre/diffs";
+import { FileDiff, VirtualizerContext } from "@pierre/diffs/react";
 import { ChevronRightIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
-	memo,
 	type ReactNode,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	DIFFS_FONT_STYLE,
+	getDiffViewerOptions,
+} from "#/components/ai-elements/tool/utils";
+import { FileIcon } from "#/components/FileIcon/FileIcon";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 
 // -------------------------------------------------------------------
@@ -103,87 +105,16 @@ const FILE_TREE_THRESHOLD = 1000;
 
 /**
  * Extra CSS injected via the diff viewer's `unsafeCSS` option to make
- * file headers sticky and adjust metadata layout.
+ * file headers sticky with a solid background. The shared header
+ * styling (font sizing, change-type badges, stat-count pills) lives
+ * in `diffViewerCSS` from utils.ts and is already included in the
+ * base options returned by `getDiffViewerOptions`.
  */
 const STICKY_HEADER_CSS = [
-	// Layout and sticky behavior.
 	"[data-diffs-header] {",
 	"  position: sticky; top: 0; z-index: 10;",
-	"  font-size: 13px;",
-	"  min-height: 32px !important;",
-	"  padding-block: 0 !important;",
-	"  padding-inline: 12px !important;",
-	"  border-bottom: 1px solid hsl(var(--border-default));",
 	"  background-color: hsl(var(--surface-secondary)) !important;",
-	"}",
-
-	// Keep the title in the site's sans-serif font, just a
-	// touch smaller than the surrounding header text.
-	"[data-diffs-header] [data-title] {",
-	"  font-size: 12px;",
-	"  color: hsl(var(--content-primary));",
-	"}",
-
-	// Hide the library's built-in change-type SVG icons and
-	// replace them with a single-letter badge (A/D/M/R) via
-	// CSS-generated content. The letter mirrors the file tree
-	// sidebar and works even when the tree is hidden in narrow
-	// layouts.
-	"[data-change-icon] { display: none !important; }",
-	"[data-diffs-header] [data-header-content]::before {",
-	"  font-size: 11px;",
-	"  font-weight: 600;",
-	"  flex-shrink: 0;",
-	"}",
-	"[data-diffs-header][data-change-type='new'] [data-header-content]::before {",
-	"  content: 'A';",
-	"  color: hsl(var(--git-added));",
-	"}",
-	"[data-diffs-header][data-change-type='change'] [data-header-content]::before {",
-	"  content: 'M';",
-	"  color: hsl(var(--git-modified));",
-	"}",
-	"[data-diffs-header][data-change-type='deleted'] [data-header-content]::before {",
-	"  content: 'D';",
-	"  color: hsl(var(--git-deleted));",
-	"}",
-	"[data-diffs-header][data-change-type='rename-pure'] [data-header-content]::before,",
-	"[data-diffs-header][data-change-type='rename-changed'] [data-header-content]::before {",
-	"  content: 'R';",
-	"  color: hsl(var(--git-modified));",
-	"}",
-
-	// Stat counts styled as compact pill badges matching the
-	// DiffStatBadge component used in the PR header.
-	"[data-diffs-header] [data-metadata] {",
-	"  flex-direction: row-reverse;",
-	"  gap: 0 !important;",
-	"}",
-	"[data-diffs-header] [data-additions-count],",
-	"[data-diffs-header] [data-deletions-count] {",
-	"  font-family: var(--diffs-font-family, var(--diffs-font-fallback));",
-	"  font-size: 12px;",
-	"  font-weight: 500;",
-	"  line-height: 20px;",
-	"  padding-inline: 6px;",
-	"  border-radius: 3px;",
-	"}",
-	"[data-diffs-header] [data-additions-count] {",
-	"  color: hsl(var(--git-added-bright)) !important;",
-	"  background-color: hsl(var(--surface-git-added));",
-	"}",
-	"[data-diffs-header] [data-deletions-count] {",
-	"  color: hsl(var(--git-deleted-bright)) !important;",
-	"  background-color: hsl(var(--surface-git-deleted));",
-	"}",
-	// When both counts are present, flatten the touching inner
-	// edges so they form one joined badge. DOM order is
-	// [deletions][additions]; row-reverse puts additions left.
-	"[data-deletions-count] + [data-additions-count] {",
-	"  border-radius: 3px 0 0 3px;",
-	"}",
-	"[data-deletions-count]:has(+ [data-additions-count]) {",
-	"  border-radius: 0 3px 3px 0;",
+	"  padding-block: 0 !important;",
 	"}",
 ].join(" ");
 
@@ -213,14 +144,30 @@ const FILE_TREE_WIDTH = 300;
 // -------------------------------------------------------------------
 
 /**
- * Estimated height per line in the diff viewer (px). Derived from
- * the --diffs-font-size (11px) and --diffs-line-height (1.5)
- * values set via DIFFS_FONT_STYLE, plus 1px for the border/gap.
+ * Estimated height per line in the diff viewer (px). The
+ * library's shadow DOM applies box-sizing: border-box to all
+ * elements, and code lines have no padding or border, so the
+ * rendered height equals the CSS line-height: 11px × 1.5 = 16.5.
  */
-const LINE_HEIGHT_PX = 17.5;
+const LINE_HEIGHT_PX = 16.5;
 
 /** Height of the file header row rendered by @pierre/diffs. */
 const HEADER_HEIGHT_PX = 36;
+
+/**
+ * Metrics that tell the @pierre/diffs virtualizer how tall each
+ * element actually is after our CSS overrides. Without these the
+ * library falls back to its built-in defaults (20 px lines,
+ * 44 px headers, 32 px separators) which are larger than our
+ * custom styling, causing visible blank buffers in the viewport.
+ */
+const VIRTUALIZER_METRICS: VirtualFileMetrics = {
+	hunkLineCount: 50,
+	lineHeight: LINE_HEIGHT_PX,
+	diffHeaderHeight: 32, // 32 px min-height (border-box includes borders)
+	hunkSeparatorHeight: 28, // height: 28px !important in SEPARATOR_CSS
+	fileGap: 2, // padding-bottom: max(0, gap-block - 6px) = 2px
+};
 
 /**
  * Estimate the rendered pixel height of a file diff so the
@@ -406,6 +353,70 @@ const FileTreeNodeView: FC<{
 };
 
 // -------------------------------------------------------------------
+// Virtualized scroll container
+// -------------------------------------------------------------------
+
+/**
+ * Wraps the diff list in a Radix ScrollArea and wires up the
+ * @pierre/diffs Virtualizer. Extracted into its own component so
+ * that the useCallback for ref-callback stability lives here
+ * instead of in DiffViewer. This lets the React Compiler skip
+ * only this small wrapper (where it can't preserve useCallback)
+ * while still optimizing the much larger parent.
+ *
+ * The ref callback is placed on a content div *inside* the
+ * ScrollArea, then walks up with closest() to the Radix viewport.
+ * React fires children's refs bottom-up during commit, so every
+ * VirtualizedFileDiff instance has already connected to the
+ * virtualizer by the time this ref fires and calls setup().
+ */
+const DiffScrollContainer: FC<{
+	children: ReactNode;
+	className?: string;
+	diffViewportRef: React.RefObject<HTMLElement | null>;
+}> = ({ children, className, diffViewportRef }) => {
+	const [virtualizer] = useState(() => new Virtualizer());
+
+	// useCallback is required for correctness: in React 19 an
+	// unstable ref callback triggers old-cleanup → new-callback
+	// on every render, which calls virtualizer.cleanUp() and
+	// wipes the observer map. The compiler can't preserve this
+	// useCallback, but that only causes it to skip this small
+	// wrapper — not the entire DiffViewer.
+	const contentRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			const viewport = node?.closest<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			);
+			if (!viewport) return;
+
+			diffViewportRef.current = viewport;
+			virtualizer.setup(viewport);
+
+			return () => {
+				virtualizer.cleanUp();
+				diffViewportRef.current = null;
+			};
+		},
+		[virtualizer, diffViewportRef],
+	);
+
+	return (
+		<ScrollArea
+			className={className}
+			scrollBarClassName="w-1.5"
+			viewportClassName="[&>div]:!block"
+		>
+			<VirtualizerContext value={virtualizer}>
+				<div ref={contentRef} className="min-w-0 text-xs">
+					{children}
+				</div>
+			</VirtualizerContext>
+		</ScrollArea>
+	);
+};
+
+// -------------------------------------------------------------------
 // Lazy file diff wrapper
 // -------------------------------------------------------------------
 
@@ -418,71 +429,72 @@ const FileTreeNodeView: FC<{
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
-const LazyFileDiff = memo<{
+interface LazyFileDiffProps {
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	selectedLines?: SelectedLineRange | null;
-}>(
-	({
-		fileDiff,
-		options,
-		lineAnnotations,
-		renderAnnotation: renderAnnotationProp,
-		selectedLines,
-	}) => {
-		const placeholderRef = useRef<HTMLDivElement>(null);
-		const [visible, setVisible] = useState(false);
+}
 
-		useEffect(() => {
-			const el = placeholderRef.current;
-			if (!el || visible) {
-				return;
-			}
-			const observer = new IntersectionObserver(
-				([entry]) => {
-					if (entry.isIntersecting) {
-						setVisible(true);
-						observer.disconnect();
-					}
-				},
-				// Pre-load files that are within one viewport-height of
-				// the visible area so they are ready before the user
-				// scrolls to them.
-				{ rootMargin: "100% 0px" },
-			);
-			observer.observe(el);
-			return () => observer.disconnect();
-		}, [visible]);
+const LazyFileDiff: FC<LazyFileDiffProps> = ({
+	fileDiff,
+	options,
+	lineAnnotations,
+	renderAnnotation: renderAnnotationProp,
+	selectedLines,
+}) => {
+	const placeholderRef = useRef<HTMLDivElement>(null);
+	const [visible, setVisible] = useState(false);
 
-		if (!visible) {
-			return (
-				<div
-					ref={placeholderRef}
-					style={{ height: estimateDiffHeight(fileDiff) }}
-					className="p-4 space-y-2"
-				>
-					<Skeleton className="h-4 w-48" />
-					<Skeleton className="h-3 w-full" />
-					<Skeleton className="h-3 w-full" />
-					<Skeleton className="h-3 w-3/4" />
-				</div>
-			);
+	useEffect(() => {
+		const el = placeholderRef.current;
+		if (!el || visible) {
+			return;
 		}
-
-		return (
-			<FileDiff
-				fileDiff={fileDiff}
-				options={options}
-				style={DIFFS_FONT_STYLE}
-				lineAnnotations={lineAnnotations}
-				renderAnnotation={renderAnnotationProp}
-				selectedLines={selectedLines}
-			/>
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting) {
+					setVisible(true);
+					observer.disconnect();
+				}
+			},
+			// Pre-load files that are within one viewport-height of
+			// the visible area so they are ready before the user
+			// scrolls to them.
+			{ rootMargin: "100% 0px" },
 		);
-	},
-);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [visible]);
+
+	if (!visible) {
+		return (
+			<div
+				ref={placeholderRef}
+				style={{ height: estimateDiffHeight(fileDiff) }}
+				className="p-4 space-y-2"
+			>
+				<Skeleton className="h-4 w-48" />
+				<Skeleton className="h-3 w-full" />
+				<Skeleton className="h-3 w-full" />
+				<Skeleton className="h-3 w-3/4" />
+			</div>
+		);
+	}
+
+	return (
+		<FileDiff
+			fileDiff={fileDiff}
+			options={options}
+			metrics={VIRTUALIZER_METRICS}
+			style={DIFFS_FONT_STYLE}
+			lineAnnotations={lineAnnotations}
+			renderAnnotation={renderAnnotationProp}
+			selectedLines={selectedLines}
+		/>
+	);
+};
 
 // -------------------------------------------------------------------
 // Main component
@@ -751,34 +763,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	}, [scrollToFile, onScrollToFileComplete]);
 
 	// ---------------------------------------------------------------
-	// Viewport height for the last-file min-height trick: setting
-	// min-height on the last file wrapper lets CSS handle the
-	// "be at least viewport-tall" logic, removing the need for a
-	// separate spacer div and a second ResizeObserver. Uses a ref
-	// callback (same pattern as containerRef) so the measurement
-	// lands during commit — before useEffect-based scroll logic.
-	// ---------------------------------------------------------------
-	const [viewportHeight, setViewportHeight] = useState(0);
-	const [scrollAreaEl, setScrollAreaEl] = useState<HTMLDivElement | null>(null);
-
-	useEffect(() => {
-		const vp = scrollAreaEl?.querySelector<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		diffViewportRef.current = vp ?? null;
-		if (!vp) return;
-		setViewportHeight(vp.clientHeight);
-		const ro = new ResizeObserver(([entry]) => {
-			setViewportHeight(entry.contentRect.height);
-		});
-		ro.observe(vp);
-		return () => {
-			ro.disconnect();
-			diffViewportRef.current = null;
-		};
-	}, [scrollAreaEl]);
-
-	// ---------------------------------------------------------------
 	// Loading state
 	// ---------------------------------------------------------------
 	if (isLoading) {
@@ -844,47 +828,44 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 							</nav>
 						</ScrollArea>
 					)}
-					{/* Diff list */}
-					<ScrollArea
+					<DiffScrollContainer
+						diffViewportRef={diffViewportRef}
 						className={cn(
 							"min-w-0 flex-1",
 							showTree &&
 								"border-0 border-l border-t border-solid border-border-default rounded-tl-md",
 						)}
-						scrollBarClassName="w-1.5"
-						viewportClassName="[&>div]:!block"
-						ref={setScrollAreaEl}
 					>
-						<div className="min-w-0 text-xs">
-							{sortedFiles.map((fileDiff, i) => {
-								const isLast = i === sortedFiles.length - 1;
-								return (
-									<div
-										key={fileDiff.name}
-										ref={(el) => setFileRef(fileDiff.name, el)}
-										style={isLast ? { minHeight: viewportHeight } : undefined}
-									>
-										<LazyFileDiff
-											fileDiff={fileDiff}
-											options={
-												perFileOptions?.get(fileDiff.name) ?? fileOptions
-											}
-											lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
-											renderAnnotation={renderAnnotation}
-											selectedLines={
-												perFileSelectedLines?.get(fileDiff.name) ?? null
-											}
-										/>
-										{isLast && (
-											<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
-												{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}
-											</div>
-										)}
-									</div>
-								);
-							})}
-						</div>
-					</ScrollArea>
+						{sortedFiles.map((fileDiff, i) => {
+							const isLast = i === sortedFiles.length - 1;
+							return (
+								<div
+									key={fileDiff.name}
+									ref={(el) => setFileRef(fileDiff.name, el)}
+									className={
+										i > 0
+											? "border-0 border-t border-solid border-border-default"
+											: undefined
+									}
+								>
+									<LazyFileDiff
+										fileDiff={fileDiff}
+										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
+										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
+										renderAnnotation={renderAnnotation}
+										selectedLines={
+											perFileSelectedLines?.get(fileDiff.name) ?? null
+										}
+									/>
+									{isLast && (
+										<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
+											{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}
+										</div>
+									)}
+								</div>
+							);
+						})}
+					</DiffScrollContainer>
 				</div>
 			)}
 		</div>

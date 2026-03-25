@@ -3,8 +3,13 @@ import {
 	type CreateTaskFeedbackRequest,
 	type TaskFeedbackRating,
 } from "api/api";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
+import { useFormik } from "formik";
+import { FrownIcon, MehIcon, SmileIcon } from "lucide-react";
+import type { FC, HTMLProps, ReactNode } from "react";
+import { useMutation } from "react-query";
+import { toast } from "sonner";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogClose,
@@ -13,15 +18,10 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import type { DialogProps } from "components/Dialogs/Dialog";
-import { Spinner } from "components/Spinner/Spinner";
-import { Textarea } from "components/Textarea/Textarea";
-import { useFormik } from "formik";
-import { FrownIcon, MehIcon, SmileIcon } from "lucide-react";
-import type { FC, HTMLProps, ReactNode } from "react";
-import { useMutation } from "react-query";
-import { toast } from "sonner";
+} from "#/components/Dialog/Dialog";
+import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Textarea } from "#/components/Textarea/Textarea";
 
 type TaskFeedbackFormValues = {
 	rate: TaskFeedbackRating | null;

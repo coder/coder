@@ -3,14 +3,14 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
+import { Folder } from "lucide-react";
+import type { FC } from "react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Folder } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/DropdownMenu/DropdownMenu";
 import { AgentButton } from "../AgentButton";
 import { AppLink } from "../AppLink/AppLink";
 

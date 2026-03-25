@@ -70,6 +70,8 @@ export const applyMessagePartToStreamState = (
 						name: part.tool_name || existing?.name || "Tool",
 						args: nextArgs.value,
 						argsRaw: nextArgs.rawText,
+						mcpServerConfigId:
+							part.mcp_server_config_id || existing?.mcpServerConfigId,
 					},
 				},
 			};
@@ -115,6 +117,8 @@ export const applyMessagePartToStreamState = (
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
 						isError: nextIsError,
+						mcpServerConfigId:
+							part.mcp_server_config_id || existing?.mcpServerConfigId,
 					},
 				},
 			};
@@ -192,6 +196,7 @@ export const buildStreamTools = (
 			result: result?.result,
 			isError: result?.isError ?? false,
 			status: result ? (result.isError ? "error" : "completed") : "running",
+			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 		});
 	}
 
@@ -203,6 +208,7 @@ export const buildStreamTools = (
 				result: result.result,
 				isError: result.isError,
 				status: result.isError ? "error" : "completed",
+				mcpServerConfigId: result.mcpServerConfigId,
 			});
 		}
 	}

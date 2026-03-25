@@ -1,11 +1,11 @@
-import type { Workspace } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { ClockIcon, UserIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { getResourceIconPath } from "utils/workspace";
+import type { Workspace } from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 dayjs.extend(relativeTime);
 

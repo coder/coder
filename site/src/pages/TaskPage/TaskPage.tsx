@@ -15,12 +15,6 @@ import type {
 	WorkspaceStatus,
 } from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
-import { Button } from "components/Button/Button";
-import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
@@ -54,6 +48,12 @@ import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
+import { Button } from "#/components/Button/Button";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,

@@ -1,9 +1,14 @@
 import type * as TypesGen from "api/typesGenerated";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { Timeline } from "components/Timeline/Timeline";
 import type { FC } from "react";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { Timeline } from "#/components/Timeline/Timeline";
 import { VersionRow } from "./VersionRow";
 
 const Language = {

@@ -2,40 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
-import { DeprecatedBadge } from "components/Badges/Badges";
-import { Button } from "components/Button/Button";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Margins } from "components/Margins/Margins";
-import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import {
-	TableLoaderSkeleton,
-	TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -48,6 +14,40 @@ import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
 } from "utils/templates";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
+import { DeprecatedBadge } from "#/components/Badges/Badges";
+import { Button } from "#/components/Button/Button";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "#/components/HelpTooltip/HelpTooltip";
+import { Margins } from "#/components/Margins/Margins";
+import {
+	PageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import {
+	TableLoaderSkeleton,
+	TableRowSkeleton,
+} from "#/components/TableLoader/TableLoader";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";

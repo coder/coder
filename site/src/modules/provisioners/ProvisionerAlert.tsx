@@ -1,12 +1,12 @@
+import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
+import type { FC } from "react";
+import { cn } from "utils/cn";
 import {
 	Alert,
 	type AlertColor,
 	AlertDescription,
 	AlertTitle,
-} from "components/Alert/Alert";
-import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
-import type { FC } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Alert/Alert";
 
 export enum AlertVariant {
 	// Alerts are usually styled with a full rounded border and meant to use as a visually distinct element of the page.

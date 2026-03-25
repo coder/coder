@@ -1,7 +1,7 @@
 package rbac
 
 import (
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,7 +16,7 @@ func TestExternalScopeNames(t *testing.T) {
 
 	// Ensure sorted ascending
 	sorted := append([]string(nil), names...)
-	sort.Strings(sorted)
+	slices.Sort(sorted)
 	require.Equal(t, sorted, names)
 
 	// Ensure each entry expands to site-only

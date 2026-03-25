@@ -1,13 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { Button } from "components/Button/Button";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+} from "#/components/Tooltip/Tooltip";
 import { CopyButton } from "../CopyButton/CopyButton";
 
 interface CodeExampleProps {

@@ -17,6 +17,7 @@ import {
 	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
+	mcpServerConfigsKey,
 } from "api/queries/chats";
 import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -176,6 +177,7 @@ const buildQueries = (
 			data: mockWorkspace,
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
+		{ key: mcpServerConfigsKey, data: [] },
 	];
 };
 
@@ -214,6 +216,7 @@ const meta: Meta<typeof AgentDetailLayout> = {
 	beforeEach: () => {
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };

@@ -882,6 +882,43 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "ra-exact"): "qux bar qux baz qux"},
 		},
 		{
+			// replace_all with fuzzy trailing-whitespace match.
+			name:     "ReplaceAllFuzzyTrailing",
+			contents: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-trail"): "hello   \nworld\nhello   \nagain"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ra-fuzzy-trail"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:     "hello\n",
+							Replace:    "bye\n",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-trail"): "bye\nworld\nbye\nagain"},
+		},
+		{
+			// replace_all with fuzzy indent match (pass 3).
+			name:     "ReplaceAllFuzzyIndent",
+			contents: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-indent"): "\t\talpha\n\t\tbeta\n\t\talpha\n\t\tgamma"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ra-fuzzy-indent"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							// Search uses different indentation (spaces instead of tabs).
+							Search:     "    alpha\n",
+							Replace:    "\t\tREPLACED\n",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-indent"): "\t\tREPLACED\n\t\tbeta\n\t\tREPLACED\n\t\tgamma"},
+		},
+		{
 			name:     "MixedWhitespaceMultiline",
 			contents: map[string]string{filepath.Join(tmpdir, "mixed-ws"): "func main() {\n\tresult := compute()\n\tfmt.Println(result)\n}"},
 			edits: []workspacesdk.FileEdits{
@@ -932,8 +969,10 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
+			// No files should be modified when any edit fails
+			// (atomic multi-file semantics).
 			expected: map[string]string{
-				filepath.Join(tmpdir, "file8"): "edited8 8",
+				filepath.Join(tmpdir, "file8"): "file 8",
 			},
 			// Higher status codes will override lower ones, so in this case the 404
 			// takes priority over the 403.
@@ -943,8 +982,44 @@ func TestEditFiles(t *testing.T) {
 				"file9: file does not exist",
 			},
 		},
+		{
+			// Valid edits on files A and C, but file B has a
+			// search miss. None should be written.
+			name: "AtomicMultiFile_OneFailsNoneWritten",
+			contents: map[string]string{
+				filepath.Join(tmpdir, "atomic-a"): "aaa",
+				filepath.Join(tmpdir, "atomic-b"): "bbb",
+				filepath.Join(tmpdir, "atomic-c"): "ccc",
+			},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "atomic-a"),
+					Edits: []workspacesdk.FileEdit{
+						{Search: "aaa", Replace: "AAA"},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "atomic-b"),
+					Edits: []workspacesdk.FileEdit{
+						{Search: "NOTFOUND", Replace: "XXX"},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "atomic-c"),
+					Edits: []workspacesdk.FileEdit{
+						{Search: "ccc", Replace: "CCC"},
+					},
+				},
+			},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"search string not found"},
+			expected: map[string]string{
+				filepath.Join(tmpdir, "atomic-a"): "aaa",
+				filepath.Join(tmpdir, "atomic-b"): "bbb",
+				filepath.Join(tmpdir, "atomic-c"): "ccc",
+			},
+		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1394,4 +1469,106 @@ func TestReadFileLines(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWriteFile_FollowsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	dir := t.TempDir()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	// Create a real file and a symlink pointing to it.
+	realPath := filepath.Join(dir, "real.txt")
+	err := afero.WriteFile(osFs, realPath, []byte("original"), 0o644)
+	require.NoError(t, err)
+
+	linkPath := filepath.Join(dir, "link.txt")
+	err = os.Symlink(realPath, linkPath)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	// Write through the symlink.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("/write-file?path=%s", linkPath),
+		bytes.NewReader([]byte("updated")))
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// The symlink must still be a symlink.
+	fi, err := os.Lstat(linkPath)
+	require.NoError(t, err)
+	require.NotZero(t, fi.Mode()&os.ModeSymlink, "symlink was replaced")
+
+	// The real file must have the new content.
+	data, err := os.ReadFile(realPath)
+	require.NoError(t, err)
+	require.Equal(t, "updated", string(data))
+}
+
+func TestEditFiles_FollowsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	dir := t.TempDir()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	// Create a real file and a symlink pointing to it.
+	realPath := filepath.Join(dir, "real.txt")
+	err := afero.WriteFile(osFs, realPath, []byte("hello world"), 0o644)
+	require.NoError(t, err)
+
+	linkPath := filepath.Join(dir, "link.txt")
+	err = os.Symlink(realPath, linkPath)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	body := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{
+				Path: linkPath,
+				Edits: []workspacesdk.FileEdit{
+					{
+						Search:  "hello",
+						Replace: "goodbye",
+					},
+				},
+			},
+		},
+	}
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	err = enc.Encode(body)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// The symlink must still be a symlink.
+	fi, err := os.Lstat(linkPath)
+	require.NoError(t, err)
+	require.NotZero(t, fi.Mode()&os.ModeSymlink, "symlink was replaced")
+
+	// The real file must have the edited content.
+	data, err := os.ReadFile(realPath)
+	require.NoError(t, err)
+	require.Equal(t, "goodbye world", string(data))
 }

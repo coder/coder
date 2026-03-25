@@ -5,24 +5,29 @@ import type {
 	SlimRole,
 	User,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
+import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
+import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
+import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
+import { type FC, useState } from "react";
+import { toast } from "sonner";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Loader } from "components/Loader/Loader";
-import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Loader } from "#/components/Loader/Loader";
+import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -30,13 +35,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
-import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
-import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
-import { type FC, useState } from "react";
-import { toast } from "sonner";
+} from "#/components/Table/Table";
+import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 

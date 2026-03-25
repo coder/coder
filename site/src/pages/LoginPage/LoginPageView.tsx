@@ -1,9 +1,9 @@
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { CustomLogo } from "components/CustomLogo/CustomLogo";
-import { Loader } from "components/Loader/Loader";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router";
+import { Button } from "#/components/Button/Button";
+import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
+import { Loader } from "#/components/Loader/Loader";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 

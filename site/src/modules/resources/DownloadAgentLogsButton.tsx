@@ -1,12 +1,12 @@
 import { getErrorDetail } from "api/errors";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { Button } from "#/components/Button/Button";
 
 type DownloadAgentLogsButtonProps = {
 	agent: Pick<WorkspaceAgent, "id" | "name" | "status" | "lifecycle_state">;

@@ -13,6 +13,26 @@ export function isWorkspaceAutoCreated(
 }
 
 /**
+ * Returns whether the browser should navigate to /agents after an
+ * archive-and-delete mutation settles. Navigation is appropriate
+ * when the user is still viewing the archived chat or one of its
+ * sub-agents; if they already navigated elsewhere the redirect
+ * would be disruptive.
+ */
+export function shouldNavigateAfterArchive(
+	activeChatId: string | undefined,
+	archivedChatId: string,
+	activeRootChatId?: string,
+): boolean {
+	if (activeChatId === archivedChatId) return true;
+	// The active chat is a sub-agent rooted at the archived parent.
+	if (activeRootChatId != null && activeRootChatId === archivedChatId) {
+		return true;
+	}
+	return false;
+}
+
+/**
  * Resolves whether an archive-and-delete action should proceed
  * immediately or require user confirmation. Fetches the workspace
  * to compare its creation time against the chat's. Auto-created

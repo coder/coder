@@ -3,13 +3,13 @@ import {
 	ProvisionerKeyNamePSK,
 	ProvisionerKeyNameUserAuth,
 } from "api/typesGenerated";
+import { InfoIcon } from "lucide-react";
+import type { FC, ReactNode } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 type KeyType = "builtin" | "userAuth" | "psk" | "key";
 

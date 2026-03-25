@@ -3,7 +3,14 @@ import type {
 	GroupSyncSettings,
 	Organization,
 } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import { useFormik } from "formik";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { isEveryoneGroup } from "modules/groups";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { docs } from "utils/docs";
+import { isUUID } from "utils/uuid";
+import * as Yup from "yup";
+import { Button } from "#/components/Button/Button";
 import {
 	Combobox,
 	ComboboxButton,
@@ -12,36 +19,29 @@ import {
 	ComboboxItem,
 	ComboboxList,
 	ComboboxTrigger,
-} from "components/Combobox/Combobox";
+} from "#/components/Combobox/Combobox";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
+} from "#/components/HelpTooltip/HelpTooltip";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
-} from "components/MultiSelectCombobox/MultiSelectCombobox";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import { TableCell, TableRow } from "components/Table/Table";
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { isEveryoneGroup } from "modules/groups";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
-import * as Yup from "yup";
+} from "#/components/Tooltip/Tooltip";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";

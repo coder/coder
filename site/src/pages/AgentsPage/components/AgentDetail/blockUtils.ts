@@ -1,4 +1,4 @@
-import { asString } from "components/ai-elements/runtimeTypeUtils";
+import { asString } from "#/components/ai-elements/runtimeTypeUtils";
 import type { RenderBlock } from "./types";
 
 export const asNonEmptyString = (value: unknown): string | undefined => {

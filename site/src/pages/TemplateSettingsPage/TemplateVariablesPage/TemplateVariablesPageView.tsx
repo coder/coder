@@ -3,11 +3,14 @@ import type {
 	TemplateVersion,
 	TemplateVersionVariable,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
 import type { ComponentProps, FC } from "react";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { Stack } from "#/components/Stack/Stack";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
 interface TemplateVariablesPageViewProps {

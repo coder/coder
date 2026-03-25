@@ -1,8 +1,8 @@
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
 import { type FC, type JSX, useState } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { Stack } from "#/components/Stack/Stack";
 import { ResourceCard } from "./ResourceCard";
 
 const countAgents = (resource: WorkspaceResource) => {

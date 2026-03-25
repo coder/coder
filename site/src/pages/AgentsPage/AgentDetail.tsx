@@ -11,7 +11,9 @@ import {
 	deleteChatQueuedMessage,
 	editChatMessage,
 	interruptChat,
+	mcpServerConfigs,
 	promoteChatQueuedMessage,
+	userCompactionThresholds,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
@@ -30,12 +32,12 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useOutletContext, useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
-import { portForwardURL } from "utils/portForward";
+import { rewriteLocalhostURL } from "utils/portForward";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { useChatStore } from "./components/AgentDetail/ChatContext";
@@ -49,6 +51,7 @@ import {
 	AgentDetailNotFoundView,
 	AgentDetailView,
 } from "./components/AgentDetailView";
+import { getDefaultMCPSelection } from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
 	buildModelConfigIDByModelID,
@@ -66,8 +69,6 @@ import {
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
-const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
@@ -91,22 +92,17 @@ export function useConversationEditingState(deps: {
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
 	const [editorInitialValue, setEditorInitialValue] = useState(() => {
-		if (typeof window === "undefined" || !draftStorageKey) {
+		if (!draftStorageKey) {
 			return "";
 		}
 		return localStorage.getItem(draftStorageKey) ?? "";
 	});
 
-	// Sync the ref with the initial draft value so callers that
-	// read inputValueRef.current see the persisted draft. Uses a
-	// layout effect so the value is available before paint.
-	const initialSyncDone = useRef(false);
+	// Sync the ref with the editor value so callers that read
+	// inputValueRef.current see the persisted draft. Uses a layout
+	// effect so the value is available before paint.
 	useLayoutEffect(() => {
-		if (!initialSyncDone.current && editorInitialValue) {
-			initialSyncDone.current = true;
-			(inputValueRef as React.MutableRefObject<string>).current =
-				editorInitialValue;
-		}
+		inputValueRef.current = editorInitialValue;
 	}, [editorInitialValue, inputValueRef]);
 
 	// -- History editing state --
@@ -117,6 +113,14 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
+
+	// -- Queue editing state --
+	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
+		number | null
+	>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
+		string | null
+	>(null);
 
 	const handleEditUserMessage = (
 		messageId: number,
@@ -143,14 +147,6 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
 		}
 	};
-
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
-		string | null
-	>(null);
 
 	const handleStartQueueEdit = (
 		id: number,
@@ -231,8 +227,28 @@ export function useConversationEditingState(deps: {
 	};
 }
 
+/**
+ * Resolves the effective compaction threshold for a model configuration,
+ * preferring the user's override when set.
+ */
+function resolveCompactionThreshold(
+	modelConfigID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	modelConfigs: readonly TypesGen.ChatModelConfig[],
+): number | undefined {
+	if (!modelConfigID) return undefined;
+	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!config) return undefined;
+	const userOverride = userThresholds?.find(
+		(t) => t.model_config_id === modelConfigID,
+	);
+	if (userOverride) {
+		return userOverride.threshold_percent;
+	}
+	return config.compression_threshold;
+}
+
 const AgentDetail: FC = () => {
-	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
 		chatErrorReasons,
@@ -297,8 +313,24 @@ const AgentDetail: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+
+	// MCP server selection state.
+	const mcpServers = mcpServersQuery.data ?? [];
+	const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<
+		string[] | null
+	>(null);
+
+	const handleMCPSelectionChange = (ids: string[]) => {
+		setSelectedMCPServerIds(ids);
+	};
+
+	const handleMCPAuthComplete = (_serverId: string) => {
+		void mcpServersQuery.refetch();
+	};
 
 	const modelOptions = getModelOptionsFromCatalog(
 		chatModelsQuery.data,
@@ -312,8 +344,6 @@ const AgentDetail: FC = () => {
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 	const modelCatalogError = chatModelsQuery.error;
-
-	const handleOpenAnalytics = () => navigate("/agents/analytics");
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -369,27 +399,25 @@ const AgentDetail: FC = () => {
 		if (!proxyHost || !agentName || !wsName || !wsOwner) {
 			return url;
 		}
-		try {
-			const parsed = new URL(url);
-			if (!localHosts.has(parsed.hostname)) {
-				return url;
-			}
-			return portForwardURL(
-				proxyHost,
-				Number.parseInt(parsed.port, 10),
-				agentName,
-				wsName,
-				wsOwner,
-				"http",
-				parsed.pathname,
-				parsed.search,
-			);
-		} catch {
-			return url;
-		}
+		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
 	};
 
 	const chatRecord = chatQuery.data;
+
+	// Initialize MCP selection from chat record or defaults.
+	const effectiveMCPServerIds = (() => {
+		if (selectedMCPServerIds !== null) {
+			return selectedMCPServerIds;
+		}
+		// If the chat has MCP server IDs recorded (even empty, meaning
+		// the user deliberately opted out), use those.
+		if (chatRecord?.mcp_server_ids) {
+			return chatRecord.mcp_server_ids;
+		}
+		// Otherwise, compute defaults from server availability.
+		return getDefaultMCPSelection(mcpServers);
+	})();
+
 	// Flatten paginated messages into chronological order.
 	// Pages arrive newest-first per page, and pages[0] is the
 	// most recent page.
@@ -495,10 +523,11 @@ const AgentDetail: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const compressionThreshold = chatLastModelConfigID
-		? modelConfigs.find((c) => c.id === chatLastModelConfigID)
-				?.compression_threshold
-		: undefined;
+	const compressionThreshold = resolveCompactionThreshold(
+		chatLastModelConfigID,
+		userThresholdsQuery.data?.thresholds,
+		modelConfigs,
+	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -624,6 +653,10 @@ const AgentDetail: FC = () => {
 		const request: TypesGen.CreateChatMessageRequest = {
 			content,
 			model_config_id: selectedModelConfigID,
+			mcp_server_ids:
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
+					: undefined,
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
@@ -751,6 +784,12 @@ const AgentDetail: FC = () => {
 			return;
 		}
 
+		// Prefer the active git repo root so VS Code opens to the
+		// actual project directory, falling back to the agent's
+		// configured directory.
+		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
+		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
+
 		generateKeyMutation.mutate(undefined, {
 			onSuccess: ({ key }) => {
 				location.href = getVSCodeHref(editor, {
@@ -758,7 +797,7 @@ const AgentDetail: FC = () => {
 					workspace: workspace.name,
 					token: key,
 					agent: workspaceAgent.name,
-					folder: workspaceAgent.expanded_directory,
+					folder,
 					chatId: agentId,
 				});
 			},
@@ -861,7 +900,6 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			onOpenAnalytics={handleOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
@@ -874,7 +912,6 @@ const AgentDetail: FC = () => {
 			handleViewWorkspace={handleViewWorkspace}
 			handleOpenTerminal={handleOpenTerminal}
 			handleCommit={handleCommit}
-			onNavigateToChat={(chatId) => navigate(`/agents/${chatId}`)}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -889,8 +926,20 @@ const AgentDetail: FC = () => {
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 			desktopChatId={desktopEnabled ? agentId : undefined}
+			mcpServers={mcpServers}
+			selectedMCPServerIds={effectiveMCPServerIds}
+			onMCPSelectionChange={handleMCPSelectionChange}
+			onMCPAuthComplete={handleMCPAuthComplete}
 		/>
 	);
 };
 
-export default AgentDetail;
+// Keyed wrapper so that navigating between agents (changing the
+// :agentId param) fully remounts the component, resetting all
+// internal state — drafts, editing, queries — cleanly.
+const KeyedAgentDetail: FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
+	return <AgentDetail key={agentId} />;
+};
+
+export default KeyedAgentDetail;

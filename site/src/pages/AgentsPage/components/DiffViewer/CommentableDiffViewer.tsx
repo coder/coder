@@ -3,7 +3,6 @@ import type {
 	FileDiffMetadata,
 	SelectedLineRange,
 } from "@pierre/diffs";
-import { Button } from "components/Button/Button";
 import { ArrowUpIcon } from "lucide-react";
 import {
 	type FC,
@@ -12,6 +11,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Button } from "#/components/Button/Button";
 import {
 	annotationLineForBox,
 	annotationSideForBox,
@@ -294,6 +294,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		if (text.trim()) {
 			chatInputRef?.current?.insertText(text);
 		}
+		chatInputRef?.current?.focus();
 		setActiveCommentBox(null);
 	};
 

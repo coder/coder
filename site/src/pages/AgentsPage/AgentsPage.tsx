@@ -15,7 +15,6 @@ import {
 } from "api/queries/chats";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
@@ -28,12 +27,16 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import { resolveArchiveAndDeleteAction } from "./utils/agentWorkspaceUtils";
+import {
+	resolveArchiveAndDeleteAction,
+	shouldNavigateAfterArchive,
+} from "./utils/agentWorkspaceUtils";
 import { getModelOptionsFromCatalog } from "./utils/modelOptions";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
@@ -160,7 +163,7 @@ const AgentsPage: FC = () => {
 			chatId: string;
 			workspaceId: string;
 		}) => {
-			await API.updateChat(chatId, { archived: true });
+			await API.experimental.updateChat(chatId, { archived: true });
 			await API.deleteWorkspace(workspaceId);
 			return { chatId, workspaceId };
 		},
@@ -262,7 +265,27 @@ const AgentsPage: FC = () => {
 				archiveAndDeleteMutation.mutate(
 					{ chatId, workspaceId },
 					{
-						onSettled: () => navigate("/agents"),
+						onSettled: () => {
+							const activeChatId = activeChatIDRef.current;
+							if (
+								shouldNavigateAfterArchive(
+									activeChatId,
+									chatId,
+									// Read root_chat_id from the per-chat
+									// cache, which survives WebSocket eviction
+									// of sub-agents (only the parent's chatKey
+									// is removed). Must be read at settle time
+									// so it reflects the user's current location.
+									activeChatId
+										? queryClient.getQueryData<TypesGen.Chat>(
+												chatKey(activeChatId),
+											)?.root_chat_id
+										: undefined,
+								)
+							) {
+								navigate("/agents");
+							}
+						},
 					},
 				);
 			} else {
@@ -274,10 +297,23 @@ const AgentsPage: FC = () => {
 	};
 	const handleConfirmArchiveAndDelete = () => {
 		if (pendingArchiveAndDelete && !isArchiving) {
+			const { chatId: archivedChatId } = pendingArchiveAndDelete;
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
-					navigate("/agents");
+					const activeChatId = activeChatIDRef.current;
+					if (
+						shouldNavigateAfterArchive(
+							activeChatId,
+							archivedChatId,
+							activeChatId
+								? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+										?.root_chat_id
+								: undefined,
+						)
+					) {
+						navigate("/agents");
+					}
 				},
 			});
 		}

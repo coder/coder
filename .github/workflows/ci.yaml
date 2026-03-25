@@ -45,7 +45,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: check changed files
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
           filters: |
@@ -1081,7 +1081,7 @@ jobs:
     needs:
       - changes
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    runs-on: ubuntu-latest-16-cores
     permissions:
       # Necessary to push docker images to ghcr.io.
       packages: write
@@ -1119,6 +1119,8 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          use-cache: false
 
       - name: Install rcodesign
         run: |
@@ -1215,6 +1217,12 @@ jobs:
           EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
+          # Enable React profiling build and discoverable source maps
+          # for the dogfood deployment (dev.coder.com). This also
+          # applies to release/* branch builds, but those still
+          # produce coder-preview images, not release images.
+          # Release images are built by release.yaml (no profiling).
+          CODER_REACT_PROFILING: "true"
 
       # Free up disk space before building Docker images. The preceding
       # Build step produces ~2 GB of binaries and packages, the Go build

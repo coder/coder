@@ -4,21 +4,21 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 } from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { TriangleAlertIcon } from "lucide-react";
+import type { FC } from "react";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipText,
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
+} from "#/components/HelpTooltip/HelpTooltip";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 // If we think in the agent status and lifecycle into a single enum/state I'd
 // say we would have: connecting, timeout, disconnected, connected:created,

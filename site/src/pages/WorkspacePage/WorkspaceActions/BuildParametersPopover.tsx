@@ -5,24 +5,6 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Button } from "components/Button/Button";
-import { FormFields } from "components/Form/Form";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
-import {
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
@@ -32,6 +14,24 @@ import {
 	type AutofillBuildParameter,
 	getInitialRichParameterValues,
 } from "utils/richParameters";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { FormFields } from "#/components/Form/Form";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+import {
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "#/components/HelpTooltip/HelpTooltip";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 
 interface BuildParametersPopoverProps {
 	workspace: Workspace;

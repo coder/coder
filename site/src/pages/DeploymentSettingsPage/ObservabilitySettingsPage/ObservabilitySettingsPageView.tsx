@@ -1,25 +1,25 @@
 import type { SerpentOption } from "api/typesGenerated";
+import type { FC } from "react";
+import { deploymentGroupHasParent } from "utils/deployOptions";
+import { docs } from "utils/docs";
 import {
 	Badges,
 	EnterpriseBadge,
 	PremiumBadge,
-} from "components/Badges/Badges";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+} from "#/components/Badges/Badges";
+import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/components/Tooltip/Tooltip";
 import OptionsTable from "../OptionsTable";
 
 type ObservabilitySettingsPageViewProps = {

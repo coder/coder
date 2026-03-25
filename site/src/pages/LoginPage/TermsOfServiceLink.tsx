@@ -1,5 +1,5 @@
-import { Link } from "components/Link/Link";
 import type { FC } from "react";
+import { Link } from "#/components/Link/Link";
 
 interface TermsOfServiceLinkProps {
 	url?: string;

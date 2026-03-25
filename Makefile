@@ -1255,7 +1255,7 @@ coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.g
 	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
 	touch "$@"
 
-provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
+provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
@@ -1343,6 +1343,7 @@ test-js: site/node_modules/.installed
 
 test-storybook: site/node_modules/.installed
 	cd site/
+	pnpm playwright:install
 	pnpm exec vitest run --project=storybook
 .PHONY: test-storybook
 

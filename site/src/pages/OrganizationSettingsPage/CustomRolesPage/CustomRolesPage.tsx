@@ -1,14 +1,6 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { deleteOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { Role } from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -17,6 +9,14 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Stack } from "#/components/Stack/Stack";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
 const CustomRolesPage: FC = () => {

@@ -210,6 +210,14 @@ func UsersFilter(
 		users = append(users, user)
 	}
 
+	// Add some service accounts.
+	for range 3 {
+		_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.ServiceAccount = true
+		})
+		users = append(users, user)
+	}
+
 	hashedPassword, err := userpassword.Hash("SomeStrongPassword!")
 	require.NoError(t, err)
 
@@ -558,6 +566,24 @@ func UsersFilter(
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				return u.Status == codersdk.UserStatusSuspended && u.LoginType == codersdk.LoginTypeNone
+			},
+		},
+		{
+			Name: "IsServiceAccount",
+			Filter: codersdk.UsersRequest{
+				Search: "service_account:true",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.IsServiceAccount
+			},
+		},
+		{
+			Name: "IsNotServiceAccount",
+			Filter: codersdk.UsersRequest{
+				Search: "service_account:false",
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return !u.IsServiceAccount
 			},
 		},
 	}

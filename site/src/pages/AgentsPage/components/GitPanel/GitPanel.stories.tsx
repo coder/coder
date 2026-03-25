@@ -111,7 +111,9 @@ const meta: Meta<typeof GitPanel> = {
 		),
 	],
 	beforeEach: () => {
-		spyOn(API, "getChatDiffContents").mockResolvedValue(defaultDiffContents);
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			defaultDiffContents,
+		);
 	},
 };
 
@@ -130,7 +132,7 @@ export const PullRequestAndWorkingChanges: Story = {
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffContents").mockResolvedValue({
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});
@@ -155,7 +157,7 @@ export const DraftPullRequest: Story = {
 		]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffContents").mockResolvedValue({
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});
@@ -177,7 +179,7 @@ export const MergedPullRequest: Story = {
 		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffContents").mockResolvedValue({
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});
@@ -199,7 +201,7 @@ export const ClosedPullRequest: Story = {
 		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffContents").mockResolvedValue({
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});
@@ -251,7 +253,7 @@ export const MultipleRepos: Story = {
 		]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffContents").mockResolvedValue({
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});
@@ -283,7 +285,7 @@ export const InlineCommentInput: Story = {
 		),
 	],
 	beforeEach: () => {
-		spyOn(API, "getChatDiffContents").mockResolvedValue({
+		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});

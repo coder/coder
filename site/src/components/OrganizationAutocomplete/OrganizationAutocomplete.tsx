@@ -1,9 +1,12 @@
 import { checkAuthorization } from "api/queries/authCheck";
 import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
+import { Check } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import { useQuery } from "react-query";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
 import {
 	Command,
 	CommandEmpty,
@@ -11,15 +14,12 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from "components/Command/Command";
+} from "#/components/Command/Command";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Check } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
-import { useQuery } from "react-query";
+} from "#/components/Popover/Popover";
 
 type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;

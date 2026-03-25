@@ -15,19 +15,19 @@ import {
 	withProxyProvider,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import { expect, within } from "storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
 	WorkspaceStatuses,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import {
 	getDefaultFilterProps,
 	MockMenu,
-} from "components/Filter/storyHelpers";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import { expect, within } from "storybook/test";
+} from "#/components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 

@@ -14,9 +14,13 @@ import (
 func TestInitScript(t *testing.T) {
 	t.Parallel()
 
+	// Single instance shared across all sub-tests. All operations
+	// are read-only (fetching init scripts) so parallel execution
+	// is safe.
+	client := coderdtest.New(t, nil)
+
 	t.Run("OK Windows amd64", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
 		script, err := client.InitScript(context.Background(), "windows", "amd64")
 		require.NoError(t, err)
 		require.NotEmpty(t, script)
@@ -26,7 +30,6 @@ func TestInitScript(t *testing.T) {
 
 	t.Run("OK Windows arm64", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
 		script, err := client.InitScript(context.Background(), "windows", "arm64")
 		require.NoError(t, err)
 		require.NotEmpty(t, script)
@@ -36,7 +39,6 @@ func TestInitScript(t *testing.T) {
 
 	t.Run("OK Linux amd64", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
 		script, err := client.InitScript(context.Background(), "linux", "amd64")
 		require.NoError(t, err)
 		require.NotEmpty(t, script)
@@ -46,7 +48,6 @@ func TestInitScript(t *testing.T) {
 
 	t.Run("OK Linux arm64", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
 		script, err := client.InitScript(context.Background(), "linux", "arm64")
 		require.NoError(t, err)
 		require.NotEmpty(t, script)
@@ -56,7 +57,6 @@ func TestInitScript(t *testing.T) {
 
 	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
 		_, err := client.InitScript(context.Background(), "darwin", "armv7")
 		require.Error(t, err)
 		var apiErr *codersdk.Error

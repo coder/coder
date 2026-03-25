@@ -598,6 +598,51 @@
 | `count`   | integer                                                                 | false    |              |             |
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
 
+## codersdk.AIBridgeListSessionsResponse
+
+```json
+{
+  "count": 0,
+  "sessions": [
+    {
+      "client": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "last_prompt": "string",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "models": [
+        "string"
+      ],
+      "providers": [
+        "string"
+      ],
+      "started_at": "2019-08-24T14:15:22Z",
+      "threads": 0,
+      "token_usage_summary": {
+        "input_tokens": 0,
+        "output_tokens": 0
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                          | Required | Restrictions | Description |
+|------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `count`    | integer                                                       | false    |              |             |
+| `sessions` | array of [codersdk.AIBridgeSession](#codersdkaibridgesession) | false    |              |             |
+
 ## codersdk.AIBridgeOpenAIConfig
 
 ```json
@@ -649,6 +694,72 @@
 | `tls_key_file`          | string          | false    |              |             |
 | `upstream_proxy`        | string          | false    |              |             |
 | `upstream_proxy_ca`     | string          | false    |              |             |
+
+## codersdk.AIBridgeSession
+
+```json
+{
+  "client": "string",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "last_prompt": "string",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "models": [
+    "string"
+  ],
+  "providers": [
+    "string"
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "threads": 0,
+  "token_usage_summary": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                   | Required | Restrictions | Description |
+|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client`              | string                                                                                 | false    |              |             |
+| `ended_at`            | string                                                                                 | false    |              |             |
+| `id`                  | string                                                                                 | false    |              |             |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `last_prompt`         | string                                                                                 | false    |              |             |
+| `metadata`            | object                                                                                 | false    |              |             |
+| » `[any property]`    | any                                                                                    | false    |              |             |
+| `models`              | array of string                                                                        | false    |              |             |
+| `providers`           | array of string                                                                        | false    |              |             |
+| `started_at`          | string                                                                                 | false    |              |             |
+| `threads`             | integer                                                                                | false    |              |             |
+| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary) | false    |              |             |
+
+## codersdk.AIBridgeSessionTokenUsageSummary
+
+```json
+{
+  "input_tokens": 0,
+  "output_tokens": 0
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `input_tokens`  | integer | false    |              |             |
+| `output_tokens` | integer | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -6016,6 +6127,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -6038,23 +6150,24 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name              | Type                                            | Required | Restrictions | Description |
-|-------------------|-------------------------------------------------|----------|--------------|-------------|
-| `avatar_url`      | string                                          | false    |              |             |
-| `created_at`      | string                                          | false    |              |             |
-| `email`           | string                                          | false    |              |             |
-| `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `last_seen_at`    | string                                          | false    |              |             |
-| `login_type`      | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
-| `name`            | string                                          | false    |              |             |
-| `organization_id` | string                                          | false    |              |             |
-| `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `status`          | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `updated_at`      | string                                          | false    |              |             |
-| `user_created_at` | string                                          | false    |              |             |
-| `user_id`         | string                                          | false    |              |             |
-| `user_updated_at` | string                                          | false    |              |             |
-| `username`        | string                                          | false    |              |             |
+| Name                 | Type                                            | Required | Restrictions | Description |
+|----------------------|-------------------------------------------------|----------|--------------|-------------|
+| `avatar_url`         | string                                          | false    |              |             |
+| `created_at`         | string                                          | false    |              |             |
+| `email`              | string                                          | false    |              |             |
+| `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `is_service_account` | boolean                                         | false    |              |             |
+| `last_seen_at`       | string                                          | false    |              |             |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
+| `name`               | string                                          | false    |              |             |
+| `organization_id`    | string                                          | false    |              |             |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
+| `updated_at`         | string                                          | false    |              |             |
+| `user_created_at`    | string                                          | false    |              |             |
+| `user_id`            | string                                          | false    |              |             |
+| `user_updated_at`    | string                                          | false    |              |             |
+| `username`           | string                                          | false    |              |             |
 
 #### Enumerated Values
 
@@ -6318,6 +6431,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",

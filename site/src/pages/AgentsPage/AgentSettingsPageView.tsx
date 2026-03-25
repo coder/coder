@@ -3,6 +3,7 @@ import {
 	chatCostSummary,
 	chatCostUsers,
 	chatDesktopEnabled,
+	chatModelConfigs,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
 	chatWorkspaceTTL,
@@ -11,31 +12,8 @@ import {
 	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
-import { userByName } from "api/queries/users";
+import { user } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { DurationField } from "components/DurationField/DurationField";
-import { Link } from "components/Link/Link";
-import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { SearchField } from "components/SearchField/SearchField";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
@@ -50,24 +28,48 @@ import {
 import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
+import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
-import { humanDuration } from "utils/time";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
+import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
+import { SearchField } from "#/components/SearchField/SearchField";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
-	DateRange,
-	type DateRangeValue,
-} from "../TemplatePage/TemplateInsightsPage/DateRange";
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
+import {
+	DateRangePicker,
+	type DateRangeValue,
+} from "./components/DateRangePicker/DateRangePicker";
+import { DurationField } from "./components/DurationField/DurationField";
 import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
 import { SectionHeader } from "./components/SectionHeader";
+import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
+				<span className="ml-auto inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-2 py-1 text-[11px] leading-none font-medium text-content-secondary">
 					<ShieldIcon className="h-3 w-3" />
 					Admin
 				</span>
@@ -236,7 +238,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 
 	const selectedUserId = searchParams.get("user");
 	const selectedUserQuery = useQuery({
-		...userByName(selectedUserId ?? ""),
+		...user(selectedUserId ?? ""),
 		enabled: selectedUserId !== null,
 	});
 	const selectedUser = selectedUserQuery.data ?? null;
@@ -259,7 +261,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				<DateRange value={displayDateRange} onChange={onDateRangeChange} />
+				<DateRangePicker
+					value={displayDateRange}
+					onChange={onDateRangeChange}
+				/>
 			}
 		/>
 	);
@@ -484,8 +489,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	);
 };
 
-const textareaClassName =
-	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
+const textareaMaxHeight = 240;
+const textareaBaseClassName =
+	"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30";
+const textareaOverflowClassName = "overflow-y-auto [scrollbar-width:thin]";
 
 interface AgentSettingsPageViewProps {
 	activeSection: string;
@@ -526,6 +533,10 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	} = useMutation(updateChatDesktopEnabled(queryClient));
 
 	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
+	const modelConfigsQuery = useQuery({
+		...chatModelConfigs(),
+		enabled: activeSection === "behavior",
+	});
 	const {
 		mutate: saveWorkspaceTTL,
 		isPending: isSavingWorkspaceTTL,
@@ -540,21 +551,26 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 
+	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
+	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
+		useState(false);
+
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const serverTTLMs = workspaceTTLQuery.data?.workspace_ttl_ms ?? 0;
 	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	const [autostopToggled, setAutostopToggled] = useState<boolean | null>(null);
 	const ttlMs = localTTLMs ?? serverTTLMs;
+	const isAutostopEnabled = autostopToggled ?? serverTTLMs > 0;
 	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
 	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
 	const isTTLOverMax = ttlMs > maxTTLMs;
-	const isDisabled =
-		isSavingSystemPrompt ||
-		isSavingUserPrompt ||
-		isSavingDesktopEnabled ||
-		isSavingWorkspaceTTL;
+	const isTTLZero = isAutostopEnabled && ttlMs === 0;
+	const isPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
+	const isDesktopSaving = isSavingDesktopEnabled;
+	const isTTLSaving = isSavingWorkspaceTTL;
 	const isTTLLoading = workspaceTTLQuery.isLoading;
 
 	const handleSaveSystemPrompt = (event: FormEvent) => {
@@ -575,12 +591,41 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		);
 	};
 
+	const resetAutostopState = () => {
+		setLocalTTLMs(null);
+		setAutostopToggled(null);
+	};
+
+	const handleToggleAutostop = (checked: boolean) => {
+		if (checked) {
+			// Defensive: restore server value if query cache is
+			// stale; otherwise default to 1 hour.
+			const defaultTTL = serverTTLMs > 0 ? serverTTLMs : 3_600_000;
+			setAutostopToggled(true);
+			setLocalTTLMs(defaultTTL);
+			saveWorkspaceTTL(
+				{ workspace_ttl_ms: defaultTTL },
+				{ onSuccess: resetAutostopState, onError: resetAutostopState },
+			);
+		} else {
+			setAutostopToggled(false);
+			setLocalTTLMs(0);
+			saveWorkspaceTTL(
+				{ workspace_ttl_ms: 0 },
+				{ onSuccess: resetAutostopState, onError: resetAutostopState },
+			);
+		}
+	};
+
 	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
 		event.preventDefault();
-		if (!isTTLDirty) return;
+		if (!isTTLDirty || isTTLSaving) return;
 		saveWorkspaceTTL(
 			{ workspace_ttl_ms: localTTLMs ?? 0 },
-			{ onSuccess: () => setLocalTTLMs(null) },
+			{
+				onSuccess: resetAutostopState,
+				onError: () => setAutostopToggled(null),
+			},
 		);
 	};
 	return (
@@ -604,11 +649,17 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								Applied to all your chats. Only visible to you.
 							</p>
 							<TextareaAutosize
-								className={textareaClassName}
+								className={cn(
+									textareaBaseClassName,
+									isUserPromptOverflowing && textareaOverflowClassName,
+								)}
 								placeholder="Additional behavior, style, and tone preferences"
 								value={userPromptDraft}
 								onChange={(event) => setLocalUserEdit(event.target.value)}
-								disabled={isDisabled}
+								onHeightChange={(height) =>
+									setIsUserPromptOverflowing(height >= textareaMaxHeight)
+								}
+								disabled={isPromptSaving}
 								minRows={1}
 							/>
 							<div className="flex justify-end gap-2">
@@ -617,14 +668,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 									variant="outline"
 									type="button"
 									onClick={() => setLocalUserEdit("")}
-									disabled={isDisabled || !userPromptDraft}
+									disabled={isPromptSaving || !userPromptDraft}
 								>
 									Clear
 								</Button>
 								<Button
 									size="sm"
 									type="submit"
-									disabled={isDisabled || !isUserPromptDirty}
+									disabled={isPromptSaving || !isUserPromptDirty}
 								>
 									Save
 								</Button>
@@ -635,6 +686,13 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								</p>
 							)}
 						</form>
+
+						<hr className="my-5 border-0 border-t border-solid border-border" />
+						<UserCompactionThresholdSettings
+							modelConfigs={modelConfigsQuery.data ?? []}
+							modelConfigsError={modelConfigsQuery.error}
+							isLoadingModelConfigs={modelConfigsQuery.isLoading}
+						/>
 
 						{/* ── Admin system prompt (admin only) ── */}
 						{canSetSystemPrompt && (
@@ -655,11 +713,17 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										built-in default is used.
 									</p>
 									<TextareaAutosize
-										className={textareaClassName}
+										className={cn(
+											textareaBaseClassName,
+											isSystemPromptOverflowing && textareaOverflowClassName,
+										)}
 										placeholder="Additional behavior, style, and tone preferences for all users"
 										value={systemPromptDraft}
 										onChange={(event) => setLocalEdit(event.target.value)}
-										disabled={isDisabled}
+										onHeightChange={(height) =>
+											setIsSystemPromptOverflowing(height >= textareaMaxHeight)
+										}
+										disabled={isPromptSaving}
 										minRows={1}
 									/>
 									<div className="flex justify-end gap-2">
@@ -668,14 +732,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 											variant="outline"
 											type="button"
 											onClick={() => setLocalEdit("")}
-											disabled={isDisabled || !systemPromptDraft}
+											disabled={isPromptSaving || !systemPromptDraft}
 										>
 											Clear
 										</Button>
 										<Button
 											size="sm"
 											type="submit"
-											disabled={isDisabled || !isSystemPromptDirty}
+											disabled={isPromptSaving || !isSystemPromptDirty}
 										>
 											Save
 										</Button>
@@ -720,7 +784,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 												saveDesktopEnabled({ enable_desktop: checked })
 											}
 											aria-label="Enable"
-											disabled={isDisabled}
+											disabled={isDesktopSaving}
 										/>
 									</div>
 									{isSaveDesktopEnabledError && (
@@ -736,36 +800,63 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								>
 									<div className="flex items-center gap-2">
 										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-											Default Autostop
+											Workspace Autostop Fallback
 										</h3>
 										<AdminBadge />
 									</div>
-									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										{ttlMs === 0
-											? "Workspaces linked to chats will be stopped as configured by their templates. Active chats continuously extend the deadline."
-											: `Workspaces linked to chats will be stopped after ${humanDuration(ttlMs)} of inactivity. Active chats continuously extend the deadline.`}
-									</p>
-									<DurationField
-										label="Default autostop"
-										valueMs={ttlMs}
-										onChange={(v) => setLocalTTLMs(v)}
-										disabled={isDisabled || isTTLLoading}
-										error={isTTLOverMax}
-										helperText={
-											isTTLOverMax
-												? "Must not exceed 30 days (720 hours)."
-												: undefined
-										}
-									/>
-									<div className="flex justify-end">
-										<Button
-											size="sm"
-											type="submit"
-											disabled={isDisabled || !isTTLDirty || isTTLOverMax}
-										>
-											Save
-										</Button>
+									<div className="flex items-center justify-between gap-4">
+										<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+											Set a default autostop for agent-created workspaces that
+											don't have one defined in their template. Template-defined
+											autostop rules always take precedence. Active chats will
+											extend the stop time.
+										</p>
+										<Switch
+											checked={isAutostopEnabled}
+											onCheckedChange={handleToggleAutostop}
+											aria-label="Enable default autostop"
+											disabled={isTTLSaving || isTTLLoading}
+										/>{" "}
 									</div>
+									{isAutostopEnabled && (
+										<DurationField
+											valueMs={ttlMs}
+											onChange={(v) => {
+												setLocalTTLMs(v);
+												// Latch the toggle open while the user is editing
+												// so a background refetch cannot unmount the field.
+												if (autostopToggled === null) {
+													setAutostopToggled(true);
+												}
+											}}
+											label="Autostop Fallback"
+											disabled={isTTLSaving || isTTLLoading}
+											error={isTTLOverMax || isTTLZero}
+											helperText={
+												isTTLZero
+													? "Duration must be greater than zero."
+													: isTTLOverMax
+														? "Must not exceed 30 days (720 hours)."
+														: undefined
+											}
+										/>
+									)}
+									{isAutostopEnabled && (
+										<div className="flex justify-end">
+											<Button
+												size="sm"
+												type="submit"
+												disabled={
+													isTTLSaving ||
+													!isTTLDirty ||
+													isTTLOverMax ||
+													isTTLZero
+												}
+											>
+												Save
+											</Button>
+										</div>
+									)}
 									{isSaveWorkspaceTTLError && (
 										<p className="m-0 text-xs text-content-destructive">
 											Failed to save autostop setting.

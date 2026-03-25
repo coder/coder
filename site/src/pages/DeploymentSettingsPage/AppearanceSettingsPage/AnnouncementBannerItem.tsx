@@ -1,16 +1,16 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import type { BannerConfig } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import { EllipsisVertical } from "lucide-react";
+import type { FC } from "react";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { TableCell, TableRow } from "components/Table/Table";
-import { EllipsisVertical } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { TableCell, TableRow } from "#/components/Table/Table";
 
 interface AnnouncementBannerItemProps {
 	enabled: boolean;

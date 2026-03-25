@@ -3,16 +3,6 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import type { FC } from "react";
@@ -23,6 +13,16 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "#/components/Form/Form";
+import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 export type WorkspaceParametersFormValues = {
 	rich_parameter_values: WorkspaceBuildParameter[];

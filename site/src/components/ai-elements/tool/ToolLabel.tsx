@@ -1,11 +1,12 @@
 import type React from "react";
-import { asRecord, asString, parseArgs } from "./utils";
+import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
 
 export const ToolLabel: React.FC<{
 	name: string;
 	args: unknown;
 	result: unknown;
-}> = ({ name, args, result }) => {
+	mcpSlug?: string;
+}> = ({ name, args, result, mcpSlug }) => {
 	const parsed = parseArgs(args);
 	const parsedResult = asRecord(result);
 
@@ -160,9 +161,22 @@ export const ToolLabel: React.FC<{
 					Screenshot
 				</span>
 			);
-		default:
+		case "propose_plan": {
+			const path = parsed ? asString(parsed.path) || "PLAN.md" : "PLAN.md";
+			const filename = path.split("/").pop() || "PLAN.md";
 			return (
-				<span className="truncate text-sm text-content-secondary">{name}</span>
+				<span className="truncate text-sm text-content-secondary">
+					{filename}
+				</span>
 			);
+		}
+		default: {
+			const displayName = mcpSlug ? humanizeMCPToolName(mcpSlug, name) : name;
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{displayName}
+				</span>
+			);
+		}
 	}
 };

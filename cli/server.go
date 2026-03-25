@@ -24,7 +24,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -2825,7 +2825,7 @@ func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuth
 // parsing of `GITAUTH` environment variables.
 func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
 	// The index numbers must be in-order.
-	sort.Strings(environ)
+	slices.Sort(environ)
 
 	var providers []codersdk.ExternalAuthConfig
 	for _, v := range serpent.ParseEnviron(environ, prefix) {

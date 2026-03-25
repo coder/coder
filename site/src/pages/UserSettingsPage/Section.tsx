@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import type { FC, ReactNode } from "react";
 import {
 	FeatureStageBadge,
 	type featureStageBadgeTypes,
-} from "components/FeatureStageBadge/FeatureStageBadge";
-import { Stack } from "components/Stack/Stack";
-import type { FC, ReactNode } from "react";
+} from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { Stack } from "#/components/Stack/Stack";
 
 type SectionLayout = "fixed" | "fluid";
 

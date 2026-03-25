@@ -6,19 +6,19 @@ import {
 	snakeToCamel,
 	toFormFieldKey,
 } from "api/chatModelOptions";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
+import { type FormikContextType, getIn } from "formik";
+import type { FC } from "react";
+import { cn } from "utils/cn";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
-import { Textarea } from "components/Textarea/Textarea";
-import { type FormikContextType, getIn } from "formik";
-import type { FC } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Select/Select";
+import { Textarea } from "#/components/Textarea/Textarea";
 import { normalizeProvider } from "./helpers";
 import type {
 	ModelConfigFormBuildResult,

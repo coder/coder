@@ -1,8 +1,8 @@
 import { MockProvisionerJob } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table, TableBody } from "components/Table/Table";
 import { expect, userEvent, within } from "storybook/test";
 import { daysAgo } from "utils/time";
+import { Table, TableBody } from "#/components/Table/Table";
 import { JobRow } from "./JobRow";
 
 const meta: Meta<typeof JobRow> = {

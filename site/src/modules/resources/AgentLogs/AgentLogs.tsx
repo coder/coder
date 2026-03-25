@@ -1,14 +1,14 @@
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import type { Line } from "components/Logs/LogLine";
+import type { JSX } from "react";
+import { FixedSizeList as List } from "react-window";
+import { cn } from "utils/cn";
+import { Badge } from "#/components/Badge/Badge";
+import type { Line } from "#/components/Logs/LogLine";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { JSX } from "react";
-import { FixedSizeList as List } from "react-window";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
 // Fallback log used in places where we must always have a valid log source.

@@ -170,9 +170,13 @@ export class SmoothTextEngine {
 	 * Advance the presentation clock by a timestep.
 	 */
 	tick(dtMs: number): number {
-		if (dtMs <= 0) {
+		if (dtMs <= 0 || Number.isNaN(dtMs)) {
 			return this.visibleLengthValue;
 		}
+
+		// Clamp to prevent charBudget inflation after long
+		// background periods where RAF was paused by the browser.
+		dtMs = Math.min(100, dtMs);
 
 		if (!this.isStreaming || this.bypassSmoothing) {
 			return this.visibleLengthValue;

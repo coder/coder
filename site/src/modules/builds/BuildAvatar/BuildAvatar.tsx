@@ -1,10 +1,10 @@
 import { useTheme } from "@emotion/react";
 import type { WorkspaceBuild } from "api/typesGenerated";
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import { BuildIcon } from "components/BuildIcon/BuildIcon";
 import { useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
+import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
+import { BuildIcon } from "#/components/BuildIcon/BuildIcon";
 
 interface BuildAvatarProps {
 	build: WorkspaceBuild;

@@ -1,24 +1,11 @@
+import type * as TypesGen from "api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "components/ai-elements";
-import { Button } from "components/Button/Button";
-import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "components/ChatMessageInput/ChatMessageInput";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useSpeechRecognition } from "hooks/useSpeechRecognition";
 import {
 	AlertTriangleIcon,
 	ArrowUpIcon,
 	CheckIcon,
+	ClipboardPasteIcon,
 	ImageIcon,
 	MicIcon,
 	PencilIcon,
@@ -36,11 +23,32 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 import { isMobileViewport } from "utils/mobile";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/components/ai-elements";
+import { Button } from "#/components/Button/Button";
+import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "#/components/ChatMessageInput/ChatMessageInput";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import {
+	fetchTextAttachmentContent,
+	formatTextAttachmentPreview,
+} from "../utils/fetchTextAttachment";
 import { formatProviderLabel } from "../utils/modelOptions";
 import { ImageLightbox } from "./ImageLightbox";
+import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
+import { TextPreviewDialog } from "./TextPreviewDialog";
 
-export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 
 export type UploadState = {
 	status: "uploading" | "uploaded" | "error";
@@ -109,9 +117,16 @@ interface AgentChatInputProps {
 	contextUsage?: AgentContextUsage | null;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
-	onRemoveAttachment?: (index: number) => void;
+	onRemoveAttachment?: (attachment: number | File) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
+	textContents?: Map<File, string>;
+	onTextPreview?: (content: string, fileName: string) => void;
+	// MCP Server picker.
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds?: readonly string[];
+	onMCPSelectionChange?: (ids: string[]) => void;
+	onMCPAuthComplete?: (serverId: string) => void;
 }
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -254,18 +269,74 @@ export const ImageThumbnail: FC<{
 /** Renders a horizontal strip of attachment thumbnails above the input. */
 export const AttachmentPreview: FC<{
 	attachments: readonly File[];
-	onRemove: (index: number) => void;
+	onRemove: (attachment: number | File) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	onPreview?: (url: string) => void;
-}> = ({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
+	textContents?: Map<File, string>;
+	onTextPreview?: (content: string, fileName: string) => void;
+	onInlineText?: (file: File, content?: string) => void;
+}> = ({
+	attachments,
+	onRemove,
+	uploadStates,
+	previewUrls,
+	onPreview,
+	textContents,
+	onTextPreview,
+	onInlineText,
+}) => {
+	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
+
+	useEffect(() => {
+		return () => textAttachmentLoadControllerRef.current?.abort();
+	}, []);
+
 	if (attachments.length === 0) return null;
+
+	const loadTextAttachmentContent = async (
+		content: string | undefined,
+		fileId: string | undefined,
+	): Promise<string | undefined> => {
+		textAttachmentLoadControllerRef.current?.abort();
+		if (content !== undefined || !fileId) {
+			textAttachmentLoadControllerRef.current = null;
+			return content;
+		}
+		const controller = new AbortController();
+		textAttachmentLoadControllerRef.current = controller;
+		try {
+			const fetchedContent = await fetchTextAttachmentContent(
+				fileId,
+				controller.signal,
+			);
+			if (textAttachmentLoadControllerRef.current === controller) {
+				textAttachmentLoadControllerRef.current = null;
+			}
+			return fetchedContent;
+		} catch (err) {
+			if (textAttachmentLoadControllerRef.current === controller) {
+				textAttachmentLoadControllerRef.current = null;
+			}
+			if (err instanceof Error && err.name === "AbortError") {
+				return undefined;
+			}
+			console.error("Failed to load text attachment:", err);
+			return undefined;
+		}
+	};
 
 	return (
 		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
 			{attachments.map((file, index) => {
 				const uploadState = uploadStates?.get(file);
 				const previewUrl = previewUrls?.get(file) ?? "";
+				const textContent = textContents?.get(file);
+				const textFileId =
+					uploadState?.status === "uploaded" ? uploadState.fileId : undefined;
+				const hasTextAttachment =
+					file.type === "text/plain" &&
+					(textContent !== undefined || textFileId !== undefined);
 				return (
 					<div
 						// Key combines file metadata with index as a fallback for
@@ -281,10 +352,45 @@ export const AttachmentPreview: FC<{
 							>
 								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
 							</button>
+						) : hasTextAttachment ? (
+							<button
+								type="button"
+								aria-label="View text attachment"
+								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+								onClick={async () => {
+									const nextContent = await loadTextAttachmentContent(
+										textContent,
+										textFileId,
+									);
+									if (nextContent !== undefined) {
+										onTextPreview?.(nextContent, file.name);
+									}
+								}}
+							>
+								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
+									{formatTextAttachmentPreview(textContent ?? "")}
+								</span>
+							</button>
 						) : (
 							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
 								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 							</div>
+						)}
+						{hasTextAttachment && (
+							<button
+								type="button"
+								onClick={async () => {
+									const nextContent = await loadTextAttachmentContent(
+										textContent,
+										textFileId,
+									);
+									onInlineText?.(file, nextContent);
+								}}
+								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+								aria-label="Paste inline"
+							>
+								<ClipboardPasteIcon className="h-3.5 w-3.5" />
+							</button>
 						)}
 						{uploadState?.status === "uploading" && (
 							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
@@ -312,7 +418,7 @@ export const AttachmentPreview: FC<{
 						<button
 							type="button"
 							onClick={() => onRemove(index)}
-							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-border-default bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 							aria-label={`Remove ${file.name}`}
 						>
 							<XIcon className="h-3.5 w-3.5" />
@@ -357,9 +463,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onRemoveAttachment,
 	uploadStates,
 	previewUrls,
+	textContents,
+	onTextPreview,
+	mcpServers,
+	selectedMCPServerIds,
+	onMCPSelectionChange,
+	onMCPAuthComplete,
 }) => {
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
+	const [previewText, setPreviewText] = useState<string | null>(null);
+	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
+		null,
+	);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 
@@ -395,6 +511,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleFilePaste = (file: File) => {
 		onAttach?.([file]);
+	};
+
+	const handleInlineText = (file: File, nextContent?: string) => {
+		const content = nextContent ?? textContents?.get(file);
+		if (content === undefined) return;
+		const editor = internalRef.current;
+		if (!editor) return;
+		editor.insertText(content);
+		onRemoveAttachment?.(file);
+	};
+
+	const handleTextPreview = (content: string, fileName: string) => {
+		if (onTextPreview) {
+			onTextPreview(content, fileName);
+		} else {
+			setPreviewText(content);
+			setPreviewTextFileName(fileName);
+		}
 	};
 
 	// Drag-and-drop support for image files.
@@ -620,6 +754,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						onPreview={setPreviewImage}
+						textContents={textContents}
+						onTextPreview={handleTextPreview}
+						onInlineText={handleInlineText}
 					/>
 				)}
 				<ChatMessageInput
@@ -637,7 +774,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<div className="flex min-w-0 items-center gap-2">
-						{" "}
 						<ModelSelector
 							value={selectedModel}
 							onValueChange={onModelChange}
@@ -648,6 +784,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							dropdownSide="top"
 							dropdownAlign="center"
 						/>
+						{mcpServers &&
+							mcpServers.length > 0 &&
+							onMCPSelectionChange &&
+							onMCPAuthComplete && (
+								<MCPServerPicker
+									servers={mcpServers}
+									selectedServerIds={selectedMCPServerIds ?? []}
+									onSelectionChange={onMCPSelectionChange}
+									onAuthComplete={onMCPAuthComplete}
+									disabled={isDisabled}
+								/>
+							)}
 						{leftActions}
 						{inputStatusText && (
 							<span className="hidden text-xs text-content-secondary sm:inline">
@@ -770,6 +918,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ImageLightbox
 					src={previewImage}
 					onClose={() => setPreviewImage(null)}
+				/>
+			)}
+			{previewText !== null && (
+				<TextPreviewDialog
+					content={previewText}
+					fileName={previewTextFileName ?? undefined}
+					onClose={() => {
+						setPreviewText(null);
+						setPreviewTextFileName(null);
+					}}
 				/>
 			)}
 		</>

@@ -36,6 +36,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
         "organization_id": "string"
       }
     ],
+    "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
     "name": "string",
@@ -67,27 +68,28 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Status Code **200**
 
-| Name                 | Type                                                 | Required | Restrictions | Description |
-|----------------------|------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`       | array                                                | false    |              |             |
-| `» avatar_url`       | string                                               | false    |              |             |
-| `» created_at`       | string(date-time)                                    | false    |              |             |
-| `» email`            | string                                               | false    |              |             |
-| `» global_roles`     | array                                                | false    |              |             |
-| `»» display_name`    | string                                               | false    |              |             |
-| `»» name`            | string                                               | false    |              |             |
-| `»» organization_id` | string                                               | false    |              |             |
-| `» last_seen_at`     | string(date-time)                                    | false    |              |             |
-| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
-| `» name`             | string                                               | false    |              |             |
-| `» organization_id`  | string(uuid)                                         | false    |              |             |
-| `» roles`            | array                                                | false    |              |             |
-| `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
-| `» updated_at`       | string(date-time)                                    | false    |              |             |
-| `» user_created_at`  | string(date-time)                                    | false    |              |             |
-| `» user_id`          | string(uuid)                                         | false    |              |             |
-| `» user_updated_at`  | string(date-time)                                    | false    |              |             |
-| `» username`         | string                                               | false    |              |             |
+| Name                   | Type                                                 | Required | Restrictions | Description |
+|------------------------|------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`         | array                                                | false    |              |             |
+| `» avatar_url`         | string                                               | false    |              |             |
+| `» created_at`         | string(date-time)                                    | false    |              |             |
+| `» email`              | string                                               | false    |              |             |
+| `» global_roles`       | array                                                | false    |              |             |
+| `»» display_name`      | string                                               | false    |              |             |
+| `»» name`              | string                                               | false    |              |             |
+| `»» organization_id`   | string                                               | false    |              |             |
+| `» is_service_account` | boolean                                              | false    |              |             |
+| `» last_seen_at`       | string(date-time)                                    | false    |              |             |
+| `» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
+| `» name`               | string                                               | false    |              |             |
+| `» organization_id`    | string(uuid)                                         | false    |              |             |
+| `» roles`              | array                                                | false    |              |             |
+| `» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
+| `» updated_at`         | string(date-time)                                    | false    |              |             |
+| `» user_created_at`    | string(date-time)                                    | false    |              |             |
+| `» user_id`            | string(uuid)                                         | false    |              |             |
+| `» user_updated_at`    | string(date-time)                                    | false    |              |             |
+| `» username`           | string                                               | false    |              |             |
 
 #### Enumerated Values
 
@@ -593,6 +595,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
       "organization_id": "string"
     }
   ],
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -799,6 +802,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
             "organization_id": "string"
           }
         ],
+        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -832,29 +836,30 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
 
 Status Code **200**
 
-| Name                  | Type                                                 | Required | Restrictions | Description |
-|-----------------------|------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`        | array                                                | false    |              |             |
-| `» count`             | integer                                              | false    |              |             |
-| `» members`           | array                                                | false    |              |             |
-| `»» avatar_url`       | string                                               | false    |              |             |
-| `»» created_at`       | string(date-time)                                    | false    |              |             |
-| `»» email`            | string                                               | false    |              |             |
-| `»» global_roles`     | array                                                | false    |              |             |
-| `»»» display_name`    | string                                               | false    |              |             |
-| `»»» name`            | string                                               | false    |              |             |
-| `»»» organization_id` | string                                               | false    |              |             |
-| `»» last_seen_at`     | string(date-time)                                    | false    |              |             |
-| `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
-| `»» name`             | string                                               | false    |              |             |
-| `»» organization_id`  | string(uuid)                                         | false    |              |             |
-| `»» roles`            | array                                                | false    |              |             |
-| `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
-| `»» updated_at`       | string(date-time)                                    | false    |              |             |
-| `»» user_created_at`  | string(date-time)                                    | false    |              |             |
-| `»» user_id`          | string(uuid)                                         | false    |              |             |
-| `»» user_updated_at`  | string(date-time)                                    | false    |              |             |
-| `»» username`         | string                                               | false    |              |             |
+| Name                    | Type                                                 | Required | Restrictions | Description |
+|-------------------------|------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`          | array                                                | false    |              |             |
+| `» count`               | integer                                              | false    |              |             |
+| `» members`             | array                                                | false    |              |             |
+| `»» avatar_url`         | string                                               | false    |              |             |
+| `»» created_at`         | string(date-time)                                    | false    |              |             |
+| `»» email`              | string                                               | false    |              |             |
+| `»» global_roles`       | array                                                | false    |              |             |
+| `»»» display_name`      | string                                               | false    |              |             |
+| `»»» name`              | string                                               | false    |              |             |
+| `»»» organization_id`   | string                                               | false    |              |             |
+| `»» is_service_account` | boolean                                              | false    |              |             |
+| `»» last_seen_at`       | string(date-time)                                    | false    |              |             |
+| `»» login_type`         | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
+| `»» name`               | string                                               | false    |              |             |
+| `»» organization_id`    | string(uuid)                                         | false    |              |             |
+| `»» roles`              | array                                                | false    |              |             |
+| `»» status`             | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
+| `»» updated_at`         | string(date-time)                                    | false    |              |             |
+| `»» user_created_at`    | string(date-time)                                    | false    |              |             |
+| `»» user_id`            | string(uuid)                                         | false    |              |             |
+| `»» user_updated_at`    | string(date-time)                                    | false    |              |             |
+| `»» username`           | string                                               | false    |              |             |
 
 #### Enumerated Values
 

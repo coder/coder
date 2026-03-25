@@ -3,17 +3,17 @@ import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail } from "api/errors";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import {
-	ConfirmDialog,
-	type ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Stack } from "components/Stack/Stack";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
 import { toast } from "sonner";
+import { Alert } from "#/components/Alert/Alert";
+import {
+	ConfirmDialog,
+	type ConfirmDialogProps,
+} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Stack } from "#/components/Stack/Stack";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,

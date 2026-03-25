@@ -25,16 +25,18 @@ import {
 
 vi.mock("api/api", () => ({
 	API: {
-		updateChat: vi.fn(),
-		createChat: vi.fn(),
-		deleteChatQueuedMessage: vi.fn(),
-		getChats: vi.fn(),
-		getChatCostSummary: vi.fn(),
-		getChatCostUsers: vi.fn(),
-		createChatMessage: vi.fn(),
-		editChatMessage: vi.fn(),
-		interruptChat: vi.fn(),
-		promoteChatQueuedMessage: vi.fn(),
+		experimental: {
+			updateChat: vi.fn(),
+			createChat: vi.fn(),
+			deleteChatQueuedMessage: vi.fn(),
+			getChats: vi.fn(),
+			getChatCostSummary: vi.fn(),
+			getChatCostUsers: vi.fn(),
+			createChatMessage: vi.fn(),
+			editChatMessage: vi.fn(),
+			interruptChat: vi.fn(),
+			promoteChatQueuedMessage: vi.fn(),
+		},
 	},
 }));
 
@@ -207,7 +209,7 @@ describe("archiveChat optimistic update", () => {
 		const initialChats = [makeChat(chatId), makeChat("chat-2")];
 		seedInfiniteChats(queryClient, initialChats);
 
-		vi.mocked(API.updateChat).mockResolvedValue();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
 
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);
@@ -225,7 +227,7 @@ describe("archiveChat optimistic update", () => {
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 
-		vi.mocked(API.updateChat).mockResolvedValue();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue();
 
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);
@@ -414,7 +416,7 @@ describe("chat cost query factories", () => {
 			start_date: "2025-01-01",
 			end_date: "2025-01-31",
 		};
-		vi.mocked(API.getChatCostSummary).mockResolvedValue(
+		vi.mocked(API.experimental.getChatCostSummary).mockResolvedValue(
 			{} as TypesGen.ChatCostSummary,
 		);
 
@@ -428,7 +430,10 @@ describe("chat cost query factories", () => {
 		]);
 		expect(query.queryKey).toEqual(["chats", "costSummary", user, params]);
 		await query.queryFn();
-		expect(API.getChatCostSummary).toHaveBeenCalledWith(user, params);
+		expect(API.experimental.getChatCostSummary).toHaveBeenCalledWith(
+			user,
+			params,
+		);
 	});
 
 	it("builds a distinct users query key and forwards snake_case params", async () => {
@@ -439,7 +444,7 @@ describe("chat cost query factories", () => {
 			limit: 10,
 			offset: 20,
 		};
-		vi.mocked(API.getChatCostUsers).mockResolvedValue(
+		vi.mocked(API.experimental.getChatCostUsers).mockResolvedValue(
 			{} as TypesGen.ChatCostUsersResponse,
 		);
 
@@ -449,7 +454,7 @@ describe("chat cost query factories", () => {
 		expect(query.queryKey).toEqual(["chats", "costUsers", params]);
 		expect(query.queryKey).not.toEqual(chatCostSummaryKey("me", params));
 		await query.queryFn();
-		expect(API.getChatCostUsers).toHaveBeenCalledWith(params);
+		expect(API.experimental.getChatCostUsers).toHaveBeenCalledWith(params);
 	});
 });
 
@@ -710,37 +715,37 @@ describe("infiniteChats", () => {
 
 	describe("queryFn", () => {
 		it("computes offset 0 for pageParam 0", async () => {
-			vi.mocked(API.getChats).mockResolvedValue([]);
+			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 			const { queryFn } = infiniteChats();
 			await queryFn({ pageParam: 0 });
-			expect(API.getChats).toHaveBeenCalledWith({
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: 0,
 			});
 		});
 
 		it("computes offset 0 for pageParam <= 0", async () => {
-			vi.mocked(API.getChats).mockResolvedValue([]);
+			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 			const { queryFn } = infiniteChats();
 			await queryFn({ pageParam: -1 });
-			expect(API.getChats).toHaveBeenCalledWith({
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: 0,
 			});
 		});
 
 		it("computes correct offset for subsequent pages", async () => {
-			vi.mocked(API.getChats).mockResolvedValue([]);
+			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 			const { queryFn } = infiniteChats();
 
 			await queryFn({ pageParam: 2 });
-			expect(API.getChats).toHaveBeenCalledWith({
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: PAGE_LIMIT,
 			});
 
 			await queryFn({ pageParam: 3 });
-			expect(API.getChats).toHaveBeenCalledWith({
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: PAGE_LIMIT * 2,
 			});

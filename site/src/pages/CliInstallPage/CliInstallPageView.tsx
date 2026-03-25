@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { Welcome } from "components/Welcome/Welcome";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { Welcome } from "#/components/Welcome/Welcome";
 
 type CliInstallPageViewProps = {
 	origin: string;

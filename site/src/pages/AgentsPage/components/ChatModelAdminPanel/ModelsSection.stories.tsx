@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 import { expect, fn, within } from "storybook/test";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
 

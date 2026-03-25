@@ -1,17 +1,17 @@
-import { Avatar } from "components/Avatar/Avatar";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import {
-	Sidebar as BaseSidebar,
-	SidebarHeader,
-	SidebarNavItem,
-} from "components/Sidebar/Sidebar";
 import {
 	SettingsIcon as GeneralIcon,
 	CodeIcon as ParameterIcon,
 	TimerIcon as ScheduleIcon,
 	Users as SharingIcon,
 } from "lucide-react";
-import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import {
+	Sidebar as BaseSidebar,
+	SidebarHeader,
+	SidebarNavItem,
+} from "#/components/Sidebar/Sidebar";
+import { useWorkspaceSettings } from "./useWorkspaceSettings";
 
 export const Sidebar: React.FC = () => {
 	const { owner, workspace, permissions } = useWorkspaceSettings();
