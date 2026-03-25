@@ -196,9 +196,9 @@ func TestServeHTTP_StripCoderSessionToken(t *testing.T) {
 			},
 		},
 		{
-			// BYOK with OAuth token (Claude Max/Pro): Coder token in
-			// BYOK header, user's OAuth token in Authorization. Only
-			// the BYOK header is stripped.
+			// BYOK with access token: Coder token in BYOK header,
+			// user's access token in Authorization. Only the
+			// BYOK header is stripped.
 			name: "byok bearer token",
 			reqHeaders: map[string]string{
 				agplaibridge.HeaderCoderBYOKToken: "coder-token",
