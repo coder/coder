@@ -424,7 +424,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 							No usage data for this period.
 						</p>
 					) : (
-						<>
+						<div className="flex flex-col gap-4">
 							<div className="overflow-hidden rounded-lg border border-border-default">
 								<Table>
 									<TableHeader>
@@ -462,7 +462,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 								hasPreviousPage={hasPreviousPage}
 								hasNextPage={hasNextPage}
 							/>
-						</>
+						</div>
 					)}
 				</div>
 			)}
