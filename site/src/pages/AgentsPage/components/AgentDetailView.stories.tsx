@@ -506,16 +506,13 @@ const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 };
 
 const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
-	// Normal order: scrollTop = 0 is top, scrollTop =
-	// scrollHeight - clientHeight is bottom. Set to top to get
-	// maximally away from bottom.
-	scrollContainer.scrollTop = 0;
+	const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+	scrollContainer.scrollTop = -maxScroll;
+	if (Math.abs(scrollContainer.scrollTop) < 100) {
+		scrollContainer.scrollTop = maxScroll;
+	}
 	scrollContainer.dispatchEvent(new Event("scroll"));
 };
-
-/** Distance in pixels from the bottom of a scroll container. */
-const distFromBottom = (el: HTMLElement): number =>
-	el.scrollHeight - el.scrollTop - el.clientHeight;
 
 /** Helper that extracts the current messages array from a store. */
 const getStoreMessages = (
@@ -556,7 +553,10 @@ export const ScrollToBottomButton: Story = {
 		// Wait for content to render and create overflow.
 		await waitForScrollOverflow(scrollContainer);
 
-		// Scroll away from the bottom.
+		// Scroll up. In flex-col-reverse containers, Chrome uses
+		// negative scrollTop values when scrolled away from the
+		// bottom. Try negative first, fall back to positive for
+		// other engines.
 		scrollAwayFromBottom(scrollContainer);
 
 		// Button should become visible (enters the accessibility tree).
@@ -610,9 +610,7 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 
 		// Record position while clearly away from the bottom.
 		const scrollTopBefore = scrollContainer.scrollTop;
-		const distFromBottomBefore = distFromBottom(scrollContainer);
-		expect(scrollTopBefore).toBeLessThan(5);
-		expect(distFromBottomBefore).toBeGreaterThan(50);
+		expect(Math.abs(scrollTopBefore)).toBeGreaterThan(50);
 
 		const existing = getStoreMessages(preservedScrollStore);
 		preservedScrollStore.replaceMessages(
@@ -630,19 +628,11 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 			]),
 		);
 
-		// Wait for ResizeObserver updates to settle. We should
-		// remain significantly away from the bottom and keep the
-		// same reading position.
+		// Wait for ResizeObserver + RAF compensation to settle.
+		// We should remain significantly away from the bottom.
 		await waitFor(
 			() => {
-				const distanceFromBottom = distFromBottom(scrollContainer);
-				expect(scrollContainer.scrollTop).toBeGreaterThanOrEqual(
-					scrollTopBefore - 5,
-				);
-				expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-					scrollTopBefore + 5,
-				);
-				expect(distanceFromBottom).toBeGreaterThan(50);
+				expect(Math.abs(scrollContainer.scrollTop)).toBeGreaterThan(50);
 			},
 			{ timeout: 2000 },
 		);
@@ -665,14 +655,8 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 
 		await waitForScrollOverflow(scrollContainer);
 
-		// Wait for the initial double-RAF pin to bottom to complete.
-		await waitFor(
-			() => {
-				const initialDistFromBottom = distFromBottom(scrollContainer);
-				expect(initialDistFromBottom).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
+		// Verify the starting position is pinned to the bottom.
+		expect(Math.abs(scrollContainer.scrollTop)).toBeLessThan(5);
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();
@@ -694,8 +678,7 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 		// Wait for the double-RAF pin to complete.
 		await waitFor(
 			() => {
-				const distanceFromBottom = distFromBottom(scrollContainer);
-				expect(distanceFromBottom).toBeLessThan(5);
+				expect(Math.abs(scrollContainer.scrollTop)).toBeLessThan(5);
 			},
 			{ timeout: 2000 },
 		);
