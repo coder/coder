@@ -207,7 +207,7 @@ export const UserCompactionThresholdSettings: FC<
 											{modelConfig.display_name || modelConfig.model}
 										</span>
 										<span className="ml-2 text-xs text-content-secondary">
-											{modelConfig.compression_threshold}%
+											System default: {modelConfig.compression_threshold}%
 										</span>
 									</div>
 									<div className="flex items-center gap-1.5">
