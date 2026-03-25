@@ -17,12 +17,6 @@ import (
 // TestCompositeWorkspaceScopes verifies that the composite
 // coder:workspaces.* scopes grant the permissions needed for
 // workspace lifecycle operations when used on scoped API tokens.
-//
-// Each sub-test creates a scoped token, builds a client around it,
-// and exercises the matching workspace operation. The tests are
-// expected to fail until the composite scope definitions include
-// organization_member:read, which the middleware requires to
-// resolve the {user} path parameter.
 func TestCompositeWorkspaceScopes(t *testing.T) {
 	t.Parallel()
 
@@ -93,10 +87,6 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		require.NoError(t, err, "listing workspaces with coder:workspaces.create scope")
 		require.NotEmpty(t, workspaces.Workspaces, "should see at least the existing workspace")
 
-		// Create a new workspace. This is the primary operation the
-		// composite scope is designed for. It goes through
-		// ExtractOrganizationMembersParam middleware which requires
-		// organization_member:read.
 		_, err = scoped.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: s.workspace.TemplateID,
 			Name:       coderdtest.RandomUsername(t),
@@ -122,7 +112,7 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		require.NoError(t, err, "reading workspace with coder:workspaces.operate scope")
 		require.Equal(t, s.workspace.ID, ws.ID)
 
-		// Rename the workspace (requires workspace:update). This goes
+		// Update the workspace metadata (requires workspace:update). This goes
 		// through the PATCH /workspaces/{workspace} endpoint.
 		err = scoped.UpdateWorkspaceTTL(ctx, s.workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 			TTLMillis: ptr.Ref[int64]((time.Hour).Milliseconds()),
@@ -175,6 +165,7 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 	// coder:workspaces.access — token should be able to read
 	// workspaces. SSH and application_connect are included in this
 	// scope but excluded from other workspace scopes.
+	// TODO: actually make an ssh connection. This would require a real agent.
 	t.Run("WorkspacesAccess", func(t *testing.T) {
 		t.Parallel()
 		s := setup(t)
