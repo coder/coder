@@ -32,6 +32,11 @@ func TestParseUUIDList(t *testing.T) {
 			want:  []uuid.UUID{},
 		},
 		{
+			name:  "WhitespaceOnly",
+			input: "  \n\t ",
+			want:  []uuid.UUID{},
+		},
+		{
 			name:  "ValidUUIDs",
 			input: `["c7c6686d-a93c-4df2-bef9-5f837e9a33d5","8f3b3e0b-2c3f-46a5-a365-fd5b62bd8818"]`,
 			want:  []uuid.UUID{a, b},

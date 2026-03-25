@@ -3685,3 +3685,116 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	require.True(t, foundToolMessage,
 		"MCP tool result should be persisted as a tool message in the database")
 }
+
+func TestChatTemplateAllowlistEnforcement(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	// Set up a mock OpenAI server. The first streaming call triggers
+	// list_templates; subsequent calls respond with text.
+	var callCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if callCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("list_templates", `{}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Here are the templates.")...,
+		)
+	})
+
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Create two templates the user can see.
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	tplAllowed := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "allowed-template",
+	})
+	tplBlocked := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "blocked-template",
+	})
+
+	// Set the allowlist to only tplAllowed.
+	allowlistJSON, err := json.Marshal([]string{tplAllowed.ID.String()})
+	require.NoError(t, err)
+	err = db.UpsertChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx), string(allowlistJSON))
+	require.NoError(t, err)
+
+	server := newActiveTestServer(t, db, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "allowlist-test",
+		ModelConfigID: model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("List templates"),
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the chat to finish processing.
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	// Find the list_templates tool result in the persisted messages.
+	var toolResult string
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for _, msg := range messages {
+			if msg.Role != database.ChatMessageRoleTool {
+				continue
+			}
+			parts, parseErr := chatprompt.ParseContent(msg)
+			if parseErr != nil {
+				continue
+			}
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult &&
+					part.ToolName == "list_templates" {
+					toolResult = string(part.Result)
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+
+	require.NotEmpty(t, toolResult, "list_templates tool result should be persisted")
+
+	// The result should contain only the allowed template.
+	require.Contains(t, toolResult, tplAllowed.ID.String(),
+		"allowed template should appear in list_templates result")
+	require.NotContains(t, toolResult, tplBlocked.ID.String(),
+		"blocked template should NOT appear in list_templates result")
+}

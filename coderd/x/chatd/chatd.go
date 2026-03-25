@@ -130,7 +130,11 @@ type Server struct {
 func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 	//nolint:gocritic // AsChatd provides narrowly-scoped daemon
 	// access for reading deployment config.
-	ctx := dbauthz.AsChatd(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	//nolint:gocritic // AsChatd provides narrowly-scoped read
+	// access to deployment config (the template allowlist).
+	ctx = dbauthz.AsChatd(ctx)
 	raw, err := p.db.GetChatTemplateAllowlist(ctx)
 	if err != nil {
 		p.logger.Warn(ctx, "failed to load chat template allowlist", slog.Error(err))
