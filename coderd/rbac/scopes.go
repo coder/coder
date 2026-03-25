@@ -134,8 +134,10 @@ func BuiltinScopeNames() []ScopeName {
 // authorization.
 var compositePerms = map[ScopeName]map[string][]policy.Action{
 	"coder:workspaces.create": {
-		ResourceTemplate.Type:           {policy.ActionRead, policy.ActionUse},
-		ResourceWorkspace.Type:          {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
+		ResourceWorkspace.Type: {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		// When creating a workspace, users need to be able to read the org member the
+		// workspace will be owned by. Even if that owner is "yourself".
 		ResourceOrganizationMember.Type: {policy.ActionRead},
 	},
 	"coder:workspaces.operate": {
