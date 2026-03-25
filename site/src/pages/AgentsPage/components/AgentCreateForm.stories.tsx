@@ -27,7 +27,6 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isModelCatalogLoading: false,
 		modelConfigs: [],
 		isModelConfigsLoading: false,
-		modelCatalogError: undefined,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -167,6 +166,26 @@ export const SelectWorkspaceViaSearch: Story = {
 		await waitFor(() => {
 			expect(body.getByText("backend-api")).toBeInTheDocument();
 		});
+	},
+};
+
+export const LoadingModelCatalog: Story = {
+	args: {
+		...defaultArgs,
+		modelCatalog: null,
+		modelOptions: [],
+		isModelCatalogLoading: true,
+		isModelConfigsLoading: true,
+	},
+};
+
+export const NoModelsConfigured: Story = {
+	args: {
+		...defaultArgs,
+		modelCatalog: { providers: [] },
+		modelOptions: [],
+		isModelCatalogLoading: false,
+		isModelConfigsLoading: false,
 	},
 };
 

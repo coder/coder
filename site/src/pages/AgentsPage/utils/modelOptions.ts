@@ -216,28 +216,7 @@ export const getModelSelectorPlaceholder = (
 		return "Loading models...";
 	}
 	if (hasConfiguredModels) {
-		return "No available models";
+		return "No Models Available";
 	}
-	return "No models configured";
-};
-
-export const getModelCatalogStatusMessage = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
-	modelOptions: readonly ModelSelectorOption[],
-	isModelCatalogLoading: boolean,
-	hasModelCatalogError: boolean,
-): string | null => {
-	if (modelOptions.length > 0) {
-		return null;
-	}
-	if (isModelCatalogLoading) {
-		return "Loading model catalog...";
-	}
-	if (hasModelCatalogError) {
-		return "Model catalog unavailable. Unable to verify model availability.";
-	}
-	if (hasConfiguredModelsInCatalog(catalog)) {
-		return "Models are configured but unavailable. Check provider settings.";
-	}
-	return "No chat models are configured. Ask an admin to configure one.";
+	return "No Models Configured";
 };

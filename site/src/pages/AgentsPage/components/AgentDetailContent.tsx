@@ -200,8 +200,7 @@ interface AgentDetailInputProps {
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	// Controlled input value and editing state, owned by the
 	// conversation component.
 	inputRef?: React.Ref<ChatMessageInputRef>;
@@ -240,8 +239,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onModelChange,
 	modelOptions,
 	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
 	onContentChange,
@@ -392,8 +390,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			inputStatusText={inputStatusText}
-			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			isModelCatalogLoading={isModelCatalogLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}

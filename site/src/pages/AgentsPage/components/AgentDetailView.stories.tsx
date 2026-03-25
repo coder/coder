@@ -111,8 +111,6 @@ const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		modelOptions: defaultModelOptions,
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		inputStatusText: null as string | null,
-		modelCatalogStatusMessage: null as string | null,
 		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
@@ -276,7 +274,6 @@ export const NoModelOptions: Story = {
 		<StoryAgentDetailView
 			hasModelOptions={false}
 			modelOptions={[]}
-			inputStatusText="No models configured. Ask an admin."
 			isInputDisabled
 		/>
 	),
@@ -308,8 +305,6 @@ export const Loading: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
@@ -328,8 +323,6 @@ export const LoadingWithModelOptions: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
@@ -347,8 +340,6 @@ export const LoadingWithRightPanel: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel
@@ -367,8 +358,6 @@ export const LoadingSidebarCollapsed: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
