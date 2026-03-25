@@ -50,6 +50,16 @@ export const buildStreamRenderState = (
 	};
 };
 
+/**
+ * Pinned clock for stories that render countdown timers. Stories
+ * should mock `Date.now` to return this value so the countdowns
+ * are deterministic across Chromatic snapshots.
+ *
+ * Set to midnight UTC on the same day as the fixture deadlines,
+ * giving reconnect a 1s countdown and retry a 2s countdown.
+ */
+export const FIXTURE_NOW = new Date("2026-03-10T00:00:00.000Z").getTime();
+
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},
 ): ReconnectState => ({

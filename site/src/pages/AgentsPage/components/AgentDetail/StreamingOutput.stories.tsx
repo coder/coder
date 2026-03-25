@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, waitFor, within } from "storybook/test";
 import { StreamingOutput } from "./ConversationTimeline";
 import {
+	FIXTURE_NOW,
 	buildLiveStatus,
 	buildReconnectState,
 	buildRetryState,
@@ -20,6 +21,13 @@ const meta: Meta<typeof StreamingOutput> = {
 			</div>
 		),
 	],
+	beforeEach: () => {
+		const real = Date.now;
+		Date.now = () => FIXTURE_NOW;
+		return () => {
+			Date.now = real;
+		};
+	},
 };
 export default meta;
 type Story = StoryObj<typeof StreamingOutput>;
@@ -50,7 +58,6 @@ export const ReconnectingAfterDisconnect: Story = {
 			reconnectState: buildReconnectState({
 				attempt: 2,
 				delayMs: 2000,
-				retryingAt: "2099-01-01T00:00:00.000Z",
 			}),
 		}),
 	},
@@ -102,7 +109,6 @@ export const RetryRateLimited: Story = {
 				error: "Anthropic asked us to back off briefly before retrying.",
 				kind: "rate_limit",
 				delayMs: 3000,
-				retryingAt: "2099-01-01T00:00:00.000Z",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),

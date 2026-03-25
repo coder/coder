@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, within } from "storybook/test";
 import { LiveStreamTailContent } from "./LiveStreamTail";
 import {
+	FIXTURE_NOW,
 	buildLiveStatus,
 	buildReconnectState,
 	buildStreamRenderState,
@@ -29,6 +30,13 @@ const meta: Meta<typeof LiveStreamTailContent> = {
 			</div>
 		),
 	],
+	beforeEach: () => {
+		const real = Date.now;
+		Date.now = () => FIXTURE_NOW;
+		return () => {
+			Date.now = real;
+		};
+	},
 };
 export default meta;
 type Story = StoryObj<typeof LiveStreamTailContent>;
@@ -131,7 +139,6 @@ export const ReconnectingKeepsPartialOutputVisible: Story = {
 			reconnectState: buildReconnectState({
 				attempt: 2,
 				delayMs: 2000,
-				retryingAt: "2099-01-01T00:00:00.000Z",
 			}),
 		}),
 	},
