@@ -88,8 +88,12 @@ export const Default: Story = {
 
 		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
 		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
-		expect(canvas.getByText("System default: 80%")).toBeInTheDocument();
-		expect(canvas.getByText("System default: 70%")).toBeInTheDocument();
+		expect(
+			canvas.getByText((_, el) => el?.textContent === "System default: 80%"),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText((_, el) => el?.textContent === "System default: 70%"),
+		).toBeInTheDocument();
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
 		await userEvent.type(gpt4oInput, "100");
