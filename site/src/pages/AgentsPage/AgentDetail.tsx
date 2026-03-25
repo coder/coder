@@ -658,10 +658,10 @@ const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 
-		// Don't clear stream state eagerly — let the server-driven
-		// status events (via WebSocket) control when the stream is
-		// reset. Clearing here while the agent is still streaming
-		// causes a visible cutoff when the message is queued.
+		// Don't clear stream state before the POST completes.
+		// For queued sends the WebSocket status events handle the
+		// reset; for non-queued sends we clear explicitly below.
+		// Clearing eagerly causes a visible cutoff when queued.
 		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
 		try {
 			response = await sendMutation.mutateAsync(request);
@@ -672,7 +672,7 @@ const AgentDetail: FC = () => {
 		// When the server accepts the message immediately (not
 		// queued), clear the stream and insert the user's message
 		// so it appears in the timeline without waiting for the
-		// SSE stream.
+		// WebSocket stream.
 		if (!response.queued) {
 			store.clearStreamState();
 			if (response.message) {
