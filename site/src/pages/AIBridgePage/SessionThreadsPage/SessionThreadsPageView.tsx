@@ -31,15 +31,6 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 					A session is a set of threads or interceptions logically grouped by a
 					session key issued by the client.
 				</p>
-				<p className="m-0 leading-snug">
-					<Link
-						href="TODO docs page"
-						target="_blank"
-						className="text-xs m-0 p-0"
-					>
-						View session terminology
-					</Link>
-				</p>
 			</TooltipContent>
 		</Tooltip>
 	</TooltipProvider>
