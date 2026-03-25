@@ -7,25 +7,6 @@ import type {
 	Template,
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Kbd, KbdGroup } from "components/Kbd/Kbd";
-import { Link } from "components/Link/Link";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectValue,
-} from "components/Select/Select";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
@@ -38,6 +19,25 @@ import TextareaAutosize, {
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { getOSKey } from "utils/platform";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
+import { Link } from "#/components/Link/Link";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 

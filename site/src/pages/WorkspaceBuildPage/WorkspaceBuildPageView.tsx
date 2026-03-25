@@ -3,18 +3,6 @@ import type {
 	WorkspaceAgent,
 	WorkspaceBuild,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import {
-	FullWidthPageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "components/PageHeader/FullWidthPageHeader";
-import { Stack } from "components/Stack/Stack";
-import { Stats, StatsItem } from "components/Stats/Stats";
-import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ExternalLinkIcon } from "lucide-react";
 import { BuildAvatar } from "modules/builds/BuildAvatar/BuildAvatar";
@@ -37,6 +25,18 @@ import { Link } from "react-router";
 import { cn } from "utils/cn";
 import { formatDate } from "utils/time";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import {
+	FullWidthPageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
+} from "#/components/PageHeader/FullWidthPageHeader";
+import { Stack } from "#/components/Stack/Stack";
+import { Stats, StatsItem } from "#/components/Stats/Stats";
+import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";

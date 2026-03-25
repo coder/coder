@@ -5,16 +5,16 @@ import {
 	MockUserOwner,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { ComponentProps } from "react";
 import {
 	getDefaultFilterProps,
 	MockMenu,
-} from "components/Filter/storyHelpers";
+} from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
-} from "components/PaginationWidget/PaginationContainer.mocks";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
-import type { ComponentProps } from "react";
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];

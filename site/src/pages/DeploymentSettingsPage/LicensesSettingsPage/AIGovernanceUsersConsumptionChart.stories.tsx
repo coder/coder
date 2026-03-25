@@ -120,7 +120,7 @@ export const UsageBarFromLicenseClaims: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("750")).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("heading", { name: "AI governance add-on usage" }),
+			canvas.getByRole("heading", { name: "AI Governance add-on usage" }),
 		).toBeInTheDocument();
 	},
 };

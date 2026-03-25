@@ -1,10 +1,10 @@
 import { workspaceAgentCredentials } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { Loader } from "components/Loader/Loader";
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { Loader } from "#/components/Loader/Loader";
 
 interface AgentExternalProps {
 	agent: WorkspaceAgent;

@@ -1,22 +1,22 @@
 import type { GetLicensesResponse } from "api/api";
 import type { Feature } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import dayjs from "dayjs";
+import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { cn } from "utils/cn";
+import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+} from "#/components/Collapsible/Collapsible";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import dayjs from "dayjs";
-import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { cn } from "utils/cn";
+} from "#/components/DropdownMenu/DropdownMenu";
 import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 import {
 	isLicenseApplicableForAiGovernanceOverage,
@@ -71,7 +71,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		license,
 		aiGovernanceUserFeature,
 	);
-	// A license "wins" when its AI governance limit matches the merged limit.
+	// A license "wins" when its AI Governance limit matches the merged limit.
 	const isWinningAiGovernanceLicense =
 		aiGovernanceMergedLimit !== undefined &&
 		aiGovernanceLimit > 0 &&
@@ -227,7 +227,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 							</div>
 							<div className="mt-3 flex flex-wrap gap-3">
 								<AIGovernanceAddOnCard
-									title="AI governance"
+									title="AI Governance"
 									unit="Seats"
 									actual={aiGovernanceDisplayActual}
 									limit={aiGovernanceLimit}

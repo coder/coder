@@ -1,9 +1,9 @@
 import TextField from "@mui/material/TextField";
 import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
 import type { FC, ReactNode } from "react";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;

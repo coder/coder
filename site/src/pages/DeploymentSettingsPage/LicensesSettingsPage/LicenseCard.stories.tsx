@@ -124,7 +124,7 @@ export const PremiumWithoutAIGovernanceAddOn: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("AI governance")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
 	},
 };
 

@@ -15,27 +15,6 @@ import type {
 } from "api/typesGenerated";
 import chroma from "chroma-js";
 import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "components/ActiveUserChart/ActiveUserChart";
-import { Avatar } from "components/Avatar/Avatar";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipArrow,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import {
 	CircleCheck as CircleCheckIcon,
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
@@ -65,6 +44,27 @@ import {
 	startOfHour,
 	subtractTime,
 } from "utils/time";
+import {
+	ActiveUserChart,
+	ActiveUsersTitle,
+} from "#/components/ActiveUserChart/ActiveUserChart";
+import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "#/components/HelpTooltip/HelpTooltip";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipArrow,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getTemplatePageTitle } from "../utils";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";

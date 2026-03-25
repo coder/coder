@@ -1,21 +1,21 @@
 import { deploymentSSHConfig } from "api/queries/deployment";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Button } from "components/Button/Button";
-import { CodeExample } from "components/CodeExample/CodeExample";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { docs } from "utils/docs";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
 import {
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip";
+} from "#/components/HelpTooltip/HelpTooltip";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { docs } from "utils/docs";
+} from "#/components/Popover/Popover";
+import { Stack } from "#/components/Stack/Stack";
 
 interface AgentSSHButtonProps {
 	workspaceName: string;

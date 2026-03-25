@@ -1,14 +1,14 @@
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Button } from "components/Button/Button";
+import { linkToAuditing } from "modules/navigation";
+import type { FC } from "react";
+import { Link } from "react-router";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { linkToAuditing } from "modules/navigation";
-import type { FC } from "react";
-import { Link } from "react-router";
+} from "#/components/DropdownMenu/DropdownMenu";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;

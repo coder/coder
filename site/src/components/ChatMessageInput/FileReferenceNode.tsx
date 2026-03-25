@@ -1,5 +1,4 @@
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
-import { FileIcon } from "components/FileIcon/FileIcon";
 import {
 	$getNodeByKey,
 	DecoratorNode,
@@ -12,6 +11,7 @@ import {
 import { XIcon } from "lucide-react";
 import { type FC, memo, type ReactNode } from "react";
 import { cn } from "utils/cn";
+import { FileIcon } from "#/components/FileIcon/FileIcon";
 
 type SerializedFileReferenceNode = Spread<
 	{
@@ -65,9 +65,11 @@ export function FileReferenceChip({
 			tabIndex={0}
 		>
 			<FileIcon fileName={shortFile} className="shrink-0" />
-			<span className="shrink-0 text-content-secondary">
-				{shortFile}
-				<span className="text-content-link">:{lineLabel}</span>
+			<span className="inline-flex min-w-0 text-content-secondary">
+				<span dir="rtl" className="min-w-0 truncate">
+					{shortFile}
+				</span>
+				<span className="shrink-0 text-content-link">:{lineLabel}</span>
 			</span>
 			{onRemove && (
 				<button

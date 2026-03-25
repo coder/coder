@@ -1,15 +1,15 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import type { TemplateVersion } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
-import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
-import { TableCell } from "components/Table/Table";
-import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Pill } from "#/components/Pill/Pill";
+import { Stack } from "#/components/Stack/Stack";
+import { TableCell } from "#/components/Table/Table";
+import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
 
 interface VersionRowProps {
 	version: TemplateVersion;

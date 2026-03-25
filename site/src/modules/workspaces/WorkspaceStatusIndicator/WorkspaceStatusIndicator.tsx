@@ -1,20 +1,20 @@
 import type { Workspace } from "api/typesGenerated";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import type React from "react";
 import type { FC } from "react";
 import {
 	type DisplayWorkspaceStatusType,
 	getDisplayWorkspaceStatus,
 } from "utils/workspace";
+import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "#/components/StatusIndicator/StatusIndicator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 const variantByStatusType: Record<
 	DisplayWorkspaceStatusType,

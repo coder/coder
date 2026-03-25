@@ -1,5 +1,5 @@
-import { PremiumBadge } from "components/Badges/Badges";
 import { docs } from "utils/docs";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import {
 	Paywall,
 	PaywallContent,

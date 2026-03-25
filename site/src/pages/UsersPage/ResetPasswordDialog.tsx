@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { FC, JSX } from "react";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 interface ResetPasswordDialogProps {
 	open: boolean;

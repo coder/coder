@@ -5,11 +5,11 @@ import {
 	userCompactionThresholds,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Spinner } from "components/Spinner/Spinner";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 interface UserCompactionThresholdSettingsProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
@@ -184,7 +184,7 @@ export const UserCompactionThresholdSettings: FC<
 					models before compaction thresholds can be set.
 				</p>
 			) : (
-				<div className="space-y-3">
+				<div className="space-y-2">
 					{enabledModelConfigs.map((modelConfig) => {
 						const existingOverride = overridesByModelID.get(modelConfig.id);
 						const hasOverride = overridesByModelID.has(modelConfig.id);
@@ -200,27 +200,27 @@ export const UserCompactionThresholdSettings: FC<
 							isThisModelMutating;
 
 						return (
-							<div
-								key={modelConfig.id}
-								className="space-y-2 rounded-lg border border-border bg-surface-secondary/40 p-4"
-							>
-								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-									<div className="flex-1">
-										<span className="text-sm font-medium text-content-primary">
+							<div key={modelConfig.id} className="space-y-1">
+								<div className="flex items-center justify-between gap-3">
+									<div className="flex min-w-0 flex-1 items-baseline gap-2">
+										<span className="text-[13px] font-medium text-content-primary">
 											{modelConfig.display_name || modelConfig.model}
 										</span>
-										<span className="ml-2 text-xs text-content-secondary">
-											System default: {modelConfig.compression_threshold}%
+										<span className="ml-auto text-xs text-content-secondary">
+											System default:{" "}
+											<span className="inline-block w-[4ch] text-right tabular-nums">
+												{modelConfig.compression_threshold}%
+											</span>
 										</span>
 									</div>
-									<div className="flex flex-wrap items-center gap-2 sm:justify-end">
+									<div className="flex items-center gap-1.5">
 										<Input
 											aria-label={`${modelConfig.display_name || modelConfig.model} compaction threshold`}
 											type="number"
 											min={0}
 											max={100}
 											inputMode="numeric"
-											className="h-9 w-20 text-[13px]"
+											className="h-7 w-16 px-2 text-xs"
 											value={draftValue}
 											placeholder={String(modelConfig.compression_threshold)}
 											onChange={(event) => {
@@ -235,6 +235,7 @@ export const UserCompactionThresholdSettings: FC<
 										<span className="text-xs text-content-secondary">%</span>
 										<Button
 											size="sm"
+											className="h-7"
 											type="button"
 											disabled={isSaveDisabled}
 											onClick={() => {
@@ -258,6 +259,7 @@ export const UserCompactionThresholdSettings: FC<
 										{hasOverride && (
 											<Button
 												size="sm"
+												className="h-7"
 												variant="outline"
 												type="button"
 												disabled={isThisModelMutating}

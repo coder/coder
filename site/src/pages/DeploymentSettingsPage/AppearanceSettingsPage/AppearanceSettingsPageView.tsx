@@ -1,30 +1,30 @@
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import { getFormHelpers } from "utils/formUtils";
 import {
 	Badges,
 	EnterpriseBadge,
 	PremiumBadge,
-} from "components/Badges/Badges";
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
+} from "#/components/Badges/Badges";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
 	InputGroupAddon,
 	InputGroupInput,
-} from "components/InputGroup/InputGroup";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+} from "#/components/InputGroup/InputGroup";
+import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
+} from "#/components/Tooltip/Tooltip";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 

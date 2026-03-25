@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -1767,4 +1768,161 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 		require.NoError(t, err)
 		require.Empty(t, prompt, "all-empty message should be dropped entirely")
 	})
+}
+
+func TestConvertMessagesWithFiles_PasteTextBecomesTextPart(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	prompt := convertSingleResolvedFileMessage(t, fileID, chatprompt.FileData{
+		Name:      "pasted-text-2025-01-01-12-00-00.txt",
+		Data:      []byte("hello world"),
+		MediaType: "text/plain",
+	})
+
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "expected TextPart")
+
+	_, isFilePart := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.False(t, isFilePart, "synthetic pasted text should not remain a FilePart")
+	require.Contains(t, textPart.Text, "The user pasted text into the chat UI")
+	require.Contains(t, textPart.Text, "hello world")
+}
+
+func TestConvertMessagesWithFiles_PasteTextTruncatesAtBudget(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	body := bytes.Repeat([]byte("x"), 200000)
+	prompt := convertSingleResolvedFileMessage(t, fileID, chatprompt.FileData{
+		Name:      "pasted-text-2025-01-01-12-00-00.txt",
+		Data:      body,
+		MediaType: "text/plain",
+	})
+
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "expected TextPart")
+	require.Contains(t, textPart.Text, "The pasted text was truncated to 131072 bytes")
+
+	const attachmentHeader = "Synthetic attachment name: pasted-text-2025-01-01-12-00-00.txt\n\n"
+	bodyStart := strings.Index(textPart.Text, attachmentHeader)
+	require.NotEqual(t, -1, bodyStart, "expected synthetic attachment header")
+	bodyStart += len(attachmentHeader)
+
+	warningIndex := strings.Index(textPart.Text, "\n\n[pasted-text] The pasted text was truncated to 131072 bytes before sending to the model.")
+	require.NotEqual(t, -1, warningIndex, "expected truncation warning")
+	require.Equal(t, string(body[:128*1024]), textPart.Text[bodyStart:warningIndex])
+}
+
+func TestConvertMessagesWithFiles_BinaryPasteNameStillStaysFilePart(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	prompt := convertSingleResolvedFileMessage(t, fileID, chatprompt.FileData{
+		Name:      "pasted-text-2025-01-01-12-00-00.txt",
+		Data:      []byte("not-really-a-png"),
+		MediaType: "image/png",
+	})
+
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected FilePart")
+
+	_, isTextPart := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.False(t, isTextPart, "binary media should stay a FilePart")
+	require.Equal(t, "image/png", filePart.MediaType)
+}
+
+func TestConvertMessagesWithFiles_NonPasteTextFileStillStaysFilePart(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	prompt := convertSingleResolvedFileMessage(t, fileID, chatprompt.FileData{
+		Name:      "report.txt",
+		Data:      []byte("plain text report"),
+		MediaType: "text/plain",
+	})
+
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
+	require.True(t, ok, "expected FilePart")
+
+	_, isTextPart := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.False(t, isTextPart, "non-synthetic text files should stay FilePart attachments")
+	require.Equal(t, []byte("plain text report"), filePart.Data)
+}
+
+func TestConvertMessagesWithFiles_IsSyntheticPaste(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		fileName  string
+		mediaType string
+		want      bool
+	}{
+		{name: "plain text", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "text/plain", want: true},
+		{name: "markdown", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "text/markdown", want: true},
+		{name: "json", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "application/json", want: true},
+		{name: "binary mime", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "image/png", want: false},
+		{name: "non synthetic name", fileName: "report.txt", mediaType: "text/plain", want: false},
+		{name: "malformed timestamp", fileName: "pasted-text-2025-01-01.txt", mediaType: "text/plain", want: false},
+		{name: "wrong extension", fileName: "pasted-text-2025-01-01-12-00-00.md", mediaType: "text/plain", want: false},
+		{name: "empty name", fileName: "", mediaType: "text/plain", want: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatprompt.IsSyntheticPasteForTest(tt.fileName, tt.mediaType))
+		})
+	}
+}
+
+func convertSingleResolvedFileMessage(t *testing.T, fileID uuid.UUID, fileData chatprompt.FileData) []fantasy.Message {
+	t.Helper()
+
+	rawContent := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": fileData.MediaType,
+				"file_id":    fileID.String(),
+			},
+		}),
+	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				result[id] = fileData
+			}
+		}
+		return result, nil
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
+		}},
+		resolver,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	return prompt
 }

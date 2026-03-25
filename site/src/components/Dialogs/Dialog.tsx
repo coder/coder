@@ -1,7 +1,7 @@
 import MuiDialog, { type DialogProps } from "@mui/material/Dialog";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
 import type { FC, ReactNode } from "react";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import type { ConfirmDialogType } from "./types";
 
 export interface DialogActionButtonsProps {

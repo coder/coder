@@ -63,6 +63,28 @@ func newTestServer(
 	return server
 }
 
+func newActiveWorkerServer(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+	replicaID uuid.UUID,
+) *osschatd.Server {
+	t.Helper()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := osschatd.New(osschatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  replicaID,
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+	return server
+}
+
 // seedChatDependencies creates a user and chat model config in the
 // database for use in relay tests.
 func seedChatDependencies(
@@ -97,28 +119,6 @@ func seedChatDependencies(
 	})
 	require.NoError(t, err)
 	return user, model
-}
-
-func newActiveWorkerServer(
-	t *testing.T,
-	db database.Store,
-	ps dbpubsub.Pubsub,
-	replicaID uuid.UUID,
-) *osschatd.Server {
-	t.Helper()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := osschatd.New(osschatd.Config{
-		Logger:                     logger,
-		Database:                   db,
-		ReplicaID:                  replicaID,
-		Pubsub:                     ps,
-		PendingChatAcquireInterval: 10 * time.Millisecond,
-		InFlightChatStaleAfter:     testutil.WaitSuperLong,
-	})
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
-	return server
 }
 
 func setOpenAIProviderBaseURL(
@@ -563,7 +563,10 @@ func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
 	require.NotNil(t, retryEvent)
 	require.Equal(t, 1, retryEvent.Attempt)
 	require.Greater(t, retryEvent.DelayMs, int64(0))
-	require.Contains(t, retryEvent.Error, "Rate limit exceeded")
+	require.Equal(t, "rate_limit", retryEvent.Kind)
+	require.Equal(t, "openai", retryEvent.Provider)
+	require.Equal(t, 0, retryEvent.StatusCode)
+	require.Contains(t, retryEvent.Error, "rate limiting requests")
 	require.False(t, assistantMessageBeforeRetry)
 	require.False(t, waitingBeforeRetry)
 	require.GreaterOrEqual(t, streamCalls.Load(), int32(2))

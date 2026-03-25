@@ -8,17 +8,17 @@
  * the workspaces and audits page that have a risk of getting out of sync.
  */
 import { API } from "api/api";
-import { Avatar } from "components/Avatar/Avatar";
-import { ComboboxInput } from "components/Combobox/Combobox";
+import type { FC } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "components/Filter/menu";
+} from "#/components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import type { FC } from "react";
+} from "#/components/Filter/SelectFilter";
 // Organization helpers ////////////////////////////////////////////////////////
 
 export const useOrganizationsFilterMenu = ({

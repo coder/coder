@@ -6,12 +6,12 @@ import type {
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 
 type UseWorkspaceUpdateOptions = {
 	workspace: Workspace;

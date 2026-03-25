@@ -1,10 +1,10 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import type { APIKeyWithOwner } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
+import { Button } from "#/components/Button/Button";
+import { Stack } from "#/components/Stack/Stack";
 import { Section } from "../Section";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { useTokensData } from "./hooks";
@@ -77,14 +77,14 @@ const TokenActions: FC = () => (
 
 const styles = {
 	section: (theme) => css`
-    & code {
-      background: ${theme.palette.divider};
-      font-size: 12px;
-      padding: 2px 4px;
-      color: ${theme.palette.text.primary};
-      border-radius: 2px;
-    }
-  `,
+		& code {
+			background: ${theme.palette.divider};
+			font-size: 12px;
+			padding: 2px 4px;
+			color: ${theme.palette.text.primary};
+			border-radius: 2px;
+		}
+	`,
 } satisfies Record<string, Interpolation<Theme>>;
 
 export default TokensPage;

@@ -1,12 +1,12 @@
-import { Pill } from "components/Pill/Pill";
+import type { FC } from "react";
+import { cn } from "utils/cn";
+import { isUUID } from "utils/uuid";
+import { Pill } from "#/components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
-import { cn } from "utils/cn";
-import { isUUID } from "utils/uuid";
+} from "#/components/Tooltip/Tooltip";
 
 interface OrganizationPillsProps {
 	organizations: readonly string[];

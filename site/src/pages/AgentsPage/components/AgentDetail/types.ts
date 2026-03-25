@@ -4,6 +4,7 @@ export type ParsedToolCall = {
 	id: string;
 	name: string;
 	args?: unknown;
+	mcpServerConfigId?: string;
 };
 
 export type ParsedToolResult = {
@@ -11,6 +12,7 @@ export type ParsedToolResult = {
 	name: string;
 	result?: unknown;
 	isError: boolean;
+	mcpServerConfigId?: string;
 };
 
 export type MergedTool = {
@@ -20,6 +22,7 @@ export type MergedTool = {
 	result?: unknown;
 	isError: boolean;
 	status: "completed" | "error" | "running";
+	mcpServerConfigId?: string;
 };
 
 export type RenderBlock =
@@ -62,6 +65,7 @@ type StreamToolCall = {
 	name: string;
 	args?: unknown;
 	argsRaw?: string;
+	mcpServerConfigId?: string;
 };
 
 type StreamToolResult = {
@@ -70,6 +74,7 @@ type StreamToolResult = {
 	result?: unknown;
 	resultRaw?: string;
 	isError: boolean;
+	mcpServerConfigId?: string;
 };
 
 export type StreamState = {

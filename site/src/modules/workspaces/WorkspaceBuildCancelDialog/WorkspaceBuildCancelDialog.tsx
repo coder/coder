@@ -1,6 +1,6 @@
 import type { Workspace } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { FC } from "react";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 interface WorkspaceBuildCancelDialogProps {
 	open: boolean;

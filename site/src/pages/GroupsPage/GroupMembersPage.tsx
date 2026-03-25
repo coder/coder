@@ -6,21 +6,27 @@ import type {
 	OrganizationMemberWithUserData,
 	ReducedUser,
 } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
+import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { isEveryoneGroup } from "modules/groups";
+import { type FC, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { useOutletContext } from "react-router";
+import { toast } from "sonner";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { UsersFilter } from "components/Filter/UsersFilter";
-import { LastSeen } from "components/LastSeen/LastSeen";
-import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { UsersFilter } from "#/components/Filter/UsersFilter";
+import { LastSeen } from "#/components/LastSeen/LastSeen";
+import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -28,14 +34,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { isEveryoneGroup } from "modules/groups";
-import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { useOutletContext } from "react-router";
-import { toast } from "sonner";
+} from "#/components/Table/Table";
+import { MemberAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
 import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {

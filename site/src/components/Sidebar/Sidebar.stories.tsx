@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Avatar } from "components/Avatar/Avatar";
 import {
 	CalendarCogIcon,
 	FingerprintIcon,
@@ -8,6 +7,7 @@ import {
 	UserIcon,
 } from "lucide-react";
 import { Outlet } from "react-router";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
 
 const meta: Meta<typeof Sidebar> = {

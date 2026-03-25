@@ -14,30 +14,6 @@ import {
 } from "api/queries/chats";
 import { user } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { DurationField } from "components/DurationField/DurationField";
-import { Link } from "components/Link/Link";
-import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { SearchField } from "components/SearchField/SearchField";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
@@ -52,14 +28,39 @@ import {
 import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
+import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
 import { countInvisibleCharacters } from "utils/invisibleUnicode";
+import { Alert } from "#/components/Alert/Alert";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
+import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
+import { SearchField } from "#/components/SearchField/SearchField";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "./components/DateRangePicker/DateRangePicker";
+import { DurationField } from "./components/DurationField/DurationField";
 import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
@@ -70,7 +71,7 @@ const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
+				<span className="ml-auto inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-2 py-1 text-[11px] leading-none font-medium text-content-secondary">
 					<ShieldIcon className="h-3 w-3" />
 					Admin
 				</span>
@@ -490,8 +491,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	);
 };
 
-const textareaClassName =
-	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
+const textareaMaxHeight = 240;
+const textareaBaseClassName =
+	"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30";
+const textareaOverflowClassName = "overflow-y-auto [scrollbar-width:thin]";
 
 interface AgentSettingsPageViewProps {
 	activeSection: string;
@@ -553,6 +556,9 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const systemInvisibleCharCount = countInvisibleCharacters(systemPromptDraft);
 	const userInvisibleCharCount = countInvisibleCharacters(userPromptDraft);
 
+	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
+	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
+		useState(false);
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
@@ -647,10 +653,16 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								Applied to all your chats. Only visible to you.
 							</p>
 							<TextareaAutosize
-								className={textareaClassName}
+								className={cn(
+									textareaBaseClassName,
+									isUserPromptOverflowing && textareaOverflowClassName,
+								)}
 								placeholder="Additional behavior, style, and tone preferences"
 								value={userPromptDraft}
 								onChange={(event) => setLocalUserEdit(event.target.value)}
+								onHeightChange={(height) =>
+									setIsUserPromptOverflowing(height >= textareaMaxHeight)
+								}
 								disabled={isPromptSaving}
 								minRows={1}
 							/>
@@ -712,10 +724,16 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										built-in default is used.
 									</p>
 									<TextareaAutosize
-										className={textareaClassName}
+										className={cn(
+											textareaBaseClassName,
+											isSystemPromptOverflowing && textareaOverflowClassName,
+										)}
 										placeholder="Additional behavior, style, and tone preferences for all users"
 										value={systemPromptDraft}
 										onChange={(event) => setLocalEdit(event.target.value)}
+										onHeightChange={(height) =>
+											setIsSystemPromptOverflowing(height >= textareaMaxHeight)
+										}
 										disabled={isPromptSaving}
 										minRows={1}
 									/>

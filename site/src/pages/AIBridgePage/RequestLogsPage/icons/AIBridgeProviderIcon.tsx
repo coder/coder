@@ -1,7 +1,7 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { cn } from "utils/cn";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 export const AIBridgeProviderIcon = ({
 	provider,
@@ -23,6 +23,13 @@ export const AIBridgeProviderIcon = ({
 			return (
 				<ExternalImage
 					src="/icon/claude.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "anthropic-neue":
+			return (
+				<ExternalImage
+					src="/icon/anthropic.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);

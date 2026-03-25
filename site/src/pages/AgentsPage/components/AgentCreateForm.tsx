@@ -1,11 +1,17 @@
 import { isApiError } from "api/errors";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { Button } from "components/Button/Button";
+import { Check, MonitorIcon } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, useEffect, useRef, useState } from "react";
+import { useQuery } from "react-query";
+import { Link } from "react-router";
+import { toast } from "sonner";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { Button } from "#/components/Button/Button";
 import {
 	Command,
 	CommandEmpty,
@@ -13,18 +19,12 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from "components/Command/Command";
+} from "#/components/Command/Command";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Check, MonitorIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect, useRef, useState } from "react";
-import { useQuery } from "react-query";
-import { Link } from "react-router";
-import { toast } from "sonner";
+} from "#/components/Popover/Popover";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelCatalogStatusMessage,

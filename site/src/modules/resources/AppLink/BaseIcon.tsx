@@ -1,7 +1,7 @@
 import type { WorkspaceApp } from "api/typesGenerated";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { LaptopIcon } from "lucide-react";
 import type { FC } from "react";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 interface BaseIconProps {
 	app: WorkspaceApp;

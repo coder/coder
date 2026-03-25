@@ -361,6 +361,43 @@ func TestConnectAll_ToolInfoParameters(t *testing.T) {
 	assert.Contains(t, info.Required, "input")
 }
 
+// TestConnectAll_NilRequiredBecomesEmptySlice verifies that a tool
+// whose inputSchema omits "required" produces an empty slice instead
+// of nil.  A nil slice serializes to JSON null, which OpenAI rejects
+// with "None is not of type 'array'".
+func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// noRequiredTool defines a tool with no required parameters.
+	noRequiredTool := mcpserver.ServerTool{
+		Tool: mcp.NewTool("optional_only",
+			mcp.WithDescription("A tool with no required fields"),
+			mcp.WithString("note", mcp.Description("An optional note")),
+		),
+		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return mcp.NewToolResultText("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, noRequiredTool)
+	cfg := makeConfig("srv", ts.URL)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+	// Required must be a non-nil empty slice, not nil.
+	require.NotNil(t, info.Required, "Required should never be nil")
+	assert.Empty(t, info.Required, "Required should be empty for tools without required fields")
+
+	// Verify it serializes to [] not null.
+	bs, err := json.Marshal(info.Required)
+	require.NoError(t, err)
+	assert.Equal(t, "[]", string(bs))
+}
+
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the
 // configured header and value on every request.
 func TestConnectAll_APIKeyAuth(t *testing.T) {
@@ -619,6 +656,91 @@ func TestConnectAll_EmptyAccessToken(t *testing.T) {
 	// no Authorization header was sent. The warning about empty
 	// access token is logged.
 	require.NotEmpty(t, tools)
+}
+
+// TestConnectAll_MCPToolIdentifier verifies that tools returned
+// by ConnectAll implement the MCPToolIdentifier interface and
+// report the correct server config ID.
+func TestConnectAll_MCPToolIdentifier(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	configID := uuid.New()
+	cfg := database.MCPServerConfig{
+		ID:          configID,
+		Slug:        "id-srv",
+		DisplayName: "ID Server",
+		Url:         ts.URL,
+		Transport:   "streamable_http",
+		AuthType:    "none",
+		Enabled:     true,
+	}
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+
+	require.Len(t, tools, 1)
+
+	// Assert the tool implements MCPToolIdentifier.
+	identifier, ok := tools[0].(mcpclient.MCPToolIdentifier)
+	require.True(t, ok, "tool should implement MCPToolIdentifier")
+	assert.Equal(t, configID, identifier.MCPServerConfigID())
+}
+
+// TestConnectAll_MCPToolIdentifier_MultipleServers verifies that
+// each tool from a different MCP server carries its own config ID.
+func TestConnectAll_MCPToolIdentifier_MultipleServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts1 := newTestMCPServer(t, echoTool())
+	ts2 := newTestMCPServer(t, greetTool())
+
+	configID1 := uuid.New()
+	configID2 := uuid.New()
+	cfg1 := database.MCPServerConfig{
+		ID:          configID1,
+		Slug:        "srv-a",
+		DisplayName: "Server A",
+		Url:         ts1.URL,
+		Transport:   "streamable_http",
+		AuthType:    "none",
+		Enabled:     true,
+	}
+	cfg2 := database.MCPServerConfig{
+		ID:          configID2,
+		Slug:        "srv-b",
+		DisplayName: "Server B",
+		Url:         ts2.URL,
+		Transport:   "streamable_http",
+		AuthType:    "none",
+		Enabled:     true,
+	}
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx, logger,
+		[]database.MCPServerConfig{cfg1, cfg2},
+		nil,
+	)
+	t.Cleanup(cleanup)
+
+	require.Len(t, tools, 2)
+
+	// Map tool name to config ID via the MCPToolIdentifier
+	// interface.
+	idByName := make(map[string]uuid.UUID)
+	for _, tool := range tools {
+		identifier, ok := tool.(mcpclient.MCPToolIdentifier)
+		require.True(t, ok, "tool %q should implement MCPToolIdentifier", tool.Info().Name)
+		idByName[tool.Info().Name] = identifier.MCPServerConfigID()
+	}
+
+	assert.Equal(t, configID1, idByName["srv-a__echo"])
+	assert.Equal(t, configID2, idByName["srv-b__greet"])
 }
 
 func TestConnectAll_CallToolError(t *testing.T) {

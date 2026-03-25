@@ -2,14 +2,14 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import type { BannerConfig } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
-import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import { AnnouncementBannerView } from "modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
 import { getFormHelpers } from "utils/formUtils";
+import { Button } from "#/components/Button/Button";
+import { Dialog, DialogActionButtons } from "#/components/Dialogs/Dialog";
+import { Stack } from "#/components/Stack/Stack";
 
 interface AnnouncementBannerDialogProps {
 	banner: BannerConfig;

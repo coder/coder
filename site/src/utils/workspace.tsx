@@ -1,6 +1,5 @@
 import type { Theme } from "@emotion/react";
 import type * as TypesGen from "api/typesGenerated";
-import { PillSpinner } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
@@ -12,6 +11,7 @@ import {
 	SquareIcon,
 } from "lucide-react";
 import semver from "semver";
+import { PillSpinner } from "#/components/Pill/Pill";
 import { getPendingStatusLabel } from "./provisionerJob";
 
 dayjs.extend(duration);

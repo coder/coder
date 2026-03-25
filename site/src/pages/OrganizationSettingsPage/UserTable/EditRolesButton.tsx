@@ -1,27 +1,27 @@
 import Checkbox from "@mui/material/Checkbox";
 import type { SlimRole } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
+import { UserIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import { Button } from "#/components/Button/Button";
+import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { EditSquare } from "components/Icons/EditSquare";
+} from "#/components/HelpTooltip/HelpTooltip";
+import { EditSquare } from "#/components/Icons/EditSquare";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
+} from "#/components/Popover/Popover";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { UserIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 const roleDescriptions: Record<string, string> = {
 	owner:

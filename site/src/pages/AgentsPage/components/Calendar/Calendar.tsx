@@ -7,7 +7,6 @@
  * in the component library.
  */
 
-import { Button, type ButtonProps } from "components/Button/Button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import {
@@ -16,6 +15,7 @@ import {
 	getDefaultClassNames,
 } from "react-day-picker";
 import { cn } from "utils/cn";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 
 function Calendar({
 	className,

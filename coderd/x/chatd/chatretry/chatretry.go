@@ -5,11 +5,11 @@ package chatretry
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
 
 const (
@@ -28,90 +28,12 @@ const (
 	MaxAttempts = 25
 )
 
-// nonRetryablePatterns are substrings that indicate a permanent error
-// which should not be retried. These are checked first so that
-// ambiguous messages (e.g. "bad request: rate limit") are correctly
-// classified as non-retryable.
-var nonRetryablePatterns = []string{
-	"context canceled",
-	"context deadline exceeded",
-	"authentication",
-	"unauthorized",
-	"forbidden",
-	"invalid api key",
-	"invalid_api_key",
-	"invalid model",
-	"model not found",
-	"model_not_found",
-	"context length exceeded",
-	"context_exceeded",
-	"maximum context length",
-	"quota",
-	"billing",
-}
-
-// retryablePatterns are substrings that indicate a transient error
-// worth retrying.
-var retryablePatterns = []string{
-	"overloaded",
-	"rate limit",
-	"rate_limit",
-	"too many requests",
-	"server error",
-	"status 500",
-	"status 502",
-	"status 503",
-	"status 529",
-	"connection reset",
-	"connection refused",
-	"eof",
-	"broken pipe",
-	"timeout",
-	"unavailable",
-	"service unavailable",
-}
+type ClassifiedError = chaterror.ClassifiedError
 
 // IsRetryable determines whether an error from an LLM provider is
-// transient and worth retrying. It inspects the error message and
-// any wrapped HTTP status codes for known retryable patterns.
+// transient and worth retrying.
 func IsRetryable(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// context.Canceled is always non-retryable regardless of
-	// wrapping.
-	if errors.Is(err, context.Canceled) {
-		return false
-	}
-
-	lower := strings.ToLower(err.Error())
-
-	// Check non-retryable patterns first so they take precedence.
-	for _, p := range nonRetryablePatterns {
-		if strings.Contains(lower, p) {
-			return false
-		}
-	}
-
-	for _, p := range retryablePatterns {
-		if strings.Contains(lower, p) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// StatusCodeRetryable returns true for HTTP status codes that
-// indicate a transient failure worth retrying.
-func StatusCodeRetryable(code int) bool {
-	switch code {
-	case 429, 500, 502, 503, 529:
-		return true
-	default:
-		return false
-	}
+	return chaterror.Classify(err).Retryable
 }
 
 // Delay returns the backoff duration for the given 0-indexed attempt.
@@ -134,9 +56,9 @@ func Delay(attempt int) time.Duration {
 type RetryFn func(ctx context.Context) error
 
 // OnRetryFn is called before each retry attempt with the attempt
-// number (1-indexed), the error that triggered the retry, and the
-// delay before the next attempt.
-type OnRetryFn func(attempt int, err error, delay time.Duration)
+// number (1-indexed), the raw error that triggered the retry, the
+// normalized error payload, and the delay before the next attempt.
+type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay time.Duration)
 
 // Retry calls fn repeatedly until it succeeds, returns a
 // non-retryable error, ctx is canceled, or MaxAttempts is reached.
@@ -153,8 +75,9 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 			return nil
 		}
 
-		if !IsRetryable(err) {
-			return err
+		classified := chaterror.Classify(err)
+		if !classified.Retryable {
+			return chaterror.WithClassification(err, classified)
 		}
 
 		// If the caller's context is already done, return the
@@ -165,13 +88,16 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 
 		attempt++
 		if attempt >= MaxAttempts {
-			return xerrors.Errorf("max retry attempts (%d) exceeded: %w", MaxAttempts, err)
+			return chaterror.WithClassification(
+				xerrors.Errorf("max retry attempts (%d) exceeded: %w", MaxAttempts, err),
+				classified,
+			)
 		}
 
 		delay := Delay(attempt - 1)
 
 		if onRetry != nil {
-			onRetry(attempt, err, delay)
+			onRetry(attempt, err, classified, delay)
 		}
 
 		timer := time.NewTimer(delay)

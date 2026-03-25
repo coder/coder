@@ -1,4 +1,3 @@
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	BotIcon,
 	ChevronDownIcon,
@@ -10,6 +9,7 @@ import type React from "react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Response } from "../response";
 import {
 	isSubagentSuccessStatus,

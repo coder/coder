@@ -1,6 +1,3 @@
-import { Button } from "components/Button/Button";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { Link } from "components/Link/Link";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useState } from "react";
 import {
@@ -9,6 +6,9 @@ import {
 	useLocation,
 	useRouteError,
 } from "react-router";
+import { Button } from "#/components/Button/Button";
+import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { Link } from "#/components/Link/Link";
 
 const errorPageTitle = "Something went wrong";
 

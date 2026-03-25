@@ -146,25 +146,26 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 //     the frontend does not expect adds noise to the wire format
 //     and wastes space in persisted chat_messages rows.
 type ChatMessagePart struct {
-	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text" variants:"text,reasoning"`
-	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
-	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
-	Args        json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
-	ArgsDelta   string              `json:"args_delta,omitempty" variants:"tool-call?"`
-	Result      json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta string              `json:"result_delta,omitempty"`
-	IsError     bool                `json:"is_error,omitempty" variants:"tool-result?"`
-	SourceID    string              `json:"source_id,omitempty" variants:"source?"`
-	URL         string              `json:"url" variants:"source"`
-	Title       string              `json:"title,omitempty" variants:"source?"`
-	MediaType   string              `json:"media_type" variants:"file"`
-	Data        []byte              `json:"data,omitempty" variants:"file?"`
-	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName    string              `json:"file_name" variants:"file-reference"`
-	StartLine   int                 `json:"start_line" variants:"file-reference"`
-	EndLine     int                 `json:"end_line" variants:"file-reference"`
+	Type              ChatMessagePartType `json:"type"`
+	Text              string              `json:"text" variants:"text,reasoning"`
+	Signature         string              `json:"signature,omitempty"`
+	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
+	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
+	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
+	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
+	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
+	ResultDelta       string              `json:"result_delta,omitempty"`
+	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
+	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
+	URL               string              `json:"url" variants:"source"`
+	Title             string              `json:"title,omitempty" variants:"source?"`
+	MediaType         string              `json:"media_type" variants:"file"`
+	Data              []byte              `json:"data,omitempty" variants:"file?"`
+	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName          string              `json:"file_name" variants:"file-reference"`
+	StartLine         int                 `json:"start_line" variants:"file-reference"`
+	EndLine           int                 `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
@@ -777,7 +778,16 @@ type ChatStreamStatus struct {
 
 // ChatStreamError represents an error event in the stream.
 type ChatStreamError struct {
+	// Message is the normalized, user-facing error message.
 	Message string `json:"message"`
+	// Kind classifies the error for consistent client rendering.
+	Kind string `json:"kind,omitempty"`
+	// Provider identifies the upstream model provider when known.
+	Provider string `json:"provider,omitempty"`
+	// Retryable reports whether the underlying error is transient.
+	Retryable bool `json:"retryable"`
+	// StatusCode is the best-effort upstream HTTP status code.
+	StatusCode int `json:"status_code,omitempty"`
 }
 
 // ChatStreamRetry represents an auto-retry status event in the stream.
@@ -787,8 +797,14 @@ type ChatStreamRetry struct {
 	Attempt int `json:"attempt"`
 	// DelayMs is the backoff delay in milliseconds before the retry.
 	DelayMs int64 `json:"delay_ms"`
-	// Error is the error message from the failed attempt.
+	// Error is the normalized error message from the failed attempt.
 	Error string `json:"error"`
+	// Kind classifies the retry reason for consistent client rendering.
+	Kind string `json:"kind,omitempty"`
+	// Provider identifies the upstream model provider when known.
+	Provider string `json:"provider,omitempty"`
+	// StatusCode is the best-effort upstream HTTP status code.
+	StatusCode int `json:"status_code,omitempty"`
 	// RetryingAt is the timestamp when the retry will be attempted.
 	RetryingAt time.Time `json:"retrying_at" format:"date-time"`
 }

@@ -6,6 +6,7 @@ import (
 	"iter"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const activeToolName = "read_file"
@@ -79,6 +84,401 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.False(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[2]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[3]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[4]))
+}
+
+func TestRun_OnRetryEnrichesProvider(t *testing.T) {
+	t.Parallel()
+
+	type retryRecord struct {
+		attempt    int
+		errMsg     string
+		classified chatretry.ClassifiedError
+		delay      time.Duration
+	}
+
+	var records []retryRecord
+	calls := 0
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			calls++
+			if calls == 1 {
+				return nil, xerrors.New("received status 429 from upstream")
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			attempt int,
+			retryErr error,
+			classified chatretry.ClassifiedError,
+			delay time.Duration,
+		) {
+			records = append(records, retryRecord{
+				attempt:    attempt,
+				errMsg:     retryErr.Error(),
+				classified: classified,
+				delay:      delay,
+			})
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, 1, records[0].attempt)
+	require.Equal(t, "received status 429 from upstream", records[0].errMsg)
+	require.Equal(t, chatretry.Delay(0), records[0].delay)
+	require.Equal(t, "openai", records[0].classified.Provider)
+	require.Equal(t, chaterror.KindRateLimit, records[0].classified.Kind)
+	require.True(t, records[0].classified.Retryable)
+	require.Equal(t, 429, records[0].classified.StatusCode)
+	require.Equal(
+		t,
+		"OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		records[0].classified.Message,
+	)
+}
+
+func TestStartupGuard_DisarmAndFireRace(t *testing.T) {
+	t.Parallel()
+
+	for range 128 {
+		var cancels atomic.Int32
+		guard := newStartupGuard(time.Hour, func(err error) {
+			if errors.Is(err, errStartupTimeout) {
+				cancels.Add(1)
+			}
+		})
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			<-start
+			guard.onTimeout()
+		}()
+
+		go func() {
+			defer wg.Done()
+			<-start
+			guard.Disarm()
+		}()
+
+		close(start)
+		wg.Wait()
+
+		guard.onTimeout()
+		guard.Disarm()
+
+		require.LessOrEqual(t, cancels.Load(), int32(1))
+	}
+}
+
+func TestStartupGuard_DisarmPreservesPermanentError(t *testing.T) {
+	t.Parallel()
+
+	attemptCtx, cancelAttempt := context.WithCancelCause(context.Background())
+	defer cancelAttempt(nil)
+
+	guard := newStartupGuard(time.Hour, cancelAttempt)
+	guard.Disarm()
+	guard.onTimeout()
+
+	classified := chaterror.Classify(classifyStartupTimeout(
+		attemptCtx,
+		"openai",
+		xerrors.New("invalid model"),
+	))
+	require.Equal(t, chaterror.KindConfig, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Nil(t, context.Cause(attemptCtx))
+}
+
+func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
+	t.Parallel()
+
+	const startupTimeout = 5 * time.Millisecond
+
+	attempts := 0
+	attemptCause := make(chan error, 1)
+	var retries []chatretry.ClassifiedError
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				<-ctx.Done()
+				attemptCause <- context.Cause(ctx)
+				return nil, ctx.Err()
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			_ error,
+			classified chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retries = append(retries, classified)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.Len(t, retries, 1)
+	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.True(t, retries[0].Retryable)
+	require.Equal(t, "openai", retries[0].Provider)
+	require.Equal(
+		t,
+		"OpenAI did not start responding in time. Please try again.",
+		retries[0].Message,
+	)
+	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
+}
+
+func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
+	t.Parallel()
+
+	const startupTimeout = 5 * time.Millisecond
+
+	attempts := 0
+	attemptCause := make(chan error, 1)
+	var retries []chatretry.ClassifiedError
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+					<-ctx.Done()
+					attemptCause <- context.Cause(ctx)
+					_ = yield(fantasy.StreamPart{
+						Type:  fantasy.StreamPartTypeError,
+						Error: ctx.Err(),
+					})
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			_ error,
+			classified chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retries = append(retries, classified)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.Len(t, retries, 1)
+	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.True(t, retries[0].Retryable)
+	require.Equal(t, "openai", retries[0].Provider)
+	require.Equal(
+		t,
+		"OpenAI did not start responding in time. Please try again.",
+		retries[0].Message,
+	)
+	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
+}
+
+func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
+	t.Parallel()
+
+	const startupTimeout = 5 * time.Millisecond
+
+	attempts := 0
+	retried := false
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+				if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"}) {
+					return
+				}
+
+				timer := time.NewTimer(startupTimeout * 2)
+				defer timer.Stop()
+
+				select {
+				case <-ctx.Done():
+					_ = yield(fantasy.StreamPart{
+						Type:  fantasy.StreamPartTypeError,
+						Error: ctx.Err(),
+					})
+					return
+				case <-timer.C:
+				}
+
+				parts := []fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}
+				for _, part := range parts {
+					if !yield(part) {
+						return
+					}
+				}
+			}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			_ error,
+			_ chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retried = true
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, attempts)
+	require.False(t, retried)
+}
+
+func TestRun_PanicInPublishMessagePartReleasesAttempt(t *testing.T) {
+	t.Parallel()
+
+	attemptReleased := make(chan struct{})
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			go func() {
+				<-ctx.Done()
+				close(attemptReleased)
+			}()
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "boom"},
+			}), nil
+		},
+	}
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r)
+		select {
+		case <-attemptReleased:
+		case <-time.After(time.Second):
+			t.Fatal("attempt context was not released after panic")
+		}
+	}()
+
+	_ = Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PublishMessagePart: func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {
+			panic("publish panic")
+		},
+	})
+
+	t.Fatal("expected Run to panic")
+}
+
+func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
+	t.Parallel()
+
+	const startupTimeout = 5 * time.Millisecond
+
+	attempts := 0
+	attemptCause := make(chan error, 1)
+	var retries []chatretry.ClassifiedError
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+					<-ctx.Done()
+					attemptCause <- context.Cause(ctx)
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			_ error,
+			classified chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retries = append(retries, classified)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.Len(t, retries, 1)
+	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.True(t, retries[0].Retryable)
+	require.Equal(t, "openai", retries[0].Provider)
+	require.Equal(
+		t,
+		"OpenAI did not start responding in time. Please try again.",
+		retries[0].Message,
+	)
+	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
 }
 
 func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {

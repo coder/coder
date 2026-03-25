@@ -122,10 +122,14 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 
 func TestUserLogin(t *testing.T) {
 	t.Parallel()
+
+	// Single instance shared across all sub-tests. Each sub-test
+	// creates its own separate user for isolation.
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    anotherUser.Email,
@@ -135,8 +139,6 @@ func TestUserLogin(t *testing.T) {
 	})
 	t.Run("UserDeleted", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		client.DeleteUser(context.Background(), anotherUser.ID)
 		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -151,8 +153,6 @@ func TestUserLogin(t *testing.T) {
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = ""
 			r.UserLoginType = codersdk.LoginTypeNone

@@ -1,11 +1,5 @@
 import { hasApiFieldErrors, isApiError } from "api/errors";
 import type { UpdateUserProfileRequest } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { FormFooter } from "components/Form/Form";
-import { FormField } from "components/FormField/FormField";
-import { FullPageForm } from "components/FullPageForm/FullPageForm";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import {
@@ -15,6 +9,12 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { FormFooter } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
+import { FullPageForm } from "#/components/FullPageForm/FullPageForm";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 const validationSchema = Yup.object({
 	username: nameValidator("Username"),

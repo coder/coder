@@ -1,17 +1,17 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { TableCell, TableRow } from "components/Table/Table";
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
+import { type FC, Fragment, useState } from "react";
+import { cn } from "utils/cn";
+import { formatDate, humanDuration } from "utils/time";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
-import { type FC, Fragment, useState } from "react";
-import { cn } from "utils/cn";
-import { formatDate, humanDuration } from "utils/time";
+} from "#/components/Tooltip/Tooltip";
 import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 

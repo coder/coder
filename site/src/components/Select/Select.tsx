@@ -3,13 +3,13 @@
  * @see {@link https://ui.shadcn.com/docs/components/select}
  */
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import {
 	Check,
 	ChevronUp,
 	ChevronDown as LucideChevronDown,
 } from "lucide-react";
 import { cn } from "utils/cn";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 
 export const Select = SelectPrimitive.Root;
 

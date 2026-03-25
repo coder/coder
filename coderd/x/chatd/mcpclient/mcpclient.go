@@ -195,7 +195,7 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.Slug, mcpTool, mcpClient),
+			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, mcpClient),
 		)
 	}
 
@@ -383,10 +383,17 @@ func redactErrorURL(err error) string {
 	return err.Error()
 }
 
+// MCPToolIdentifier is implemented by tools that originate from
+// an MCP server config and can report the config's database ID.
+type MCPToolIdentifier interface {
+	MCPServerConfigID() uuid.UUID
+}
+
 // mcpToolWrapper adapts a single MCP tool into a
 // fantasy.AgentTool. It stores the prefixed name for Info() but
 // strips the prefix when forwarding calls to the remote server.
 type mcpToolWrapper struct {
+	configID        uuid.UUID
 	prefixedName    string
 	originalName    string
 	description     string
@@ -396,14 +403,22 @@ type mcpToolWrapper struct {
 	providerOptions fantasy.ProviderOptions
 }
 
+// MCPServerConfigID returns the database ID of the MCP server
+// config that this tool originates from.
+func (t *mcpToolWrapper) MCPServerConfigID() uuid.UUID {
+	return t.configID
+}
+
 // newMCPTool creates an mcpToolWrapper from an mcp.Tool
 // discovered on a remote server.
 func newMCPTool(
+	configID uuid.UUID,
 	serverSlug string,
 	tool mcp.Tool,
 	mcpClient *client.Client,
 ) *mcpToolWrapper {
 	return &mcpToolWrapper{
+		configID:     configID,
 		prefixedName: serverSlug + toolNameSep + tool.Name,
 		originalName: tool.Name,
 		description:  tool.Description,
@@ -414,11 +429,17 @@ func newMCPTool(
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
+	// Ensure Required is never nil so that it serializes to [] instead
+	// of null. OpenAI rejects null for the JSON Schema "required" field.
+	required := t.required
+	if required == nil {
+		required = []string{}
+	}
 	return fantasy.ToolInfo{
 		Name:        t.prefixedName,
 		Description: t.description,
 		Parameters:  t.parameters,
-		Required:    t.required,
+		Required:    required,
 		Parallel:    true,
 	}
 }

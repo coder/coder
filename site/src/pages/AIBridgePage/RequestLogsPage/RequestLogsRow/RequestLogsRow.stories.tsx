@@ -1,6 +1,6 @@
 import { MockInterception } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table, TableBody } from "components/Table/Table";
+import { Table, TableBody } from "#/components/Table/Table";
 import { RequestLogsRow } from "./RequestLogsRow";
 
 const meta: Meta<typeof RequestLogsRow> = {

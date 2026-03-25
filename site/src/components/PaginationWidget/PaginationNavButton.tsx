@@ -1,5 +1,5 @@
-import { Button } from "components/Button/Button";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Button } from "#/components/Button/Button";
 
 type PaginationNavButtonProps = Omit<
 	ButtonHTMLAttributes<HTMLButtonElement>,

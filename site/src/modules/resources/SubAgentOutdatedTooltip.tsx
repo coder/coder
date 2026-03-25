@@ -2,6 +2,8 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 } from "api/typesGenerated";
+import { RotateCcwIcon } from "lucide-react";
+import type { FC } from "react";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -9,10 +11,8 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { TooltipTrigger } from "components/Tooltip/Tooltip";
-import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/HelpTooltip/HelpTooltip";
+import { TooltipTrigger } from "#/components/Tooltip/Tooltip";
 
 type SubAgentOutdatedTooltipProps = {
 	devcontainer: WorkspaceAgentDevcontainer;
