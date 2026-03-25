@@ -121,8 +121,6 @@ const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
 };
 
 /**
- * Invalidate only the sidebar chat-list queries (flat + infinite)
-/**
  * Predicate that matches only chat-list queries (the sidebar), not
  * per-chat queries (detail, messages, diffs, cost).
  *
@@ -472,21 +470,29 @@ export const unpinChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const reorderPinnedChats = (queryClient: QueryClient) => ({
-	mutationFn: (chatIds: string[]) =>
-		API.experimental.reorderPinnedChats({ chat_ids: chatIds }),
-	onMutate: async (chatIds: string[]) => {
-		await queryClient.cancelQueries({ queryKey: chatsKey });
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) => {
-				const newOrder = chatIds.indexOf(chat.id);
-				if (newOrder === -1) return chat;
-				return { ...chat, pin_order: newOrder + 1 };
-			}),
-		);
+export const reorderPinnedChat = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, pinOrder }: { chatId: string; pinOrder: number }) =>
+		API.experimental.updateChat(chatId, { pin_order: pinOrder }),
+	onMutate: async ({ chatId }: { chatId: string; pinOrder: number }) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 	},
-	onSettled: async () => {
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: { chatId: string; pinOrder: number },
+	) => {
 		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 	},
 });
 

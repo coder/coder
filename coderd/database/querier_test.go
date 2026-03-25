@@ -10487,6 +10487,144 @@ func TestGetPRInsights(t *testing.T) {
 	})
 }
 
+func TestChatPinOrderQueries(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	setup := func(t *testing.T) (context.Context, database.Store, uuid.UUID, uuid.UUID) {
+		t.Helper()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		owner := dbgen.User(t, db, database.User{})
+
+		_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+			APIKey:      "test-key",
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+
+		modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             "openai",
+			Model:                "test-model",
+			DisplayName:          "Test Model",
+			CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+			Enabled:              true,
+			IsDefault:            true,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		return ctx, db, owner.ID, modelCfg.ID
+	}
+
+	createChat := func(t *testing.T, ctx context.Context, db database.Store, ownerID, modelCfgID uuid.UUID, title string) database.Chat {
+		t.Helper()
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           ownerID,
+			LastModelConfigID: modelCfgID,
+			Title:             title,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	requirePinOrders := func(t *testing.T, ctx context.Context, db database.Store, want map[uuid.UUID]int32) {
+		t.Helper()
+
+		for chatID, wantPinOrder := range want {
+			chat, err := db.GetChatByID(ctx, chatID)
+			require.NoError(t, err)
+			require.EqualValues(t, wantPinOrder, chat.PinOrder)
+		}
+	}
+
+	t.Run("PinChatByIDAppendsWithinOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		otherOwner := dbgen.User(t, db, database.User{})
+		other := createChat(t, ctx, db, otherOwner.ID, modelCfgID, "other-owner")
+
+		require.NoError(t, db.PinChatByID(ctx, other.ID))
+		require.NoError(t, db.PinChatByID(ctx, first.ID))
+		require.NoError(t, db.PinChatByID(ctx, second.ID))
+		require.NoError(t, db.PinChatByID(ctx, third.ID))
+
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 2,
+			third.ID:  3,
+			other.ID:  1,
+		})
+	})
+
+	t.Run("UpdateChatPinOrderShiftsNeighborsAndClamps", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		for _, chat := range []database.Chat{first, second, third} {
+			require.NoError(t, db.PinChatByID(ctx, chat.ID))
+		}
+
+		require.NoError(t, db.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+			ID:       third.ID,
+			PinOrder: 1,
+		}))
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  2,
+			second.ID: 3,
+			third.ID:  1,
+		})
+
+		require.NoError(t, db.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+			ID:       third.ID,
+			PinOrder: 99,
+		}))
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 2,
+			third.ID:  3,
+		})
+	})
+
+	t.Run("UnpinChatByIDCompactsPinnedChats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		for _, chat := range []database.Chat{first, second, third} {
+			require.NoError(t, db.PinChatByID(ctx, chat.ID))
+		}
+
+		require.NoError(t, db.UnpinChatByID(ctx, second.ID))
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 0,
+			third.ID:  2,
+		})
+	})
+}
+
 func TestChatLabels(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

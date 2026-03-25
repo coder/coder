@@ -119,7 +119,7 @@ interface AgentsSidebarProps {
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onPinChat: (chatId: string) => void;
 	onUnpinChat: (chatId: string) => void;
-	onReorderPinnedChats?: (chatIds: string[]) => void;
+	onReorderPinnedChat?: (chatId: string, pinOrder: number) => void;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -690,7 +690,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAndDeleteWorkspace,
 		onPinChat,
 		onUnpinChat,
-		onReorderPinnedChats,
+		onReorderPinnedChat,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -793,7 +793,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
-		onReorderPinnedChats?.(reordered);
+		onReorderPinnedChat?.(active.id as string, newIndex + 1);
 	};
 
 	// The filter dropdown attaches to the first visible section

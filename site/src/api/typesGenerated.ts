@@ -7095,17 +7095,6 @@ export interface UpdateChatModelConfigRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatPinOrderRequest reorders pinned chats.
- */
-export interface UpdateChatPinOrderRequest {
-	/**
-	 * ChatIDs is the ordered list of pinned chat IDs, from top to bottom.
-	 */
-	readonly chat_ids: readonly string[];
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatProviderConfigRequest updates a chat provider config.
  */
 export interface UpdateChatProviderConfigRequest {

@@ -3126,11 +3126,6 @@ class ExperimentalApiMethods {
 		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
 
-	reorderPinnedChats = async (
-		req: TypesGen.UpdateChatPinOrderRequest,
-	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/pin-order", req);
-	};
 	createChatMessage = async (
 		chatId: string,
 		req: TypesGen.CreateChatMessageRequest,

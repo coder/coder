@@ -2162,6 +2162,97 @@ func TestUnarchiveChat(t *testing.T) {
 	})
 }
 
+func TestChatPinOrder(t *testing.T) {
+	t.Parallel()
+
+	createChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, title string) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: title,
+				},
+			},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	getChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.GetChat(ctx, chatID)
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("PinReorderAndUnpin", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		first := createChat(ctx, t, client, "first pinned chat")
+		second := createChat(ctx, t, client, "second pinned chat")
+		third := createChat(ctx, t, client, "third pinned chat")
+
+		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		third = getChat(ctx, t, client, third.ID)
+		require.EqualValues(t, 1, first.PinOrder)
+		require.EqualValues(t, 2, second.PinOrder)
+		require.EqualValues(t, 3, third.PinOrder)
+
+		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		third = getChat(ctx, t, client, third.ID)
+		require.EqualValues(t, 2, first.PinOrder)
+		require.EqualValues(t, 3, second.PinOrder)
+		require.EqualValues(t, 1, third.PinOrder)
+
+		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(0))})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		third = getChat(ctx, t, client, third.ID)
+		require.Zero(t, first.PinOrder)
+		require.EqualValues(t, 2, second.PinOrder)
+		require.EqualValues(t, 1, third.PinOrder)
+	})
+
+	t.Run("RejectsNegative", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat := createChat(ctx, t, client, "negative pin order")
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(-1))})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Pin order must be non-negative.", sdkErr.Message)
+
+		chat = getChat(ctx, t, client, chat.ID)
+		require.Zero(t, chat.PinOrder)
+	})
+}
+
 func TestPostChatMessages(t *testing.T) {
 	t.Parallel()
 

@@ -22,6 +22,7 @@ import {
 	invalidateChatListQueries,
 	pinChat,
 	promoteChatQueuedMessage,
+	reorderPinnedChat,
 	unarchiveChat,
 	updateInfiniteChatsCache,
 } from "./chats";
@@ -439,6 +440,39 @@ describe("pinChat optimistic update", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
 		).toBe(5);
+	});
+});
+
+describe("reorderPinnedChat", () => {
+	it("updates a single chat via updateChat and invalidates list and detail queries", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+
+		const mutation = reorderPinnedChat(queryClient);
+		await mutation.onMutate?.({ chatId, pinOrder: 2 });
+		await mutation.mutationFn({ chatId, pinOrder: 2 });
+		await mutation.onSettled?.(undefined, undefined, { chatId, pinOrder: 2 });
+
+		expect(cancelSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		expect(cancelSpy).toHaveBeenCalledWith({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		expect(API.experimental.updateChat).toHaveBeenCalledWith(chatId, {
+			pin_order: 2,
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 	});
 });
 

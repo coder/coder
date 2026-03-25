@@ -628,40 +628,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/pin-order": {
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Reorder pinned chats",
-                "operationId": "reorder-pinned-chats",
-                "parameters": [
-                    {
-                        "description": "Ordered chat IDs",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatPinOrderRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/connectionlog": {
             "get": {
                 "produces": [
@@ -20895,18 +20861,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.BannerConfig"
                         }
                     ]
-                }
-            }
-        },
-        "codersdk.UpdateChatPinOrderRequest": {
-            "type": "object",
-            "properties": {
-                "chat_ids": {
-                    "description": "ChatIDs is the ordered list of pinned chat IDs, from top to bottom.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         },

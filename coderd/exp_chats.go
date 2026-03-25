@@ -1555,8 +1555,8 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Supports updating labels and
-// toggling the archived and pinned states.
+// patchChat updates a chat resource. Supports updating labels,
+// archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1653,75 +1653,26 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		if pinOrder == 0 {
+		action := "pin"
+		switch {
+		case pinOrder == 0:
+			action = "unpin"
 			err = api.Database.UnpinChatByID(ctx, chat.ID)
-		} else {
+		case chat.PinOrder > 0:
+			action = "update pin order"
+			err = api.Database.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+				ID:       chat.ID,
+				PinOrder: pinOrder,
+			})
+		default:
 			err = api.Database.PinChatByID(ctx, chat.ID)
 		}
 		if err != nil {
-			action := "pin"
-			if pinOrder == 0 {
-				action = "unpin"
-			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Failed to %s chat.", action),
 			})
 			return
 		}
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-// reorderPinnedChats bulk-updates the pin_order of all pinned chats
-// for the authenticated user. The request body contains the chat IDs
-// in the desired display order.
-//
-// @Summary Reorder pinned chats
-// @ID reorder-pinned-chats
-// @Tags Chats
-// @Accept json
-// @Produce json
-// @Param request body codersdk.UpdateChatPinOrderRequest true "Ordered chat IDs"
-// @Success 204
-// @Router /chats/pin-order [put]
-// @x-apidocgen {"skip": true}
-func (api *API) reorderPinnedChats(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req codersdk.UpdateChatPinOrderRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	if len(req.ChatIDs) == 0 {
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	if len(req.ChatIDs) > 500 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Too many chat IDs. Maximum is 500.",
-		})
-		return
-	}
-
-	err := api.Database.InTx(func(tx database.Store) error {
-		for i, chatID := range req.ChatIDs {
-			if err := tx.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
-				ID:       chatID,
-				PinOrder: int32(i + 1), //nolint:gosec // i is bounded by the 500-item cap above
-			}); err != nil {
-				return err
-			}
-		}
-		return nil
-	}, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update pin order.",
-		})
-		return
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
