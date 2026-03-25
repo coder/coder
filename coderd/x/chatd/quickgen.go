@@ -403,6 +403,7 @@ func renderManualTitlePrompt(
 
 func generateManualTitle(
 	ctx context.Context,
+	chat database.Chat,
 	messages []database.ChatMessage,
 	fallbackModel fantasy.LanguageModel,
 	keys chatprovider.ProviderAPIKeys,
@@ -433,6 +434,7 @@ func generateManualTitle(
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
 			c.provider, c.model, keys, chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
 		)
 		if err == nil {
 			candidates = append(candidates, m)

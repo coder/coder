@@ -1352,7 +1352,7 @@ func (p *Server) RegenerateChatTitle(
 		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
 	}
 
-	title, err := generateManualTitle(ctx, messages, model, keys, p.logger)
+	title, err := generateManualTitle(ctx, chat, messages, model, keys, p.logger)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
 	}
