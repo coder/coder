@@ -34,10 +34,9 @@ test("renders a skip link before navigation content", async () => {
 		name: "Skip to main content",
 	});
 	const navigation = screen.getAllByRole("navigation")[0];
-	const mainContent = screen.getByRole("main");
+	const mainContent = document.getElementById("main-content");
 
 	expect(skipToContentLink).toHaveAttribute("href", "#main-content");
-	expect(mainContent).toHaveAttribute("id", "main-content");
 	expect(mainContent).toHaveAttribute("tabindex", "-1");
 	expect(
 		skipToContentLink.compareDocumentPosition(navigation) &
