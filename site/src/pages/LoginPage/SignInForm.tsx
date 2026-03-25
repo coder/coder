@@ -1,8 +1,8 @@
 import type { AuthMethods } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { FC, ReactNode } from "react";
 import { getApplicationName } from "utils/appearance";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 

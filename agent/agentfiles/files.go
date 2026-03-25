@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -40,6 +41,14 @@ type ReadFileLinesResponse struct {
 }
 
 type HTTPResponseCode = int
+
+// pendingEdit holds the computed result of a file edit, ready to
+// be written to disk.
+type pendingEdit struct {
+	path    string
+	content string
+	mode    os.FileMode
+}
 
 func (api *API) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -319,8 +328,14 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
+	resolved, err := api.resolveSymlink(path)
+	if err != nil {
+		return http.StatusInternalServerError, xerrors.Errorf("resolve symlink %q: %w", path, err)
+	}
+	path = resolved
+
 	dir := filepath.Dir(path)
-	err := api.filesystem.MkdirAll(dir, 0o755)
+	err = api.filesystem.MkdirAll(dir, 0o755)
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch {
@@ -361,16 +376,22 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Phase 1: compute all edits in memory. If any file fails
+	// (bad path, search miss, permission error), bail before
+	// writing anything.
+	var pending []pendingEdit
 	var combinedErr error
 	status := http.StatusOK
 	for _, edit := range req.Files {
-		s, err := api.editFile(r.Context(), edit.Path, edit.Edits)
-		// Keep the highest response status, so 500 will be preferred over 400, etc.
+		s, p, err := api.prepareFileEdit(edit.Path, edit.Edits)
 		if s > status {
 			status = s
 		}
 		if err != nil {
 			combinedErr = errors.Join(combinedErr, err)
+		}
+		if p != nil {
+			pending = append(pending, *p)
 		}
 	}
 
@@ -379,6 +400,20 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 			Message: combinedErr.Error(),
 		})
 		return
+	}
+
+	// Phase 2: write all files via atomicWrite. A failure here
+	// (e.g. disk full) can leave earlier files committed. True
+	// cross-file atomicity would require filesystem transactions.
+	for _, p := range pending {
+		mode := p.mode
+		s, err := api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content))
+		if err != nil {
+			httpapi.Write(ctx, rw, s, codersdk.Response{
+				Message: err.Error(),
+			})
+			return
+		}
 	}
 
 	// Track edited paths for git watch.
@@ -397,18 +432,26 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, error) {
+// prepareFileEdit validates, reads, and computes edits for a single
+// file without writing anything to disk.
+func (api *API) prepareFileEdit(path string, edits []workspacesdk.FileEdit) (int, *pendingEdit, error) {
 	if path == "" {
-		return http.StatusBadRequest, xerrors.New("\"path\" is required")
+		return http.StatusBadRequest, nil, xerrors.New("\"path\" is required")
 	}
 
 	if !filepath.IsAbs(path) {
-		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
+		return http.StatusBadRequest, nil, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
 	if len(edits) == 0 {
-		return http.StatusBadRequest, xerrors.New("must specify at least one edit")
+		return http.StatusBadRequest, nil, xerrors.New("must specify at least one edit")
 	}
+
+	resolved, err := api.resolveSymlink(path)
+	if err != nil {
+		return http.StatusInternalServerError, nil, xerrors.Errorf("resolve symlink %q: %w", path, err)
+	}
+	path = resolved
 
 	f, err := api.filesystem.Open(path)
 	if err != nil {
@@ -419,22 +462,22 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 		case errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
 		}
-		return status, err
+		return status, nil, err
 	}
 	defer f.Close()
 
 	stat, err := f.Stat()
 	if err != nil {
-		return http.StatusInternalServerError, err
+		return http.StatusInternalServerError, nil, err
 	}
 
 	if stat.IsDir() {
-		return http.StatusBadRequest, xerrors.Errorf("open %s: not a file", path)
+		return http.StatusBadRequest, nil, xerrors.Errorf("open %s: not a file", path)
 	}
 
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return http.StatusInternalServerError, xerrors.Errorf("read %s: %w", path, err)
+		return http.StatusInternalServerError, nil, xerrors.Errorf("read %s: %w", path, err)
 	}
 	content := string(data)
 
@@ -442,12 +485,15 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 		var err error
 		content, err = fuzzyReplace(content, edit)
 		if err != nil {
-			return http.StatusBadRequest, xerrors.Errorf("edit %s: %w", path, err)
+			return http.StatusBadRequest, nil, xerrors.Errorf("edit %s: %w", path, err)
 		}
 	}
 
-	m := stat.Mode()
-	return api.atomicWrite(ctx, path, &m, strings.NewReader(content))
+	return 0, &pendingEdit{
+		path:    path,
+		content: content,
+		mode:    stat.Mode(),
+	}, nil
 }
 
 // atomicWrite writes content from r to path via a temp file in the
@@ -510,6 +556,52 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	return 0, nil
 }
 
+// resolveSymlink resolves a path through any symlinks so that
+// subsequent operations (such as atomic rename) target the real
+// file instead of replacing the symlink itself.
+//
+// The filesystem must implement afero.Lstater and afero.LinkReader
+// for resolution to occur; if it does not (e.g. MemMapFs), the
+// path is returned unchanged.
+func (api *API) resolveSymlink(path string) (string, error) {
+	const maxDepth = 10
+
+	lstater, hasLstat := api.filesystem.(afero.Lstater)
+	if !hasLstat {
+		return path, nil
+	}
+	reader, hasReadlink := api.filesystem.(afero.LinkReader)
+	if !hasReadlink {
+		return path, nil
+	}
+
+	for range maxDepth {
+		info, _, err := lstater.LstatIfPossible(path)
+		if err != nil {
+			// If the file does not exist yet (new file write),
+			// there is nothing to resolve.
+			if errors.Is(err, os.ErrNotExist) {
+				return path, nil
+			}
+			return "", err
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			return path, nil
+		}
+
+		target, err := reader.ReadlinkIfPossible(path)
+		if err != nil {
+			return "", err
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(path), target)
+		}
+		path = target
+	}
+
+	return "", xerrors.Errorf("too many levels of symlinks resolving %q", path)
+}
+
 // fuzzyReplace attempts to find `search` inside `content` and replace it
 // with `replace`. It uses a cascading match strategy inspired by
 // openai/codex's apply_patch:
@@ -567,30 +659,15 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	}
 
 	// Pass 2 – trim trailing whitespace on each line.
-	if start, end, ok := seekLines(contentLines, searchLines, trimRight); ok {
-		if !edit.ReplaceAll {
-			if count := countLineMatches(contentLines, searchLines, trimRight); count > 1 {
-				return "", xerrors.Errorf("search string matches %d occurrences "+
-					"(expected exactly 1). Include more surrounding "+
-					"context to make the match unique, or set "+
-					"replace_all to true", count)
-			}
-		}
-		return spliceLines(contentLines, start, end, replace), nil
+	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimRight, edit.ReplaceAll); matched {
+		return result, err
 	}
 
 	// Pass 3 – trim all leading and trailing whitespace
-	// (indentation-tolerant).
-	if start, end, ok := seekLines(contentLines, searchLines, trimAll); ok {
-		if !edit.ReplaceAll {
-			if count := countLineMatches(contentLines, searchLines, trimAll); count > 1 {
-				return "", xerrors.Errorf("search string matches %d occurrences "+
-					"(expected exactly 1). Include more surrounding "+
-					"context to make the match unique, or set "+
-					"replace_all to true", count)
-			}
-		}
-		return spliceLines(contentLines, start, end, replace), nil
+	// (indentation-tolerant). The replacement is inserted verbatim;
+	// callers must provide correctly indented replacement text.
+	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimAll, edit.ReplaceAll); matched {
+		return result, err
 	}
 
 	return "", xerrors.New("search string not found in file. Verify the search " +
@@ -652,4 +729,73 @@ func spliceLines(contentLines []string, start, end int, replacement string) stri
 		_, _ = b.WriteString(l)
 	}
 	return b.String()
+}
+
+// fuzzyReplaceLines handles fuzzy matching passes (2 and 3) for
+// fuzzyReplace. When replaceAll is false and there are multiple
+// matches, an error is returned. When replaceAll is true, all
+// non-overlapping matches are replaced.
+//
+// Returns (result, true, nil) on success, ("", false, nil) when
+// searchLines don't match at all, or ("", true, err) when the match
+// is ambiguous.
+//
+//nolint:revive // replaceAll is a direct pass-through of the user's flag, not a control coupling.
+func fuzzyReplaceLines(
+	contentLines, searchLines []string,
+	replace string,
+	eq func(a, b string) bool,
+	replaceAll bool,
+) (string, bool, error) {
+	start, end, ok := seekLines(contentLines, searchLines, eq)
+	if !ok {
+		return "", false, nil
+	}
+
+	if !replaceAll {
+		if count := countLineMatches(contentLines, searchLines, eq); count > 1 {
+			return "", true, xerrors.Errorf("search string matches %d occurrences "+
+				"(expected exactly 1). Include more surrounding "+
+				"context to make the match unique, or set "+
+				"replace_all to true", count)
+		}
+		return spliceLines(contentLines, start, end, replace), true, nil
+	}
+
+	// Replace all: collect all match positions, then apply from last
+	// to first to preserve indices.
+	type lineMatch struct{ start, end int }
+	var matches []lineMatch
+	for i := 0; i <= len(contentLines)-len(searchLines); {
+		found := true
+		for j, sLine := range searchLines {
+			if !eq(contentLines[i+j], sLine) {
+				found = false
+				break
+			}
+		}
+		if found {
+			matches = append(matches, lineMatch{i, i + len(searchLines)})
+			i += len(searchLines) // skip past this match
+		} else {
+			i++
+		}
+	}
+
+	// Apply replacements from last to first.
+	repLines := strings.SplitAfter(replace, "\n")
+	for i := len(matches) - 1; i >= 0; i-- {
+		m := matches[i]
+		newLines := make([]string, 0, m.start+len(repLines)+(len(contentLines)-m.end))
+		newLines = append(newLines, contentLines[:m.start]...)
+		newLines = append(newLines, repLines...)
+		newLines = append(newLines, contentLines[m.end:]...)
+		contentLines = newLines
+	}
+
+	var b strings.Builder
+	for _, l := range contentLines {
+		_, _ = b.WriteString(l)
+	}
+	return b.String(), true, nil
 }

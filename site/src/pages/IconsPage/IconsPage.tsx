@@ -3,19 +3,6 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Margins } from "components/Margins/Margins";
-import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import { DEPRECATED_ICONS } from "theme/deprecatedIcons";
@@ -26,6 +13,19 @@ import {
 import icons from "theme/icons.json";
 import uFuzzy from "ufuzzy";
 import { pageTitle } from "utils/page";
+import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Margins } from "#/components/Margins/Margins";
+import {
+	PageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 const filteredIcons = icons.filter((icon) => !DEPRECATED_ICONS.includes(icon));
 const iconsWithoutSuffix = filteredIcons.map((icon) => {

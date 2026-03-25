@@ -1,7 +1,5 @@
 import { useTheme } from "@emotion/react";
 import IconButton, { type IconButtonProps } from "@mui/material/IconButton";
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	cloneElement,
 	type FC,
@@ -10,6 +8,8 @@ import {
 	type Ref,
 } from "react";
 import { cn } from "utils/cn";
+import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	className,

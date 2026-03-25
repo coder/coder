@@ -306,6 +306,20 @@ separate title.
 
 ## Troubleshooting
 
+### Database migration mismatch after switching branches
+
+If `./scripts/develop.sh` exits with a "database migration conflict" error,
+it means the database has migrations from another branch that don't exist
+on the current one. You have two options:
+
+```shell
+# Roll back the mismatched migrations (preserves your dev data):
+./scripts/develop.sh --db-rollback
+
+# Or wipe the database and start fresh:
+./scripts/develop.sh --db-reset
+```
+
 ### Nix on macOS: `error: creating directory`
 
 On macOS, a [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause

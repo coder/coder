@@ -1,22 +1,22 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Link } from "components/Link/Link";
+import type { ComponentProps, FC } from "react";
+import { docs } from "utils/docs";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
-import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
+} from "#/components/PaginationWidget/PaginationContainer";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Table,
 	TableBody,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import type { ComponentProps, FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { RequestLogsFilter } from "./RequestLogsFilter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 

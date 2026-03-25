@@ -1,11 +1,11 @@
 import Skeleton from "@mui/material/Skeleton";
 import { healthSettings, updateHealthSettings } from "api/queries/debug";
 import type { HealthSection } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 	const queryClient = useQueryClient();

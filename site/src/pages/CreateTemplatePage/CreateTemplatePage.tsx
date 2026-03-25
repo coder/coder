@@ -1,11 +1,11 @@
 import { createTemplate } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useRef, useState } from "react";
 import { useMutation } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizontalForm";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
 import { ImportStarterTemplateView } from "./ImportStarterTemplateView";

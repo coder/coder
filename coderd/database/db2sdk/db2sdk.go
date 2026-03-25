@@ -19,7 +19,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -28,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -223,6 +223,7 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
 	}
 }
 
@@ -251,6 +252,7 @@ func UserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
 	}
 }
 
@@ -1017,6 +1019,44 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		intc.Client = &interception.Client.String
 	}
 	return intc
+}
+
+func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
+	session := codersdk.AIBridgeSession{
+		ID: row.SessionID,
+		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
+			ID:        row.UserID,
+			Username:  row.UserUsername,
+			Name:      row.UserName,
+			AvatarURL: row.UserAvatarUrl,
+		}),
+		Providers: row.Providers,
+		Models:    row.Models,
+		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt: row.StartedAt,
+		Threads:   row.Threads,
+		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
+			InputTokens:  row.InputTokens,
+			OutputTokens: row.OutputTokens,
+		},
+	}
+	// Ensure non-nil slices for JSON serialization.
+	if session.Providers == nil {
+		session.Providers = []string{}
+	}
+	if session.Models == nil {
+		session.Models = []string{}
+	}
+	if row.Client != "" {
+		session.Client = &row.Client
+	}
+	if !row.EndedAt.IsZero() {
+		session.EndedAt = &row.EndedAt
+	}
+	if row.LastPrompt != "" {
+		session.LastPrompt = &row.LastPrompt
+	}
+	return session
 }
 
 func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {

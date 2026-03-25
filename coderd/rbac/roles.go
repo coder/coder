@@ -316,13 +316,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				// Members can create and update AI Bridge interceptions but
+				// cannot read them back.
+				ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 			})...,
 		),
 		ByOrgID: map[string]OrgPermissions{},
@@ -345,7 +348,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			// Allow auditors to query aibridge interceptions.
+			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 		}),
 		User:    []Permission{},
@@ -998,6 +1001,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			ResourcePrebuiltWorkspace,
 			ResourceUser,
 			ResourceOrganizationMember,
+			ResourceAibridgeInterception,
 		),
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
@@ -1015,6 +1019,12 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			// Can read their own organization member record.
 			ResourceOrganizationMember.Type: {
 				policy.ActionRead,
+			},
+			// Members can create and update AI Bridge interceptions but
+			// cannot read them back.
+			ResourceAibridgeInterception.Type: {
+				policy.ActionCreate,
+				policy.ActionUpdate,
 			},
 		})...,
 	)
@@ -1073,6 +1083,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			ResourcePrebuiltWorkspace,
 			ResourceUser,
 			ResourceOrganizationMember,
+			ResourceAibridgeInterception,
 		),
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
@@ -1090,6 +1101,12 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			// Can read their own organization member record.
 			ResourceOrganizationMember.Type: {
 				policy.ActionRead,
+			},
+			// Service accounts can create and update AI Bridge
+			// interceptions but cannot read them back.
+			ResourceAibridgeInterception.Type: {
+				policy.ActionCreate,
+				policy.ActionUpdate,
 			},
 		})...,
 	)

@@ -1,13 +1,13 @@
+import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
+import type { FC, HTMLAttributes, PropsWithChildren, ReactNode } from "react";
+import { cn } from "utils/cn";
 import {
 	Tooltip,
 	TooltipContent,
 	type TooltipContentProps,
 	type TooltipProps,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
-import type { FC, HTMLAttributes, PropsWithChildren, ReactNode } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 
 type Icon = typeof CircleHelpIcon;
 

@@ -1,11 +1,11 @@
-import { Badge } from "components/Badge/Badge";
+import { InfoIcon } from "lucide-react";
+import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { InfoIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 type AIGovernanceAddOnCardProps = {
 	title: string;

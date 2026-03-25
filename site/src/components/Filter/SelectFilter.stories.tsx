@@ -1,9 +1,9 @@
 import { withDesktopViewport } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Avatar } from "components/Avatar/Avatar";
-import { ComboboxInput } from "components/Combobox/Combobox";
 import { useState } from "react";
 import { expect, screen, userEvent, within } from "storybook/test";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import { SelectFilter, type SelectFilterOption } from "./SelectFilter";
 
 const options: SelectFilterOption[] = Array.from({ length: 50 }, (_, i) => ({

@@ -44,59 +44,67 @@ const createServerConfig = (
  * on refetch, mimicking a real server round-trip.
  */
 const setupMCPSpies = (state: { servers: TypesGen.MCPServerConfig[] }) => {
-	spyOn(API, "getMCPServerConfigs").mockImplementation(async () => {
-		return state.servers;
-	});
+	spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+		async () => {
+			return state.servers;
+		},
+	);
 
-	spyOn(API, "createMCPServerConfig").mockImplementation(async (req) => {
-		const created = createServerConfig({
-			id: `mcp-${Date.now()}`,
-			display_name: req.display_name,
-			slug: req.slug,
-			description: req.description,
-			icon_url: req.icon_url,
-			transport: req.transport,
-			url: req.url,
-			auth_type: req.auth_type,
-			availability: req.availability,
-			enabled: req.enabled,
-			has_oauth2_secret: (req.oauth2_client_secret ?? "").length > 0,
-			has_api_key: (req.api_key_value ?? "").length > 0,
-			has_custom_headers:
-				req.custom_headers != null &&
-				Object.keys(req.custom_headers).length > 0,
-			tool_allow_list: req.tool_allow_list ?? [],
-			tool_deny_list: req.tool_deny_list ?? [],
-		});
-		state.servers = [...state.servers, created];
-		return created;
-	});
+	spyOn(API.experimental, "createMCPServerConfig").mockImplementation(
+		async (req) => {
+			const created = createServerConfig({
+				id: `mcp-${Date.now()}`,
+				display_name: req.display_name,
+				slug: req.slug,
+				description: req.description,
+				icon_url: req.icon_url,
+				transport: req.transport,
+				url: req.url,
+				auth_type: req.auth_type,
+				availability: req.availability,
+				enabled: req.enabled,
+				has_oauth2_secret: (req.oauth2_client_secret ?? "").length > 0,
+				has_api_key: (req.api_key_value ?? "").length > 0,
+				has_custom_headers:
+					req.custom_headers != null &&
+					Object.keys(req.custom_headers).length > 0,
+				tool_allow_list: req.tool_allow_list ?? [],
+				tool_deny_list: req.tool_deny_list ?? [],
+			});
+			state.servers = [...state.servers, created];
+			return created;
+		},
+	);
 
-	spyOn(API, "updateMCPServerConfig").mockImplementation(async (id, req) => {
-		const idx = state.servers.findIndex((s) => s.id === id);
-		if (idx < 0) {
-			throw new Error("MCP server config not found.");
-		}
-		const current = state.servers[idx];
-		const updated: TypesGen.MCPServerConfig = {
-			...current,
-			display_name: req.display_name ?? current.display_name,
-			slug: req.slug ?? current.slug,
-			description: req.description ?? current.description,
-			url: req.url ?? current.url,
-			transport: req.transport ?? current.transport,
-			auth_type: req.auth_type ?? current.auth_type,
-			availability: req.availability ?? current.availability,
-			enabled: req.enabled ?? current.enabled,
-			updated_at: now,
-		};
-		state.servers = state.servers.map((s, i) => (i === idx ? updated : s));
-		return updated;
-	});
+	spyOn(API.experimental, "updateMCPServerConfig").mockImplementation(
+		async (id, req) => {
+			const idx = state.servers.findIndex((s) => s.id === id);
+			if (idx < 0) {
+				throw new Error("MCP server config not found.");
+			}
+			const current = state.servers[idx];
+			const updated: TypesGen.MCPServerConfig = {
+				...current,
+				display_name: req.display_name ?? current.display_name,
+				slug: req.slug ?? current.slug,
+				description: req.description ?? current.description,
+				url: req.url ?? current.url,
+				transport: req.transport ?? current.transport,
+				auth_type: req.auth_type ?? current.auth_type,
+				availability: req.availability ?? current.availability,
+				enabled: req.enabled ?? current.enabled,
+				updated_at: now,
+			};
+			state.servers = state.servers.map((s, i) => (i === idx ? updated : s));
+			return updated;
+		},
+	);
 
-	spyOn(API, "deleteMCPServerConfig").mockImplementation(async (id) => {
-		state.servers = state.servers.filter((s) => s.id !== id);
-	});
+	spyOn(API.experimental, "deleteMCPServerConfig").mockImplementation(
+		async (id) => {
+			state.servers = state.servers.filter((s) => s.id !== id);
+		},
+	);
 };
 
 // ── Meta ───────────────────────────────────────────────────────
@@ -217,9 +225,9 @@ export const CreateServer: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				display_name: "Sentry",
 				slug: "sentry",
@@ -268,9 +276,9 @@ export const CreateServerOAuth2: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				auth_type: "oauth2",
 				oauth2_client_id: "my-client-id",
@@ -316,9 +324,9 @@ export const CreateServerAPIKey: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				auth_type: "api_key",
 				api_key_header: "Authorization",
@@ -369,9 +377,9 @@ export const EditServer: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Save changes/i }));
 
 		await waitFor(() => {
-			expect(API.updateMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.updateMCPServerConfig).toHaveBeenCalledWith(
+		expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledWith(
 			"mcp-sentry",
 			expect.objectContaining({
 				description: "Sentry error tracking integration",
@@ -460,9 +468,9 @@ export const EditServerWithCustomHeaders: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Save changes/i }));
 
 		await waitFor(() => {
-			expect(API.updateMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.updateMCPServerConfig).toHaveBeenCalledWith(
+		expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledWith(
 			"mcp-custom",
 			expect.objectContaining({
 				custom_headers: { Authorization: "Bearer tok_abc" },
@@ -552,9 +560,11 @@ export const DeleteServerConfirmed: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Delete server/i }));
 
 		await waitFor(() => {
-			expect(API.deleteMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.deleteMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.deleteMCPServerConfig).toHaveBeenCalledWith("mcp-sentry");
+		expect(API.experimental.deleteMCPServerConfig).toHaveBeenCalledWith(
+			"mcp-sentry",
+		);
 	},
 };
 
@@ -586,7 +596,7 @@ export const BackToList: Story = {
 			await body.findByRole("button", { name: /Sentry/ }),
 		).toBeInTheDocument();
 
-		expect(API.createMCPServerConfig).not.toHaveBeenCalled();
+		expect(API.experimental.createMCPServerConfig).not.toHaveBeenCalled();
 	},
 };
 
@@ -623,9 +633,9 @@ export const CreateServerWithToolGovernance: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				tool_allow_list: ["search", "read_file"],
 				tool_deny_list: ["delete_file", "execute"],
@@ -676,9 +686,9 @@ export const CustomHeadersAuthType: Story = {
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
-			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.createMCPServerConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				auth_type: "custom_headers",
 				custom_headers: { "X-Api-Token": "secret-token-123" },

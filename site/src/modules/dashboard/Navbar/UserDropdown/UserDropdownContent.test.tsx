@@ -5,7 +5,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
+} from "#/components/DropdownMenu/DropdownMenu";
 import { Language, UserDropdownContent } from "./UserDropdownContent";
 
 const renderUserDropdownContent = (props: { onSignOut: () => void }) => {

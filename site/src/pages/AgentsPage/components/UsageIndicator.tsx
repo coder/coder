@@ -1,16 +1,16 @@
 import { chatUsageLimitStatus } from "api/queries/chats";
+import dayjs from "dayjs";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { Link } from "react-router";
+import { formatCostMicros } from "utils/currency";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import dayjs from "dayjs";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { Link } from "react-router";
-import { formatCostMicros } from "utils/currency";
+} from "#/components/DropdownMenu/DropdownMenu";
 import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
 
 export const UsageIndicator: FC = () => {
@@ -102,7 +102,7 @@ export const UsageIndicator: FC = () => {
 				<DropdownMenuSeparator />
 
 				<DropdownMenuItem asChild>
-					<Link to="/agents/analytics">View details</Link>
+					<Link to="/agents/analytics">View usage</Link>
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>

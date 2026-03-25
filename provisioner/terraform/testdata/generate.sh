@@ -138,4 +138,4 @@ if [[ $err -ne 0 ]]; then
 	exit 1
 fi
 
-terraform version -json | jq -r '.terraform_version' >version.txt
+terraform version -json | jq -r '.terraform_version' >../version.txt

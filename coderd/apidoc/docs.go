@@ -163,6 +163,57 @@ const docTemplate = `{
                 ]
             }
         },
+        "/aibridge/sessions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge sessions",
+                "operationId": "list-ai-bridge-sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, model, client, session_id, started_after, started_before.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor pagination after session ID (cannot be used with offset)",
+                        "name": "after_session_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset pagination (cannot be used with after_session_id)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/appearance": {
             "get": {
                 "produces": [
@@ -7971,29 +8022,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/users/me/session/token-to-cookie": {
-            "post": {
-                "description": "Converts the current session token into a Set-Cookie response.\nThis is used by embedded iframes (e.g. VS Code chat) that\nreceive a session token out-of-band via postMessage but need\ncookie-based auth for WebSocket connections.",
-                "tags": [
-                    "Authorization"
-                ],
-                "summary": "Set session token cookie",
-                "operationId": "set-session-token-cookie",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/users/oauth2/github/callback": {
             "get": {
                 "tags": [
@@ -12801,6 +12829,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeListSessionsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSession"
+                    }
+                }
+            }
+        },
         "codersdk.AIBridgeOpenAIConfig": {
             "type": "object",
             "properties": {
@@ -12850,6 +12892,64 @@ const docTemplate = `{
                 },
                 "upstream_proxy_ca": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeSession": {
+            "type": "object",
+            "properties": {
+                "client": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "initiator": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "last_prompt": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "threads": {
+                    "type": "integer"
+                },
+                "token_usage_summary": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionTokenUsageSummary"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionTokenUsageSummary": {
+            "type": "object",
+            "properties": {
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
                 }
             }
         },
@@ -17326,7 +17426,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
-                "has_ai_seat": {
+                "is_service_account": {
                     "type": "boolean"
                 },
                 "last_seen_at": {
@@ -20122,9 +20222,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "email"
                 },
-                "has_ai_seat": {
-                    "type": "boolean"
-                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -20973,9 +21070,6 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "format": "email"
-                },
-                "has_ai_seat": {
-                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",

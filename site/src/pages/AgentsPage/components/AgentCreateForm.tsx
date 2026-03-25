@@ -1,11 +1,17 @@
 import { isApiError } from "api/errors";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { Button } from "components/Button/Button";
+import { Check, MonitorIcon } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, useEffect, useRef, useState } from "react";
+import { useQuery } from "react-query";
+import { Link } from "react-router";
+import { toast } from "sonner";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { Button } from "#/components/Button/Button";
 import {
 	Command,
 	CommandEmpty,
@@ -13,18 +19,12 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from "components/Command/Command";
+} from "#/components/Command/Command";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Check, MonitorIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect, useRef, useState } from "react";
-import { useQuery } from "react-query";
-import { Link } from "react-router";
-import { toast } from "sonner";
+} from "#/components/Popover/Popover";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelCatalogStatusMessage,
@@ -37,6 +37,7 @@ import {
 	isUsageLimitData,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
+import { getDefaultMCPSelection } from "./MCPServerPicker";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
@@ -50,6 +51,7 @@ export type CreateChatOptions = {
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
+	mcpServerIds?: string[];
 };
 
 /**
@@ -116,6 +118,8 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onMCPAuthComplete?: (serverId: string) => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -128,6 +132,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
+	mcpServers,
+	onMCPAuthComplete,
 }) => {
 	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
@@ -242,11 +248,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
 	const selectedModelRef = useRef(selectedModel);
+	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
+		null,
+	);
+	const effectiveMCPServerIds =
+		userMCPServerIds ?? getDefaultMCPSelection(mcpServers ?? []);
+	const selectedMCPServerIdsRef = useRef(effectiveMCPServerIds);
 	useEffect(() => {
 		selectedWorkspaceIdRef.current = selectedWorkspaceId;
 		selectedModelRef.current = selectedModel;
+		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
 	});
-
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
 			setSelectedWorkspaceId(null);
@@ -273,6 +285,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			fileIDs,
 			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 			model: selectedModelRef.current || undefined,
+			mcpServerIds:
+				selectedMCPServerIdsRef.current.length > 0
+					? [...selectedMCPServerIdsRef.current]
+					: undefined,
 		}).catch(() => {
 			// Re-enable draft persistence so the user can edit
 			// and retry after a failed send attempt.
@@ -289,6 +305,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const {
 		attachments,
+		textContents,
 		uploadStates,
 		previewUrls,
 		handleAttach,
@@ -368,6 +385,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onRemoveAttachment={handleRemoveAttachment}
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
+					textContents={textContents}
+					mcpServers={mcpServers}
+					selectedMCPServerIds={effectiveMCPServerIds}
+					onMCPSelectionChange={setUserMCPServerIds}
+					onMCPAuthComplete={onMCPAuthComplete}
 					leftActions={
 						<Popover
 							open={workspacePopoverOpen}

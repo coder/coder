@@ -2,8 +2,14 @@ import type {
 	Organization,
 	OrganizationSyncSettings,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
+import { useFormik } from "formik";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { docs } from "utils/docs";
+import { isUUID } from "utils/uuid";
+import * as Yup from "yup";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import {
 	Combobox,
 	ComboboxButton,
@@ -12,8 +18,8 @@ import {
 	ComboboxItem,
 	ComboboxList,
 	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+} from "#/components/Combobox/Combobox";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	Dialog,
 	DialogContent,
@@ -21,23 +27,23 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
+} from "#/components/Dialog/Dialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipIconTrigger,
 	HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
+} from "#/components/HelpTooltip/HelpTooltip";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
-} from "components/MultiSelectCombobox/MultiSelectCombobox";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -45,18 +51,12 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
+} from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
-import * as Yup from "yup";
+} from "#/components/Tooltip/Tooltip";
 import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {

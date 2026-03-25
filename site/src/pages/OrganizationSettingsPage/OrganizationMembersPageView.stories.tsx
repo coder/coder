@@ -6,9 +6,9 @@ import {
 	MockUserOwner,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import { expect, within } from "storybook/test";
+import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const meta: Meta<typeof OrganizationMembersPageView> = {

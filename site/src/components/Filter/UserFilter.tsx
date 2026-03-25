@@ -1,12 +1,12 @@
 import { API } from "api/api";
-import { Avatar } from "components/Avatar/Avatar";
-import { ComboboxInput } from "components/Combobox/Combobox";
+import { useAuthenticated } from "hooks";
+import type { FC } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import { useAuthenticated } from "hooks";
-import type { FC } from "react";
+} from "#/components/Filter/SelectFilter";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
 export const DEFAULT_USER_FILTER_WIDTH = 175;

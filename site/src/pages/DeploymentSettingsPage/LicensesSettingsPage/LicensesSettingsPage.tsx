@@ -82,6 +82,9 @@ const LicensesSettingsPage: FC = () => {
 				showConfetti={confettiOn}
 				isLoading={isLoading}
 				isRefreshing={refreshEntitlementsMutation.isPending}
+				hasUserLimitEntitlementData={
+					entitlementsQuery.data?.features.user_limit !== undefined
+				}
 				userLimitActual={entitlementsQuery.data?.features.user_limit?.actual}
 				userLimitLimit={entitlementsQuery.data?.features.user_limit?.limit}
 				licenses={licenses}

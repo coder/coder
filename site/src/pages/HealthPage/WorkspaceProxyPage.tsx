@@ -1,16 +1,16 @@
 import { useTheme } from "@emotion/react";
 import type { HealthcheckReport } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
+import { Alert } from "#/components/Alert/Alert";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import {
 	BooleanPill,
 	Header,

@@ -8,10 +8,6 @@ import {
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -21,6 +17,10 @@ import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import IdpSyncPageView from "./IdpSyncPageView";
 
 const IdpSyncPage: FC = () => {

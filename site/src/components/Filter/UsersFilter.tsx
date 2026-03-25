@@ -1,18 +1,23 @@
-import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
+import type { FC } from "react";
+import { docs } from "utils/docs";
+import {
+	Filter,
+	MenuSkeleton,
+	type useFilter,
+} from "#/components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "components/Filter/menu";
+} from "#/components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Filter/SelectFilter";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 
 const userFilterQuery = {
 	active: "status:active",
+	serviceAccount: "service_account:true",
 	all: "",
 };
 
@@ -51,6 +56,7 @@ type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
 const PRESET_FILTERS = [
 	{ query: userFilterQuery.active, name: "Active users" },
+	{ query: userFilterQuery.serviceAccount, name: "Service accounts" },
 	{ query: userFilterQuery.all, name: "All users" },
 ];
 

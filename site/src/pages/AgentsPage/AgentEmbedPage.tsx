@@ -1,6 +1,4 @@
 import { getErrorMessage } from "api/errors";
-import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
@@ -8,10 +6,12 @@ import { permissionChecks } from "modules/permissions";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useParams } from "react-router";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,
-	EmbedProvider,
+	EmbedContext,
 } from "./components/EmbedContext";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
@@ -178,13 +178,13 @@ const AgentEmbedPage: FC = () => {
 
 	if (auth.isSignedIn) {
 		return (
-			<EmbedProvider value={{ isEmbedded: true }}>
+			<EmbedContext value={{ isEmbedded: true }}>
 				<DashboardProvider>
 					<ProxyProvider>
 						<Outlet context={outletContext} />
 					</ProxyProvider>
 				</DashboardProvider>
-			</EmbedProvider>
+			</EmbedContext>
 		);
 	}
 

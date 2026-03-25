@@ -1,7 +1,12 @@
 import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
+import dayjs from "dayjs";
+import { TriangleAlertIcon } from "lucide-react";
+import type { FC } from "react";
+import { formatTokenCount } from "utils/analytics";
+import { formatCostMicros } from "utils/currency";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -9,12 +14,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import dayjs from "dayjs";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
-import { formatTokenCount } from "utils/analytics";
-import { formatCostMicros } from "utils/currency";
+} from "#/components/Table/Table";
 
 interface ChatCostSummaryViewProps {
 	summary: TypesGen.ChatCostSummary | undefined;
@@ -94,10 +94,10 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			: 0;
 	const usageProgressBarClass =
 		usageProgressPercentage > 90
-			? "bg-surface-red"
+			? "bg-content-destructive"
 			: usageProgressPercentage >= 75
-				? "bg-surface-orange"
-				: "bg-surface-green";
+				? "bg-content-warning"
+				: "bg-content-success";
 	const usageLimitExceeded =
 		showUsageLimitCard && usageLimitCurrentSpend >= usageLimitSpendMicros;
 	const usageLimitStatusText = usageLimitExceeded

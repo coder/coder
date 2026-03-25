@@ -1,11 +1,11 @@
-import { Button } from "components/Button/Button";
-import { Margins } from "components/Margins/Margins";
+import type { FC, ReactNode } from "react";
+import { Button } from "#/components/Button/Button";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import type { FC, ReactNode } from "react";
+} from "#/components/PageHeader/PageHeader";
 
 interface FullPageHorizontalFormProps {
 	title: string;

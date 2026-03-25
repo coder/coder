@@ -3,12 +3,6 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { FormSection, VerticalForm } from "components/Form/Form";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Loader } from "components/Loader/Loader";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useDebouncedFunction } from "hooks/debounce";
 import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
@@ -20,6 +14,12 @@ import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { ValidationError } from "yup";
+import { Button } from "#/components/Button/Button";
+import { FormSection, VerticalForm } from "#/components/Form/Form";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Loader } from "#/components/Loader/Loader";
+import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 
 type ButtonValues = Record<string, string>;
 

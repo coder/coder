@@ -1,28 +1,10 @@
 import type * as TypesGen from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import {
-	ConversationItem,
-	Message,
-	MessageContent,
-	Response,
-	Shimmer,
-	Tool,
-} from "components/ai-elements";
-import { WebSearchSources } from "components/ai-elements/tool";
-import { Button } from "components/Button/Button";
-import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { PencilIcon } from "lucide-react";
+import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
-	memo,
 	type ReactNode,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -30,9 +12,33 @@ import {
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import { Alert } from "#/components/Alert/Alert";
+import {
+	ConversationItem,
+	Message,
+	MessageContent,
+	Response,
+	Shimmer,
+	Tool,
+} from "#/components/ai-elements";
+import { WebSearchSources } from "#/components/ai-elements/tool";
+import { Button } from "#/components/Button/Button";
+import { FileReferenceChip } from "#/components/ChatMessageInput/FileReferenceNode";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import {
+	decodeInlineTextAttachment,
+	fetchTextAttachmentContent,
+	formatTextAttachmentPreview,
+} from "../../utils/fetchTextAttachment";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
+import { TextPreviewDialog } from "../TextPreviewDialog";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -91,7 +97,9 @@ type RenderBlockListParams = {
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
+	onTextFileClick?: (content: string) => void;
 	urlTransform?: UrlTransform;
 };
 
@@ -112,6 +120,140 @@ const SmoothedResponse: FC<{
 	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
 };
 
+const InlineTextAttachmentButton: FC<{
+	content: string;
+	onPreview?: (content: string) => void;
+}> = ({ content, onPreview }) => {
+	return (
+		<button
+			type="button"
+			aria-label="View text attachment"
+			className="inline-flex max-w-sm items-start gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+			onClick={(e) => {
+				e.stopPropagation();
+				onPreview?.(content);
+			}}
+		>
+			<FileTextIcon className="mt-0.5 size-icon-sm shrink-0 text-content-secondary" />
+			<span className="line-clamp-2 min-w-0 font-mono text-xs text-content-secondary">
+				{formatTextAttachmentPreview(content)}
+			</span>
+		</button>
+	);
+};
+
+const TextAttachmentButton: FC<{
+	fileId: string;
+	onPreview?: (content: string) => void;
+}> = ({ fileId, onPreview }) => {
+	const [content, setContent] = useState<string | null>(null);
+	const controllerRef = useRef<AbortController | null>(null);
+
+	useEffect(() => {
+		return () => controllerRef.current?.abort();
+	}, []);
+
+	return (
+		<InlineTextAttachmentButton
+			content={content ?? "Pasted text"}
+			onPreview={async () => {
+				if (content !== null) {
+					onPreview?.(content);
+					return;
+				}
+
+				controllerRef.current?.abort();
+				const controller = new AbortController();
+				controllerRef.current = controller;
+
+				let fetchedContent: string;
+				try {
+					fetchedContent = await fetchTextAttachmentContent(
+						fileId,
+						controller.signal,
+					);
+				} catch (err) {
+					if (controllerRef.current === controller) {
+						controllerRef.current = null;
+					}
+					if (err instanceof Error && err.name === "AbortError") {
+						return;
+					}
+					console.error("Failed to load text attachment:", err);
+					return;
+				}
+
+				if (controllerRef.current === controller) {
+					controllerRef.current = null;
+				}
+				setContent(fetchedContent);
+				onPreview?.(fetchedContent);
+			}}
+		/>
+	);
+};
+
+type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+
+type RenderFileBlockParams = {
+	block: FileRenderBlock;
+	key: string;
+	onImageClick?: (src: string) => void;
+	onTextFileClick?: (content: string) => void;
+};
+
+const renderFileBlock = ({
+	block,
+	key,
+	onImageClick,
+	onTextFileClick,
+}: RenderFileBlockParams): ReactNode => {
+	if (block.media_type === "text/plain") {
+		if (block.file_id) {
+			return (
+				<TextAttachmentButton
+					key={key}
+					fileId={block.file_id}
+					onPreview={onTextFileClick}
+				/>
+			);
+		}
+		if (block.data != null) {
+			return (
+				<InlineTextAttachmentButton
+					key={key}
+					content={decodeInlineTextAttachment(block.data)}
+					onPreview={onTextFileClick}
+				/>
+			);
+		}
+	}
+	if (!block.media_type.startsWith("image/")) {
+		return null;
+	}
+	const src = block.file_id
+		? `/api/experimental/chats/files/${block.file_id}`
+		: `data:${block.media_type};base64,${block.data}`;
+	return (
+		<button
+			key={key}
+			type="button"
+			aria-label="View image"
+			className="inline-block rounded-md border-0 bg-transparent p-0"
+			onClick={(e) => {
+				e.stopPropagation();
+				onImageClick?.(src);
+			}}
+		>
+			<ImageThumbnail
+				previewUrl={src}
+				name="Attached image"
+				className="cursor-pointer transition-opacity hover:opacity-80"
+			/>
+		</button>
+	);
+};
+
 type RenderBlockListResult = {
 	elements: ReactNode[];
 	renderedToolIDs: ReadonlySet<string>;
@@ -124,7 +266,9 @@ function renderBlockList({
 	isStreaming = false,
 	subagentTitles,
 	subagentStatusOverrides,
+	mcpServers,
 	onImageClick,
+	onTextFileClick,
 	urlTransform,
 }: RenderBlockListParams): RenderBlockListResult {
 	const renderedToolIDs = new Set<string>();
@@ -187,6 +331,7 @@ function renderBlockList({
 								isError={false}
 								subagentTitles={subagentTitles}
 								subagentStatusOverrides={subagentStatusOverrides}
+								mcpServers={mcpServers}
 							/>
 						);
 					}
@@ -203,34 +348,18 @@ function renderBlockList({
 							subagentStatusOverrides={
 								isStreaming ? subagentStatusOverrides : undefined
 							}
+							mcpServerConfigId={tool.mcpServerConfigId}
+							mcpServers={mcpServers}
 						/>
 					);
 				}
 				case "file":
-					if (block.media_type.startsWith("image/")) {
-						const src = block.file_id
-							? `/api/experimental/chats/files/${block.file_id}`
-							: `data:${block.media_type};base64,${block.data}`;
-						return (
-							<button
-								key={`${keyPrefix}-file-${index}`}
-								type="button"
-								aria-label="View image"
-								className="inline-block rounded-md border-0 bg-transparent p-0"
-								onClick={(e) => {
-									e.stopPropagation();
-									onImageClick?.(src);
-								}}
-							>
-								<ImageThumbnail
-									previewUrl={src}
-									name="Attached image"
-									className="cursor-pointer transition-opacity hover:opacity-80"
-								/>
-							</button>
-						);
-					}
-					return null;
+					return renderFileBlock({
+						block,
+						key: `${keyPrefix}-file-${block.file_id ?? index}`,
+						onImageClick,
+						onTextFileClick,
+					});
 				case "sources":
 					return (
 						<WebSearchSources
@@ -246,7 +375,7 @@ function renderBlockList({
 	return { elements, renderedToolIDs };
 }
 
-const ChatMessageItem = memo<{
+interface ChatMessageItemProps {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	onEditUserMessage?: (
@@ -262,117 +391,136 @@ const ChatMessageItem = memo<{
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
-}>(
-	({
-		message,
-		parsed,
-		onEditUserMessage,
-		editingMessageId,
-		savingMessageId,
-		isAfterEditingMessage = false,
-		fadeFromBottom = false,
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+}
+
+const ChatMessageItem: FC<ChatMessageItemProps> = ({
+	message,
+	parsed,
+	onEditUserMessage,
+	editingMessageId,
+	savingMessageId,
+	isAfterEditingMessage = false,
+	fadeFromBottom = false,
+	urlTransform,
+	mcpServers,
+}) => {
+	const isUser = message.role === "user";
+	const isSavingMessage = savingMessageId === message.id;
+	const [previewImage, setPreviewImage] = useState<string | null>(null);
+	const [previewText, setPreviewText] = useState<string | null>(null);
+	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
+
+	if (
+		parsed.toolResults.length > 0 &&
+		parsed.toolCalls.length === 0 &&
+		parsed.markdown === "" &&
+		parsed.reasoning === ""
+	) {
+		return null;
+	}
+
+	// Hide messages that consist entirely of provider-executed
+	// tool results. The parser skips these parts, so the parsed
+	// output is empty and would show a "no renderable content"
+	// fallback.
+	const parts = message.content ?? [];
+	if (
+		parts.length > 0 &&
+		parts.every((p) => p.type === "tool-result" && p.provider_executed)
+	) {
+		return null;
+	}
+
+	const hasRenderableContent =
+		parsed.blocks.length > 0 ||
+		parsed.tools.length > 0 ||
+		parsed.sources.length > 0;
+	// Pre-compute the inline content for user messages so we
+	// avoid a filter + map inside the JSX return path.
+	const userInlineContent = isUser
+		? parsed.blocks.filter(
+				(
+					b,
+				): b is
+					| Extract<RenderBlock, { type: "response" }>
+					| Extract<RenderBlock, { type: "file-reference" }> =>
+					b.type === "response" || b.type === "file-reference",
+			)
+		: [];
+
+	const userFileBlocks = isUser
+		? parsed.blocks.filter(
+				(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
+			)
+		: [];
+
+	const hasUserMessageBody =
+		userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
+	const hasFileBlocks = userFileBlocks.length > 0;
+
+	const conversationItemProps: { role: "user" | "assistant" } = {
+		role: isUser ? "user" : "assistant",
+	};
+	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
+		blocks: parsed.blocks,
+		toolByID,
+		keyPrefix: String(message.id),
+		onImageClick: setPreviewImage,
+		onTextFileClick: (content) => setPreviewText(content),
 		urlTransform,
-	}) => {
-		const isUser = message.role === "user";
-		const isSavingMessage = savingMessageId === message.id;
-		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
+		mcpServers,
+	});
+	const remainingTools = parsed.tools.filter(
+		(tool) => !renderedToolIDs.has(tool.id),
+	);
 
-		if (
-			parsed.toolResults.length > 0 &&
-			parsed.toolCalls.length === 0 &&
-			parsed.markdown === "" &&
-			parsed.reasoning === ""
-		) {
-			return null;
-		}
-
-		// Hide messages that consist entirely of provider-executed
-		// tool results. The parser skips these parts, so the parsed
-		// output is empty and would show a "no renderable content"
-		// fallback.
-		const parts = message.content ?? [];
-		if (
-			parts.length > 0 &&
-			parts.every((p) => p.type === "tool-result" && p.provider_executed)
-		) {
-			return null;
-		}
-
-		const hasRenderableContent =
-			parsed.blocks.length > 0 ||
-			parsed.tools.length > 0 ||
-			parsed.sources.length > 0;
-		// Pre-compute the inline content for user messages so we
-		// avoid a filter + map inside the JSX return path.
-		const userInlineContent = isUser
-			? parsed.blocks.filter(
-					(
-						b,
-					): b is
-						| Extract<RenderBlock, { type: "response" }>
-						| Extract<RenderBlock, { type: "file-reference" }> =>
-						b.type === "response" || b.type === "file-reference",
-				)
-			: [];
-
-		const conversationItemProps: { role: "user" | "assistant" } = {
-			role: isUser ? "user" : "assistant",
-		};
-		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-			blocks: parsed.blocks,
-			toolByID,
-			keyPrefix: String(message.id),
-			onImageClick: setPreviewImage,
-			urlTransform,
-		});
-		const remainingTools = parsed.tools.filter(
-			(tool) => !renderedToolIDs.has(tool.id),
-		);
-
-		return (
-			<div
-				className={cn(
-					isAfterEditingMessage && "opacity-40 pointer-events-none",
-					"transition-opacity duration-200",
-				)}
-			>
-				<ConversationItem {...conversationItemProps}>
-					{isUser ? (
-						<Message className="w-full max-w-none">
-							<MessageContent
-								className={cn(
-									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
-									editingMessageId === message.id &&
-										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-									isSavingMessage && "ring-2 ring-content-secondary/40",
-									fadeFromBottom && "relative overflow-hidden",
-								)}
-								style={
-									fadeFromBottom
-										? { maxHeight: "var(--clip-h, none)" }
-										: undefined
-								}
-							>
-								<div className="flex flex-col gap-1.5">
+	return (
+		<div
+			className={cn(
+				isAfterEditingMessage && "opacity-40 pointer-events-none",
+				"transition-opacity duration-200",
+			)}
+		>
+			<ConversationItem {...conversationItemProps}>
+				{isUser ? (
+					<Message className="w-full max-w-none">
+						<MessageContent
+							className={cn(
+								"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
+								editingMessageId === message.id &&
+									"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+								isSavingMessage && "ring-2 ring-content-secondary/40",
+								fadeFromBottom && "relative overflow-hidden",
+							)}
+							style={
+								fadeFromBottom
+									? { maxHeight: "var(--clip-h, none)" }
+									: undefined
+							}
+						>
+							<div className="flex flex-col gap-1.5">
+								{(hasUserMessageBody || hasFileBlocks) && (
 									<div className="flex items-start gap-2">
-										<span className="min-w-0 flex-1">
-											{userInlineContent.length > 0
-												? userInlineContent.map((block, i) =>
-														block.type === "response" ? (
-															<Fragment key={i}>{block.text}</Fragment>
-														) : (
-															<FileReferenceChip
-																key={i}
-																fileName={block.file_name}
-																startLine={block.start_line}
-																endLine={block.end_line}
-																className="mx-1"
-															/>
-														),
-													)
-												: parsed.markdown || ""}
-										</span>
+										{hasUserMessageBody && (
+											<span className="min-w-0 flex-1">
+												{userInlineContent.length > 0
+													? userInlineContent.map((block, i) =>
+															block.type === "response" ? (
+																<Fragment key={i}>{block.text}</Fragment>
+															) : (
+																<FileReferenceChip
+																	key={i}
+																	fileName={block.file_name}
+																	startLine={block.start_line}
+																	endLine={block.end_line}
+																	className="mx-1"
+																/>
+															),
+														)
+													: parsed.markdown || ""}
+											</span>
+										)}
 										{isSavingMessage && (
 											<Spinner
 												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
@@ -396,7 +544,8 @@ const ChatMessageItem = memo<{
 																	{ type: "file" }
 																> =>
 																	b.type === "file" &&
-																	b.media_type.startsWith("image/"),
+																	(b.media_type.startsWith("image/") ||
+																		b.media_type === "text/plain"),
 															);
 															onEditUserMessage(
 																message.id,
@@ -412,86 +561,81 @@ const ChatMessageItem = memo<{
 											</Tooltip>
 										)}
 									</div>
-									{(() => {
-										const imageBlocks = parsed.blocks.filter(
-											(b): b is Extract<RenderBlock, { type: "file" }> =>
-												b.type === "file" && b.media_type.startsWith("image/"),
-										);
-										if (imageBlocks.length === 0) return null;
-										return (
-											<div className="mt-2 flex flex-wrap gap-2">
-												{imageBlocks.map((block, i) => {
-													const src = block.file_id
-														? `/api/experimental/chats/files/${block.file_id}`
-														: `data:${block.media_type};base64,${block.data}`;
-													return (
-														<button
-															key={`user-file-${i}`}
-															type="button"
-															className="inline-block rounded-md border-0 bg-transparent p-0"
-															onClick={(e) => {
-																e.stopPropagation();
-																setPreviewImage(src);
-															}}
-														>
-															<ImageThumbnail
-																previewUrl={src}
-																name="Attached image"
-																className="cursor-pointer transition-opacity hover:opacity-80"
-															/>
-														</button>
-													);
-												})}
-											</div>
-										);
-									})()}
-									{fadeFromBottom && (
+								)}
+								{(() => {
+									if (userFileBlocks.length === 0) return null;
+									return (
 										<div
-											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-											style={{
-												background:
-													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-											}}
-										/>
-									)}
-								</div>
-							</MessageContent>
-						</Message>
-					) : (
-						<Message className="w-full">
-							<MessageContent className="whitespace-normal">
-								<div className="space-y-3">
-									{orderedBlocks}
-									{remainingTools.map((tool) => (
-										<Tool
-											key={tool.id}
-											name={tool.name}
-											args={tool.args}
-											result={tool.result}
-											status={tool.status}
-											isError={tool.isError}
-										/>
-									))}
-									{!hasRenderableContent && (
-										<div className="text-xs text-content-secondary">
-											Message has no renderable content.
+											className={cn(
+												hasUserMessageBody && "mt-2",
+												"flex flex-wrap gap-2",
+											)}
+										>
+											{userFileBlocks.map((block, i) =>
+												renderFileBlock({
+													block,
+													key: `user-file-${block.file_id ?? i}`,
+													onImageClick: setPreviewImage,
+													onTextFileClick: setPreviewText,
+												}),
+											)}
 										</div>
-									)}
-								</div>
-							</MessageContent>
-						</Message>
-					)}
-				</ConversationItem>
-				{previewImage && (
-					<ImageLightbox
-						src={previewImage}
-						onClose={() => setPreviewImage(null)}
-					/>
+									);
+								})()}
+								{fadeFromBottom && (
+									<div
+										className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
+										style={{
+											background:
+												"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
+										}}
+									/>
+								)}
+							</div>
+						</MessageContent>
+					</Message>
+				) : (
+					<Message className="w-full">
+						<MessageContent className="whitespace-normal">
+							<div className="space-y-3">
+								{orderedBlocks}
+								{remainingTools.map((tool) => (
+									<Tool
+										key={tool.id}
+										name={tool.name}
+										args={tool.args}
+										result={tool.result}
+										status={tool.status}
+										isError={tool.isError}
+										mcpServerConfigId={tool.mcpServerConfigId}
+										mcpServers={mcpServers}
+									/>
+								))}
+								{!hasRenderableContent && (
+									<div className="text-xs text-content-secondary">
+										Message has no renderable content.
+									</div>
+								)}
+							</div>
+						</MessageContent>
+					</Message>
 				)}
-			</div>
-		);
-	},
-);
+			</ConversationItem>
+			{previewImage && (
+				<ImageLightbox
+					src={previewImage}
+					onClose={() => setPreviewImage(null)}
+				/>
+			)}
+			{previewText !== null && (
+				<TextPreviewDialog
+					content={previewText}
+					onClose={() => setPreviewText(null)}
+				/>
+			)}
+		</div>
+	);
+};
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
@@ -501,6 +645,7 @@ export const StreamingOutput: FC<{
 	showInitialPlaceholder?: boolean;
 	retryState?: { attempt: number; error: string } | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
 	streamState,
 	streamTools,
@@ -509,6 +654,7 @@ export const StreamingOutput: FC<{
 	showInitialPlaceholder = false,
 	retryState,
 	urlTransform,
+	mcpServers,
 }) => {
 	const conversationItemProps = { role: "assistant" as const };
 	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
@@ -521,6 +667,7 @@ export const StreamingOutput: FC<{
 		subagentTitles,
 		subagentStatusOverrides,
 		urlTransform,
+		mcpServers,
 	});
 	const remainingTools = streamTools.filter(
 		(tool) => !renderedToolIDs.has(tool.id),
@@ -562,6 +709,8 @@ export const StreamingOutput: FC<{
 								isError={tool.isError}
 								subagentTitles={subagentTitles}
 								subagentStatusOverrides={subagentStatusOverrides}
+								mcpServerConfigId={tool.mcpServerConfigId}
+								mcpServers={mcpServers}
 							/>
 						))}
 					</div>
@@ -855,6 +1004,7 @@ interface ConversationTimelineProps {
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
@@ -872,6 +1022,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
+	mcpServers,
 }) => {
 	const shouldRenderStreamAfterMessages =
 		hasStreamOutput && parsedMessages.length > 0;
@@ -920,6 +1071,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 								savingMessageId={savingMessageId}
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								mcpServers={mcpServers}
 							/>
 						),
 					)}
@@ -932,6 +1084,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
 							retryState={retryState}
 							urlTransform={urlTransform}
+							mcpServers={mcpServers}
 						/>
 					)}
 					{hasStreamOutput && parsedMessages.length === 0 && (
@@ -943,6 +1096,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
 							retryState={retryState}
 							urlTransform={urlTransform}
+							mcpServers={mcpServers}
 						/>
 					)}
 				</div>

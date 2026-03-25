@@ -1,14 +1,14 @@
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
+} from "#/components/Table/Table";
 import { TableColumnHelpTooltip } from "../../OrganizationSettingsPage/UserTable/TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
 

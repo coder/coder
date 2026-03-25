@@ -1,20 +1,20 @@
 import { useTheme } from "@emotion/react";
 import type { TemplateExample } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { ExternalLinkIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link } from "react-router";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { ExternalLinkIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link } from "react-router";
+} from "#/components/PageHeader/PageHeader";
+import { Stack } from "#/components/Stack/Stack";
 
 interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;

@@ -11,14 +11,6 @@ import {
 	workspacePermissions,
 } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -32,6 +24,14 @@ import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";

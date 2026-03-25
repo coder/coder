@@ -1,12 +1,4 @@
 import type { Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { Spinner } from "components/Spinner/Spinner";
 import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
@@ -14,6 +6,14 @@ import type { WorkspaceAppWithAgent } from "modules/tasks/apps";
 import { type FC, type HTMLProps, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskAppIFrameProps = {

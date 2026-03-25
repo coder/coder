@@ -4,27 +4,6 @@ import type {
 	ChatModelConfig,
 	ChatStatus,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { asString } from "components/ai-elements/runtimeTypeUtils";
-import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -59,7 +38,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
-	memo,
 	useContext,
 	useEffect,
 	useRef,
@@ -68,13 +46,34 @@ import {
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { asString } from "#/components/ai-elements/runtimeTypeUtils";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import { UsageIndicator } from "../UsageIndicator";
 
 type SidebarView =
 	| { panel: "chats" }
-	| { panel: "settings"; section: string }
+	| { panel: "settings"; section: string | undefined }
 	| { panel: "analytics" };
 
 /**
@@ -86,7 +85,7 @@ export function sidebarViewFromPath(pathname: string): SidebarView {
 	}
 	const settingsMatch = pathname.match(/^\/agents\/settings(?:\/([^/]+))?/);
 	if (settingsMatch) {
-		return { panel: "settings", section: settingsMatch[1] || "behavior" };
+		return { panel: "settings", section: settingsMatch[1] };
 	}
 	return { panel: "chats" };
 }
@@ -354,7 +353,7 @@ interface ChatTreeNodeProps {
 	readonly isChildNode: boolean;
 }
 
-const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
+const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const {
 		chatTree,
 		chatById,
@@ -578,7 +577,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			)}
 		</div>
 	);
-});
+};
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
@@ -626,6 +625,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	});
 	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
 		visibleChatIDs.has(chatID),
+	);
+
+	// Pre-compute the first non-empty time group so the filter
+	// dropdown renders next to it without needing a mutable IIFE.
+	const firstNonEmptyGroup = TIME_GROUPS.find((group) =>
+		visibleRootIDs.some((id) => {
+			const chat = chatById.get(id);
+			return chat !== undefined && getTimeGroup(chat.updated_at) === group;
+		}),
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -689,7 +697,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
+					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
 					sidebarView.panel === "settings" && "-translate-x-full",
 				)}
 				aria-hidden={sidebarView.panel === "settings"}
@@ -719,53 +727,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									<SettingsIcon />
 								</Link>
 							</Button>
-							<Button
-								asChild
-								variant="subtle"
-								size="icon"
-								aria-label="Analytics"
-								className={cn(
-									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-									sidebarView.panel === "analytics" && "text-content-primary",
-								)}
-							>
-								<Link to="/agents/analytics">
-									<BarChart3Icon />
-								</Link>
-							</Button>{" "}
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										variant="subtle"
-										size="icon"
-										aria-label="Filter agents"
-										className={cn(
-											"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-											archivedFilter === "archived" && "text-content-primary",
-										)}
-									>
-										<FilterIcon />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
-									<DropdownMenuItem
-										onSelect={() => onArchivedFilterChange?.("active")}
-									>
-										Active
-										{archivedFilter === "active" && (
-											<CheckIcon className="ml-auto h-3.5 w-3.5" />
-										)}
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										onSelect={() => onArchivedFilterChange?.("archived")}
-									>
-										Archived
-										{archivedFilter === "archived" && (
-											<CheckIcon className="ml-auto h-3.5 w-3.5" />
-										)}
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
 							{onCollapse && (
 								<Button
 									variant="subtle"
@@ -824,14 +785,25 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								</div>
 							</>
 						) : (
-							<ChatTreeContext.Provider value={chatTreeCtx}>
+							<ChatTreeContext value={chatTreeCtx}>
 								{visibleRootIDs.length === 0 ? (
 									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										{normalizedSearch
-											? "No matching agents"
-											: archivedFilter === "archived"
-												? "No archived agents"
-												: "No agents yet"}
+										<p className="m-0">
+											{normalizedSearch
+												? "No matching agents"
+												: archivedFilter === "archived"
+													? "No archived agents"
+													: "No agents yet"}
+										</p>
+										{archivedFilter === "archived" && (
+											<button
+												type="button"
+												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+												onClick={() => onArchivedFilterChange?.("active")}
+											>
+												← Back to active
+											</button>
+										)}
 									</div>
 								) : (
 									<div>
@@ -851,8 +823,48 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															key={group}
 															className="[&:not(:first-child)]:mt-3"
 														>
-															<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																<span>{group}</span>
+																{group === firstNonEmptyGroup && (
+																	<DropdownMenu>
+																		<DropdownMenuTrigger asChild>
+																			<Button
+																				variant="subtle"
+																				size="icon"
+																				aria-label="Filter agents"
+																				className={cn(
+																					"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+																					archivedFilter === "archived" &&
+																						"text-content-primary",
+																				)}
+																			>
+																				<FilterIcon />
+																			</Button>
+																		</DropdownMenuTrigger>
+																		<DropdownMenuContent align="end">
+																			<DropdownMenuItem
+																				onSelect={() =>
+																					onArchivedFilterChange?.("active")
+																				}
+																			>
+																				Active
+																				{archivedFilter === "active" && (
+																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
+																				)}
+																			</DropdownMenuItem>
+																			<DropdownMenuItem
+																				onSelect={() =>
+																					onArchivedFilterChange?.("archived")
+																				}
+																			>
+																				Archived
+																				{archivedFilter === "archived" && (
+																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
+																				)}
+																			</DropdownMenuItem>
+																		</DropdownMenuContent>
+																	</DropdownMenu>
+																)}
 															</div>
 															<div className="flex flex-col gap-0.5">
 																{groupChats.map((chat) => (
@@ -865,7 +877,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															</div>
 														</div>
 													);
-												})}
+												})}{" "}
 											</div>
 										)}
 									</div>
@@ -876,7 +888,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										isFetchingNextPage={isFetchingNextPage}
 									/>
 								)}
-							</ChatTreeContext.Provider>
+							</ChatTreeContext>
 						)}
 					</div>
 				</ScrollArea>
@@ -923,22 +935,44 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
+					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
 					sidebarView.panel !== "settings" && "translate-x-full",
 				)}
 				aria-hidden={sidebarView.panel !== "settings"}
 				inert={sidebarView.panel !== "settings" ? true : undefined}
 			>
 				{/* Back header */}
-				<div className="hidden border-b border-border-default px-3 py-2.5 md:block">
-					<Link
-						to={(location.state as { from?: string })?.from || "/agents"}
-						className="flex items-center gap-1.5 rounded-md bg-transparent px-0 py-1 text-sm font-medium text-content-secondary no-underline cursor-pointer hover:text-content-primary transition-colors"
-						aria-label={`Back to chats from ${subNavTitle}`}
-					>
-						<ChevronLeftIcon className="h-4 w-4 shrink-0" />
-						{subNavTitle}
-					</Link>
+				<div className="border-b border-border-default px-2 pb-2 pt-3 md:py-2">
+					<div className="relative flex items-center">
+						<span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-content-primary">
+							{subNavTitle}
+						</span>
+						<Button
+							asChild
+							variant="subtle"
+							size="icon"
+							aria-label="Back to chats"
+							className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+						>
+							<Link
+								to={(location.state as { from?: string })?.from || "/agents"}
+							>
+								<ChevronLeftIcon />
+							</Link>
+						</Button>
+						<div className="flex-1" />
+						{onCollapse && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={onCollapse}
+								aria-label="Collapse sidebar"
+								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary md:inline-flex"
+							>
+								<PanelLeftCloseIcon />
+							</Button>
+						)}
+					</div>
 				</div>
 				{/* Sub-navigation items */}
 				{sidebarView.panel === "settings" && (
@@ -946,7 +980,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<SettingsNavItem
 							icon={UserIcon}
 							label="Behavior"
-							active={sidebarView.section === "behavior"}
+							active={
+								!sidebarView.section || sidebarView.section === "behavior"
+							}
 							to="/agents/settings/behavior"
 							state={location.state}
 						/>

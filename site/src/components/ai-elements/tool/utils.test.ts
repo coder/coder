@@ -15,6 +15,7 @@ import {
 	getFileViewerOptionsMinimal,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
+	humanizeMCPToolName,
 	isSubagentRunningStatus,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
@@ -278,7 +279,7 @@ describe("getDiffViewerOptions", () => {
 		expect(opts.theme).toBe("github-dark-high-contrast");
 		expect(opts.diffStyle).toBe("unified");
 		expect(opts.diffIndicators).toBe("bars");
-		expect(opts.overflow).toBe("scroll");
+		expect(opts.overflow).toBe("wrap");
 		expect(opts.unsafeCSS).toBe(diffViewerCSS);
 	});
 
@@ -664,6 +665,36 @@ describe("stripSvnIndexHeaders", () => {
 
 	it("is a no-op for empty strings", () => {
 		expect(stripSvnIndexHeaders("")).toBe("");
+	});
+});
+
+describe("humanizeMCPToolName", () => {
+	it("strips slug prefix and humanizes", () => {
+		expect(humanizeMCPToolName("linear", "linear__list_issues")).toBe(
+			"List issues",
+		);
+	});
+
+	it("handles single-word tool name after prefix", () => {
+		expect(humanizeMCPToolName("github", "github__search")).toBe("Search");
+	});
+
+	it("humanizes entire name when prefix does not match", () => {
+		expect(humanizeMCPToolName("linear", "github__list_repos")).toBe(
+			"Github list repos",
+		);
+	});
+
+	it("falls back to prefixedName when stripping prefix leaves empty string", () => {
+		expect(humanizeMCPToolName("linear", "linear__")).toBe("linear__");
+	});
+
+	it("collapses consecutive underscores into a single space", () => {
+		expect(humanizeMCPToolName("srv", "srv__get__data")).toBe("Get data");
+	});
+
+	it("humanizes tool name without slug prefix", () => {
+		expect(humanizeMCPToolName("linear", "list_issues")).toBe("List issues");
 	});
 });
 

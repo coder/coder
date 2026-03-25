@@ -1,4 +1,5 @@
 import type { SerpentOption } from "api/typesGenerated";
+import type { FC } from "react";
 import {
 	Table,
 	TableBody,
@@ -6,8 +7,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
+} from "#/components/Table/Table";
 import {
 	OptionConfig,
 	OptionConfigFlag,

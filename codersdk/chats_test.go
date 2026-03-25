@@ -87,7 +87,7 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		client := codersdk.New(serverURL)
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
 		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
@@ -121,7 +121,7 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		client := codersdk.New(serverURL)
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
 		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,

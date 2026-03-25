@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -742,43 +742,6 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Logged out!",
 	})
-}
-
-// @Summary Set session token cookie
-// @Description Converts the current session token into a Set-Cookie response.
-// @Description This is used by embedded iframes (e.g. VS Code chat) that
-// @Description receive a session token out-of-band via postMessage but need
-// @Description cookie-based auth for WebSocket connections.
-// @ID set-session-token-cookie
-// @Security CoderSessionToken
-// @Tags Authorization
-// @Success 204
-// @Router /users/me/session/token-to-cookie [post]
-// @x-apidocgen {"skip": true}
-func (api *API) postSessionTokenCookie(rw http.ResponseWriter, r *http.Request) {
-	// Only accept the token from the Coder-Session-Token header.
-	// Other sources (query params, cookies) should not be allowed
-	// to bootstrap a new cookie.
-	token := r.Header.Get(codersdk.SessionTokenHeader)
-	if token == "" {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Session token must be provided via the Coder-Session-Token header.",
-		})
-		return
-	}
-
-	apiKey := httpmw.APIKey(r)
-
-	cookie := api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
-		Name:     codersdk.SessionTokenCookie,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		// Expire the cookie when the underlying API key expires.
-		Expires: apiKey.ExpiresAt,
-	})
-	http.SetCookie(rw, cookie)
-	rw.WriteHeader(http.StatusNoContent)
 }
 
 // GithubOAuth2Team represents a team scoped to an organization.
@@ -1626,7 +1589,7 @@ func claimFields(claims map[string]interface{}) []string {
 	for field := range claims {
 		fields = append(fields, field)
 	}
-	sort.Strings(fields)
+	slices.Sort(fields)
 	return fields
 }
 
@@ -1639,7 +1602,7 @@ func blankFields(claims map[string]interface{}) []string {
 			fields = append(fields, field)
 		}
 	}
-	sort.Strings(fields)
+	slices.Sort(fields)
 	return fields
 }
 

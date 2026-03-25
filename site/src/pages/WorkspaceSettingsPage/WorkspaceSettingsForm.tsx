@@ -6,14 +6,6 @@ import {
 	AutomaticUpdateses,
 	type Workspace,
 } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
 import type { FC } from "react";
@@ -23,6 +15,14 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { Button } from "#/components/Button/Button";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "#/components/Form/Form";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 export type WorkspaceSettingsFormValues = {
 	name: string;

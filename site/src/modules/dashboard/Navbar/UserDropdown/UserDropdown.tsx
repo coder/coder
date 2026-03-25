@@ -1,11 +1,11 @@
 import type * as TypesGen from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import type { FC } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import type { FC } from "react";
+} from "#/components/DropdownMenu/DropdownMenu";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 interface UserDropdownProps {

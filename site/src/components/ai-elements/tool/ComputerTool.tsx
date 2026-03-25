@@ -1,11 +1,11 @@
+import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import type React from "react";
+import { cn } from "utils/cn";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
-import type React from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
 import type { ToolStatus } from "./utils";
 

@@ -1,6 +1,6 @@
-import { PremiumBadge } from "components/Badges/Badges";
 import type { ReactNode } from "react";
 import { cn } from "utils/cn";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import {
 	Paywall,
 	PaywallContent,

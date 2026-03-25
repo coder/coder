@@ -5,18 +5,18 @@ import {
 	externalAuthProvider,
 } from "api/queries/externalAuth";
 import { isAxiosError } from "axios";
-import { Button } from "components/Button/Button";
-import {
-	isExchangeErrorRetryable,
-	newRetryDelay,
-} from "components/GitDeviceAuth/GitDeviceAuth";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Welcome } from "components/Welcome/Welcome";
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
+import { Button } from "#/components/Button/Button";
+import {
+	isExchangeErrorRetryable,
+	newRetryDelay,
+} from "#/components/GitDeviceAuth/GitDeviceAuth";
+import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
+import { Welcome } from "#/components/Welcome/Welcome";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {

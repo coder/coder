@@ -8,21 +8,21 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Loader } from "components/Loader/Loader";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import {
 	WorkspaceParametersForm,
 	type WorkspaceParametersFormValues,

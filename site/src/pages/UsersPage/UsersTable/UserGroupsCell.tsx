@@ -2,18 +2,18 @@ import { useTheme } from "@emotion/react";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import type { Group } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { OverflowY } from "components/OverflowY/OverflowY";
-import { TableCell } from "components/Table/Table";
+import { UsersIcon } from "lucide-react";
+import type { FC } from "react";
+import { cn } from "utils/cn";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { OverflowY } from "#/components/OverflowY/OverflowY";
+import { TableCell } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 
 type GroupsCellProps = {
 	userGroups: readonly Group[] | undefined;

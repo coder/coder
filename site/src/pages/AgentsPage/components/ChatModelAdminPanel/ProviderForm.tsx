@@ -1,15 +1,15 @@
 import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Spinner } from "components/Spinner/Spinner";
+import { ChevronLeftIcon, InfoIcon } from "lucide-react";
+import { type FC, type FormEvent, useId, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ChevronLeftIcon, InfoIcon } from "lucide-react";
-import { type FC, type FormEvent, useId, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";

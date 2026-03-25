@@ -1,4 +1,9 @@
-import { chatModelConfigs, chatModels, createChat } from "api/queries/chats";
+import {
+	chatModelConfigs,
+	chatModels,
+	createChat,
+	mcpServerConfigs,
+} from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -24,6 +29,7 @@ const AgentCreatePage: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const createMutation = useMutation(createChat(queryClient));
 
 	const catalogModelOptions = getModelOptionsFromCatalog(
@@ -39,6 +45,7 @@ const AgentCreatePage: FC = () => {
 		fileIDs,
 		workspaceId,
 		model,
+		mcpServerIds,
 	}: CreateChatOptions) => {
 		const modelConfigID =
 			(model && modelConfigIDByModelID.get(model)) || nilUUID;
@@ -55,6 +62,8 @@ const AgentCreatePage: FC = () => {
 			content,
 			workspace_id: workspaceId,
 			model_config_id: modelConfigID,
+			mcp_server_ids:
+				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 		});
 
 		if (typeof window !== "undefined") {
@@ -84,6 +93,8 @@ const AgentCreatePage: FC = () => {
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				modelCatalogError={chatModelsQuery.error}
+				mcpServers={mcpServersQuery.data ?? []}
+				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 			/>
 		</>
 	);

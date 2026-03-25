@@ -8,15 +8,15 @@ import type {
 	OIDCAuthMethod,
 	UserLoginType,
 } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Stack } from "components/Stack/Stack";
 import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { docs } from "utils/docs";
+import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Stack } from "#/components/Stack/Stack";
 import { Section } from "../Section";
 
 type LoginTypeConfirmation =

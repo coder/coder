@@ -1,28 +1,31 @@
-import { hasError, isApiValidationError } from "api/errors";
-import type { Template, Workspace } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Button } from "components/Button/Button";
+import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
+import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
+import type { FC } from "react";
+import type { UseQueryResult } from "react-query";
+import { mustUpdateWorkspace } from "utils/workspace";
+import { hasError, isApiValidationError } from "#/api/errors";
+import type { Template, Workspace } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Margins } from "components/Margins/Margins";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
-import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
-import type { FC } from "react";
-import type { UseQueryResult } from "react-query";
-import { mustUpdateWorkspace } from "utils/workspace";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Margins } from "#/components/Margins/Margins";
+import {
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
+import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
 import {
 	type WorkspaceFilterState,
 	WorkspacesFilter,

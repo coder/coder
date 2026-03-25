@@ -1,9 +1,9 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect } from "react";
+import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import type { ModelSelectorOption } from "#/components/ai-elements";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -32,6 +32,7 @@ import {
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
 import type { ParsedMessageEntry } from "./AgentDetail/types";
+import { useOnRenderProfiler } from "./AgentDetail/useOnRenderProfiler";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -50,6 +51,7 @@ interface AgentDetailTimelineProps {
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 // Reads only message-related store state (stable during streaming).
@@ -62,6 +64,7 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
+	mcpServers,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -104,6 +107,7 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
 			urlTransform={urlTransform}
+			mcpServers={mcpServers}
 		/>
 	);
 };
@@ -128,6 +132,7 @@ const StreamingBridge: FC<{
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
 	store,
 	isEmpty,
@@ -142,9 +147,11 @@ const StreamingBridge: FC<{
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
+	mcpServers,
 }) => {
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamTools = buildStreamTools(streamState);
+	const onRenderProfiler = useOnRenderProfiler();
 	const isAwaitingFirstStreamChunk =
 		!streamState &&
 		(chatStatus === "running" || chatStatus === "pending") &&
@@ -152,22 +159,25 @@ const StreamingBridge: FC<{
 	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
 
 	return (
-		<ConversationTimeline
-			isEmpty={isEmpty}
-			parsedMessages={parsedMessages}
-			hasStreamOutput={hasStreamOutput}
-			streamState={streamState}
-			streamTools={streamTools}
-			subagentTitles={subagentTitles}
-			subagentStatusOverrides={subagentStatusOverrides}
-			retryState={retryState}
-			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-			detailError={detailError}
-			onEditUserMessage={onEditUserMessage}
-			editingMessageId={editingMessageId}
-			savingMessageId={savingMessageId}
-			urlTransform={urlTransform}
-		/>
+		<Profiler id="AgentChat" onRender={onRenderProfiler}>
+			<ConversationTimeline
+				isEmpty={isEmpty}
+				parsedMessages={parsedMessages}
+				hasStreamOutput={hasStreamOutput}
+				streamState={streamState}
+				streamTools={streamTools}
+				subagentTitles={subagentTitles}
+				subagentStatusOverrides={subagentStatusOverrides}
+				retryState={retryState}
+				isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+				detailError={detailError}
+				onEditUserMessage={onEditUserMessage}
+				editingMessageId={editingMessageId}
+				savingMessageId={savingMessageId}
+				urlTransform={urlTransform}
+				mcpServers={mcpServers}
+			/>
+		</Profiler>
 	);
 };
 
@@ -209,6 +219,10 @@ interface AgentDetailInputProps {
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds?: readonly string[];
+	onMCPSelectionChange?: (ids: string[]) => void;
+	onMCPAuthComplete?: (serverId: string) => void;
 }
 
 export const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -237,6 +251,10 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
 	editingFileBlocks,
+	mcpServers,
+	selectedMCPServerIds,
+	onMCPSelectionChange,
+	onMCPAuthComplete,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -258,6 +276,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	})();
 	const {
 		attachments,
+		textContents,
 		uploadStates,
 		previewUrls,
 		handleAttach,
@@ -282,7 +301,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		);
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type ?? "application/octet-stream";
-			const ext = mt.split("/")[1] ?? "png";
+			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			// Empty File used as a Map key only, its content is never
 			// read because the existing file_id is reused at send time.
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
@@ -350,6 +369,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
+			textContents={textContents}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			onContentChange={onContentChange}
@@ -374,6 +394,10 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			mcpServers={mcpServers}
+			selectedMCPServerIds={selectedMCPServerIds}
+			onMCPSelectionChange={onMCPSelectionChange}
+			onMCPAuthComplete={onMCPAuthComplete}
 		/>
 	);
 };

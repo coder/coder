@@ -1,12 +1,12 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 

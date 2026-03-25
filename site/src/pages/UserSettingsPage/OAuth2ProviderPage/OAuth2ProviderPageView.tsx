@@ -1,8 +1,9 @@
 import type * as TypesGen from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -10,9 +11,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import type { FC } from "react";
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 
 type OAuth2ProviderPageViewProps = {
 	isLoading: boolean;

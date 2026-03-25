@@ -1,13 +1,12 @@
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationMembers } from "api/queries/organizations";
 import type { Group, OrganizationMemberWithUserData } from "api/typesGenerated";
-import { Autocomplete } from "components/Autocomplete/Autocomplete";
-import { AvatarData } from "components/Avatar/AvatarData";
-
 import { Check } from "lucide-react";
 import { getGroupSubtitle, isGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
+import { AvatarData } from "#/components/Avatar/AvatarData";
 
 type OrganizationMember = OrganizationMemberWithUserData & { id: string };
 type AutocompleteOption = OrganizationMember | Group;
