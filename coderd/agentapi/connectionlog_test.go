@@ -101,7 +101,6 @@ func TestConnectionLog(t *testing.T) {
 			reason: "because error says so",
 		},
 	}
-	//nolint:paralleltest // No longer necessary to reinitialise the variable tt.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
