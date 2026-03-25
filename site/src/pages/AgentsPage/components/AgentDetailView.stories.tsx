@@ -525,6 +525,10 @@ const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
 	scrollContainer.dispatchEvent(new Event("scroll"));
 };
 
+/** Distance in pixels from the bottom of a scroll container. */
+const distFromBottom = (el: HTMLElement): number =>
+	el.scrollHeight - el.scrollTop - el.clientHeight;
+
 /** Helper that extracts the current messages array from a store. */
 const getStoreMessages = (
 	store: ReturnType<typeof createChatStore>,
@@ -618,10 +622,7 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 
 		// Record position while clearly away from the bottom.
 		const scrollTopBefore = scrollContainer.scrollTop;
-		const distFromBottomBefore =
-			scrollContainer.scrollHeight -
-			scrollContainer.scrollTop -
-			scrollContainer.clientHeight;
+		const distFromBottomBefore = distFromBottom(scrollContainer);
 		expect(scrollTopBefore).toBeLessThan(5);
 		expect(distFromBottomBefore).toBeGreaterThan(50);
 
@@ -646,17 +647,14 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 		// same reading position.
 		await waitFor(
 			() => {
-				const distFromBottom =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
+				const distanceFromBottom = distFromBottom(scrollContainer);
 				expect(scrollContainer.scrollTop).toBeGreaterThanOrEqual(
 					scrollTopBefore - 5,
 				);
 				expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
 					scrollTopBefore + 5,
 				);
-				expect(distFromBottom).toBeGreaterThan(50);
+				expect(distanceFromBottom).toBeGreaterThan(50);
 			},
 			{ timeout: 2000 },
 		);
@@ -682,10 +680,7 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 		// Wait for the initial double-RAF pin to bottom to complete.
 		await waitFor(
 			() => {
-				const initialDistFromBottom =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
+				const initialDistFromBottom = distFromBottom(scrollContainer);
 				expect(initialDistFromBottom).toBeLessThan(5);
 			},
 			{ timeout: 2000 },
@@ -711,11 +706,8 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 		// Wait for the double-RAF pin to complete.
 		await waitFor(
 			() => {
-				const distFromBottom =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(distFromBottom).toBeLessThan(5);
+				const distanceFromBottom = distFromBottom(scrollContainer);
+				expect(distanceFromBottom).toBeLessThan(5);
 			},
 			{ timeout: 2000 },
 		);

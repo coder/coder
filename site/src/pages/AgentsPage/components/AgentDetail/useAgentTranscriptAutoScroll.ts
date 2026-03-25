@@ -41,6 +41,11 @@ const scheduleBottomPin = (
 	if (!container) return;
 
 	cancelPendingPins(pinOuterRafIdRef, pinInnerRafIdRef);
+	// Double-RAF ensures React's commit phase and the browser's
+	// layout pass both complete before pinning to bottom. The first
+	// RAF defers past React's commit; the second defers past the
+	// browser's layout calculation, guaranteeing scrollHeight is
+	// accurate.
 	pinOuterRafIdRef.current = requestAnimationFrame(() => {
 		pinOuterRafIdRef.current = null;
 		pinInnerRafIdRef.current = requestAnimationFrame(() => {
@@ -83,9 +88,7 @@ export function useAgentTranscriptAutoScroll(
 				const nextContainer = scrollContainerRef.current;
 				if (!nextContainer) return;
 				const shouldShow = !isNearBottom(nextContainer);
-				setShowScrollToBottom((prev) =>
-					prev === shouldShow ? prev : shouldShow,
-				);
+				setShowScrollToBottom(shouldShow);
 			});
 		};
 
@@ -146,7 +149,7 @@ export function useAgentTranscriptAutoScroll(
 
 			prevContentHeight = nextHeight;
 
-			if (heightDelta < 1 || !autoScrollRef.current) {
+			if (Math.abs(heightDelta) < 1 || !autoScrollRef.current) {
 				return;
 			}
 
