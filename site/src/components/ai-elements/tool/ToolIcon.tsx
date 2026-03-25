@@ -35,7 +35,22 @@ export const ToolIcon: React.FC<{
 	// mode we invert to white and tune opacity to approximate
 	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
 	if (iconUrl && !imgError) {
-		const img = (
+		// On error we use a drop-shadow trick to recolor the icon to
+		// the exact destructive token: brightness-0 makes the image
+		// black, drop-shadow casts a colored copy 16px to the right,
+		// -translate-x-4 shifts so the colored copy sits where the
+		// original was, and overflow-hidden on the wrapper clips the
+		// black original.
+		const img = isError ? (
+			<div className="h-4 w-4 shrink-0 overflow-hidden">
+				<ExternalImage
+					src={iconUrl}
+					alt={`${name} icon`}
+					className="block h-4 w-4 -translate-x-4 brightness-0 [filter:brightness(0)_drop-shadow(16px_0_0_hsl(var(--content-destructive)))]"
+					onError={() => setImgError(true)}
+				/>
+			</div>
+		) : (
 			<ExternalImage
 				src={iconUrl}
 				alt={`${name} icon`}
