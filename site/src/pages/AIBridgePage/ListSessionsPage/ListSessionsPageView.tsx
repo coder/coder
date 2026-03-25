@@ -49,12 +49,6 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 					A thread is a multi-part interaction between human and agent involving
 					an initial human prompt and a subsequent agentic loop.
 				</p>
-				<p>
-					{/* FIXME need real docs url */}
-					<Link href="#" target="_blank">
-						View session terminology
-					</Link>
-				</p>
 			</TooltipContent>
 		</Tooltip>
 	</TooltipProvider>
