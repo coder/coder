@@ -62,7 +62,6 @@ import {
 } from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
-	getModelCatalogStatusMessage,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
