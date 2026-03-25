@@ -984,8 +984,8 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 // do this themselves; this handles clients that cannot.
 //
 // In centralized mode, Authorization carries the Coder token
-// itself (sent by the client as ANTHROPIC_AUTH_TOKEN), so aibridged
-// discovers it via ExtractAuthToken without any extra header.
+// itself, so aibridged discovers it via ExtractAuthToken
+// without any extra header.
 func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
 	// Don’t overwrite the header if it’s already set.
 	if header.Get(agplaibridge.HeaderCoderToken) != "" {
