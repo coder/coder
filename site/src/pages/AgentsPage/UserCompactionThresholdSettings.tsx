@@ -208,9 +208,9 @@ export const UserCompactionThresholdSettings: FC<
 										</span>
 										<span className="ml-auto text-xs text-content-secondary">
 											System default:{" "}
-											<span className="inline-block w-[3ch] text-right tabular-nums">
-												{modelConfig.compression_threshold}
-											</span>%
+											<span className="inline-block w-[4ch] text-right tabular-nums">
+												{modelConfig.compression_threshold}%
+											</span>
 										</span>
 									</div>
 									<div className="flex items-center gap-1.5">
