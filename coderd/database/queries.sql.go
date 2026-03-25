@@ -1187,20 +1187,21 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 
 const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH session_interceptions AS (
+	-- Find all interceptions related to the session, determine thread ID for each.
 	SELECT
 		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
-		-- If an interceptions ` + "`" + `thread_root_id` + "`" + ` is empty, then it itself must be the thread root.
+		-- If thread_root_id is empty, the interception is itself the thread root.
 		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
 	FROM
 		aibridge_interceptions
 	WHERE
 		aibridge_interceptions.session_id = $1::text
-		-- Remove inflight interceptions (ones which lack an ended_at value).
 		AND aibridge_interceptions.ended_at IS NOT NULL
 		-- Authorize Filter clause will be injected below
 		-- @authorize_filter
 ),
-thread_roots AS (
+thread_starts AS (
+	-- Find started_at time for each thread, to be used in cursor pagination.
 	SELECT
 		si.thread_id,
 		MIN(si.started_at) AS started_at
@@ -1210,49 +1211,46 @@ thread_roots AS (
 		si.thread_id
 ),
 paginated_threads AS (
+	-- Select only the threads which occur between the given {after,before}_id cursor params (if present).
 	SELECT
-		tr.thread_id,
-		tr.started_at
+		ts.thread_id,
+		ts.started_at
 	FROM
-		thread_roots tr
+		thread_starts ts
 	WHERE
-		CASE
-			WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) > (
-					(SELECT started_at FROM thread_roots WHERE thread_id = $2),
-					$2::uuid
-				)
+		($2::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(ts.started_at, ts.thread_id) > (
+				(SELECT started_at FROM thread_starts WHERE thread_id = $2),
+				$2::uuid
 			)
-			ELSE true
-		END
-		AND CASE
-			WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) < (
-					(SELECT started_at FROM thread_roots WHERE thread_id = $3),
-					$3::uuid
-				)
+		)
+		AND ($3::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(ts.started_at, ts.thread_id) < (
+				(SELECT started_at FROM thread_starts WHERE thread_id = $3),
+				$3::uuid
 			)
-			ELSE true
-		END
+		)
 	ORDER BY
-		tr.started_at ASC,
-		tr.thread_id ASC
+		-- Ensure threads are sorted chronologically.
+		ts.started_at ASC,
+		ts.thread_id ASC
 	LIMIT COALESCE(NULLIF($4::integer, 0), 50)
 )
 SELECT
-	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
+	si.thread_id,
 	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
-	aibridge_interceptions
+	session_interceptions si
+JOIN
+	-- Re-join the base table so sqlc.embed resolves the correct columns.
+	aibridge_interceptions ON aibridge_interceptions.id = si.id
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 JOIN
-	paginated_threads pt ON pt.thread_id = thread_id
-WHERE
-	aibridge_interceptions.session_id = $1::text
-	AND aibridge_interceptions.ended_at IS NOT NULL
+	paginated_threads pt ON pt.thread_id = si.thread_id
 ORDER BY
+	-- Ensure threads and their associated interceptions (agentic loops) are sorted chronologically.
 	pt.started_at ASC,
 	pt.thread_id ASC,
 	aibridge_interceptions.started_at ASC,

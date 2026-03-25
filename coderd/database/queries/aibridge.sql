@@ -596,20 +596,21 @@ OFFSET @offset_
 -- Returns all interceptions belonging to paginated threads within a session.
 -- Threads are paginated by (started_at, thread_id) cursor.
 WITH session_interceptions AS (
+	-- Find all interceptions related to the session, determine thread ID for each.
 	SELECT
 		aibridge_interceptions.*,
-		-- If an interceptions `thread_root_id` is empty, then it itself must be the thread root.
+		-- If thread_root_id is empty, the interception is itself the thread root.
 		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
 	FROM
 		aibridge_interceptions
 	WHERE
 		aibridge_interceptions.session_id = @session_id::text
-		-- Remove inflight interceptions (ones which lack an ended_at value).
 		AND aibridge_interceptions.ended_at IS NOT NULL
 		-- Authorize Filter clause will be injected below
 		-- @authorize_filter
 ),
-thread_roots AS (
+thread_starts AS (
+	-- Find started_at time for each thread, to be used in cursor pagination.
 	SELECT
 		si.thread_id,
 		MIN(si.started_at) AS started_at
@@ -619,49 +620,46 @@ thread_roots AS (
 		si.thread_id
 ),
 paginated_threads AS (
+	-- Select only the threads which occur between the given {after,before}_id cursor params (if present).
 	SELECT
-		tr.thread_id,
-		tr.started_at
+		ts.thread_id,
+		ts.started_at
 	FROM
-		thread_roots tr
+		thread_starts ts
 	WHERE
-		CASE
-			WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) > (
-					(SELECT started_at FROM thread_roots WHERE thread_id = @after_id),
-					@after_id::uuid
-				)
+		(@after_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(ts.started_at, ts.thread_id) > (
+				(SELECT started_at FROM thread_starts WHERE thread_id = @after_id),
+				@after_id::uuid
 			)
-			ELSE true
-		END
-		AND CASE
-			WHEN @before_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) < (
-					(SELECT started_at FROM thread_roots WHERE thread_id = @before_id),
-					@before_id::uuid
-				)
+		)
+		AND (@before_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(ts.started_at, ts.thread_id) < (
+				(SELECT started_at FROM thread_starts WHERE thread_id = @before_id),
+				@before_id::uuid
 			)
-			ELSE true
-		END
+		)
 	ORDER BY
-		tr.started_at ASC,
-		tr.thread_id ASC
+		-- Ensure threads are sorted chronologically.
+		ts.started_at ASC,
+		ts.thread_id ASC
 	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
 )
 SELECT
-	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
+	si.thread_id,
 	sqlc.embed(aibridge_interceptions),
 	sqlc.embed(visible_users)
 FROM
-	aibridge_interceptions
+	session_interceptions si
+JOIN
+	-- Re-join the base table so sqlc.embed resolves the correct columns.
+	aibridge_interceptions ON aibridge_interceptions.id = si.id
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 JOIN
-	paginated_threads pt ON pt.thread_id = COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id)
-WHERE
-	aibridge_interceptions.session_id = @session_id::text
-	AND aibridge_interceptions.ended_at IS NOT NULL
+	paginated_threads pt ON pt.thread_id = si.thread_id
 ORDER BY
+	-- Ensure threads and their associated interceptions (agentic loops) are sorted chronologically.
 	pt.started_at ASC,
 	pt.thread_id ASC,
 	aibridge_interceptions.started_at ASC,
