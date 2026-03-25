@@ -31,7 +31,7 @@ const TemplatePermissionsPage: FC = () => {
 			{!isTemplateRBACEnabled ? (
 				<PaywallPremium
 					message="Template permissions"
-					description="Control user and group access to templates. You need a Premium license to use this feature."
+					description="Control users and groups access to templates. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/templates/template-permissions")}
 				/>
 			) : (
