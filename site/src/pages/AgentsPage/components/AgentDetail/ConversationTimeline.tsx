@@ -123,20 +123,26 @@ const SmoothedResponse: FC<{
 const InlineTextAttachmentButton: FC<{
 	content: string;
 	onPreview?: (content: string) => void;
-}> = ({ content, onPreview }) => {
+	isPlaceholder?: boolean;
+}> = ({ content, onPreview, isPlaceholder }) => {
 	return (
 		<button
 			type="button"
 			aria-label="View text attachment"
-			className="inline-flex max-w-sm items-start gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 			onClick={(e) => {
 				e.stopPropagation();
 				onPreview?.(content);
 			}}
 		>
-			<FileTextIcon className="mt-0.5 size-icon-sm shrink-0 text-content-secondary" />
-			<span className="line-clamp-2 min-w-0 font-mono text-xs text-content-secondary">
-				{formatTextAttachmentPreview(content)}
+			<FileTextIcon className="size-icon-sm shrink-0 text-content-secondary" />
+			<span
+				className={cn(
+					"line-clamp-2 min-w-0 text-content-secondary",
+					isPlaceholder ? "text-sm" : "font-mono text-xs",
+				)}
+			>
+				{isPlaceholder ? content : formatTextAttachmentPreview(content)}
 			</span>
 		</button>
 	);
@@ -156,6 +162,7 @@ const TextAttachmentButton: FC<{
 	return (
 		<InlineTextAttachmentButton
 			content={content ?? "Pasted text"}
+			isPlaceholder={content === null}
 			onPreview={async () => {
 				if (content !== null) {
 					onPreview?.(content);
