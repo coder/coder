@@ -291,7 +291,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					{emptyMessage}
 				</p>
 			) : (
-				<>
+				<div className="flex flex-col gap-6">
+					{" "}
 					<div className="overflow-x-auto rounded-lg border border-border-default">
 						<Table className="text-sm" aria-label="Cost breakdown by model">
 							<TableHeader>
@@ -332,7 +333,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 							</TableBody>
 						</Table>
 					</div>
-
 					<div className="overflow-x-auto rounded-lg border border-border-default">
 						<Table className="text-sm" aria-label="Cost breakdown by chat">
 							<TableHeader>
@@ -373,7 +373,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 							</TableBody>
 						</Table>
 					</div>
-				</>
+				</div>
 			)}
 		</div>
 	);
