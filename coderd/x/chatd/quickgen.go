@@ -401,7 +401,6 @@ func renderManualTitlePrompt(
 	return prompt.String()
 }
 
-//nolint:unused // Wired up by the upcoming manual title regeneration endpoint.
 func generateManualTitle(
 	ctx context.Context,
 	messages []database.ChatMessage,

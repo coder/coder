@@ -1333,6 +1333,45 @@ func (p *Server) InterruptChat(
 	return updatedChat
 }
 
+// RegenerateChatTitle regenerates a chat title from the chat's visible
+// messages, persists it when it changes, and broadcasts the update.
+func (p *Server) RegenerateChatTitle(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get chat messages: %w", err)
+	}
+
+	model, _, keys, err := p.resolveChatModel(ctx, chat)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
+	}
+
+	title, err := generateManualTitle(ctx, messages, model, keys, p.logger)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
+	}
+	if title == "" || title == chat.Title {
+		return chat, nil
+	}
+
+	updatedChat, err := p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+		ID:    chat.ID,
+		Title: title,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("update chat title: %w", err)
+	}
+
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
+	return updatedChat, nil
+}
+
 // RefreshStatus loads the latest chat status and publishes it to stream subscribers.
 func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
 	if chatID == uuid.Nil {
