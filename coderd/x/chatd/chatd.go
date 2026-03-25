@@ -1347,7 +1347,10 @@ func (p *Server) RegenerateChatTitle(
 		return database.Chat{}, xerrors.Errorf("get chat messages: %w", err)
 	}
 
-	model, _, keys, err := p.resolveChatModel(ctx, chat)
+	// Reuse chatd's scoped auth context for deployment-config lookups while
+	// keeping chat ownership authorization at the HTTP layer.
+	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
+	model, _, keys, err := p.resolveChatModel(dbauthz.AsChatd(ctx), chat)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
 	}

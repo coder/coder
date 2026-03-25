@@ -19,9 +19,11 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -29,6 +31,64 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := &Server{db: db, logger: logger}
+
+	chat := database.Chat{ID: uuid.New()}
+	userCtx := dbauthz.As(context.Background(), rbac.Subject{
+		ID:    uuid.NewString(),
+		Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+		Scope: rbac.ScopeAll,
+	})
+	wantActor, ok := dbauthz.ActorFromContext(dbauthz.AsChatd(context.Background()))
+	require.True(t, ok)
+
+	db.EXPECT().GetChatMessagesByChatID(userCtx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	}).Return([]database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleAssistant,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("no user prompt"),
+		),
+	}, nil)
+	checkChatdActor := func(ctx context.Context) {
+		t.Helper()
+		gotActor, ok := dbauthz.ActorFromContext(ctx)
+		require.True(t, ok)
+		require.Equal(t, wantActor, gotActor)
+	}
+	db.EXPECT().GetDefaultChatModelConfig(gomock.Any()).DoAndReturn(
+		func(ctx context.Context) (database.ChatModelConfig, error) {
+			checkChatdActor(ctx)
+			return database.ChatModelConfig{
+				Provider: "openai",
+				Model:    "gpt-4o-mini",
+			}, nil
+		},
+	)
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).DoAndReturn(
+		func(ctx context.Context) ([]database.ChatProvider, error) {
+			checkChatdActor(ctx)
+			return []database.ChatProvider{{
+				Provider: "openai",
+				APIKey:   "test-key",
+			}}, nil
+		},
+	)
+
+	updated, err := server.RegenerateChatTitle(userCtx, chat)
+	require.NoError(t, err)
+	require.Equal(t, chat, updated)
+}
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {
 	t.Parallel()

@@ -1,14 +1,20 @@
 package chatd //nolint:testpackage // Keeps internal helper tests in-package.
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
+	"charm.land/fantasy"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -347,6 +353,89 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_generateManualTitle_UsesTimeout(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("refresh chat title"),
+		),
+	}
+
+	model := &deadlineCapturingModel{
+		generateFn: func(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok, "manual title generation should set a deadline")
+			require.WithinDuration(
+				t,
+				time.Now().Add(30*time.Second),
+				deadline,
+				2*time.Second,
+			)
+			require.Len(t, call.Prompt, 2)
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Refresh title"},
+				},
+			}, nil
+		},
+	}
+
+	title, err := generateManualTitle(
+		context.Background(),
+		database.Chat{},
+		messages,
+		model,
+		chatprovider.ProviderAPIKeys{},
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Refresh title", title)
+}
+
+type deadlineCapturingModel struct {
+	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
+}
+
+func (m *deadlineCapturingModel) Generate(
+	ctx context.Context,
+	call fantasy.Call,
+) (*fantasy.Response, error) {
+	return m.generateFn(ctx, call)
+}
+
+func (*deadlineCapturingModel) Stream(
+	context.Context,
+	fantasy.Call,
+) (fantasy.StreamResponse, error) {
+	return nil, xerrors.New("stream not implemented")
+}
+
+func (*deadlineCapturingModel) GenerateObject(
+	context.Context,
+	fantasy.ObjectCall,
+) (*fantasy.ObjectResponse, error) {
+	return nil, xerrors.New("generate object not implemented")
+}
+
+func (*deadlineCapturingModel) StreamObject(
+	context.Context,
+	fantasy.ObjectCall,
+) (fantasy.ObjectStreamResponse, error) {
+	return nil, xerrors.New("stream object not implemented")
+}
+
+func (*deadlineCapturingModel) Provider() string {
+	return "test"
+}
+
+func (*deadlineCapturingModel) Model() string {
+	return "test"
 }
 
 func mustChatMessage(

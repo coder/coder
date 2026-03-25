@@ -430,6 +430,9 @@ func generateManualTitle(
 		latestUserMsg,
 	)
 
+	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
@@ -444,7 +447,7 @@ func generateManualTitle(
 
 	var lastErr error
 	for _, model := range candidates {
-		title, err := generateShortText(ctx, model, systemPrompt, firstUserText)
+		title, err := generateShortText(titleCtx, model, systemPrompt, firstUserText)
 		if err != nil {
 			lastErr = err
 			logger.Debug(ctx, "manual title model candidate failed", slog.Error(err))
