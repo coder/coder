@@ -1,5 +1,17 @@
+import { getErrorStatus } from "#/api/errors";
 import { type FC, type ReactNode, useState } from "react";
-
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	chatModelConfigs,
+	chatModels,
+	chatProviderConfigs,
+	createChatModelConfig as createChatModelConfigMutation,
+	createChatProviderConfig as createChatProviderConfigMutation,
+	deleteChatModelConfig as deleteChatModelConfigMutation,
+	deleteChatProviderConfig as deleteChatProviderConfigMutation,
+	updateChatModelConfig as updateChatModelConfigMutation,
+	updateChatProviderConfig as updateChatProviderConfigMutation,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -15,7 +27,7 @@ import { ProvidersSection } from "./ProvidersSection";
 export type ProviderState = {
 	provider: string;
 	label: string;
-	providerConfig: TypesGen.ChatProviderConfig | undefined;
+	providerConfigs?: readonly TypesGen.ChatProviderConfig[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
 	hasManagedAPIKey: boolean;
@@ -23,6 +35,9 @@ export type ProviderState = {
 	hasEffectiveAPIKey: boolean;
 	isEnvPreset: boolean;
 	baseURL: string;
+	// TODO: Remove this legacy compatibility field after stories stop
+	// constructing ProviderState objects manually.
+	providerConfig?: TypesGen.ChatProviderConfig | undefined;
 };
 
 export type ChatModelAdminSection = "providers" | "models";
@@ -39,12 +54,6 @@ const hasProviderAPIKey = (
 ): boolean => {
 	if (!providerConfig) return false;
 	return providerConfig.has_api_key;
-};
-
-const getProviderConfigSource = (
-	providerConfig: TypesGen.ChatProviderConfig | undefined,
-): TypesGen.ChatProviderConfigSource | undefined => {
-	return providerConfig?.source;
 };
 
 const isDatabaseProviderConfig = (
@@ -115,12 +124,17 @@ const useProviderStates = (
 
 	const providerConfigsByProvider = new Map<
 		string,
-		TypesGen.ChatProviderConfig
+		TypesGen.ChatProviderConfig[]
 	>();
 	for (const pc of providerConfigsData ?? []) {
 		const normalized = normalizeProvider(pc.provider);
 		if (!normalized) continue;
-		providerConfigsByProvider.set(normalized, pc);
+		const existing = providerConfigsByProvider.get(normalized);
+		if (existing) {
+			existing.push(pc);
+		} else {
+			providerConfigsByProvider.set(normalized, [pc]);
+		}
 	}
 
 	const modelConfigsByProvider = new Map<string, TypesGen.ChatModelConfig[]>();
@@ -136,47 +150,48 @@ const useProviderStates = (
 	}
 
 	return orderedProviders.map((provider) => {
-		const providerConfigEntry = providerConfigsByProvider.get(provider);
-		const providerConfigSource = getProviderConfigSource(providerConfigEntry);
-		const providerConfig = isDatabaseProviderConfig(
-			providerConfigEntry,
-			providerConfigSource,
-		)
-			? providerConfigEntry
-			: undefined;
+		const providerConfigsForFamily =
+			providerConfigsByProvider.get(provider) ?? [];
+		const databaseConfigs = providerConfigsForFamily.filter((config) =>
+			isDatabaseProviderConfig(config, config.source),
+		);
+		const effectiveProviderConfig =
+			databaseConfigs.find((config) => config.enabled) ?? databaseConfigs[0];
+		const firstProviderEntry = providerConfigsForFamily[0];
+
 		const catalogProvider = catalogProvidersByProvider.get(provider);
 		const catalogProviderSource = readOptionalString(
 			(catalogProvider as CatalogProvider & { source?: string })?.source,
 		);
-		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
-		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
+		const hasManagedAPIKey = hasProviderAPIKey(effectiveProviderConfig);
+		const hasProviderEntryAPIKey = hasProviderAPIKey(firstProviderEntry);
 		const hasCatalogAPIKey = catalogProvider
 			? providerHasCatalogAPIKey(catalogProvider)
 			: false;
 		const label =
-			readOptionalString(providerConfigEntry?.display_name) ??
+			readOptionalString(firstProviderEntry?.display_name) ??
 			formatProviderLabel(provider);
 		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
 		const isCatalogEnvPreset =
-			!providerConfig &&
+			databaseConfigs.length === 0 &&
 			envPresetProviders.has(provider) &&
 			(catalogProviderSource === "env" || hasCatalogAPIKey);
 		const isEnvPreset =
-			providerConfigSource === "env_preset" || isCatalogEnvPreset;
+			firstProviderEntry?.source === "env_preset" || isCatalogEnvPreset;
 
 		return {
 			provider,
 			label,
-			providerConfig,
+			providerConfigs: providerConfigsForFamily,
 			modelConfigs: modelConfigsForProvider,
 			catalogModelCount: getProviderModels(catalogProvider).length,
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
-			hasEffectiveAPIKey: providerConfigEntry
+			hasEffectiveAPIKey: firstProviderEntry
 				? hasProviderEntryAPIKey
 				: hasManagedAPIKey || hasCatalogAPIKey,
 			isEnvPreset,
-			baseURL: getProviderBaseURL(providerConfigEntry),
+			baseURL: getProviderBaseURL(effectiveProviderConfig),
 		};
 	});
 };
@@ -189,39 +204,6 @@ interface ChatModelAdminPanelProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	sectionBadge?: ReactNode;
-	// Data from queries.
-	providerConfigsData: TypesGen.ChatProviderConfig[] | undefined;
-	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
-	modelCatalogData: TypesGen.ChatModelsResponse | undefined;
-	isLoading: boolean;
-	// Query error states.
-	providerConfigsError: Error | null;
-	modelConfigsError: Error | null;
-	modelCatalogError: Error | null;
-	// Provider mutation handlers.
-	onCreateProvider: (
-		req: TypesGen.CreateChatProviderConfigRequest,
-	) => Promise<unknown>;
-	onUpdateProvider: (
-		providerConfigId: string,
-		req: TypesGen.UpdateChatProviderConfigRequest,
-	) => Promise<unknown>;
-	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	isProviderMutationPending: boolean;
-	providerMutationError: Error | null;
-	// Model mutation handlers.
-	onCreateModel: (
-		req: TypesGen.CreateChatModelConfigRequest,
-	) => Promise<unknown>;
-	onUpdateModel: (
-		modelConfigId: string,
-		req: TypesGen.UpdateChatModelConfigRequest,
-	) => Promise<unknown>;
-	onDeleteModel: (modelConfigId: string) => Promise<void>;
-	isCreatingModel: boolean;
-	isUpdatingModel: boolean;
-	isDeletingModel: boolean;
-	modelMutationError: Error | null;
 }
 
 export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
@@ -230,32 +212,39 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	sectionLabel,
 	sectionDescription,
 	sectionBadge,
-	providerConfigsData,
-	modelConfigsData,
-	modelCatalogData,
-	isLoading,
-	providerConfigsError,
-	modelConfigsError,
-	modelCatalogError,
-	onCreateProvider,
-	onUpdateProvider,
-	onDeleteProvider,
-	isProviderMutationPending,
-	providerMutationError,
-	onCreateModel,
-	onUpdateModel,
-	onDeleteModel,
-	isCreatingModel,
-	isUpdatingModel,
-	isDeletingModel,
-	modelMutationError,
 }) => {
+	const queryClient = useQueryClient();
 	const [requestedProvider, setRequestedProvider] = useState<string | null>(
 		null,
 	);
 
+	// ── Queries ────────────────────────────────────────────────
+	const providerConfigsQuery = useQuery(chatProviderConfigs());
+	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelCatalogQuery = useQuery(chatModels());
+
+	// ── Mutations ──────────────────────────────────────────────
+	const createProviderMut = useMutation(
+		createChatProviderConfigMutation(queryClient),
+	);
+	const updateProviderMut = useMutation(
+		updateChatProviderConfigMutation(queryClient),
+	);
+	const createModelMut = useMutation(
+		createChatModelConfigMutation(queryClient),
+	);
+	const updateModelMut = useMutation(
+		updateChatModelConfigMutation(queryClient),
+	);
+	const deleteProviderMut = useMutation(
+		deleteChatProviderConfigMutation(queryClient),
+	);
+	const deleteModelMut = useMutation(
+		deleteChatModelConfigMutation(queryClient),
+	);
+
 	// ── Sorted model configs ───────────────────────────────────
-	const modelConfigs = (modelConfigsData ?? []).slice().sort((a, b) => {
+	const modelConfigs = (modelConfigsQuery.data ?? []).slice().sort((a, b) => {
 		const cmp = a.provider.localeCompare(b.provider);
 		return cmp !== 0 ? cmp : a.model.localeCompare(b.model);
 	});
@@ -263,8 +252,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	// ── Provider states ────────────────────────────────────────
 	const providerStates = useProviderStates(
 		modelConfigs,
-		providerConfigsData,
-		modelCatalogData,
+		providerConfigsQuery.data,
+		modelCatalogQuery.data,
 	);
 
 	// Derive the effective selected provider from user intent + available
@@ -279,10 +268,23 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const selectedProviderState = selectedProvider
 		? (providerStates.find((ps) => ps.provider === selectedProvider) ?? null)
 		: null;
-
 	// ── Derived state ──────────────────────────────────────────
-	const providerConfigsUnavailable = providerConfigsData === null;
-	const modelConfigsUnavailable = modelConfigsData === null;
+	const isLoading =
+		providerConfigsQuery.isLoading ||
+		modelConfigsQuery.isLoading ||
+		modelCatalogQuery.isLoading;
+	const providerConfigsUnavailable = providerConfigsQuery.data === null;
+	const modelConfigsUnavailable = modelConfigsQuery.data === null;
+	const isProviderMutationPending =
+		createProviderMut.isPending ||
+		updateProviderMut.isPending ||
+		deleteProviderMut.isPending;
+	const providerMutationError =
+		createProviderMut.error ??
+		updateProviderMut.error ??
+		deleteProviderMut.error;
+	const modelMutationError =
+		createModelMut.error ?? updateModelMut.error ?? deleteModelMut.error;
 
 	return (
 		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
@@ -303,9 +305,14 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
 						isProviderMutationPending={isProviderMutationPending}
-						onCreateProvider={onCreateProvider}
-						onUpdateProvider={onUpdateProvider}
-						onDeleteProvider={onDeleteProvider}
+						onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
+						onUpdateProvider={(providerConfigId, req) =>
+							updateProviderMut.mutateAsync({
+								providerConfigId,
+								req,
+							})
+						}
+						onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
 						onSelectedProviderChange={setRequestedProvider}
 					/>
 				) : (
@@ -319,21 +326,44 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						onSelectedProviderChange={setRequestedProvider}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}
-						isCreating={isCreatingModel}
-						isUpdating={isUpdatingModel}
-						isDeleting={isDeletingModel}
-						onCreateModel={onCreateModel}
-						onUpdateModel={onUpdateModel}
-						onDeleteModel={onDeleteModel}
+						isCreating={createModelMut.isPending}
+						isUpdating={updateModelMut.isPending}
+						isDeleting={deleteModelMut.isPending}
+						onCreateModel={(req) => createModelMut.mutateAsync(req)}
+						onUpdateModel={(modelConfigId, req) =>
+							updateModelMut.mutateAsync({
+								modelConfigId,
+								req,
+							})
+						}
+						onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
 					/>
 				)}
 			</div>
 
 			{/* Errors — rendered at the bottom */}
-			{providerConfigsError && <ErrorAlert error={providerConfigsError} />}
-			{modelConfigsError && <ErrorAlert error={modelConfigsError} />}
-			{modelCatalogError && <ErrorAlert error={modelCatalogError} />}
-			{providerMutationError && <ErrorAlert error={providerMutationError} />}
+			{providerConfigsQuery.isError && (
+				<ErrorAlert error={providerConfigsQuery.error} />
+			)}
+			{modelConfigsQuery.isError && (
+				<ErrorAlert error={modelConfigsQuery.error} />
+			)}
+			{modelCatalogQuery.isError && (
+				<ErrorAlert error={modelCatalogQuery.error} />
+			)}
+			{providerMutationError &&
+				(getErrorStatus(providerMutationError) === 409 ? (
+					<Alert severity="warning">
+						<AlertTitle>Provider conflict</AlertTitle>
+						<AlertDescription>
+							Another provider config in this family is already enabled. Disable
+							it first, or the backend will reject enabling a second config in
+							the same provider family.
+						</AlertDescription>
+					</Alert>
+				) : (
+					<ErrorAlert error={providerMutationError} />
+				))}
 			{modelMutationError && <ErrorAlert error={modelMutationError} />}
 
 			{providerConfigsUnavailable && (
