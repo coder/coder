@@ -33,13 +33,13 @@ import (
 //	web_search tool use with id srvtoolu_... was found without a
 //	corresponding web_search_tool_result block
 //
-// The test requires ANTHROPIC_API_KEY to be set.
+// The test requires ANTHROPIC_TEST_API_KEY to be set.
 func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	apiKey := os.Getenv("ANTHROPIC_TEST_API_KEY")
 	if apiKey == "" {
-		t.Skip("ANTHROPIC_API_KEY not set; skipping Anthropic integration test")
+		t.Skip("ANTHROPIC_TEST_API_KEY not set; skipping Anthropic integration test")
 	}
 	baseURL := os.Getenv("ANTHROPIC_BASE_URL")
 
@@ -293,13 +293,13 @@ func logMessages(t *testing.T, msgs []codersdk.ChatMessage) {
 //	Item 'rs_xxx' of type 'reasoning' was provided without its
 //	required following item.
 //
-// The test requires OPENAI_API_KEY to be set.
+// The test requires OPENAI_TEST_API_KEY to be set.
 func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	apiKey := os.Getenv("OPENAI_TEST_API_KEY")
 	if apiKey == "" {
-		t.Skip("OPENAI_API_KEY not set; skipping OpenAI integration test")
+		t.Skip("OPENAI_TEST_API_KEY not set; skipping OpenAI integration test")
 	}
 	baseURL := os.Getenv("OPENAI_BASE_URL")
 
@@ -447,13 +447,13 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 //	Item with id 'msg_xxx' not found. Items are not persisted when
 //	store is set to false.
 //
-// The test requires OPENAI_API_KEY to be set.
+// The test requires OPENAI_TEST_API_KEY to be set.
 func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	t.Parallel()
 
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	apiKey := os.Getenv("OPENAI_TEST_API_KEY")
 	if apiKey == "" {
-		t.Skip("OPENAI_API_KEY not set; skipping OpenAI integration test")
+		t.Skip("OPENAI_TEST_API_KEY not set; skipping OpenAI integration test")
 	}
 	baseURL := os.Getenv("OPENAI_BASE_URL")
 
