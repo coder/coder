@@ -866,6 +866,24 @@ const StickyUserMessage: FC<{
 			});
 		};
 
+		// Re-run the visual update when the scrollable content height
+		// changes (e.g. streaming responses growing the transcript).
+		// In flex-col-reverse, scrollTop stays at 0 when pinned to
+		// bottom so no scroll event fires — but the content wrapper
+		// resizes and this observer catches that.
+		const contentEl = scroller.firstElementChild as HTMLElement | null;
+		let contentRafId: number | null = null;
+		const contentObserver = contentEl
+			? new ResizeObserver(() => {
+					if (contentRafId !== null) return;
+					contentRafId = requestAnimationFrame(() => {
+						contentRafId = null;
+						update();
+					});
+				})
+			: null;
+		contentObserver?.observe(contentEl!);
+
 		scroller.addEventListener("scroll", onScroll, { passive: true });
 		window.addEventListener("resize", onResize);
 		update();
@@ -876,8 +894,10 @@ const StickyUserMessage: FC<{
 		return () => {
 			scroller.removeEventListener("scroll", onScroll);
 			window.removeEventListener("resize", onResize);
+			contentObserver?.disconnect();
 			container.style.removeProperty("--overlay-ready");
 			if (rafId !== null) cancelAnimationFrame(rafId);
+			if (contentRafId !== null) cancelAnimationFrame(contentRafId);
 		};
 	}, []);
 

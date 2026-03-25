@@ -68,8 +68,7 @@ interface AgentDetailViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
@@ -146,8 +145,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
@@ -209,7 +207,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 			{titleElement}
 			<div
 				className={cn(
-					"relative flex min-h-0 min-w-0 flex-1 flex-col",
+					"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden",
 					visualExpanded && "hidden",
 					shouldShowSidebar && "max-md:hidden",
 				)}
@@ -291,8 +289,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						isModelCatalogLoading={isModelCatalogLoading}
 						inputRef={editing.chatInputRef}
 						initialValue={editing.editorInitialValue}
 						onContentChange={editing.handleContentChange}
@@ -361,8 +358,7 @@ interface AgentDetailLoadingViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	showRightPanel: boolean;
@@ -376,8 +372,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showRightPanel,
@@ -428,11 +423,10 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
 					/>
-				</div>
+				</div>{" "}
 			</div>
 			{showRightPanel && (
 				<RightPanel

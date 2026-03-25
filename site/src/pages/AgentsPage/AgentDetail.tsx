@@ -64,7 +64,6 @@ import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
 	buildModelConfigIDByModelID,
 	buildModelIDByConfigID,
-	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
@@ -385,7 +384,6 @@ const AgentDetail: FC = () => {
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
-	const modelCatalogError = chatModelsQuery.error;
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -589,17 +587,6 @@ const AgentDetail: FC = () => {
 		isModelCatalogLoading,
 		hasConfiguredModels,
 	);
-	const modelCatalogStatusMessage = getModelCatalogStatusMessage(
-		modelCatalog,
-		modelOptions,
-		isModelCatalogLoading,
-		Boolean(modelCatalogError),
-	);
-	const inputStatusText = hasModelOptions
-		? null
-		: hasConfiguredModels
-			? "Models are configured but unavailable. Ask an admin."
-			: "No models configured. Ask an admin.";
 	const isSubmissionPending =
 		sendMutation.isPending ||
 		editMutation.isPending ||
@@ -909,8 +896,7 @@ const AgentDetail: FC = () => {
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
-				inputStatusText={inputStatusText}
-				modelCatalogStatusMessage={modelCatalogStatusMessage}
+				isModelCatalogLoading={isModelCatalogLoading}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				showRightPanel={showSidebarPanel}
@@ -944,8 +930,7 @@ const AgentDetail: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			hasModelOptions={hasModelOptions}
-			inputStatusText={inputStatusText}
-			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			isModelCatalogLoading={isModelCatalogLoading}
 			compressionThreshold={compressionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}

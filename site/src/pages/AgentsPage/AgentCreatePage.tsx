@@ -89,7 +89,6 @@ const AgentCreatePage: FC = () => {
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-				modelCatalogError={chatModelsQuery.error}
 				mcpServers={mcpServersQuery.data ?? []}
 				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 			/>

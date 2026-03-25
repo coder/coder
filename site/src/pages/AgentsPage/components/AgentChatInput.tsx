@@ -48,6 +48,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import {
@@ -104,9 +105,7 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	// Status messages.
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
@@ -468,8 +467,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
@@ -1027,16 +1025,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</PopoverContent>
 						</Popover>
-						<ModelSelector
-							value={selectedModel}
-							onValueChange={onModelChange}
-							options={modelOptions}
-							disabled={isDisabled}
-							placeholder={modelSelectorPlaceholder}
-							formatProviderLabel={formatProviderLabel}
-							dropdownSide="top"
-							dropdownAlign="center"
-						/>
+						{isModelCatalogLoading ? (
+							<Skeleton className="h-6 w-24 rounded" />
+						) : (
+							<ModelSelector
+								value={selectedModel}
+								onValueChange={onModelChange}
+								options={modelOptions}
+								disabled={isDisabled}
+								placeholder={modelSelectorPlaceholder}
+								formatProviderLabel={formatProviderLabel}
+								dropdownSide="top"
+								dropdownAlign="center"
+							/>
+						)}
 						{selectedWorkspace && onWorkspaceChange && (
 							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
 								<MonitorIcon className="size-3" />
@@ -1044,10 +1046,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								<button
 									type="button"
 									onClick={() => onWorkspaceChange(null)}
-									className="ml-0.5 cursor-pointer rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+									className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
 									aria-label={`Remove workspace ${selectedWorkspace.name}`}
 								>
-									<XIcon className="size-3" />
+									<XIcon className="!size-2.5" />
 								</button>
 							</span>
 						)}
@@ -1072,20 +1074,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										<button
 											type="button"
 											onClick={() => handleMcpToggle(server.id, false)}
-											className="ml-0.5 cursor-pointer rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+											className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
 											aria-label={`Remove ${server.display_name}`}
 										>
-											<XIcon className="size-3" />
+											<XIcon className="!size-2.5" />
 										</button>
 									)}
 								</span>
 							);
 						})}
-						{inputStatusText && (
-							<span className="hidden text-xs text-content-secondary sm:inline">
-								{inputStatusText}
-							</span>
-						)}
 					</div>
 					<div className="flex items-center gap-2">
 						{speech.isSupported && !isStreaming && (
@@ -1158,16 +1155,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						)}
 					</div>
 				</div>
-				{inputStatusText && (
-					<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-						{inputStatusText}
-					</div>
-				)}
-				{modelCatalogStatusMessage && (
-					<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-						{modelCatalogStatusMessage}
-					</div>
-				)}
 			</div>
 		</div>
 	);

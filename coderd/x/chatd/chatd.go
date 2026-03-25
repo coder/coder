@@ -98,12 +98,13 @@ type Server struct {
 
 	subscribeFn SubscribeFn
 
-	agentConnFn       AgentConnFunc
-	createWorkspaceFn chattool.CreateWorkspaceFn
-	startWorkspaceFn  chattool.StartWorkspaceFn
-	pubsub            pubsub.Pubsub
-	webpushDispatcher webpush.Dispatcher
-	providerAPIKeys   chatprovider.ProviderAPIKeys
+	agentConnFn                    AgentConnFunc
+	agentInactiveDisconnectTimeout time.Duration
+	createWorkspaceFn              chattool.CreateWorkspaceFn
+	startWorkspaceFn               chattool.StartWorkspaceFn
+	pubsub                         pubsub.Pubsub
+	webpushDispatcher              webpush.Dispatcher
+	providerAPIKeys                chatprovider.ProviderAPIKeys
 
 	// chatStreams stores per-chat stream state. Using sync.Map
 	// gives each chat independent locking — concurrent chats
@@ -1433,22 +1434,23 @@ func shouldQueueUserMessage(status database.ChatStatus) bool {
 
 // Config configures a chat processor.
 type Config struct {
-	Logger                     slog.Logger
-	Database                   database.Store
-	ReplicaID                  uuid.UUID
-	SubscribeFn                SubscribeFn
-	PendingChatAcquireInterval time.Duration
-	MaxChatsPerAcquire         int32
-	InFlightChatStaleAfter     time.Duration
-	ChatHeartbeatInterval      time.Duration
-	AgentConn                  AgentConnFunc
-	CreateWorkspace            chattool.CreateWorkspaceFn
-	StartWorkspace             chattool.StartWorkspaceFn
-	Pubsub                     pubsub.Pubsub
-	ProviderAPIKeys            chatprovider.ProviderAPIKeys
-	WebpushDispatcher          webpush.Dispatcher
-	UsageTracker               *workspacestats.UsageTracker
-	Clock                      quartz.Clock
+	Logger                         slog.Logger
+	Database                       database.Store
+	ReplicaID                      uuid.UUID
+	SubscribeFn                    SubscribeFn
+	PendingChatAcquireInterval     time.Duration
+	MaxChatsPerAcquire             int32
+	InFlightChatStaleAfter         time.Duration
+	ChatHeartbeatInterval          time.Duration
+	AgentConn                      AgentConnFunc
+	AgentInactiveDisconnectTimeout time.Duration
+	CreateWorkspace                chattool.CreateWorkspaceFn
+	StartWorkspace                 chattool.StartWorkspaceFn
+	Pubsub                         pubsub.Pubsub
+	ProviderAPIKeys                chatprovider.ProviderAPIKeys
+	WebpushDispatcher              webpush.Dispatcher
+	UsageTracker                   *workspacestats.UsageTracker
+	Clock                          quartz.Clock
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -1488,25 +1490,26 @@ func New(cfg Config) *Server {
 	}
 
 	p := &Server{
-		cancel:                     cancel,
-		closed:                     make(chan struct{}),
-		db:                         cfg.Database,
-		workerID:                   workerID,
-		logger:                     cfg.Logger.Named("processor"),
-		subscribeFn:                cfg.SubscribeFn,
-		agentConnFn:                cfg.AgentConn,
-		createWorkspaceFn:          cfg.CreateWorkspace,
-		startWorkspaceFn:           cfg.StartWorkspace,
-		pubsub:                     cfg.Pubsub,
-		webpushDispatcher:          cfg.WebpushDispatcher,
-		providerAPIKeys:            cfg.ProviderAPIKeys,
-		instructionCache:           make(map[uuid.UUID]cachedInstruction),
-		pendingChatAcquireInterval: pendingChatAcquireInterval,
-		maxChatsPerAcquire:         maxChatsPerAcquire,
-		inFlightChatStaleAfter:     inFlightChatStaleAfter,
-		chatHeartbeatInterval:      chatHeartbeatInterval,
-		usageTracker:               cfg.UsageTracker,
-		clock:                      clk,
+		cancel:                         cancel,
+		closed:                         make(chan struct{}),
+		db:                             cfg.Database,
+		workerID:                       workerID,
+		logger:                         cfg.Logger.Named("processor"),
+		subscribeFn:                    cfg.SubscribeFn,
+		agentConnFn:                    cfg.AgentConn,
+		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
+		createWorkspaceFn:              cfg.CreateWorkspace,
+		startWorkspaceFn:               cfg.StartWorkspace,
+		pubsub:                         cfg.Pubsub,
+		webpushDispatcher:              cfg.WebpushDispatcher,
+		providerAPIKeys:                cfg.ProviderAPIKeys,
+		instructionCache:               make(map[uuid.UUID]cachedInstruction),
+		pendingChatAcquireInterval:     pendingChatAcquireInterval,
+		maxChatsPerAcquire:             maxChatsPerAcquire,
+		inFlightChatStaleAfter:         inFlightChatStaleAfter,
+		chatHeartbeatInterval:          chatHeartbeatInterval,
+		usageTracker:                   cfg.UsageTracker,
+		clock:                          clk,
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -3337,6 +3340,7 @@ func (p *Server) runChat(
 			chattool.ComputerUseModelName,
 			providerKeys,
 			chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
 		)
 		if cuErr != nil {
 			return result, xerrors.Errorf("resolve computer use model: %w", cuErr)
@@ -3383,13 +3387,14 @@ func (p *Server) runChat(
 				OwnerID: chat.OwnerID,
 			}),
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-				DB:          p.db,
-				OwnerID:     chat.OwnerID,
-				ChatID:      chat.ID,
-				CreateFn:    p.createWorkspaceFn,
-				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-				WorkspaceMu: &workspaceMu,
-				Logger:      p.logger,
+				DB:                             p.db,
+				OwnerID:                        chat.OwnerID,
+				ChatID:                         chat.ID,
+				CreateFn:                       p.createWorkspaceFn,
+				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
+				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
+				WorkspaceMu:                    &workspaceMu,
+				Logger:                         p.logger,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,
@@ -3791,6 +3796,7 @@ func (p *Server) resolveChatModel(
 
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
 	)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
@@ -4087,7 +4093,7 @@ func (p *Server) maybeSendPushNotification(
 			if assistantText != "" && runResult.PushSummaryModel != nil {
 				if summary := generatePushSummary(
 					pushCtx,
-					chat.Title,
+					chat,
 					assistantText,
 					runResult.PushSummaryModel,
 					runResult.ProviderKeys,
