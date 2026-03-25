@@ -584,21 +584,22 @@ func convertCallResult(
 					),
 				)
 			}
-			case mcp.ResourceLink:
-				// Resource links point to content the LLM can
-				// reference by URI (e.g. file:// paths). Surface
-				// the URI so the model can use it in follow-ups.
-				if c.Name != "" {
-					textParts = append(textParts,
-						fmt.Sprintf(
-							"[resource: %s (%s)]", c.Name, c.URI,
-						),
-					)
-				} else {
-					textParts = append(textParts,
-						fmt.Sprintf("[resource: %s]", c.URI),
-					)
-				}		default:
+		case mcp.ResourceLink:
+			// Resource links point to content the LLM can
+			// reference by URI (e.g. file:// paths). Surface
+			// the URI so the model can use it in follow-ups.
+			if c.Name != "" {
+				textParts = append(textParts,
+					fmt.Sprintf(
+						"[resource: %s (%s)]", c.Name, c.URI,
+					),
+				)
+			} else {
+				textParts = append(textParts,
+					fmt.Sprintf("[resource: %s]", c.URI),
+				)
+			}
+		default:
 			textParts = append(textParts,
 				fmt.Sprintf("[unsupported content type: %T]", c),
 			)
