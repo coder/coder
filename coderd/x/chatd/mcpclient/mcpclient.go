@@ -491,8 +491,9 @@ func (t *mcpToolWrapper) SetProviderOptions(
 // convertCallResult translates an MCP CallToolResult into a
 // fantasy.ToolResponse. The fantasy response model supports a
 // single content type per response, so we prioritize text. All
-// text items are collected first. Binary items (image or audio)
-// are only returned when no text content is available.
+// text items are collected first. Binary items (image, audio,
+// or embedded blob) are only returned when no text content is
+// available.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -548,8 +549,9 @@ func convertCallResult(
 			}
 		case mcp.EmbeddedResource:
 			// Embedded resources wrap either text or blob
-			// content from an MCP resource. We surface both
-			// so the LLM can consume the full tool output.
+			// content from an MCP resource. We handle each
+			// variant so the LLM receives the content
+			// regardless of form.
 			switch r := c.Resource.(type) {
 			case mcp.TextResourceContents:
 				textParts = append(textParts, r.Text)
@@ -586,27 +588,26 @@ func convertCallResult(
 			}
 		case mcp.ResourceLink:
 			// Resource links point to content the LLM can
-			// reference by URI (e.g. file:// paths). Surface
-			// the URI so the model can use it in follow-ups.
+			// reference by URI. Surface the URI so the model
+			// can use it in follow-ups.
+			label := c.URI
 			if c.Name != "" {
-				textParts = append(textParts,
-					fmt.Sprintf(
-						"[resource: %s (%s)]", c.Name, c.URI,
-					),
-				)
-			} else {
-				textParts = append(textParts,
-					fmt.Sprintf("[resource: %s]", c.URI),
-				)
+				label = fmt.Sprintf("%s (%s)", c.Name, c.URI)
 			}
+			if c.Description != "" {
+				label += ": " + c.Description
+			}
+			textParts = append(textParts,
+				fmt.Sprintf("[resource: %s]", label),
+			)
 		default:
 			textParts = append(textParts,
 				fmt.Sprintf("[unsupported content type: %T]", c),
 			)
 		}
 	}
-	// If structured content is present, marshal it to JSON and
-	// append as a text part so the data is preserved for the LLM.
+
+	// If structured content is present, marshal it to JSON and	// append as a text part so the data is preserved for the LLM.
 	if result.StructuredContent != nil {
 		data, err := json.Marshal(result.StructuredContent)
 		if err != nil {
