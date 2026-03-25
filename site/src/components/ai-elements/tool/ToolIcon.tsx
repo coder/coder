@@ -24,7 +24,7 @@ export const ToolIcon: React.FC<{
 	iconUrl?: string;
 	isRunning?: boolean;
 	serverName?: string;
-}> = ({ name, isError, iconUrl, isRunning, serverName }) => {
+}> = ({ name, iconUrl, isRunning, serverName }) => {
 	const [imgError, setImgError] = useState(false);
 	const color = "text-content-secondary";
 	const base = cn("h-4 w-4 shrink-0", color, isRunning && "grayscale");
@@ -35,13 +35,6 @@ export const ToolIcon: React.FC<{
 	// mode we invert to white and tune opacity to approximate
 	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
 	if (iconUrl && !imgError) {
-		// Always render the same DOM shape so React never unmounts
-		// the <img> when isError changes (avoids a reload flicker).
-		//
-		// The wrapper clips a translated copy of the image so the
-		// drop-shadow trick can work on error (see image classes).
-		// In the normal state the image is not translated and the
-		// wrapper's overflow-hidden is a harmless no-op.
 		const img = (
 			<div className="h-4 w-4 shrink-0 overflow-hidden">
 				<ExternalImage

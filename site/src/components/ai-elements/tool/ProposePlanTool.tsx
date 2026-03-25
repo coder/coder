@@ -68,7 +68,7 @@ export const ProposePlanTool: React.FC<{
 				{effectiveError && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							<TriangleAlertIcon aria-label="Error" className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 						</TooltipTrigger>
 						<TooltipContent>
 							{effectiveErrorMessage || "Failed to propose plan"}
