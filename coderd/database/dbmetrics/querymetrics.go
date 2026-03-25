@@ -3920,6 +3920,14 @@ func (m queryMetricsStore) PaginatedOrganizationMembers(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) PinChatByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.PinChatByID(ctx, id)
+	m.queryLatencies.WithLabelValues("PinChatByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PinChatByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.PopNextQueuedMessage(ctx, chatID)
@@ -4021,6 +4029,14 @@ func (m queryMetricsStore) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID
 	r0 := m.s.UnfavoriteWorkspace(ctx, id)
 	m.queryLatencies.WithLabelValues("UnfavoriteWorkspace").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnfavoriteWorkspace").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UnpinChatByID(ctx, id)
+	m.queryLatencies.WithLabelValues("UnpinChatByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnpinChatByID").Inc()
 	return r0
 }
 

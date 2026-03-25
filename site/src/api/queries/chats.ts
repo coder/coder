@@ -320,6 +320,126 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	},
 });
 
+export const pinChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) =>
+		API.experimental.updateChat(chatId, { pinned: true }),
+	onMutate: async (chatId: string) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: (query) => {
+				const key = query.queryKey;
+				if (key.length <= 1) return true;
+				const segment = key[1];
+				return segment === undefined || typeof segment === "object";
+			},
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, pinned: true } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				pinned: true,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const unpinChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) =>
+		API.experimental.updateChat(chatId, { pinned: false }),
+	onMutate: async (chatId: string) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: (query) => {
+				const key = query.queryKey;
+				if (key.length <= 1) return true;
+				const segment = key[1];
+				return segment === undefined || typeof segment === "object";
+			},
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, pinned: false } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				pinned: false,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),

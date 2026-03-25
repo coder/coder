@@ -5,6 +5,12 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
+-- name: PinChatByID :exec
+UPDATE chats SET pinned = true, updated_at = NOW() WHERE id = @id;
+
+-- name: UnpinChatByID :exec
+UPDATE chats SET pinned = false, updated_at = NOW() WHERE id = @id;
+
 -- name: SoftDeleteChatMessagesAfterID :exec
 UPDATE
     chat_messages

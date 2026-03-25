@@ -5523,6 +5523,17 @@ func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database
 	return q.db.PaginatedOrganizationMembers(ctx, arg)
 }
 
+func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.PinChatByID(ctx, id)
+}
+
 func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -5646,6 +5657,17 @@ func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 		return q.db.GetWorkspaceByID(ctx, id)
 	}
 	return update(q.log, q.auth, fetch, q.db.UnfavoriteWorkspace)(ctx, id)
+}
+
+func (q *querier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UnpinChatByID(ctx, id)
 }
 
 func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {

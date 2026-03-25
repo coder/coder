@@ -20,6 +20,8 @@ import {
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
+	PinIcon,
+	PinOffIcon,
 	SettingsIcon,
 	ShieldAlertIcon,
 	ShieldIcon,
@@ -100,6 +102,8 @@ interface AgentsSidebarProps {
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
+	onPinChat: (chatId: string) => void;
+	onUnpinChat: (chatId: string) => void;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -351,6 +355,8 @@ interface ChatTreeContextValue {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	readonly onPinChat: (chatId: string) => void;
+	readonly onUnpinChat: (chatId: string) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -384,6 +390,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinChat,
+		onUnpinChat,
 	} = useChatTree();
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
@@ -539,9 +547,29 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
-									{chat.archived ? (
-										<DropdownMenuItem
+									<DropdownMenuContent align="end">
+										{!chat.archived && (
+											<DropdownMenuItem
+												onSelect={() =>
+													chat.pinned
+														? onUnpinChat(chat.id)
+														: onPinChat(chat.id)
+												}
+											>
+												{chat.pinned ? (
+													<>
+														<PinOffIcon className="h-3.5 w-3.5" />
+														Unpin agent
+													</>
+												) : (
+													<>
+														<PinIcon className="h-3.5 w-3.5" />
+														Pin agent
+													</>
+												)}
+											</DropdownMenuItem>
+										)}
+										{chat.archived ? (										<DropdownMenuItem
 											disabled={isArchiving}
 											onSelect={() => onUnarchiveAgent(chat.id)}
 										>
@@ -604,6 +632,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinChat,
+		onUnpinChat,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -642,13 +672,66 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		visibleChatIDs.has(chatID),
 	);
 
-	// Pre-compute the first non-empty time group so the filter
-	// dropdown renders next to it without needing a mutable IIFE.
-	const firstNonEmptyGroup = TIME_GROUPS.find((group) =>
-		visibleRootIDs.some((id) => {
-			const chat = chatById.get(id);
-			return chat !== undefined && getTimeGroup(chat.updated_at) === group;
-		}),
+	const pinnedChats = visibleRootIDs
+		.map((id) => chatById.get(id))
+		.filter((chat): chat is Chat => chat?.pinned === true);
+
+	// The filter dropdown attaches to the first visible section
+	// header. When pinned chats exist, that's the Pinned header;
+	// otherwise it falls through to the first non-empty time group.
+	const showFilterOnPinned = pinnedChats.length > 0;
+	const firstNonEmptyGroup = showFilterOnPinned
+		? undefined
+		: TIME_GROUPS.find((group) =>
+				visibleRootIDs.some((id) => {
+					const chat = chatById.get(id);
+					return (
+						chat !== undefined &&
+						getTimeGroup(chat.updated_at) === group &&
+						!chat.pinned
+					);
+				}),
+			);
+
+	const filterDropdown = (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Filter agents"
+					className={cn(
+						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+						archivedFilter === "archived" &&
+							"text-content-primary",
+					)}
+				>
+					<FilterIcon />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuItem
+					onSelect={() =>
+						onArchivedFilterChange?.("active")
+					}
+				>
+					Active
+					{archivedFilter === "active" && (
+						<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					)}
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					onSelect={() =>
+						onArchivedFilterChange?.("archived")
+					}
+				>
+					Archived
+					{archivedFilter === "archived" && (
+						<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					)}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -703,6 +786,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinChat,
+		onUnpinChat,
 	};
 
 	const subNavTitle = "Settings";
@@ -824,13 +909,33 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									<div>
 										{visibleRootIDs.length > 0 && (
 											<div className="pb-2">
-												{TIME_GROUPS.map((group) => {
+													{/* ── Pinned section ── */}
+											{pinnedChats.length > 0 && (
+												<div className="[&:not(:first-child)]:mt-3">
+													<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+														<span>Pinned</span>
+														{showFilterOnPinned && filterDropdown}
+													</div>
+													<div className="flex flex-col gap-0.5">
+														{pinnedChats.map((chat) => (
+															<ChatTreeNode
+																key={chat.id}
+																chat={chat}
+																isChildNode={false}
+															/>
+														))}
+													</div>
+												</div>
+											)}
+												{/* ── Time-grouped sections ── */}
+											{TIME_GROUPS.map((group) => {
 													const groupChats = visibleRootIDs
 														.map((id) => chatById.get(id))
 														.filter(
 															(chat): chat is Chat =>
 																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group,
+																getTimeGroup(chat.updated_at) === group &&
+																!chat.pinned,
 														);
 													if (groupChats.length === 0) return null;
 													return (
@@ -840,46 +945,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														>
 															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																<span>{group}</span>
-																{group === firstNonEmptyGroup && (
-																	<DropdownMenu>
-																		<DropdownMenuTrigger asChild>
-																			<Button
-																				variant="subtle"
-																				size="icon"
-																				aria-label="Filter agents"
-																				className={cn(
-																					"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-																					archivedFilter === "archived" &&
-																						"text-content-primary",
-																				)}
-																			>
-																				<FilterIcon />
-																			</Button>
-																		</DropdownMenuTrigger>
-																		<DropdownMenuContent align="end">
-																			<DropdownMenuItem
-																				onSelect={() =>
-																					onArchivedFilterChange?.("active")
-																				}
-																			>
-																				Active
-																				{archivedFilter === "active" && (
-																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																				)}
-																			</DropdownMenuItem>
-																			<DropdownMenuItem
-																				onSelect={() =>
-																					onArchivedFilterChange?.("archived")
-																				}
-																			>
-																				Archived
-																				{archivedFilter === "archived" && (
-																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																				)}
-																			</DropdownMenuItem>
-																		</DropdownMenuContent>
-																	</DropdownMenu>
-																)}
+																{group === firstNonEmptyGroup && filterDropdown}
 															</div>
 															<div className="flex flex-col gap-0.5">
 																{groupChats.map((chat) => (
@@ -892,7 +958,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															</div>
 														</div>
 													);
-												})}{" "}
+												})}
 											</div>
 										)}
 									</div>
@@ -910,7 +976,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="hidden border-0 border-t border-solid md:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
-							{" "}
+							
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"
@@ -946,7 +1012,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</div>
 			</div>
-			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
@@ -1049,7 +1115,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									to="/agents/settings/insights"
 									state={location.state}
 									adminOnly
-								/>{" "}
+								/>
 							</>
 						)}
 					</nav>

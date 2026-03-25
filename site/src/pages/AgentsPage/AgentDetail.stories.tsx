@@ -53,6 +53,8 @@ const AgentDetailLayout: FC = () => {
 								_workspaceId: string,
 							) => {},
 							requestUnarchiveAgent: () => {},
+							requestPinAgent: () => {},
+							requestUnpinAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
@@ -137,6 +139,7 @@ const baseChatFields = {
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
+	pinned: false,
 	last_error: null,
 } as const;
 

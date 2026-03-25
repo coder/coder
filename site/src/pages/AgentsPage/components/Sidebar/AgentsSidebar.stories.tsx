@@ -45,6 +45,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pinned: false,
 	last_error: null,
 	...overrides,
 });
@@ -68,6 +69,8 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
 		onArchiveAndDeleteWorkspace: fn(),
+		onPinChat: fn(),
+		onUnpinChat: fn(),
 		onBeforeNewAgent: fn(),
 		isCreating: false,
 		archivedFilter: "active" as const,
@@ -736,5 +739,71 @@ export const ArchivedAgentUnarchiveOption: Story = {
 		expect(
 			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const PinnedChatsSection: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pinned-1",
+				title: "My pinned agent",
+				updated_at: todayTimestamp,
+				pinned: true,
+			}),
+			buildChat({
+				id: "unpinned-1",
+				title: "Regular agent one",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "unpinned-2",
+				title: "Regular agent two",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Pinned")).toBeInTheDocument();
+			expect(canvas.getByText("My pinned agent")).toBeInTheDocument();
+		});
+	},
+};
+
+export const PinUnpinContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pin-test",
+				title: "Agent to pin",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Agent to pin")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText("Open actions for Agent to pin");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+		});
 	},
 };

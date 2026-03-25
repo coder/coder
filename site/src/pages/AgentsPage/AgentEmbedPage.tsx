@@ -230,6 +230,8 @@ const AgentEmbedPage: FC = () => {
 		requestArchiveAgent,
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
+		requestPinAgent: () => {},
+		requestUnpinAgent: () => {},
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

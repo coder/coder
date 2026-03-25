@@ -5,7 +5,8 @@ import {
 	MockEntitlements,
 	MockUserOwner,
 } from "testHelpers/entities";
-import { act, render } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import type { FC, PropsWithChildren } from "react";
@@ -52,6 +53,7 @@ vi.mock("hooks", async () => {
 // ---- Helpers ----
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+const todayTimestamp = new Date().toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
@@ -62,6 +64,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 	mcp_server_ids: [],
 	labels: {},
@@ -105,6 +108,8 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onArchiveAndDeleteWorkspace: vi.fn(),
+	onPinChat: vi.fn(),
+	onUnpinChat: vi.fn(),
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,
 	archivedFilter: "active" as const,
@@ -469,5 +474,235 @@ describe("AgentsSidebar model display names", () => {
 		// to the actual model display name, not "Default model".
 		expect(getByText("GPT-4o")).toBeInTheDocument();
 		expect(queryByText("Default model")).not.toBeInTheDocument();
+	});
+});
+
+describe("Pinned chats", () => {
+	beforeEach(() => {
+		vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("renders Pinned section when there are pinned chats", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-pinned",
+							title: "My Pinned Chat",
+							updated_at: todayTimestamp,
+							pin_order: 1,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("Pinned")).toBeInTheDocument();
+		expect(screen.getByText("My Pinned Chat")).toBeInTheDocument();
+	});
+
+	it("hides pinned chats from time-group sections", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-pinned",
+							title: "Pinned Today Chat",
+							updated_at: todayTimestamp,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "chat-unpinned",
+							title: "Regular Today Chat",
+							updated_at: todayTimestamp,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("Pinned")).toBeInTheDocument();
+		expect(screen.getByText("Pinned Today Chat")).toBeInTheDocument();
+		expect(screen.getByText("Today")).toBeInTheDocument();
+		expect(screen.getByText("Regular Today Chat")).toBeInTheDocument();
+
+		// The pinned chat should only appear once (under "Pinned",
+		// not duplicated under "Today").
+		const allPinnedLinks = screen.getAllByText("Pinned Today Chat");
+		expect(allPinnedLinks).toHaveLength(1);
+	});
+
+	it("shows Pin agent option in context menu for unpinned chats", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-1",
+							title: "Unpinned Chat",
+							updated_at: todayTimestamp,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const menuButton = screen.getByRole("button", {
+			name: "Open actions for Unpinned Chat",
+		});
+		await user.click(menuButton);
+
+		await waitFor(() => {
+			expect(screen.getByText("Pin agent")).toBeInTheDocument();
+		});
+	});
+
+	it("shows Unpin agent option in context menu for pinned chats", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-pinned",
+							title: "Pinned Chat",
+							updated_at: todayTimestamp,
+							pin_order: 1,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const menuButton = screen.getByRole("button", {
+			name: "Open actions for Pinned Chat",
+		});
+		await user.click(menuButton);
+
+		await waitFor(() => {
+			expect(screen.getByText("Unpin agent")).toBeInTheDocument();
+		});
+	});
+
+	it("calls onPinChat when Pin agent is clicked", async () => {
+		const user = userEvent.setup();
+		const onPinChat = vi.fn();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					onPinChat={onPinChat}
+					chats={[
+						buildChat({
+							id: "chat-to-pin",
+							title: "Chat To Pin",
+							updated_at: todayTimestamp,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const menuButton = screen.getByRole("button", {
+			name: "Open actions for Chat To Pin",
+		});
+		await user.click(menuButton);
+
+		const pinItem = await screen.findByText("Pin agent");
+		await user.click(pinItem);
+
+		expect(onPinChat).toHaveBeenCalledWith("chat-to-pin");
+	});
+
+	it("calls onUnpinChat when Unpin agent is clicked", async () => {
+		const user = userEvent.setup();
+		const onUnpinChat = vi.fn();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					onUnpinChat={onUnpinChat}
+					chats={[
+						buildChat({
+							id: "chat-to-unpin",
+							title: "Chat To Unpin",
+							updated_at: todayTimestamp,
+							pin_order: 1,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const menuButton = screen.getByRole("button", {
+			name: "Open actions for Chat To Unpin",
+		});
+		await user.click(menuButton);
+
+		const unpinItem = await screen.findByText("Unpin agent");
+		await user.click(unpinItem);
+
+		expect(onUnpinChat).toHaveBeenCalledWith("chat-to-unpin");
+	});
+
+	it("shows filter on Pinned header when pinned chats exist", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-pinned",
+							title: "Pinned Chat",
+							updated_at: todayTimestamp,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "chat-unpinned",
+							title: "Unpinned Chat",
+							updated_at: todayTimestamp,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByLabelText("Filter agents")).toBeInTheDocument();
+		expect(screen.getByText("Pinned")).toBeInTheDocument();
+	});
+
+	it("shows filter on time group when no pinned chats exist", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "chat-today",
+							title: "Today Chat",
+							updated_at: todayTimestamp,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByLabelText("Filter agents")).toBeInTheDocument();
+		expect(screen.getByText("Today")).toBeInTheDocument();
 	});
 });

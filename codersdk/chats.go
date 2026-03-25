@@ -61,6 +61,7 @@ type Chat struct {
 	CreatedAt         time.Time         `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time         `json:"updated_at" format:"date-time"`
 	Archived          bool              `json:"archived"`
+	Pinned            bool              `json:"pinned"`
 	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string `json:"labels"`
 }
@@ -325,6 +326,7 @@ type CreateChatRequest struct {
 type UpdateChatRequest struct {
 	Title    *string            `json:"title,omitempty"`
 	Archived *bool              `json:"archived,omitempty"`
+	Pinned   *bool              `json:"pinned,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
 }
 

@@ -7411,6 +7411,20 @@ func (mr *MockStoreMockRecorder) PaginatedOrganizationMembers(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PaginatedOrganizationMembers", reflect.TypeOf((*MockStore)(nil).PaginatedOrganizationMembers), ctx, arg)
 }
 
+// PinChatByID mocks base method.
+func (m *MockStore) PinChatByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PinChatByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PinChatByID indicates an expected call of PinChatByID.
+func (mr *MockStoreMockRecorder) PinChatByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PinChatByID", reflect.TypeOf((*MockStore)(nil).PinChatByID), ctx, id)
+}
+
 // Ping mocks base method.
 func (m *MockStore) Ping(ctx context.Context) (time.Duration, error) {
 	m.ctrl.T.Helper()
@@ -7612,6 +7626,20 @@ func (m *MockStore) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 func (mr *MockStoreMockRecorder) UnfavoriteWorkspace(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnfavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).UnfavoriteWorkspace), ctx, id)
+}
+
+// UnpinChatByID mocks base method.
+func (m *MockStore) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnpinChatByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnpinChatByID indicates an expected call of UnpinChatByID.
+func (mr *MockStoreMockRecorder) UnpinChatByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpinChatByID", reflect.TypeOf((*MockStore)(nil).UnpinChatByID), ctx, id)
 }
 
 // UnsetDefaultChatModelConfigs mocks base method.

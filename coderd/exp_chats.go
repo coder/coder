@@ -1556,7 +1556,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 }
 
 // patchChat updates a chat resource. Supports updating labels and
-// toggling the archived state.
+// toggling the archived and pinned states.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1634,6 +1634,38 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			action := "archive"
 			if !archived {
 				action = "unarchive"
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Failed to %s chat.", action),
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	if req.Pinned != nil {
+		pinned := *req.Pinned
+		if pinned == chat.Pinned {
+			state := "pinned"
+			if !pinned {
+				state = "not pinned"
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Chat is already %s.", state),
+			})
+			return
+		}
+
+		var err error
+		if pinned {
+			err = api.Database.PinChatByID(ctx, chat.ID)
+		} else {
+			err = api.Database.UnpinChatByID(ctx, chat.ID)
+		}
+		if err != nil {
+			action := "pin"
+			if !pinned {
+				action = "unpin"
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Failed to %s chat.", action),
