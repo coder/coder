@@ -99,7 +99,7 @@ func TestSanitizePromptText(t *testing.T) {
 		},
 		{
 			name:  "OnlyInvisibleCharacters",
-			input: "\u200B\u200C\u200D\uFEFF\u2060",
+			input: "\u200B\u200D\uFEFF\u2060",
 			want:  "",
 		},
 		{
@@ -108,9 +108,9 @@ func TestSanitizePromptText(t *testing.T) {
 			want:  "helloworld",
 		},
 		{
-			name:  "ZeroWidthNonJoinerStripping",
+			name:  "ZeroWidthNonJoinerPreserved",
 			input: "hello\u200Cworld",
-			want:  "helloworld",
+			want:  "hello\u200Cworld",
 		},
 		{
 			name:  "ZeroWidthJoinerStripping",
@@ -190,14 +190,16 @@ func TestSanitizePromptText(t *testing.T) {
 			// Simulates a steganography encoding: visible text
 			// followed by a hidden binary payload using ZWNJ
 			// (U+200C) and invisible separator (U+2063) as 0/1,
-			// with ZWJ (U+200D) as delimiter.
+			// with ZWJ (U+200D) as delimiter. Stripping ZWS,
+			// ZWJ, and invisible separator destroys the encoding
+			// structure; surviving ZWNJs are inert fragments.
 			input: "Hello world!" +
 				"\u200B" +
 				"\u200C\u2063\u200D" +
 				"\u200C\u200C\u200D" +
 				"\u2063\u2063\u200D" +
 				"\u200B",
-			want: "Hello world!",
+			want: "Hello world!\u200C\u200C\u200C",
 		},
 		{
 			name:  "InterleavedZWS",
@@ -205,11 +207,47 @@ func TestSanitizePromptText(t *testing.T) {
 			want:  "hello",
 		},
 		{
+			name: "DeprecatedFormatCharsStripping",
+			// U+206A (inhibit symmetric swapping) through
+			// U+206F (nominal digit shapes).
+			input: "a\u206A\u206B\u206C\u206D\u206E\u206Fb",
+			want:  "ab",
+		},
+		{
+			name: "InterlinearAnnotationStripping",
+			// U+FFF9 (anchor), U+FFFA (separator),
+			// U+FFFB (terminator).
+			input: "a\uFFF9\uFFFA\uFFFBb",
+			want:  "ab",
+		},
+		{
+			name:  "WhitespaceOnlyLinesCollapsed",
+			input: "above\n \n \n \n \nbelow",
+			want:  "above\n\nbelow",
+		},
+		{
+			name:  "TabOnlyLinesCollapsed",
+			input: "above\n\t\n\t\n\t\nbelow",
+			want:  "above\n\nbelow",
+		},
+		{
+			name:  "IndentedContentPreserved",
+			input: "line\n  indented\n  also",
+			want:  "line\n  indented\n  also",
+		},
+		{
+			name: "ZWSSpacePaddingCollapsed",
+			// After invisible stripping, "\u200B \n" becomes
+			// " \n"; multiple such lines should collapse.
+			input: "above\n\u200B \n\u200B \n\u200B \nbelow",
+			want:  "above\n\nbelow",
+		},
+		{
 			name: "Idempotency",
 			// Running the function twice must produce the same
 			// result as running it once.
 			input: "hello\u200B \u200Cworld\n\n\n\nfoo",
-			want:  "hello world\n\nfoo",
+			want:  "hello \u200Cworld\n\nfoo",
 		},
 		{
 			name: "MixedZWSPaddedHiddenInstruction",
@@ -234,6 +272,8 @@ func TestSanitizePromptText(t *testing.T) {
 
 	// Verify idempotency as a separate property: f(f(x)) == f(x)
 	// for every test case.
+	// This also covers the ZWNJ tests — surviving ZWNJs must not
+	// cause a different result on the second pass.
 	t.Run("IdempotencyAll", func(t *testing.T) {
 		t.Parallel()
 		for _, tt := range tests {
@@ -246,4 +286,54 @@ func TestSanitizePromptText(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestInvisibleRuneCanonicalList(t *testing.T) {
+	t.Parallel()
+
+	// Canonical list — must match site/src/utils/invisibleUnicode.test.ts
+	//
+	// Every codepoint that isInvisibleRune returns true for is
+	// listed here, with ranges expanded to individual values. If a
+	// codepoint is added or removed, this test must be updated.
+	stripped := []rune{
+		0x00AD,
+		0x034F,
+		0x061C,
+		0x180E,
+		0x200B,
+		// 0x200C (ZWNJ) deliberately NOT stripped.
+		0x200D,
+		0x200E,
+		0x200F,
+		0x202A, 0x202B, 0x202C, 0x202D, 0x202E,
+		0x2060, 0x2061, 0x2062, 0x2063, 0x2064,
+		0x2066, 0x2067, 0x2068, 0x2069,
+		0x206A, 0x206B, 0x206C, 0x206D, 0x206E, 0x206F,
+		0xFEFF,
+		0xFFF9, 0xFFFA, 0xFFFB,
+	}
+
+	for _, r := range stripped {
+		input := "a" + string(r) + "b"
+		got := chatd.SanitizePromptText(input)
+		require.Equalf(t, "ab", got, "U+%04X should be stripped", r)
+	}
+
+	// Codepoints that must NOT be stripped.
+	preserved := []rune{
+		'A',     // Normal ASCII.
+		'z',     // Normal ASCII.
+		'0',     // Digit.
+		' ',     // Space.
+		0x200C,  // ZWNJ — required for Persian/Urdu/Kurdish.
+		0xE0067, // Tag character — used in subdivision flag emoji.
+	}
+
+	for _, r := range preserved {
+		input := "a" + string(r) + "b"
+		want := "a" + string(r) + "b"
+		got := chatd.SanitizePromptText(input)
+		require.Equalf(t, want, got, "U+%04X should be preserved", r)
+	}
 }

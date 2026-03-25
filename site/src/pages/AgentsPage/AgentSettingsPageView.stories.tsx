@@ -791,11 +791,11 @@ export const InvisibleUnicodeWarningUserPrompt: Story = {
 		// The warning alert should appear.
 		const alert = await canvas.findByText(/invisible Unicode/);
 		expect(alert).toBeInTheDocument();
-		expect(alert.textContent).toContain("3");
+		expect(alert.textContent).toContain("2");
 	},
 };
 
-export const InvisibleUnicodeWarningOnPaste: Story = {
+export const InvisibleUnicodeWarningOnType: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 

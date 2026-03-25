@@ -566,7 +566,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		Boolean(initialValue?.trim()),
 	);
 
-	const [invisibleCharCount, setInvisibleCharCount] = useState(0);
+	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
+		countInvisibleCharacters(initialValue ?? ""),
+	);
 
 	const handleContentChange = (content: string, hasRefs: boolean) => {
 		setHasContent(Boolean(content.trim()));
@@ -788,9 +790,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{invisibleCharCount > 0 && (
 					<div className="px-3 pb-1">
 						<p className="m-0 text-xs text-content-warning">
+							<AlertTriangleIcon className="inline-block h-3 w-3 mr-1" />
 							This message contains {invisibleCharCount} invisible Unicode
 							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
-							content.
+							content. Review carefully before sending.
 						</p>
 					</div>
 				)}

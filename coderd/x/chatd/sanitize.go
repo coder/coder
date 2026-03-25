@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"strings"
-	"unicode/utf8"
 )
 
 // SanitizePromptText strips invisible Unicode characters that could
@@ -27,9 +26,7 @@ func SanitizePromptText(s string) string {
 	// 2. Strip invisible characters rune-by-rune.
 	var b strings.Builder
 	b.Grow(len(s))
-	for i := 0; i < len(s); {
-		r, size := utf8.DecodeRuneInString(s[i:])
-		i += size
+	for _, r := range s {
 		if isInvisibleRune(r) {
 			continue
 		}
@@ -74,12 +71,16 @@ func isInvisibleRune(r rune) bool {
 	case r == 0x200B:
 		return true
 
-	// Zero-width non-joiner (U+200C).
-	case r == 0x200C:
-		return true
+	// U+200C (ZWNJ) is deliberately NOT stripped. It is
+	// required for correct rendering of Persian, Urdu, and
+	// Kurdish scripts where it controls cursive joining.
+	// Stripping ZWS (U+200B) and ZWJ (U+200D) already breaks
+	// zero-width steganography encodings regardless of whether
+	// ZWNJ survives.
 
 	// Zero-width joiner (U+200D) — also used in compound emoji,
-	// but actively exploited in steganography. See package doc.
+	// but actively exploited in steganography. See
+	// SanitizePromptText doc comment.
 	case r == 0x200D:
 		return true
 
@@ -107,9 +108,19 @@ func isInvisibleRune(r rune) bool {
 	case r >= 0x2066 && r <= 0x2069:
 		return true
 
+	// Deprecated format characters (U+206A–U+206F): inhibit
+	// symmetric swapping through nominal digit shapes.
+	case r >= 0x206A && r <= 0x206F:
+		return true
+
 	// Byte order mark / zero-width no-break space (U+FEFF).
 	// Common at start of Windows-edited files.
 	case r == 0xFEFF:
+		return true
+
+	// Interlinear annotation anchor, separator, and
+	// terminator (U+FFF9–U+FFFB).
+	case r >= 0xFFF9 && r <= 0xFFFB:
 		return true
 
 	default:
@@ -119,19 +130,37 @@ func isInvisibleRune(r rune) bool {
 
 // collapseNewlines replaces runs of 3 or more consecutive newlines
 // with exactly 2, preserving single blank lines (paragraph breaks)
-// while eliminating scroll-padding attacks.
+// while eliminating scroll-padding attacks. Whitespace-only lines
+// (spaces/tabs between newlines) are treated as empty and do not
+// reset the newline counter.
 func collapseNewlines(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	consecutiveNewlines := 0
+	var wsBuf []rune // buffered spaces/tabs between newlines
 	for _, r := range s {
 		if r == '\n' {
+			// Discard buffered whitespace — it was on a
+			// blank-ish line that we're collapsing.
+			wsBuf = wsBuf[:0]
 			consecutiveNewlines++
 			if consecutiveNewlines <= 2 {
 				_, _ = b.WriteRune(r)
 			}
 			continue
 		}
+		if consecutiveNewlines > 0 && (r == ' ' || r == '\t') {
+			// Inside a newline run — buffer whitespace in
+			// case the next char is another newline.
+			wsBuf = append(wsBuf, r)
+			continue
+		}
+		// Visible character: flush buffered whitespace, reset
+		// the newline counter, and write the character.
+		for _, ws := range wsBuf {
+			_, _ = b.WriteRune(ws)
+		}
+		wsBuf = wsBuf[:0]
 		consecutiveNewlines = 0
 		_, _ = b.WriteRune(r)
 	}

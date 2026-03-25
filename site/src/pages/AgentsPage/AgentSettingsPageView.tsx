@@ -550,8 +550,8 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 
-	const systemInvisibleCount = countInvisibleCharacters(systemPromptDraft);
-	const userInvisibleCount = countInvisibleCharacters(userPromptDraft);
+	const systemInvisibleCharCount = countInvisibleCharacters(systemPromptDraft);
+	const userInvisibleCharCount = countInvisibleCharacters(userPromptDraft);
 
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 	const isUserPromptDirty =
@@ -654,11 +654,11 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								disabled={isPromptSaving}
 								minRows={1}
 							/>
-							{userInvisibleCount > 0 && (
+							{userInvisibleCharCount > 0 && (
 								<Alert severity="warning">
-									This text contains {userInvisibleCount} invisible Unicode
-									character{userInvisibleCount !== 1 ? "s" : ""} that could hide
-									content from reviewers. These will be stripped on save.
+									This text contains {userInvisibleCharCount} invisible Unicode
+									character{userInvisibleCharCount !== 1 ? "s" : ""} that could
+									hide content from reviewers. These will be stripped on save.
 								</Alert>
 							)}
 							<div className="flex justify-end gap-2">
@@ -719,12 +719,13 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										disabled={isPromptSaving}
 										minRows={1}
 									/>
-									{systemInvisibleCount > 0 && (
+									{systemInvisibleCharCount > 0 && (
 										<Alert severity="warning">
-											This text contains {systemInvisibleCount} invisible
+											This text contains {systemInvisibleCharCount} invisible
 											Unicode character
-											{systemInvisibleCount !== 1 ? "s" : ""} that could hide
-											content from reviewers. These will be stripped on save.
+											{systemInvisibleCharCount !== 1 ? "s" : ""} that could
+											hide content from reviewers. These will be stripped on
+											save.
 										</Alert>
 									)}
 									<div className="flex justify-end gap-2">

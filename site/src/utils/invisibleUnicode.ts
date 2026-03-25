@@ -17,8 +17,10 @@ function isInvisibleCodepoint(code: number): boolean {
 	) {
 		return true;
 	}
-	// Zero-width and directional marks: U+200B–U+200F.
-	if (code >= 0x200b && code <= 0x200f) {
+	// Zero-width and directional marks: U+200B, U+200D–U+200F.
+	// U+200C (ZWNJ) is deliberately excluded — it is required for
+	// correct rendering of Persian, Urdu, and Kurdish scripts.
+	if (code === 0x200b || (code >= 0x200d && code <= 0x200f)) {
 		return true;
 	}
 	// Bidi embedding/override: U+202A–U+202E.
@@ -31,6 +33,17 @@ function isInvisibleCodepoint(code: number): boolean {
 	}
 	// Bidi isolates: U+2066–U+2069.
 	if (code >= 0x2066 && code <= 0x2069) {
+		return true;
+	}
+	// Deprecated format characters (U+206A–U+206F): inhibit
+	// swapping, activate swapping, inhibit/activate Arabic form
+	// shaping, national digit shapes, nominal digit shapes.
+	if (code >= 0x206a && code <= 0x206f) {
+		return true;
+	}
+	// Interlinear annotation characters (U+FFF9–U+FFFB):
+	// annotation anchor, separator, terminator.
+	if (code >= 0xfff9 && code <= 0xfffb) {
 		return true;
 	}
 	return false;
