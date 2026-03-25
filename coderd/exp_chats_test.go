@@ -5370,7 +5370,10 @@ func TestGetChatsByWorkspace(t *testing.T) {
 		err := client.UpdateChat(ctx, olderChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 		require.NoError(t, err)
 
-		// Insert a newer chat that stays active.
+		// Insert two active chats — the second is newer due to insert
+		// ordering and should win the "latest" selection in Go after
+		// the SQL returns both ordered by updated_at DESC.
+		_ = insertChat(ctx, "older active", ws.Workspace.ID)
 		newerChat := insertChat(ctx, "newer active", ws.Workspace.ID)
 
 		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})

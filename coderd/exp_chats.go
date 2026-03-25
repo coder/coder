@@ -220,6 +220,8 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// TODO: promote to a named codersdk type when the endpoint
+	// stabilizes and is included in public API docs.
 	var req struct {
 		WorkspaceIDs []uuid.UUID `json:"workspace_ids"`
 	}
@@ -233,7 +235,8 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
-	// the frontend. If the page size changes, this limit should too.
+	// site/src/components/PaginationWidget/utils.ts.
+	// If the page size changes, this limit should too.
 	const maxWorkspaceIDs = 25
 	if len(req.WorkspaceIDs) > maxWorkspaceIDs {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
