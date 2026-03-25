@@ -1670,6 +1670,9 @@ describe("useChatStore", () => {
 			expect(result.current.streamError).toEqual({
 				kind: "generic",
 				message: "Chat processing failed.",
+				provider: undefined,
+				retryable: false,
+				statusCode: undefined,
 			});
 		});
 	});
@@ -2012,6 +2015,9 @@ describe("useChatStore", () => {
 			expect(result.current.streamError).toEqual({
 				kind: "generic",
 				message: "Rate limit exceeded",
+				provider: undefined,
+				retryable: false,
+				statusCode: undefined,
 			});
 		});
 

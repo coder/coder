@@ -932,7 +932,6 @@ const AgentDetail: FC = () => {
 			handleViewWorkspace={handleViewWorkspace}
 			handleOpenTerminal={handleOpenTerminal}
 			handleCommit={handleCommit}
-			onNavigateToChat={(chatId) => navigate(`/agents/${chatId}`)}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
