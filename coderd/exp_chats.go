@@ -2618,21 +2618,24 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Cap the raw request body to prevent excessive memory use from
+	// payloads padded with invisible characters that sanitize away.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.ChatSystemPrompt
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	trimmedPrompt := strings.TrimSpace(req.SystemPrompt)
+	sanitizedPrompt := chatd.SanitizePromptText(req.SystemPrompt)
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
-	if len(trimmedPrompt) > maxSystemPromptLenBytes {
+	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
-	err := api.Database.UpsertChatSystemPrompt(ctx, trimmedPrompt)
+	err := api.Database.UpsertChatSystemPrompt(ctx, sanitizedPrompt)
 	if httpapi.Is404Error(err) { // also catches authz error
 		httpapi.ResourceNotFound(rw)
 		return
@@ -2807,25 +2810,28 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		ctx    = r.Context()
 		apiKey = httpmw.APIKey(r)
 	)
+	// Cap the raw request body to prevent excessive memory use from
+	// payloads padded with invisible characters that sanitize away.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 
 	var params codersdk.UserChatCustomPrompt
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
-	trimmedPrompt := strings.TrimSpace(params.CustomPrompt)
+	sanitizedPrompt := chatd.SanitizePromptText(params.CustomPrompt)
 	// Apply the same 128 KiB limit as the deployment system prompt.
-	if len(trimmedPrompt) > maxSystemPromptLenBytes {
+	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Custom prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
 
 	updatedConfig, err := api.Database.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
 		UserID:           apiKey.UserID,
-		ChatCustomPrompt: trimmedPrompt,
+		ChatCustomPrompt: sanitizedPrompt,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -3012,8 +3018,12 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}
-	if strings.TrimSpace(custom) != "" {
-		return custom
+	sanitized := chatd.SanitizePromptText(custom)
+	if sanitized == "" && strings.TrimSpace(custom) != "" {
+		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, using default")
+	}
+	if sanitized != "" {
+		return sanitized
 	}
 	return chatd.DefaultSystemPrompt
 }

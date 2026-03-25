@@ -100,10 +100,10 @@ func readInstructionFile(
 }
 
 func sanitizeInstructionMarkdown(content string) string {
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	content = strings.ReplaceAll(content, "\r", "\n")
+	// Remove Markdown comments first so that the subsequent newline
+	// collapsing in SanitizePromptText covers any gaps left behind.
 	content = markdownCommentPattern.ReplaceAllString(content, "")
-	return strings.TrimSpace(content)
+	return SanitizePromptText(content)
 }
 
 // formatSystemInstructions builds the <workspace-context> block from

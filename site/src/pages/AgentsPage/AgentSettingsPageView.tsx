@@ -18,7 +18,7 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useState } from "react";
+import { type FC, type FormEvent, useMemo, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -30,6 +30,8 @@ import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
+import { countInvisibleCharacters } from "utils/invisibleUnicode";
+import { Alert } from "#/components/Alert/Alert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -551,10 +553,18 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 
+	const systemInvisibleCharCount = useMemo(
+		() => countInvisibleCharacters(systemPromptDraft),
+		[systemPromptDraft],
+	);
+	const userInvisibleCharCount = useMemo(
+		() => countInvisibleCharacters(userPromptDraft),
+		[userPromptDraft],
+	);
+
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
-
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
@@ -662,6 +672,13 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								disabled={isPromptSaving}
 								minRows={1}
 							/>
+							{userInvisibleCharCount > 0 && (
+								<Alert severity="warning">
+									This text contains {userInvisibleCharCount} invisible Unicode{" "}
+									{userInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
+									that could hide content. These will be stripped on save.
+								</Alert>
+							)}
 							<div className="flex justify-end gap-2">
 								<Button
 									size="sm"
@@ -726,6 +743,16 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										disabled={isPromptSaving}
 										minRows={1}
 									/>
+									{systemInvisibleCharCount > 0 && (
+										<Alert severity="warning">
+											This text contains {systemInvisibleCharCount} invisible
+											Unicode{" "}
+											{systemInvisibleCharCount !== 1
+												? "characters"
+												: "character"}{" "}
+											that could hide content. These will be stripped on save.
+										</Alert>
+									)}
 									<div className="flex justify-end gap-2">
 										<Button
 											size="sm"
