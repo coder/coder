@@ -14,6 +14,7 @@ import {
 import type { User } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "modules/dashboard/entitlements";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -40,14 +41,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
-	const aiGovernanceUserLimit = entitlements.features.ai_governance_user_limit;
-	// Keep this column visible even if usage exceeds the licensed limit so admins
-	// can identify who is consuming AI seats while remediating overages.
-	const showAISeatColumn =
-		entitlements.has_license &&
-		aiGovernanceUserLimit.enabled &&
-		(aiGovernanceUserLimit.entitlement === "entitled" ||
-			aiGovernanceUserLimit.entitlement === "grace_period");
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());

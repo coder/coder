@@ -10,6 +10,7 @@ import { organizationRoles } from "api/queries/roles";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "modules/dashboard/entitlements";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -32,14 +33,7 @@ const OrganizationMembersPage: FC = () => {
 	const { organization, organizationPermissions } = useOrganizationSettings();
 	const { entitlements } = useDashboard();
 	const searchParamsResult = useSearchParams();
-	const aiGovernanceUserLimit = entitlements.features.ai_governance_user_limit;
-	// Keep this column visible even if usage exceeds the licensed limit so admins
-	// can identify who is consuming AI seats while remediating overages.
-	const showAISeatColumn =
-		entitlements.has_license &&
-		aiGovernanceUserLimit.enabled &&
-		(aiGovernanceUserLimit.entitlement === "entitled" ||
-			aiGovernanceUserLimit.entitlement === "grace_period");
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
