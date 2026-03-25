@@ -229,7 +229,7 @@ jobs:
 
       - name: Check workflow files
         run: |
-          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/5db9d9cde2f3deb5035dea3e45f0a9fff2f29448/scripts/download-actionlint.bash) 1.7.4
           ./actionlint -color -shellcheck= -ignore "set-output"
         shell: bash
 
