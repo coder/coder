@@ -184,7 +184,7 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.focus();
 		}
 		inputValueRef.current = "";
-		if (typeof window !== "undefined" && draftStorageKey) {
+		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
 		if (editingMessageId !== null) {
@@ -202,7 +202,7 @@ export function useConversationEditingState(deps: {
 
 	const handleContentChange = (content: string) => {
 		inputValueRef.current = content;
-		if (typeof window !== "undefined" && draftStorageKey) {
+		if (draftStorageKey) {
 			if (content) {
 				localStorage.setItem(draftStorageKey, content);
 			} else {
@@ -268,7 +268,7 @@ const AgentDetail: FC = () => {
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
-		typeof window !== "undefined" && agentId
+		agentId
 			? (localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`) ?? "")
 			: "",
 	);
@@ -277,7 +277,6 @@ const AgentDetail: FC = () => {
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
 	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
-		if (typeof window === "undefined") return false;
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
 	const handleSetShowSidebarPanel = (
@@ -285,9 +284,7 @@ const AgentDetail: FC = () => {
 	) => {
 		setShowSidebarPanel((prev) => {
 			const value = typeof next === "function" ? next(prev) : next;
-			if (typeof window !== "undefined") {
-				localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
-			}
+			localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
 			return value;
 		});
 	};
@@ -681,15 +678,10 @@ const AgentDetail: FC = () => {
 		if (!response.queued && response.message) {
 			store.upsertDurableMessage(response.message);
 		}
-		if (typeof window !== "undefined") {
-			if (selectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					selectedModelConfigID,
-				);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
-			}
+		if (selectedModelConfigID) {
+			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
+		} else {
+			localStorage.removeItem(lastModelConfigIDStorageKey);
 		}
 	};
 

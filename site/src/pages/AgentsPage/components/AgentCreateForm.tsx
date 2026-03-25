@@ -67,9 +67,6 @@ export type CreateChatOptions = {
  */
 export function useEmptyStateDraft() {
 	const [initialInputValue] = useState(() => {
-		if (typeof window === "undefined") {
-			return "";
-		}
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
 	});
 	const inputValueRef = useRef(initialInputValue);
@@ -77,7 +74,7 @@ export function useEmptyStateDraft() {
 
 	const handleContentChange = (content: string) => {
 		inputValueRef.current = content;
-		if (typeof window !== "undefined" && !sentRef.current) {
+		if (!sentRef.current) {
 			if (content) {
 				localStorage.setItem(emptyInputStorageKey, content);
 			} else {
@@ -139,9 +136,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
 		useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
-		if (typeof window === "undefined") {
-			return "";
-		}
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
 	const modelIDByConfigID = (() => {
@@ -197,7 +191,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
-			if (typeof window === "undefined") return null;
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
@@ -223,9 +216,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			: "No models configured. Ask an admin.";
 
 	useEffect(() => {
-		if (typeof window === "undefined") {
-			return;
-		}
 		if (!initialLastModelConfigID) {
 			return;
 		}
@@ -262,15 +252,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
 			setSelectedWorkspaceId(null);
-			if (typeof window !== "undefined") {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-			}
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 			return;
 		}
 		setSelectedWorkspaceId(value);
-		if (typeof window !== "undefined") {
-			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
-		}
+		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
 	};
 
 	const handleModelChange = (value: string) => {
