@@ -193,6 +193,7 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			expectAbsent: []string{
 				"Authorization",
 				"X-Api-Key",
+				agplaibridge.HeaderCoderBYOKToken,
 			},
 		},
 		{
