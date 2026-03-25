@@ -35,7 +35,7 @@ const isLocalDatabaseConfig = (pc: TypesGen.ChatProviderConfig): boolean => {
 };
 
 const getProviderConfigs = (providerState: ProviderState) =>
-	providerState.providerConfigs ?? [];
+	providerState.providerConfigs;
 
 interface ProvidersSectionProps {
 	sectionLabel?: string;
@@ -79,7 +79,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		const configParam = searchParams.get("providerConfig");
 		if (configParam) {
 			const exists = providerStates.some((ps) =>
-				(ps.providerConfigs ?? []).some((pc) => pc.id === configParam),
+				ps.providerConfigs.some((pc) => pc.id === configParam),
 			);
 			return exists
 				? { mode: "detail", configId: configParam }
@@ -111,9 +111,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		let selectedConfig: TypesGen.ChatProviderConfig | undefined;
 		let parentProviderState: ProviderState | undefined;
 		for (const ps of providerStates) {
-			const found = (ps.providerConfigs ?? []).find(
-				(pc) => pc.id === view.configId,
-			);
+			const found = ps.providerConfigs.find((pc) => pc.id === view.configId);
 			if (found) {
 				selectedConfig = found;
 				parentProviderState = ps;

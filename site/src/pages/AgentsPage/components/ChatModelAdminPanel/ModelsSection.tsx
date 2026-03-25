@@ -184,7 +184,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// Only show providers that have an API key configured.
 	const addableProviders = providerStates.filter(
-		(ps) => (ps.providerConfigs?.length ?? 0) > 0 && ps.hasEffectiveAPIKey,
+		(ps) => ps.providerConfigs.length > 0 && ps.hasEffectiveAPIKey,
 	);
 
 	const addButton = addableProviders.length > 0 && (
