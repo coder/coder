@@ -3337,6 +3337,7 @@ func (p *Server) runChat(
 			chattool.ComputerUseModelName,
 			providerKeys,
 			chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
 		)
 		if cuErr != nil {
 			return result, xerrors.Errorf("resolve computer use model: %w", cuErr)
@@ -3791,6 +3792,7 @@ func (p *Server) resolveChatModel(
 
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
 	)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
@@ -4087,7 +4089,7 @@ func (p *Server) maybeSendPushNotification(
 			if assistantText != "" && runResult.PushSummaryModel != nil {
 				if summary := generatePushSummary(
 					pushCtx,
-					chat.Title,
+					chat,
 					assistantText,
 					runResult.PushSummaryModel,
 					runResult.ProviderKeys,
