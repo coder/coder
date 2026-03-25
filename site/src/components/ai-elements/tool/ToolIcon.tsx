@@ -29,7 +29,7 @@ export const ToolIcon: React.FC<{
 				src={iconUrl}
 				alt={`${name} icon`}
 				className={cn(
-					"h-4 w-4 shrink-0",
+					"block h-4 w-4 shrink-0",
 					isError &&
 						"brightness-0 invert-[.35] sepia saturate-[10] hue-rotate-[340deg]",
 				)}
