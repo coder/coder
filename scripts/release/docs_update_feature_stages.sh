@@ -234,9 +234,13 @@ beta_table="$(
 		desc=${beta_feature_descriptions[$key]}
 		tags=${beta_feature_tags[$key]%, }
 
+		# Only link when the target exists in this tree. Stable and mainline
+		# manifests can diverge; avoid broken relative links in feature-stages.md.
 		if [[ "${key}" == ./* ]]; then
-			doc_path="../../${key#./}"
-			title="[${title}](${doc_path})"
+			rel="${key#./}"
+			if [[ -f "${PROJECT_ROOT}/docs/${rel}" ]]; then
+				title="[${title}](../../${rel})"
+			fi
 		fi
 
 		echo "| ${title} | ${desc} | ${tags} |"
