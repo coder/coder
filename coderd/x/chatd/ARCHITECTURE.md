@@ -343,13 +343,76 @@ Output tokens include reasoning tokens per provider semantics — adding
 
 ## Streaming Architecture
 
-Chat events flow through multiple channels:
-1. **Local buffer** (`maxStreamBufferSize = 10000`): In-memory ring buffer of message_part events
-2. **Pubsub**: Cross-replica notifications for multi-replica deployments
-3. **Enterprise relay**: Optional remote relay for HA setups
-4. **Durable message cache** (`maxDurableMessageCacheSize = 256`): Recent messages cached for same-replica catch-up
+There are two distinct realtime surfaces:
+- **Per-chat stream** (`/api/experimental/chats/{id}/stream`) carrying
+  `message_part`, `message`, `status`, `error`, `retry`, and
+  `queue_update` events.
+- **Global chat watch** (`/api/experimental/chats/watch`) carrying
+  sidebar-level `created`, `deleted`, `status_change`, `title_change`, and
+  `diff_status_change` events.
 
-The `Subscribe` method merges all three sources into a single event channel.
+### Source-of-truth split
+
+| Event/data | Durability | Primary source | Notes |
+|---|---|---|---|
+| `message_part` | Ephemeral | In-memory stream buffer | No DB replay; can be dropped |
+| `message` | Durable | `chat_messages` + same-replica durable cache | Replayed via `after_id` |
+| `status` / `retry` / `error` / `queue_update` | Live control state | Local publish + pubsub notify | Not a durable event log |
+| Sidebar events | Push-only | Owner-scoped pubsub | No replay; frontend refetches on reconnect |
+
+### Delivery paths
+
+1. **Local buffer** (`maxStreamBufferSize = 10000`) for in-flight
+   `message_part` events.
+2. **Pubsub notify** (`chat:stream:{chatID}`) for cross-replica durable and
+   control updates.
+3. **DB catch-up** (`GetChatMessagesByChatID(chat_id, after_id)`) for durable
+   message replay.
+4. **Enterprise relay** for remote-worker `message_part` forwarding in HA
+   deployments.
+5. **Durable message cache** (`maxDurableMessageCacheSize = 256`) as a
+   same-replica optimization before falling back to the database.
+
+`Subscribe()` merges these sources into one outgoing channel. It intentionally
+subscribes before querying so it is less likely to miss notifications between
+subscription setup and the initial snapshot.
+
+### Guarantees that exist
+
+- Initial snapshots include the current `status` first, then buffered
+  `message_part`s, then persisted `message`s after `after_id`, then queue state
+  if present.
+- Durable messages can be recovered after reconnect via `after_id`.
+- Edited messages use a full-refresh path rather than trying to incrementally
+  patch already-streamed history.
+- Tool results are published in original tool-call order even though the tools
+  themselves run concurrently.
+- The frontend reconnects per-chat streams from the last durable message ID and
+  invalidates sidebar queries whenever the global watch successfully reopens.
+
+### What is not guaranteed
+
+- There is no global sequence number or single totally ordered event log.
+- There is no exactly-once, ACK, or backpressure protocol.
+- `message_part` is not durable: it lives in memory, is bounded, and can be
+  lost on disconnect, overflow, worker failover, or relay/pubsub issues.
+- Sidebar watch has no replay mechanism.
+- OSS multi-replica deployments do not relay `message_part` across replicas;
+  enterprise relay adds that path, but only for live partials.
+
+### Failure modes worth documenting
+
+- **Slow consumers / overflow.** The per-chat buffer evicts oldest parts, and
+  subscriber channels can drop events when full. This is the warn-level log
+  spam that has already been seen locally.
+- **Reconnect during a live answer.** Durable messages recover, but in-flight
+  partial text, reasoning, and tool-call deltas may disappear until the final
+  persisted assistant message arrives.
+- **Stale worker recovery.** Chats can be reset from `running` to `pending`,
+  but any in-memory partial stream state on the stale worker is gone.
+- **Pubsub degradation.** Without pubsub, cross-replica durable/control
+  delivery weakens sharply and the stream behaves much more like a same-process
+  channel.
 
 ---
 
@@ -454,6 +517,215 @@ be resolved before GA.
 - Update the `chatd` RBAC subject to operate within org boundaries, or
   document why site-wide access is necessary for the background worker.
 - Ensure subagent chats inherit the parent's organization.
+
+---
+
+## Authorization Model
+
+### Principals
+
+There are five important principals in the current design:
+
+1. **Request user / API key subject.** This is the normal principal for
+   `/api/experimental/chats/*` requests.
+2. **`chatd` daemon actor** (`dbauthz.AsChatd(ctx)`). Background processing,
+   message persistence, diff syncing, usage-limit resolution, and file
+   resolution run with this broad site-wide actor.
+3. **System-restricted actor** (`dbauthz.AsSystemRestricted(ctx)`). This is the
+   escape hatch used for helper lookups that intentionally bypass normal user
+   RBAC.
+4. **Reconstructed owner actor.** Workspace create/start flows rebuild the chat
+   owner's RBAC subject and then call workspace internals as that owner rather
+   than as the daemon.
+5. **Subagent trust inheritance.** Child chats inherit trust from the parent
+   chat rather than being independently re-authorized for every internal action.
+
+### Where authorization is actually enforced
+
+- Routes are mounted behind authenticated API-key middleware and the Agents
+  experiment gate.
+- `ExtractChatParam` loads chats with request context and intentionally
+  collapses unauthorized access into `404`.
+- `dbauthz` is the real source of truth for most chat reads/writes; many HTTP
+  handlers rely on DB auth instead of explicit `api.Authorize(...)` checks.
+- The frontend only hides or admin-gates UI. It is not the authoritative
+  enforcement layer.
+
+### Current visibility model
+
+- Chat reads are effectively **owner-scoped** today. The core DB queries and
+  pubsub channels key off `owner_id`, not organization.
+- The global watch channel is `chat:owner:{ownerID}`, which means sidebar and
+  badge updates are also owner-scoped.
+- This visibility model is one of the reasons the missing org dimension is a
+  pre-GA blocker rather than a minor cleanup.
+
+### Trust boundaries and privilege transitions
+
+- **User request -> `AsSystemRestricted`.** Helper lookups for enabled model
+  catalogs, enabled MCP configs, MCP ID validation, and some external-auth
+  token reads deliberately bypass normal user RBAC.
+- **Background worker -> `AsChatd`.** Chat acquisition and turn processing keep
+  site-wide daemon authority.
+- **Daemon -> owner impersonation.** `chatCreateWorkspace` and
+  `chatStartWorkspace` rebuild the owner's RBAC subject so provisioning happens
+  with owner permissions instead of daemon permissions.
+- **chatd -> workspace agents / LLM providers / MCP servers / external auth
+  providers.** A running turn crosses all of these trust boundaries.
+- **Parent chat -> subagent.** Delegated child chats inherit both workspace and
+  model context from their parent.
+
+### Current inconsistencies and awkward edges
+
+- Some deployment-wide getters (`system_prompt`, `desktop_enabled`,
+  `workspace_ttl`) are readable by any authenticated actor, while template
+  allowlist, provider/model config admin APIs, and usage-limit config require
+  deployment-config RBAC. These settings live in the same conceptual bucket,
+  but the read rules do not.
+- `watchChatDesktop` requires both chat access and stronger workspace-connect
+  or SSH permissions. `watchChatGit` is weaker: it gets chat access plus the
+  implicit workspace read needed to resolve the latest agent.
+- Enabled model availability and enabled MCP inventory are visible to any
+  authenticated Agents user because the user-facing list endpoints call
+  system-restricted helpers.
+- Chat files are authorized by owner/org, not by "this specific chat", so
+  files can outlive and be reused across chats.
+- HTTP auth failures are inconsistent: some paths intentionally collapse to
+  `404`, others return `403`.
+
+---
+
+## Workspace Binding Lifecycle
+
+### What is durable
+
+A chat is durably bound only by **`chats.workspace_id`**.
+
+The original chat schema also had `workspace_agent_id`, but that column was
+removed. Today there is no durable agent binding. `chatd` resolves the live
+agent lazily from the workspace's **latest build** whenever a turn needs one.
+
+### How chats gain a workspace
+
+A chat can start in three states:
+
+1. **Unbound.** No workspace is attached at chat creation.
+2. **Bound to an existing workspace.** `CreateChatRequest.workspace_id` stores a
+   workspace reference after checking access.
+3. **Late-bound by `create_workspace`.** Root chats can provision a workspace
+   later and then persist the resulting `workspace_id` via `UpdateChatWorkspace`.
+
+Subagents snapshot the parent's `WorkspaceID` at spawn time but do not get the
+workspace provisioning tools themselves.
+
+### Runtime resolution model
+
+`runChat` creates a turn-local `turnWorkspaceContext` that:
+- caches a turn-local chat snapshot,
+- resolves the current agent from `GetWorkspaceAgentsInLatestBuildByWorkspaceID`,
+- dials the agent connection on demand, and
+- can refresh the chat row once if the turn started with no workspace yet.
+
+This is what makes mid-turn `nil -> workspace` acquisition possible after a
+successful `create_workspace` tool call. `trackWorkspaceUsage` reuses the same
+reload path to keep bumping workspace activity while a turn is active.
+
+### Semantics that are easy to miss
+
+- Agent choice is effectively **"first agent in latest build"**, not a stable
+  agent ID. Multi-agent workspaces therefore have a fuzzy contract today.
+- `create_workspace` is only idempotent in the loose sense: it reuses a live
+  workspace, waits for an in-progress build, suggests `start_workspace` if the
+  bound workspace is stopped, and may create a brand-new workspace if the old
+  one looks dead, deleted, disconnected, or agentless.
+- `start_workspace` only restarts the **already-bound** workspace. It does not
+  change `chats.workspace_id`.
+- Pre-attached workspaces are validated for access at chat creation time, not
+  for liveness, build health, or agent reachability.
+- `UpdateChatWorkspace` does not publish a dedicated binding-changed event. The
+  frontend currently notices `create_workspace` tool results and refetches the
+  chat.
+- Mid-turn refresh really only handles **`nil -> workspace`**. Rebinding from
+  one valid workspace to another inside the same turn is shaky because the
+  turn-local chat snapshot may keep pointing at the original workspace.
+- Workspace-derived instructions (`AGENTS.md`, OS, working directory) are
+  resolved from the initial snapshot and do not automatically refresh after a
+  late binding.
+- Soft-deleted workspaces leave `chats.workspace_id` pointing at a logically
+  dead row because the FK's `ON DELETE SET NULL` only helps for hard deletes.
+
+### Questions to resolve
+
+- Should chats bind to a specific agent again, or is "latest build / first
+  agent" the intended long-term contract?
+- Should workspace-binding changes publish their own realtime event?
+- Should dead-but-existing workspaces be restarted, replaced, or surfaced to
+  the user more explicitly?
+- Should parent and child chats share a live workspace reference instead of
+  snapshot-copying `WorkspaceID`?
+
+---
+
+## Configuration Layers and Ownership
+
+### Scope layers
+
+Agents configuration is layered rather than singular:
+
+- **Deployment-global**: provider configs, model configs, system prompt,
+  desktop toggle, workspace TTL, template allowlist, MCP server configs, and
+  the global usage-limit default.
+- **Per-user**: custom prompt, per-model compaction thresholds, usage-limit
+  status/overrides, and MCP OAuth tokens.
+- **Per-group**: usage-limit overrides.
+- **Per-chat / per-message**: `last_model_config_id`, selected `mcp_server_ids`,
+  and per-message overrides.
+- **Browser-local**: last selected model config and last selected MCP servers.
+
+### The three model/provider surfaces
+
+There are three distinct surfaces that sound similar but mean different things:
+
+1. **Provider config list.** Admin CRUD over `chat_providers`.
+2. **Model config list.** Admin CRUD over `chat_model_configs`.
+3. **Model catalog (`/models`).** User-facing derived runtime availability built
+   from enabled providers, enabled model configs, and effective API keys.
+
+The provider list itself is also a merged view: database rows, env-preset
+providers, and synthetic "supported but unconfigured" providers all appear in
+one response.
+
+### Ownership splits that are awkward today
+
+- The frontend has to join runtime model catalog data to admin model-config
+  rows in order to recover `model_config_id` from a chosen `provider:model`.
+- MCP configuration spans four layers: deployment server definitions, per-user
+  OAuth tokens, per-chat selected server IDs, and browser-local saved
+  selection/defaults.
+- `desktop_enabled` is not a full capability toggle. Computer use also depends
+  on Anthropic support, a hard-coded computer-use model, and workspace desktop
+  support.
+- Template allowlist only governs template-based list/read/create flows.
+  `start_workspace` intentionally ignores it.
+- Usage limits are layered (`user override` > `group override` > `global
+  default`) but still have fail-open edges when pricing is missing, concurrent
+  turns overshoot, or the resolver errors.
+- Several runtime paths deliberately fail open: template allowlist load/parse
+  errors, usage-limit resolution errors, missing/invalid user prompt overrides,
+  and system-prompt fallback.
+- Read/write auth semantics and status codes are inconsistent across config
+  surfaces.
+
+### Questions to resolve
+
+- Should providers and model configs remain deployment-global when org scoping
+  lands?
+- Should read permissions and error shapes be normalized across chat config
+  endpoints before GA?
+- How much server-side validation should exist for provider/model option
+  schemas beyond the current UI-generated forms?
+- Which settings are supposed to be user-visible versus admin-visible as policy,
+  rather than by incidental implementation detail?
 
 ---
 
