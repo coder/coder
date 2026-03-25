@@ -202,12 +202,16 @@ export const UserCompactionThresholdSettings: FC<
 						return (
 							<div key={modelConfig.id} className="space-y-1">
 								<div className="flex items-center justify-between gap-3">
-									<div className="min-w-0 flex-1">
+									<div className="flex min-w-0 flex-1 items-baseline gap-2">
 										<span className="text-[13px] font-medium text-content-primary">
 											{modelConfig.display_name || modelConfig.model}
 										</span>
-										<span className="ml-2 text-xs text-content-secondary">
-											System default: {modelConfig.compression_threshold}%
+										<span className="ml-auto text-xs text-content-secondary">
+											System default:{" "}
+											<span className="inline-block w-[3ch] text-right tabular-nums">
+												{modelConfig.compression_threshold}
+											</span>
+											%
 										</span>
 									</div>
 									<div className="flex items-center gap-1.5">
@@ -230,11 +234,12 @@ export const UserCompactionThresholdSettings: FC<
 											disabled={isThisModelMutating}
 										/>
 										<span className="text-xs text-content-secondary">%</span>
-											<Button
-												size="sm"
-												className="h-7"
-												type="button"
-												disabled={isSaveDisabled}											onClick={() => {
+										<Button
+											size="sm"
+											className="h-7"
+											type="button"
+											disabled={isSaveDisabled}
+											onClick={() => {
 												if (parsedDraftValue === null) {
 													return;
 												}
@@ -253,12 +258,13 @@ export const UserCompactionThresholdSettings: FC<
 											Save
 										</Button>
 										{hasOverride && (
-												<Button
-													size="sm"
-													className="h-7"
-													variant="outline"
-													type="button"
-													disabled={isThisModelMutating}												onClick={() => {
+											<Button
+												size="sm"
+												className="h-7"
+												variant="outline"
+												type="button"
+												disabled={isThisModelMutating}
+												onClick={() => {
 													clearRowError(modelConfig.id);
 													setPendingModels((currentPendingModels) =>
 														new Set(currentPendingModels).add(modelConfig.id),
