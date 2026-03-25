@@ -269,7 +269,9 @@ jobs:
           make -j --output-sync -B gen
 
       - name: Check for unstaged files (gen)
-        run: ./scripts/check_unstaged.sh
+        run: |
+          rm -f ./typos
+          ./scripts/check_unstaged.sh
 
       - name: make fmt
         timeout-minutes: 7
@@ -278,7 +280,9 @@ jobs:
             make --output-sync -j -B fmt
 
       - name: Check for unstaged files (fmt)
-        run: ./scripts/check_unstaged.sh
+        run: |
+          rm -f ./typos
+          ./scripts/check_unstaged.sh
 
       # Phase 2: lint and build
       - name: make lint and build
