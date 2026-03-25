@@ -329,8 +329,9 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
-	var aiSeatUserIDs []uuid.UUID
+	var aiSeatSet map[uuid.UUID]struct{}
 	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		var aiSeatUserIDs []uuid.UUID
 		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
 		aiSeatUserIDs, err = api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
 		if err != nil {
@@ -344,10 +345,11 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 			}
 			aiSeatUserIDs = nil
 		}
-	}
-	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
-	for _, uid := range aiSeatUserIDs {
-		aiSeatSet[uid] = struct{}{}
+
+		aiSeatSet = make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
+		for _, uid := range aiSeatUserIDs {
+			aiSeatSet[uid] = struct{}{}
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
