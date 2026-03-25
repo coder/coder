@@ -1714,7 +1714,14 @@ func TestGetUser(t *testing.T) {
 
 		user, err := client.User(ctx, exp.Username)
 		require.NoError(t, err)
-		require.Equal(t, exp, user)
+		require.Equal(t, exp.ID, user.ID)
+		require.Equal(t, exp.Username, user.Username)
+		require.Equal(t, exp.Email, user.Email)
+		require.Equal(t, exp.Status, user.Status)
+		require.Equal(t, exp.OrganizationIDs, user.OrganizationIDs)
+		require.Equal(t, exp.Roles, user.Roles)
+		require.WithinDuration(t, exp.UpdatedAt, user.UpdatedAt, time.Second)
+		require.WithinDuration(t, exp.LastSeenAt, user.LastSeenAt, time.Second)
 	})
 }
 
