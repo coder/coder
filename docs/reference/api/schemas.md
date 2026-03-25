@@ -10237,6 +10237,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
+## codersdk.UpdateChatPinOrderRequest
+
+```json
+{
+  "chat_ids": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type            | Required | Restrictions | Description                                                          |
+|------------|-----------------|----------|--------------|----------------------------------------------------------------------|
+| `chat_ids` | array of string | false    |              | Chat ids is the ordered list of pinned chat IDs, from top to bottom. |
+
 ## codersdk.UpdateCheckResponse
 
 ```json

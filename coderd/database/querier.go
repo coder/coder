@@ -850,6 +850,7 @@ type sqlcQuerier interface {
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
+	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)

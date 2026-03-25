@@ -24,6 +24,7 @@ import {
 	pinChat,
 	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
+	reorderPinnedChats,
 	unarchiveChat,
 	unpinChat,
 	updateInfiniteChatsCache,
@@ -213,6 +214,12 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
 	});
+	const reorderPinnedChatsMutation = useMutation({
+		...reorderPinnedChats(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
@@ -348,6 +355,9 @@ const AgentsPage: FC = () => {
 	};
 	const requestUnpinAgent = (chatId: string) => {
 		unpinAgentMutation.mutate(chatId);
+	};
+	const requestReorderPinnedChats = (chatIds: string[]) => {
+		reorderPinnedChatsMutation.mutate(chatIds);
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -598,6 +608,7 @@ const AgentsPage: FC = () => {
 				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 				requestPinAgent={requestPinAgent}
 				requestUnpinAgent={requestUnpinAgent}
+				requestReorderPinnedChats={requestReorderPinnedChats}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}

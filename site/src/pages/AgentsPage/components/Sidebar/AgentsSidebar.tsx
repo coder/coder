@@ -1,3 +1,18 @@
+import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	MouseSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	arrayMove,
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -104,6 +119,7 @@ interface AgentsSidebarProps {
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onPinChat: (chatId: string) => void;
 	onUnpinChat: (chatId: string) => void;
+	onReorderPinnedChats?: (chatIds: string[]) => void;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -547,29 +563,28 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-									<DropdownMenuContent align="end">
-										{!chat.archived && (
-											<DropdownMenuItem
-												onSelect={() =>
-													chat.pinned
-														? onUnpinChat(chat.id)
-														: onPinChat(chat.id)
-												}
-											>
-												{chat.pinned ? (
-													<>
-														<PinOffIcon className="h-3.5 w-3.5" />
-														Unpin agent
-													</>
-												) : (
-													<>
-														<PinIcon className="h-3.5 w-3.5" />
-														Pin agent
-													</>
-												)}
-											</DropdownMenuItem>
-										)}
-										{chat.archived ? (										<DropdownMenuItem
+								<DropdownMenuContent align="end">
+									{!chat.archived && (
+										<DropdownMenuItem
+											onSelect={() =>
+												chat.pinned ? onUnpinChat(chat.id) : onPinChat(chat.id)
+											}
+										>
+											{chat.pinned ? (
+												<>
+													<PinOffIcon className="h-3.5 w-3.5" />
+													Unpin agent
+												</>
+											) : (
+												<>
+													<PinIcon className="h-3.5 w-3.5" />
+													Pin agent
+												</>
+											)}
+										</DropdownMenuItem>
+									)}
+									{chat.archived ? (
+										<DropdownMenuItem
 											disabled={isArchiving}
 											onSelect={() => onUnarchiveAgent(chat.id)}
 										>
@@ -622,6 +637,45 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 };
 
+const SortableChatTreeNode: FC<{ chat: Chat; justDropped: boolean }> = ({
+	chat,
+	justDropped,
+}) => {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: chat.id });
+
+	// Strip scaleX/scaleY that dnd-kit adds by default.
+	const adjustedTransform = transform
+		? { ...transform, scaleX: 1, scaleY: 1 }
+		: null;
+
+	const style = {
+		transform: CSS.Transform.toString(adjustedTransform),
+		// While dragging: the dragged item fades, no position transition.
+		// While idle: displaced items animate smoothly to make room.
+		// Just after drop: suppress ALL transitions so items snap to
+		// their final positions without the jump-then-settle artifact.
+		transition: justDropped
+			? undefined
+			: isDragging
+				? "opacity 200ms"
+				: transition,
+		opacity: isDragging ? 0.5 : undefined,
+	};
+
+	return (
+		<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+			<ChatTreeNode chat={chat} isChildNode={false} />
+		</div>
+	);
+};
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -634,6 +688,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAndDeleteWorkspace,
 		onPinChat,
 		onUnpinChat,
+		onReorderPinnedChats,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -674,7 +729,70 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	const pinnedChats = visibleRootIDs
 		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => chat?.pinned === true);
+		.filter((chat): chat is Chat => chat?.pinned === true)
+		.sort((a, b) => a.pin_order - b.pin_order);
+
+	// Local override for pinned order during drag — applied
+	// synchronously so there's no flash between the dnd-kit
+	// transform clearing and the server data arriving.
+	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+
+	// Clear the local override when fresh data arrives from
+	// the server (the mutation's onSettled invalidates queries).
+	const chatsRef = useRef(chats);
+	useEffect(() => {
+		if (chats !== chatsRef.current) {
+			chatsRef.current = chats;
+			setLocalPinOrder(null);
+		}
+	}, [chats]);
+
+	const sortedPinnedChats = localPinOrder
+		? localPinOrder
+				.map((id) => pinnedChats.find((c) => c.id === id))
+				.filter((c): c is Chat => c !== undefined)
+		: pinnedChats;
+
+	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
+
+	const [justDropped, setJustDropped] = useState(false);
+
+	const sensors = useSensors(
+		useSensor(MouseSensor, {
+			activationConstraint: { distance: 5 },
+		}),
+	);
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+
+		// Suppress transitions for one frame so displaced items
+		// snap to their final positions without jump-then-settle.
+		setJustDropped(true);
+		requestAnimationFrame(() => setJustDropped(false));
+
+		// After a drag, the browser synthesizes a click from the
+		// final pointerup. Capture and discard it so the NavLink
+		// inside the dragged item doesn't trigger navigation.
+		const blocker = (e: MouseEvent) => {
+			e.stopPropagation();
+			e.preventDefault();
+		};
+		document.addEventListener("click", blocker, true);
+		requestAnimationFrame(() => {
+			document.removeEventListener("click", blocker, true);
+		});
+
+		if (!over || active.id === over.id) return;
+
+		const oldIndex = pinnedChatIds.indexOf(active.id as string);
+		const newIndex = pinnedChatIds.indexOf(over.id as string);
+		if (oldIndex === -1 || newIndex === -1) return;
+
+		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
+		setLocalPinOrder(reordered);
+		onReorderPinnedChats?.(reordered);
+	};
 
 	// The filter dropdown attaches to the first visible section
 	// header. When pinned chats exist, that's the Pinned header;
@@ -702,29 +820,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					aria-label="Filter agents"
 					className={cn(
 						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-						archivedFilter === "archived" &&
-							"text-content-primary",
+						archivedFilter === "archived" && "text-content-primary",
 					)}
 				>
 					<FilterIcon />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				<DropdownMenuItem
-					onSelect={() =>
-						onArchivedFilterChange?.("active")
-					}
-				>
+				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
 					{archivedFilter === "active" && (
 						<CheckIcon className="ml-auto h-3.5 w-3.5" />
 					)}
 				</DropdownMenuItem>
-				<DropdownMenuItem
-					onSelect={() =>
-						onArchivedFilterChange?.("archived")
-					}
-				>
+				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
 					Archived
 					{archivedFilter === "archived" && (
 						<CheckIcon className="ml-auto h-3.5 w-3.5" />
@@ -909,26 +1018,37 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									<div>
 										{visibleRootIDs.length > 0 && (
 											<div className="pb-2">
-													{/* ── Pinned section ── */}
-											{pinnedChats.length > 0 && (
-												<div className="[&:not(:first-child)]:mt-3">
-													<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-														<span>Pinned</span>
-														{showFilterOnPinned && filterDropdown}
+												{/* ── Pinned section ── */}
+												{pinnedChats.length > 0 && (
+													<div className="[&:not(:first-child)]:mt-3">
+														<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+															<span>Pinned</span>
+															{showFilterOnPinned && filterDropdown}
+														</div>
+														<DndContext
+															sensors={sensors}
+															collisionDetection={closestCenter}
+															onDragEnd={handleDragEnd}
+														>
+															<SortableContext
+																items={pinnedChatIds}
+																strategy={verticalListSortingStrategy}
+															>
+																<div className="flex flex-col gap-0.5">
+																	{sortedPinnedChats.map((chat) => (
+																		<SortableChatTreeNode
+																			key={chat.id}
+																			chat={chat}
+																			justDropped={justDropped}
+																		/>
+																	))}
+																</div>
+															</SortableContext>
+														</DndContext>
 													</div>
-													<div className="flex flex-col gap-0.5">
-														{pinnedChats.map((chat) => (
-															<ChatTreeNode
-																key={chat.id}
-																chat={chat}
-																isChildNode={false}
-															/>
-														))}
-													</div>
-												</div>
-											)}
+												)}
 												{/* ── Time-grouped sections ── */}
-											{TIME_GROUPS.map((group) => {
+												{TIME_GROUPS.map((group) => {
 													const groupChats = visibleRootIDs
 														.map((id) => chatById.get(id))
 														.filter(
@@ -976,7 +1096,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="hidden border-0 border-t border-solid md:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
-							
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"

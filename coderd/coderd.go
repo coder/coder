@@ -1158,6 +1158,7 @@ func New(options *Options) *API {
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
+			r.Put("/pin-order", api.reorderPinnedChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
 			r.Route("/cost", func(r chi.Router) {

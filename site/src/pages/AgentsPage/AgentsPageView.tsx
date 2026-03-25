@@ -22,6 +22,7 @@ export interface AgentsOutletContext {
 	) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
+	requestReorderPinnedChats?: (chatIds: string[]) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
@@ -57,6 +58,7 @@ interface AgentsPageViewProps {
 	) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
+	requestReorderPinnedChats?: (chatIds: string[]) => void;
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
@@ -90,6 +92,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestArchiveAndDeleteWorkspace,
 	requestPinAgent,
 	requestUnpinAgent,
+	requestReorderPinnedChats,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
 	hasNextPage,
@@ -161,6 +164,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 					onPinChat={requestPinAgent}
 					onUnpinChat={requestUnpinAgent}
+					onReorderPinnedChats={requestReorderPinnedChats}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
 					isArchiving={isArchiving}

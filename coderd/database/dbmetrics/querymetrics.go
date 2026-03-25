@@ -4120,6 +4120,14 @@ func (m queryMetricsStore) UpdateChatModelConfig(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatPinOrder(ctx context.Context, arg database.UpdateChatPinOrderParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatPinOrder(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatPinOrder").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatPinOrder").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateChatProvider(ctx context.Context, arg database.UpdateChatProviderParams) (database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatProvider(ctx, arg)

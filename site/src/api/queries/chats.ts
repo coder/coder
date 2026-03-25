@@ -440,6 +440,24 @@ export const unpinChat = (queryClient: QueryClient) => ({
 	},
 });
 
+export const reorderPinnedChats = (queryClient: QueryClient) => ({
+	mutationFn: (chatIds: string[]) =>
+		API.experimental.reorderPinnedChats({ chat_ids: chatIds }),
+	onMutate: async (chatIds: string[]) => {
+		await queryClient.cancelQueries({ queryKey: chatsKey });
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) => {
+				const newOrder = chatIds.indexOf(chat.id);
+				if (newOrder === -1) return chat;
+				return { ...chat, pin_order: newOrder + 1 };
+			}),
+		);
+	},
+	onSettled: async () => {
+		await invalidateChatListQueries(queryClient);
+	},
+});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),

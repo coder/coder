@@ -7790,6 +7790,20 @@ func (mr *MockStoreMockRecorder) UpdateChatModelConfig(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatModelConfig", reflect.TypeOf((*MockStore)(nil).UpdateChatModelConfig), ctx, arg)
 }
 
+// UpdateChatPinOrder mocks base method.
+func (m *MockStore) UpdateChatPinOrder(ctx context.Context, arg database.UpdateChatPinOrderParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatPinOrder", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatPinOrder indicates an expected call of UpdateChatPinOrder.
+func (mr *MockStoreMockRecorder) UpdateChatPinOrder(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatPinOrder", reflect.TypeOf((*MockStore)(nil).UpdateChatPinOrder), ctx, arg)
+}
+
 // UpdateChatProvider mocks base method.
 func (m *MockStore) UpdateChatProvider(ctx context.Context, arg database.UpdateChatProviderParams) (database.ChatProvider, error) {
 	m.ctrl.T.Helper()

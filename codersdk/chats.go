@@ -62,6 +62,7 @@ type Chat struct {
 	UpdatedAt         time.Time         `json:"updated_at" format:"date-time"`
 	Archived          bool              `json:"archived"`
 	Pinned            bool              `json:"pinned"`
+	PinOrder          int32             `json:"pin_order"`
 	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string `json:"labels"`
 }
@@ -328,6 +329,12 @@ type UpdateChatRequest struct {
 	Archived *bool              `json:"archived,omitempty"`
 	Pinned   *bool              `json:"pinned,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
+}
+
+// UpdateChatPinOrderRequest reorders pinned chats.
+type UpdateChatPinOrderRequest struct {
+	// ChatIDs is the ordered list of pinned chat IDs, from top to bottom.
+	ChatIDs []uuid.UUID `json:"chat_ids"`
 }
 
 // CreateChatMessageRequest is the request to add a message to a chat.
@@ -1799,6 +1806,19 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 // UpdateChat patches a chat resource.
 func (c *ExperimentalClient) UpdateChat(ctx context.Context, chatID uuid.UUID, req UpdateChatRequest) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ReorderPinnedChats updates the display order of pinned chats.
+func (c *ExperimentalClient) ReorderPinnedChats(ctx context.Context, req UpdateChatPinOrderRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/pin-order", req)
 	if err != nil {
 		return err
 	}

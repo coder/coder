@@ -5770,6 +5770,17 @@ func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.Update
 	return q.db.UpdateChatModelConfig(ctx, arg)
 }
 
+func (q *querier) UpdateChatPinOrder(ctx context.Context, arg database.UpdateChatPinOrderParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatPinOrder(ctx, arg)
+}
+
 func (q *querier) UpdateChatProvider(ctx context.Context, arg database.UpdateChatProviderParams) (database.ChatProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatProvider{}, err

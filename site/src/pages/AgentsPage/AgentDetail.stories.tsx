@@ -140,6 +140,7 @@ const baseChatFields = {
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
 	pinned: false,
+	pin_order: 0,
 	last_error: null,
 } as const;
 

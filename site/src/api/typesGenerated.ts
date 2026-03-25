@@ -1192,6 +1192,7 @@ export interface Chat {
 	readonly updated_at: string;
 	readonly archived: boolean;
 	readonly pinned: boolean;
+	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 }
 
@@ -7052,6 +7053,17 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatPinOrderRequest reorders pinned chats.
+ */
+export interface UpdateChatPinOrderRequest {
+	/**
+	 * ChatIDs is the ordered list of pinned chat IDs, from top to bottom.
+	 */
+	readonly chat_ids: readonly string[];
 }
 
 // From codersdk/chats.go
