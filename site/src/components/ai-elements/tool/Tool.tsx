@@ -497,13 +497,12 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			hasContent={hasContent}
 			header={
 				<>
-					<div className={cn("shrink-0", isRunning && "grayscale")}>
-						<ToolIcon
-							name={name}
-							isError={status === "error" || isError}
-							iconUrl={mcpServer?.icon_url}
-						/>
-					</div>
+					<ToolIcon
+						name={name}
+						isError={status === "error" || isError}
+						iconUrl={mcpServer?.icon_url}
+						isRunning={isRunning}
+					/>
 					<span className={cn(isError && "[&>*]:text-content-destructive")}>
 						<ToolLabel
 							name={name}

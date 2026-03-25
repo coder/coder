@@ -17,29 +17,28 @@ export const ToolIcon: React.FC<{
 	name: string;
 	isError: boolean;
 	iconUrl?: string;
-}> = ({ name, isError, iconUrl }) => {
+	isRunning?: boolean;
+}> = ({ name, isError, iconUrl, isRunning }) => {
 	const [imgError, setImgError] = useState(false);
 	const color = isError ? "text-content-destructive" : "text-content-secondary";
-	const base = cn("h-4 w-4 shrink-0", color);
+	const base = cn("h-4 w-4 shrink-0", color, isRunning && "grayscale");
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
-	// On error the image is desaturated to white with CSS filters and
-	// a destructive-colored overlay is composited on top via
-	// mix-blend-multiply so the final colour matches the design token
-	// exactly. `isolate` scopes the blend to this container.
+	// External images can't be recolored to an exact CSS token, so
+	// on error the image is shown with reduced opacity. The error
+	// state is communicated by the red label text and alert icon.
 	if (iconUrl && !imgError) {
 		return (
-			<div className={cn("relative h-4 w-4 shrink-0", isError && "isolate")}>
-				<ExternalImage
-					src={iconUrl}
-					alt={`${name} icon`}
-					className={cn("block h-4 w-4", isError && "brightness-0 invert")}
-					onError={() => setImgError(true)}
-				/>
-				{isError && (
-					<div className="absolute inset-0 bg-content-destructive mix-blend-multiply" />
+			<ExternalImage
+				src={iconUrl}
+				alt={`${name} icon`}
+				className={cn(
+					"block h-4 w-4 shrink-0",
+					isError && "opacity-50 grayscale",
+					isRunning && "grayscale",
 				)}
-			</div>
+				onError={() => setImgError(true)}
+			/>
 		);
 	}
 
