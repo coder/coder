@@ -83,6 +83,7 @@ func (p *Server) maybeGenerateChatTitle(
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
 			c.provider, c.model, keys, chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
 		)
 		if err == nil {
 			candidates = append(candidates, m)
@@ -271,7 +272,7 @@ const pushSummaryPrompt = "You are a notification assistant. Given a chat title 
 // fall back to the provided model. Returns "" on any failure.
 func generatePushSummary(
 	ctx context.Context,
-	chatTitle string,
+	chat database.Chat,
 	assistantText string,
 	fallbackModel fantasy.LanguageModel,
 	keys chatprovider.ProviderAPIKeys,
@@ -280,12 +281,13 @@ func generatePushSummary(
 	summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	input := "Chat title: " + chatTitle + "\n\nAgent's last message:\n" + assistantText
+	input := "Chat title: " + chat.Title + "\n\nAgent's last message:\n" + assistantText
 
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
 			c.provider, c.model, keys, chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
 		)
 		if err == nil {
 			candidates = append(candidates, m)
