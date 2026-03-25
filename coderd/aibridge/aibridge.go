@@ -24,10 +24,9 @@ func IsBYOK(header http.Header) bool {
 }
 
 // ExtractAuthToken extracts a token from HTTP headers.
-// It checks the BYOK header first (set by clients opting into BYOK
-// or injected by the proxy for Copilot), then falls back to
-// Authorization: Bearer and X-Api-Key for direct centralized mode.
-// If none are present, an empty string is returned.
+// It checks the BYOK header first (set by clients opting into BYOK),
+// then falls back to Authorization: Bearer and X-Api-Key for direct
+// centralized mode. If none are present, an empty string is returned.
 func ExtractAuthToken(header http.Header) string {
 	if token := strings.TrimSpace(header.Get(HeaderCoderBYOKToken)); token != "" {
 		return token
