@@ -11,7 +11,7 @@ const Separator = () => (
 	<div className="border-0 border-t border-solid border-border-content-secondary my-1" />
 );
 
-export interface SessionSummaryTableProps {
+interface SessionSummaryTableProps {
 	sessionId: string;
 	startTime: Date;
 	endTime?: Date;
