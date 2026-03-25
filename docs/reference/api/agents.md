@@ -483,6 +483,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
 
 `GET /workspaceagents/me/reinit`
 
+### Parameters
+
+| Name   | In    | Type    | Required | Description                     |
+|--------|-------|---------|----------|---------------------------------|
+| `wait` | query | boolean | false    | Opt in to durable reinit checks |
+
 ### Example responses
 
 > 200 Response

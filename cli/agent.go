@@ -350,9 +350,10 @@ func workspaceAgent() *serpent.Command {
 				case event, ok := <-reinitEvents:
 					switch {
 					case !ok:
-						// Channel closed — 409 from server means this
-						// is not a prebuild. Keep running the current
-						// agent until the parent context is canceled.
+						// Channel closed — the reinit loop exited
+						// (terminal 409 or context expired). Keep
+						// running the current agent until the parent
+						// context is canceled.
 						logger.Info(ctx, "reinit channel closed, running without reinit capability")
 						reinitEvents = nil
 						<-ctx.Done()
