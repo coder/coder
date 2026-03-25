@@ -546,13 +546,64 @@ func convertCallResult(
 				}
 				binaryResult = &r
 			}
+		case mcp.EmbeddedResource:
+			// Embedded resources wrap either text or blob
+			// content from an MCP resource. We surface both
+			// so the LLM can consume the full tool output.
+			switch r := c.Resource.(type) {
+			case mcp.TextResourceContents:
+				textParts = append(textParts, r.Text)
+			case mcp.BlobResourceContents:
+				data, err := base64.StdEncoding.DecodeString(
+					r.Blob,
+				)
+				if err != nil {
+					textParts = append(textParts,
+						"[blob decode error: "+err.Error()+"]",
+					)
+					continue
+				}
+				if binaryResult == nil {
+					blobType := "media"
+					if strings.HasPrefix(r.MIMEType, "image/") {
+						blobType = "image"
+					}
+					res := fantasy.ToolResponse{
+						Type:      blobType,
+						Data:      data,
+						MediaType: r.MIMEType,
+						IsError:   result.IsError,
+					}
+					binaryResult = &res
+				}
+			default:
+				textParts = append(textParts,
+					fmt.Sprintf(
+						"[unsupported embedded resource type: %T]",
+						c.Resource,
+					),
+				)
+			}
+		case mcp.ResourceLink:
+			// Resource links reference external content the
+			// LLM cannot fetch, so we render a text label.
+			if c.Name != "" {
+				textParts = append(textParts,
+					fmt.Sprintf(
+						"[resource: %s (%s)]", c.Name, c.URI,
+					),
+				)
+			} else {
+				textParts = append(textParts,
+					fmt.Sprintf("[resource: %s]", c.URI),
+				)
+			}
 		default:
 			textParts = append(textParts,
 				fmt.Sprintf("[unsupported content type: %T]", c),
 			)
 		}
 	}
-
 	// If structured content is present, marshal it to JSON and
 	// append as a text part so the data is preserved for the LLM.
 	if result.StructuredContent != nil {
