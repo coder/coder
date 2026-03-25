@@ -3331,9 +3331,6 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
-
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
@@ -3727,6 +3724,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
+CREATE UNIQUE INDEX idx_chat_providers_one_enabled_per_family ON chat_providers USING btree (provider) WHERE (enabled = true);
+
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
@@ -4019,9 +4018,6 @@ ALTER TABLE ONLY chat_messages
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
-
-ALTER TABLE ONLY chat_model_configs
-    ADD CONSTRAINT chat_model_configs_provider_fkey FOREIGN KEY (provider) REFERENCES chat_providers(provider) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
