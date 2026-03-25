@@ -44,7 +44,7 @@ export const Example: Story = {
 export const ExampleWithAISeatColumn: Story = {
 	args: {
 		users: [
-			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserOwner, has_ai_seat: true },
 			{ ...MockUserMember, has_ai_seat: false },
 		],
 		roles: MockAssignableSiteRoles,
@@ -100,7 +100,7 @@ export const Editable: Story = {
 export const EditableWithAISeatColumn: Story = {
 	args: {
 		users: [
-			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserOwner, has_ai_seat: true },
 			{ ...MockUserMember, has_ai_seat: false },
 			{
 				...MockUserOwner,
