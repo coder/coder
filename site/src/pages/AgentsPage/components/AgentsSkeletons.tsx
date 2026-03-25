@@ -10,9 +10,6 @@ const MIN_PANEL_WIDTH = 360;
 
 /** Read persisted right-panel state for use in static skeletons. */
 function getRightPanelState(): { open: boolean; width: number } {
-	if (typeof window === "undefined") {
-		return { open: false, width: DEFAULT_PANEL_WIDTH };
-	}
 	const open = localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
 	let width = DEFAULT_PANEL_WIDTH;

@@ -122,9 +122,6 @@ export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
 
 export function loadDiffStyle(): DiffStyle {
-	if (typeof window === "undefined") {
-		return "unified";
-	}
 	const stored = localStorage.getItem(DIFF_STYLE_KEY);
 	if (stored === "split" || stored === "unified") {
 		return stored;

@@ -66,14 +66,11 @@ const AgentCreatePage: FC = () => {
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 		});
 
-		if (typeof window !== "undefined") {
-			if (modelConfigID !== nilUUID) {
-				localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
-			}
+		if (modelConfigID !== nilUUID) {
+			localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
+		} else {
+			localStorage.removeItem(lastModelConfigIDStorageKey);
 		}
-
 		navigate(`/agents/${createdChat.id}`);
 	};
 
