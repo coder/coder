@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-# Usage: ./docs_update_experiments.sh
+# Usage: ./docs_update_feature_stages.sh
 #
-# This script updates the available experimental features in the documentation.
-# It fetches the latest mainline and stable releases to extract the available
-# experiments and their descriptions. The script will update the
-# feature-stages.md file with a table of the latest experimental features.
+# Updates generated sections in docs/install/releases/feature-stages.md:
+# early-access (experimental) features from codersdk, and beta features from
+# docs/manifest.json. Uses sparse checkouts of mainline and stable tags.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -115,10 +114,10 @@ parse_beta_features() {
 	' "${1}/docs/manifest.json"
 }
 
-workdir=build/docs/experiments
+workdir=build/docs/feature-stages
 dest=docs/install/releases/feature-stages.md
 
-log "Updating available experimental features in ${dest}"
+log "Updating generated feature-stages sections in ${dest}"
 
 declare -A experiments=() experiment_tags=()
 declare -A beta_features=() beta_feature_descriptions=() beta_feature_tags=()
