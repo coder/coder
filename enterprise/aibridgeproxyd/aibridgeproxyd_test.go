@@ -1510,7 +1510,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			expectBYOK:  false,
 		},
 		{
-			// Copilot: Authorization carries the user's GitHub token,
+			// BYOK: Authorization carries the user's token,
 			// which differs from the Coder token. The proxy injects
 			// the BYOK header.
 			name:          "Authorization differs from Coder token (Copilot)",
