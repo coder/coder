@@ -400,40 +400,8 @@ type ChatSystemPromptResponse struct {
 // system prompt configuration.
 type UpdateChatSystemPromptRequest struct {
 	SystemPrompt               string `json:"system_prompt"`
-	IncludeDefaultSystemPrompt bool   `json:"include_default_system_prompt,omitempty"`
+	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
 }
-
-func (r UpdateChatSystemPromptRequest) MarshalJSON() ([]byte, error) {
-	type payload struct {
-		SystemPrompt               string `json:"system_prompt"`
-		IncludeDefaultSystemPrompt bool   `json:"include_default_system_prompt"`
-	}
-	return json.Marshal(payload(r))
-}
-
-func (r *UpdateChatSystemPromptRequest) UnmarshalJSON(data []byte) error {
-	type payload struct {
-		SystemPrompt               string `json:"system_prompt"`
-		IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt"`
-	}
-
-	var decoded payload
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-
-	r.SystemPrompt = decoded.SystemPrompt
-	r.IncludeDefaultSystemPrompt = true
-	if decoded.IncludeDefaultSystemPrompt != nil {
-		r.IncludeDefaultSystemPrompt = *decoded.IncludeDefaultSystemPrompt
-	}
-	return nil
-}
-
-// ChatSystemPrompt exists as a compatibility alias for older callers that
-// still construct request payloads inline. Prefer ChatSystemPromptResponse
-// for reads and UpdateChatSystemPromptRequest for writes.
-type ChatSystemPrompt = UpdateChatSystemPromptRequest
 
 // UserChatCustomPrompt is the request and response body for the
 // user chat custom prompt configuration endpoint.

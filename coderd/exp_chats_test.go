@@ -4822,7 +4822,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "You are a helpful coding assistant.",
-			IncludeDefaultSystemPrompt: true,
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -4837,7 +4837,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		// Unset by sending an empty string.
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: true,
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -4851,7 +4851,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: false,
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -4861,11 +4861,29 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: true,
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 
 		resp = getChatSystemPrompt(t, ctx)
 		require.Empty(t, resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+	})
+
+	t.Run("DefaultsIncludeDefaultWhenOmitted", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
+		})
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Omitted toggle request",
+		})
+
+		resp := getChatSystemPrompt(t, ctx)
+		require.Equal(t, "Omitted toggle request", resp.SystemPrompt)
 		require.True(t, resp.IncludeDefaultSystemPrompt)
 		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
 	})
@@ -4883,7 +4901,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Custom instructions for all users.",
-			IncludeDefaultSystemPrompt: false,
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -4892,7 +4910,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Different instructions.",
-			IncludeDefaultSystemPrompt: true,
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 
 		resp = getChatSystemPrompt(t, ctx)
@@ -4906,7 +4924,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "",
-				IncludeDefaultSystemPrompt: true,
+				IncludeDefaultSystemPrompt: ptr.Ref(true),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -4921,7 +4939,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "Custom instructions",
-				IncludeDefaultSystemPrompt: true,
+				IncludeDefaultSystemPrompt: ptr.Ref(true),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -4936,7 +4954,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "Custom only",
-				IncludeDefaultSystemPrompt: false,
+				IncludeDefaultSystemPrompt: ptr.Ref(false),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -4951,7 +4969,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "",
-				IncludeDefaultSystemPrompt: false,
+				IncludeDefaultSystemPrompt: ptr.Ref(false),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -4967,7 +4985,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "This should fail.",
-			IncludeDefaultSystemPrompt: true,
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -4989,7 +5007,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		tooLong := strings.Repeat("a", 131073)
 		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               tooLong,
-			IncludeDefaultSystemPrompt: true,
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)

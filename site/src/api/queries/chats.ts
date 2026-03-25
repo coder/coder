@@ -395,8 +395,7 @@ const chatSystemPromptKey = ["chat-system-prompt"] as const;
 
 export const chatSystemPrompt = () => ({
 	queryKey: chatSystemPromptKey,
-	queryFn: (): Promise<TypesGen.ChatSystemPromptResponse> =>
-		API.experimental.getChatSystemPrompt(),
+	queryFn: () => API.experimental.getChatSystemPrompt(),
 });
 
 export const updateChatSystemPrompt = (queryClient: QueryClient) => ({

@@ -2745,18 +2745,16 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err := api.Database.UpsertChatSystemPrompt(ctx, sanitizedPrompt)
-	if httpapi.Is404Error(err) { // also catches authz error
-		httpapi.ResourceNotFound(rw)
-		return
-	} else if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating chat system prompt.",
-			Detail:  err.Error(),
-		})
-		return
+	includeDefault := true
+	if req.IncludeDefaultSystemPrompt != nil {
+		includeDefault = *req.IncludeDefaultSystemPrompt
 	}
-	err = api.Database.UpsertChatIncludeDefaultSystemPrompt(ctx, req.IncludeDefaultSystemPrompt)
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
+			return err
+		}
+		return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefault)
+	}, nil)
 	if httpapi.Is404Error(err) { // also catches authz error
 		httpapi.ResourceNotFound(rw)
 		return
