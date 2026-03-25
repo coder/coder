@@ -1972,6 +1972,74 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.Chat
+
+```json
+{
+  "archived": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "last_error": "string",
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "status": "waiting",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name                   | Type                                               | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------|----------|--------------|-------------|
+| `archived`             | boolean                                            | false    |              |             |
+| `created_at`           | string                                             | false    |              |             |
+| `diff_status`          | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              |             |
+| `id`                   | string                                             | false    |              |             |
+| `labels`               | object                                             | false    |              |             |
+| » `[any property]`     | string                                             | false    |              |             |
+| `last_error`           | string                                             | false    |              |             |
+| `last_model_config_id` | string                                             | false    |              |             |
+| `mcp_server_ids`       | array of string                                    | false    |              |             |
+| `owner_id`             | string                                             | false    |              |             |
+| `parent_chat_id`       | string                                             | false    |              |             |
+| `root_chat_id`         | string                                             | false    |              |             |
+| `status`               | [codersdk.ChatStatus](#codersdkchatstatus)         | false    |              |             |
+| `title`                | string                                             | false    |              |             |
+| `updated_at`           | string                                             | false    |              |             |
+| `workspace_id`         | string                                             | false    |              |             |
+
 ## codersdk.ChatConfig
 
 ```json
@@ -1985,6 +2053,70 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                 | Type    | Required | Restrictions | Description |
 |----------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size` | integer | false    |              |             |
+
+## codersdk.ChatDiffStatus
+
+```json
+{
+  "additions": 0,
+  "approved": true,
+  "author_avatar_url": "string",
+  "author_login": "string",
+  "base_branch": "string",
+  "changed_files": 0,
+  "changes_requested": true,
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "commits": 0,
+  "deletions": 0,
+  "head_branch": "string",
+  "pr_number": 0,
+  "pull_request_draft": true,
+  "pull_request_state": "string",
+  "pull_request_title": "string",
+  "refreshed_at": "2019-08-24T14:15:22Z",
+  "reviewer_count": 0,
+  "stale_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `additions`          | integer | false    |              |             |
+| `approved`           | boolean | false    |              |             |
+| `author_avatar_url`  | string  | false    |              |             |
+| `author_login`       | string  | false    |              |             |
+| `base_branch`        | string  | false    |              |             |
+| `changed_files`      | integer | false    |              |             |
+| `changes_requested`  | boolean | false    |              |             |
+| `chat_id`            | string  | false    |              |             |
+| `commits`            | integer | false    |              |             |
+| `deletions`          | integer | false    |              |             |
+| `head_branch`        | string  | false    |              |             |
+| `pr_number`          | integer | false    |              |             |
+| `pull_request_draft` | boolean | false    |              |             |
+| `pull_request_state` | string  | false    |              |             |
+| `pull_request_title` | string  | false    |              |             |
+| `refreshed_at`       | string  | false    |              |             |
+| `reviewer_count`     | integer | false    |              |             |
+| `stale_at`           | string  | false    |              |             |
+| `url`                | string  | false    |              |             |
+
+## codersdk.ChatStatus
+
+```json
+"waiting"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                        |
+|-----------------------------------------------------------------|
+| `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
 
 ## codersdk.ConnectionLatency
 

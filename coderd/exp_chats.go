@@ -2105,6 +2105,15 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil))
 }
 
+// @Summary Regenerate chat title
+// @ID regenerate-chat-title
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.Chat
+// @Router /chats/{chat}/title/regenerate [post]
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.

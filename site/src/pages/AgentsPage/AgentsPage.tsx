@@ -219,15 +219,11 @@ const AgentsPage: FC = () => {
 		...reorderPinnedChat(queryClient),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
-			},
-		});
-		const regenerateTitleBase = regenerateChatTitle(queryClient);
-	const regenerateTitleMutation = useMutation({
-		...regenerateTitleBase,
-		onSuccess: (updatedChat) => {
-			regenerateTitleBase.onSuccess(updatedChat);
 		},
-		onError: (error) => {
+	});
+	const regenerateTitleMutation = useMutation({
+		...regenerateChatTitle(queryClient),
+		onError: (error: unknown) => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
@@ -369,8 +365,8 @@ const AgentsPage: FC = () => {
 	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
-		};
-		const requestRegenerateTitle = (chatId: string) => {
+	};
+	const requestRegenerateTitle = (chatId: string) => {
 		regenerateTitleMutation.mutate(chatId);
 	};
 	const handleToggleSidebarCollapsed = () =>

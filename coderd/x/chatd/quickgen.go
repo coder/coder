@@ -384,7 +384,7 @@ func renderManualTitlePrompt(
 		write("\n---")
 	}
 
-	if strings.TrimSpace(latestUserMsg) != strings.TrimSpace(firstUserText) {
+	if strings.TrimSpace(latestUserMsg) != strings.TrimSpace(truncateRunes(firstUserText, 1000)) {
 		write("\n\nThe user's most recent message:\n---\n")
 		write(latestUserMsg)
 		write("\n---\n")

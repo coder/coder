@@ -67,7 +67,6 @@ func Test_extractManualTitleTurns(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -152,7 +151,6 @@ func Test_selectManualTitleTurnIndexes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -239,7 +237,6 @@ func Test_buildManualTitleContext(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -278,6 +275,8 @@ func Test_buildManualTitleContext(t *testing.T) {
 func Test_renderManualTitlePrompt(t *testing.T) {
 	t.Parallel()
 
+	longFirstUserText := strings.Repeat("b", 1501)
+
 	tests := []struct {
 		name                   string
 		conversationBlock      string
@@ -310,10 +309,17 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			wantConversationSample: false,
 			wantLatestSection:      false,
 		},
+		{
+			name:                   "omits latest section when same message truncated",
+			conversationBlock:      "",
+			firstUserText:          longFirstUserText,
+			latestUserMsg:          truncateRunes(longFirstUserText, 1000),
+			wantConversationSample: false,
+			wantLatestSection:      false,
+		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
