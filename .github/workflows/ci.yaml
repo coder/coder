@@ -151,10 +151,12 @@ jobs:
   #       if: github.actor != 'dependabot[bot]'
   #       run: git diff --exit-code
 
-  lint:
+
+  check:
     needs: changes
-    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    timeout-minutes: 35
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
@@ -164,126 +166,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Get golangci-lint cache dir
-        run: |
-          linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
-          ./.github/scripts/retry.sh -- go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
-          dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
-          echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
-
-      - name: golangci-lint cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: |
-            ${{ env.LINT_CACHE_DIR }}
-          key: golangci-lint-${{ runner.os }}-${{ hashFiles('**/*.go') }}
-          restore-keys: |
-            golangci-lint-${{ runner.os }}-
-
-      # Check for any typos
-      - name: Check for typos
-        uses: crate-ci/typos@631208b7aac2daa8b707f55e7331f9112b0e062d # v1.44.0
-        with:
-          config: .github/workflows/typos.toml
-
-      - name: Fix the typos
-        if: ${{ failure() }}
-        run: |
-          echo "::notice:: you can automatically fix typos from your CLI:
-          cargo install typos-cli
-          typos -c .github/workflows/typos.toml -w"
-
-      # Needed for helm chart linting
-      - name: Install helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: v3.9.2
-        continue-on-error: true
-        id: setup-helm
-
-      - name: Install helm (fallback)
-        if: steps.setup-helm.outcome == 'failure'
-        # Fallback to Buildkite's apt repository if get.helm.sh is down.
-        # See: https://github.com/coder/internal/issues/1109
-        run: |
-          set -euo pipefail
-          curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-          sudo apt-get update
-          sudo apt-get install -y helm=3.9.2-1
-
-      - name: Verify helm version
-        run: helm version --short
-
-      - name: make lint
-        run: make --output-sync=line -j lint
-
-      - name: Check workflow files
-        run: |
-          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
-          ./actionlint -color -shellcheck= -ignore "set-output"
-        shell: bash
-
-      - name: Check for unstaged files
-        run: |
-          rm -f ./actionlint ./typos
-          ./scripts/check_unstaged.sh
-        shell: bash
-
-  lint-actions:
-    needs: changes
-    # Only run this job if changes to CI workflow files are detected. This job
-    # can flake as it reaches out to GitHub to check referenced actions.
-    if: needs.changes.outputs.ci == 'true'
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: make lint/actions
-        run: make --output-sync=line -j lint/actions
-        env:
-          # Used by zizmor to lint third-party GitHub actions.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  gen:
-    timeout-minutes: 20
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    if: ${{ !cancelled() }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Check Go version
+        run: IGNORE_NIX=true ./scripts/check_go_versions.sh
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -307,48 +197,79 @@ jobs:
           sudo cp -r ./include /usr/local/bin/include
           popd
 
-      - name: make gen
-        timeout-minutes: 8
+      - name: Install shfmt
+        run: ./.github/scripts/retry.sh -- go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
+
+      # Needed for helm chart linting
+      - name: Install helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.9.2
+        continue-on-error: true
+        id: setup-helm
+
+      - name: Install helm (fallback)
+        if: steps.setup-helm.outcome == 'failure'
+        # Fallback to Buildkite's apt repository if get.helm.sh is down.
+        # See: https://github.com/coder/internal/issues/1109
         run: |
-          # Remove golden files to detect discrepancy in generated files.
+          set -euo pipefail
+          curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+          sudo apt-get update
+          sudo apt-get install -y helm=3.9.2-1
+
+      - name: Verify helm version
+        run: helm version --short
+
+      - name: Get golangci-lint cache dir
+        run: |
+          linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+          ./.github/scripts/retry.sh -- go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
+          dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
+          echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
+
+      - name: golangci-lint cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ${{ env.LINT_CACHE_DIR }}
+          key: golangci-lint-${{ runner.os }}-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            golangci-lint-${{ runner.os }}-
+
+      - name: Install go-winres
+        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
+      - name: Install nfpm
+        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
+      # Check for any typos
+      - name: Check for typos
+        uses: crate-ci/typos@631208b7aac2daa8b707f55e7331f9112b0e062d # v1.44.0
+        with:
+          config: .github/workflows/typos.toml
+
+      - name: Fix the typos
+        if: ${{ failure() }}
+        run: |
+          echo "::notice:: you can automatically fix typos from your CLI:
+          cargo install typos-cli
+          typos -c .github/workflows/typos.toml -w"
+
+      # Phase 1: gen and fmt
+      - name: make gen
+        timeout-minutes: 10
+        run: |
           make clean/golden-files
-          # Notifications require DB, we could start a DB instance here but
-          # let's just restore for now.
           git checkout -- coderd/notifications/testdata/rendered-templates
           make -j --output-sync -B gen
 
-      - name: Check for unstaged files
+      - name: Check for unstaged files (gen)
         run: ./scripts/check_unstaged.sh
-
-  fmt:
-    needs: changes
-    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    timeout-minutes: 20
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Check Go version
-        run: IGNORE_NIX=true ./scripts/check_go_versions.sh
-
-      # Use default Go version
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install shfmt
-        run: ./.github/scripts/retry.sh -- go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
       - name: make fmt
         timeout-minutes: 7
@@ -356,8 +277,39 @@ jobs:
           PATH="${PATH}:$(go env GOPATH)/bin" \
             make --output-sync -j -B fmt
 
-      - name: Check for unstaged files
+      - name: Check for unstaged files (fmt)
         run: ./scripts/check_unstaged.sh
+
+      # Phase 2: lint and build
+      - name: make lint and build
+        run: |
+          TARGETS="lint"
+          if [[ "${GO_CHANGES}" == "true" ]] && \
+             [[ "${GITHUB_REF}" != refs/heads/main ]] && \
+             [[ ! "${GITHUB_REF}" =~ ^refs/heads/release/ ]]; then
+            TARGETS="${TARGETS} build"
+          fi
+          make --output-sync=line -j "${TARGETS}"
+        env:
+          GO_CHANGES: ${{ needs.changes.outputs.go }}
+
+      - name: make lint/actions (zizmor)
+        if: needs.changes.outputs.ci == 'true'
+        run: make --output-sync=line -j lint/actions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check workflow files
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
+          ./actionlint -color -shellcheck= -ignore "set-output"
+        shell: bash
+
+      - name: Check for unstaged files
+        run: |
+          rm -f ./actionlint ./typos
+          ./scripts/check_unstaged.sh
+        shell: bash
 
   test-go-pg:
     # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
@@ -486,6 +438,16 @@ jobs:
           # Default is 511; 999 is the maximum value on CI runner.
           sudo sysctl -w kern.tty.ptmx_max=999
 
+      - name: Setup sqlc
+        if: runner.os == 'Linux' && (needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main')
+        uses: ./.github/actions/setup-sqlc
+
+      - name: sqlc-vet
+        if: runner.os == 'Linux' && (needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main')
+        env:
+          POSTGRES_VERSION: "13"
+        run: make sqlc-vet
+
       - name: Test with PostgreSQL Database (Linux)
         if: runner.os == 'Linux'
         uses: ./.github/actions/test-go-pg
@@ -554,73 +516,6 @@ jobs:
         with:
           cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
           cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
-
-      - name: Upload test stats to Datadog
-        timeout-minutes: 1
-        continue-on-error: true
-        uses: ./.github/actions/upload-datadog
-        if: success() || failure()
-        with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}
-
-  test-go-pg-17:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    needs:
-      - changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    # This timeout must be greater than the timeout set by `go test` in
-    # `make test` to ensure we receive a trace of running goroutines.
-    # Setting this to the timeout +5m should work quite well even if
-    # some of the preceding steps are slow.
-    timeout-minutes: 25
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      - name: Download Test Cache
-        id: download-cache
-        uses: ./.github/actions/test-cache/download
-        with:
-          key-prefix: test-go-pg-17-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Normalize Terraform Path for Caching
-        shell: bash
-        # Terraform gets installed in a random directory, so we need to normalize
-        # the path or many cached tests will be invalidated.
-        run: |
-          mkdir -p "$RUNNER_TEMP/sym"
-          source scripts/normalize_path.sh
-          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
-
-      - name: Test with PostgreSQL Database
-        uses: ./.github/actions/test-go-pg
-        with:
-          postgres-version: "17"
-          # Our Linux runners have 8 cores.
-          test-parallelism-packages: "8"
-          test-parallelism-tests: "8"
-          # By default, run tests with cache for improved speed (possibly at the expense of correctness).
-          # On main, run tests without cache for the inverse.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-
-      - name: Upload Test Cache
-        uses: ./.github/actions/test-cache/upload
-        with:
-          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -922,6 +817,7 @@ jobs:
           # Avoid uploading single files, because that's very slow
           zip: true
 
+
   offlinedocs:
     name: offlinedocs
     needs: changes
@@ -946,24 +842,13 @@ jobs:
         with:
           directory: offlinedocs
 
-      - name: Install Protoc
-        run: |
-          mkdir -p /tmp/proto
-          pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
-          unzip protoc.zip
-          sudo cp -r ./bin/* /usr/local/bin
-          sudo cp -r ./include /usr/local/bin/include
-          popd
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install go tools
-        uses: ./.github/actions/setup-go-tools
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      # Assume that the checked-in generated files are up-to-date.
+      # The check job validates this separately.
+      - name: Mark generated files as fresh
+        run: make gen/mark-fresh
 
       - name: Format
         run: |
@@ -976,8 +861,6 @@ jobs:
           pnpm lint
 
       - name: Build
-        # no `-j` flag as `make` fails with:
-        # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
         run: |
           make build/coder_docs_"$(./scripts/version.sh)".tgz
 
@@ -988,18 +871,12 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - changes
-      - fmt
-      - lint
-      - lint-actions
-      - gen
+      - check
       - test-go-pg
-      - test-go-pg-17
       - test-go-race-pg
       - test-js
       - test-e2e
       - offlinedocs
-      - sqlc-vet
-      - check-build
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -1013,17 +890,12 @@ jobs:
         run: | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
           echo "Checking required checks"
           echo "- changes: ${{ needs.changes.result }}"
-          echo "- fmt: ${{ needs.fmt.result }}"
-          echo "- lint: ${{ needs.lint.result }}"
-          echo "- lint-actions: ${{ needs.lint-actions.result }}"
-          echo "- gen: ${{ needs.gen.result }}"
+          echo "- check: ${{ needs.check.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
-          echo "- test-go-pg-17: ${{ needs.test-go-pg-17.result }}"
           echo "- test-go-race-pg: ${{ needs.test-go-race-pg.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
-          echo "- check-build: ${{ needs.check-build.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -1033,47 +905,6 @@ jobs:
           fi
 
           echo "Required checks have passed"
-
-  check-build:
-    # This job runs make build to verify compilation on PRs.
-    # The build doesn't get signed, and is not suitable for usage, unlike the
-    # `build` job that runs on main.
-    needs: changes
-    if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install go-winres
-        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
-
-      - name: Install nfpm
-        run: ./.github/scripts/retry.sh -- go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
-
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
-
-      - name: Build
-        run: |
-          set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
-          make gen/mark-fresh
-          make build
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
@@ -1545,30 +1376,6 @@ jobs:
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
   # in migrations or sqlc queries that makes a query unable to be prepared.
-  sqlc-vet:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    needs: changes
-    if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
-
-      - name: Setup and run sqlc vet
-        run: |
-          make sqlc-vet
 
   notify-slack-on-failure:
     needs:
