@@ -1,6 +1,6 @@
 import type { ChatUsageLimitPeriod } from "api/typesGenerated";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, type ReactNode, useId } from "react";
+import { type FC, useId } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -17,6 +17,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { AdminBadge } from "../AdminBadge";
 import { SectionHeader } from "../SectionHeader";
 
 interface DefaultLimitSectionProps {
@@ -27,7 +28,6 @@ interface DefaultLimitSectionProps {
 	amountDollars: string;
 	onAmountDollarsChange: (amount: string) => void;
 	unpricedModelCount: number;
-	adminBadge: ReactNode;
 }
 
 export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
@@ -38,7 +38,6 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 	amountDollars,
 	onAmountDollarsChange,
 	unpricedModelCount,
-	adminBadge,
 }) => {
 	const periodId = useId();
 	const amountId = useId();
@@ -48,7 +47,7 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 			<SectionHeader
 				label="Default Spend Limit"
 				description="Set a deployment-wide spend cap that applies to all users by default."
-				badge={adminBadge}
+				badge={<AdminBadge className="ml-auto" />}
 			/>
 
 			<div className="space-y-4">

@@ -170,6 +170,15 @@ const meta = {
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatUsageLimitConfig").mockResolvedValue({
+			spend_limit_micros: 50_000_000,
+			period: "month",
+			updated_at: "2026-03-01T00:00:00Z",
+			unpriced_model_count: 0,
+			overrides: [],
+			group_overrides: [],
+		});
+		spyOn(API, "getGroups").mockResolvedValue([]);
 	},
 } satisfies Meta<typeof AgentSettingsPageView>;
 
@@ -530,7 +539,7 @@ export const UsageUserList: Story = {
 		const canvas = within(canvasElement);
 
 		// The section header should be visible.
-		await canvas.findByText("Usage");
+		await canvas.findByText("Usage & Limits");
 
 		// Both users should appear in the table.
 		await expect(await canvas.findByText("Alice Liddell")).toBeInTheDocument();
@@ -677,7 +686,7 @@ export const UsageEmpty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Usage");
+		await canvas.findByText("Usage & Limits");
 		await expect(
 			await canvas.findByText("No usage data for this period."),
 		).toBeInTheDocument();

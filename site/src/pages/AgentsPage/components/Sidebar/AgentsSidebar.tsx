@@ -26,7 +26,6 @@ import {
 	PanelLeftCloseIcon,
 	PauseIcon,
 	SettingsIcon,
-	ShieldAlertIcon,
 	ShieldIcon,
 	SquarePenIcon,
 	Trash2Icon,
@@ -1005,16 +1004,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									adminOnly
 								/>
 								<SettingsNavItem
-									icon={ShieldAlertIcon}
-									label="Limits"
-									active={sidebarView.section === "limits"}
-									to="/agents/settings/limits"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
 									icon={BarChart3Icon}
-									label="Usage"
+									label="Usage & Limits"
 									active={sidebarView.section === "usage"}
 									to="/agents/settings/usage"
 									state={location.state}
