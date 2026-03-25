@@ -17,7 +17,7 @@ import (
 const HeaderCoderToken = "X-Coder-AI-Governance-Token" //nolint:gosec // This is a header name, not a credential.
 
 // IsBYOK reports whether the request is using BYOK mode, determined
-// by the presence of the X-Coder-AI-Governance-BYOK-Token header.
+// by the presence of the X-Coder-AI-Governance-Token header.
 func IsBYOK(header http.Header) bool {
 	return strings.TrimSpace(header.Get(HeaderCoderToken)) != ""
 }

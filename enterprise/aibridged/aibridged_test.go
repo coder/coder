@@ -324,7 +324,7 @@ func TestExtractAuthToken(t *testing.T) {
 			expectedKey: "key",
 		},
 
-		// BYOK: X-Coder-AI-Governance-BYOK-Token carries the Coder
+		// BYOK: X-Coder-AI-Governance-Token carries the Coder
 		// token and has the highest priority.
 		{
 			name:    "byok/empty",
