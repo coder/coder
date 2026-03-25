@@ -102,9 +102,6 @@ interface AgentDetailViewProps {
 	handleOpenTerminal: () => void;
 	handleCommit: (repoRoot: string) => void;
 
-	// Navigation.
-	onNavigateToChat: (chatId: string) => void;
-
 	// Chat action handlers.
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
@@ -171,7 +168,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleViewWorkspace,
 	handleOpenTerminal,
 	handleCommit,
-	onNavigateToChat,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -224,7 +220,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					<AgentDetailTopBar
 						chatTitle={chatTitle}
 						parentChat={parentChat}
-						onOpenParentChat={(chatId) => onNavigateToChat(chatId)}
 						panel={{
 							showSidebarPanel,
 							onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
@@ -412,7 +407,6 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						onOpenTerminal: () => {},
 						sshCommand: undefined,
 					}}
-					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
@@ -486,7 +480,6 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 					onOpenTerminal: () => {},
 					sshCommand: undefined,
 				}}
-				onOpenParentChat={() => {}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}

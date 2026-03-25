@@ -1662,7 +1662,7 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "  " },
+				error: { message: "  ", retryable: false },
 			});
 		});
 
@@ -2004,7 +2004,7 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "Rate limit exceeded" },
+				error: { message: "Rate limit exceeded", retryable: false },
 			});
 		});
 
@@ -2803,7 +2803,7 @@ describe("updateSidebarChat via stream events", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "something went wrong" },
+				error: { message: "something went wrong", retryable: false },
 			});
 		});
 
@@ -3079,7 +3079,7 @@ describe("updateSidebarChat via stream events", () => {
 			mockSocket.emitData({
 				type: "error",
 				chat_id: chatID,
-				error: { message: "something broke" },
+				error: { message: "something broke", retryable: false },
 			});
 		});
 
