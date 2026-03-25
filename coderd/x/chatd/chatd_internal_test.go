@@ -49,10 +49,14 @@ func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
 	wantActor, ok := dbauthz.ActorFromContext(dbauthz.AsChatd(context.Background()))
 	require.True(t, ok)
 
-	db.EXPECT().GetChatMessagesByChatID(userCtx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	}).Return([]database.ChatMessage{
+	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
+		userCtx,
+		database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chat.ID,
+			AfterID:  0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return([]database.ChatMessage{
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,
@@ -60,6 +64,14 @@ func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
 			codersdk.ChatMessageText("no user prompt"),
 		),
 	}, nil)
+	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
+		userCtx,
+		database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chat.ID,
+			BeforeID: 0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return(nil, nil)
 	checkChatdActor := func(ctx context.Context) {
 		t.Helper()
 		gotActor, ok := dbauthz.ActorFromContext(ctx)
@@ -88,6 +100,17 @@ func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
 	updated, err := server.RegenerateChatTitle(userCtx, chat)
 	require.NoError(t, err)
 	require.Equal(t, chat, updated)
+}
+
+func TestMergeManualTitleMessages(t *testing.T) {
+	t.Parallel()
+
+	merged := mergeManualTitleMessages(
+		[]database.ChatMessage{{ID: 1}, {ID: 2}, {ID: 3}},
+		[]database.ChatMessage{{ID: 6}, {ID: 5}, {ID: 3}},
+	)
+
+	require.Equal(t, []database.ChatMessage{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 5}, {ID: 6}}, merged)
 }
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {

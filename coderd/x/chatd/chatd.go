@@ -1333,19 +1333,37 @@ func (p *Server) InterruptChat(
 	return updatedChat
 }
 
+const manualTitleMessageWindowLimit = 50
+
 // RegenerateChatTitle regenerates a chat title from the chat's visible
 // messages, persists it when it changes, and broadcasts the update.
 func (p *Server) RegenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.Chat, error) {
-	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
+	headMessages, err := p.db.GetChatMessagesByChatIDAscPaginated(
+		ctx,
+		database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chat.ID,
+			AfterID:  0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	)
 	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get chat messages: %w", err)
+		return database.Chat{}, xerrors.Errorf("get head chat messages: %w", err)
 	}
+	tailMessages, err := p.db.GetChatMessagesByChatIDDescPaginated(
+		ctx,
+		database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chat.ID,
+			BeforeID: 0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get tail chat messages: %w", err)
+	}
+	messages := mergeManualTitleMessages(headMessages, tailMessages)
 
 	// Reuse chatd's scoped auth context for deployment-config lookups while
 	// keeping chat ownership authorization at the HTTP layer.
@@ -1373,6 +1391,28 @@ func (p *Server) RegenerateChatTitle(
 
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
 	return updatedChat, nil
+}
+
+func mergeManualTitleMessages(
+	headMessages []database.ChatMessage,
+	tailMessagesDesc []database.ChatMessage,
+) []database.ChatMessage {
+	merged := make([]database.ChatMessage, 0, len(headMessages)+len(tailMessagesDesc))
+	seen := make(map[int64]struct{}, len(headMessages)+len(tailMessagesDesc))
+	appendUnique := func(message database.ChatMessage) {
+		if _, ok := seen[message.ID]; ok {
+			return
+		}
+		seen[message.ID] = struct{}{}
+		merged = append(merged, message)
+	}
+	for _, message := range headMessages {
+		appendUnique(message)
+	}
+	for i := len(tailMessagesDesc) - 1; i >= 0; i-- {
+		appendUnique(tailMessagesDesc[i])
+	}
+	return merged
 }
 
 // RefreshStatus loads the latest chat status and publishes it to stream subscribers.

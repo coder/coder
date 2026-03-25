@@ -398,6 +398,44 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 	require.Equal(t, "Refresh title", title)
 }
 
+func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
+	t.Parallel()
+
+	longFirstUserText := strings.Repeat("a", 1500)
+	messages := []database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText(longFirstUserText),
+		),
+	}
+
+	model := &deadlineCapturingModel{
+		generateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			userText, ok := call.Prompt[1].Content[0].(fantasy.TextPart)
+			require.True(t, ok)
+			require.Len(t, []rune(userText.Text), 1000)
+			require.Equal(t, truncateRunes(longFirstUserText, 1000), userText.Text)
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Refresh title"},
+				},
+			}, nil
+		},
+	}
+
+	_, err := generateManualTitle(
+		context.Background(),
+		database.Chat{},
+		messages,
+		model,
+		chatprovider.ProviderAPIKeys{},
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+}
+
 type deadlineCapturingModel struct {
 	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
 }

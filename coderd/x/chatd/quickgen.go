@@ -422,6 +422,7 @@ func generateManualTitle(
 	if firstUserText == "" {
 		return "", nil
 	}
+	firstUserText = truncateRunes(firstUserText, 1000)
 
 	conversationBlock, latestUserMsg := buildManualTitleContext(turns, selected)
 	systemPrompt := renderManualTitlePrompt(

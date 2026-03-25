@@ -220,6 +220,21 @@ WHERE
 ORDER BY
     created_at ASC;
 
+-- name: GetChatMessagesByChatIDAscPaginated :many
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND id > @after_id::bigint
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+ORDER BY
+    id ASC
+LIMIT
+    COALESCE(NULLIF(@limit_val::int, 0), 50);
+
 -- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
     *
