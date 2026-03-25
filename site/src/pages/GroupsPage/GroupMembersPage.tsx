@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
+	addMember,
 	groupMembersByOrganizationQueryKey,
 	removeMember,
 } from "api/queries/groups";
@@ -46,10 +46,7 @@ const GroupMembersPage: FC = () => {
 		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const addMemberMutation = useMutation({
-		mutationFn: ({ userId }: { userId: string }) =>
-			API.addMember(groupData.id, userId),
-	});
+	const addMemberMutation = useMutation(addMember());
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
@@ -66,7 +63,10 @@ const GroupMembersPage: FC = () => {
 						existingUserIds={new Set(members.map((m) => m.id))}
 						onSubmit={async (usersToAdd) => {
 							const addPromises = usersToAdd.map((user) =>
-								addMemberMutation.mutateAsync({ userId: user.id }),
+								addMemberMutation.mutateAsync({
+									groupId: groupData.id,
+									userId: user.id,
+								}),
 							);
 							const addAllPromise = Promise.all(addPromises);
 
