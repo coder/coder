@@ -20,6 +20,7 @@ import {
 	infiniteChats,
 	interruptChat,
 	invalidateChatListQueries,
+	pinChat,
 	promoteChatQueuedMessage,
 	unarchiveChat,
 	updateInfiniteChatsCache,
@@ -410,6 +411,34 @@ describe("unarchiveChat optimistic update", () => {
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+	});
+});
+
+describe("pinChat optimistic update", () => {
+	it("optimistically appends a newly pinned chat after the highest cached pin order", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-new";
+		seedInfiniteChats(queryClient, [
+			makeChat("chat-pinned-1", { pin_order: 1 }),
+			makeChat(chatId),
+			makeChat("chat-pinned-2", { pin_order: 2 }),
+		]);
+		queryClient.setQueryData([...chatsKey, { archived: true }], {
+			pages: [[makeChat("chat-pinned-archived", { pin_order: 4 })]],
+			pageParams: [0],
+		});
+		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+
+		const mutation = pinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(
+			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
+				?.pin_order,
+		).toBe(5);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(5);
 	});
 });
 

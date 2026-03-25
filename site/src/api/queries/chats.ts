@@ -89,6 +89,37 @@ export const readInfiniteChatsCache = (
 	return undefined;
 };
 
+const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
+	let maxPinOrder = 0;
+	const queries = queryClient.getQueriesData<
+		TypesGen.Chat[] | { pages: TypesGen.Chat[][]; pageParams: unknown[] }
+	>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
+
+	for (const [, data] of queries) {
+		if (!data) {
+			continue;
+		}
+
+		if (Array.isArray(data)) {
+			for (const chat of data) {
+				maxPinOrder = Math.max(maxPinOrder, chat.pin_order);
+			}
+			continue;
+		}
+
+		for (const page of data.pages) {
+			for (const chat of page) {
+				maxPinOrder = Math.max(maxPinOrder, chat.pin_order);
+			}
+		}
+	}
+
+	return maxPinOrder + 1;
+};
+
 /**
  * Invalidate only the sidebar chat-list queries (flat + infinite)
 /**
@@ -340,15 +371,18 @@ export const pinChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pin_order: 1 } : chat,
+				chat.id === chatId
+					? { ...chat, pin_order: optimisticPinOrder }
+					: chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				pin_order: 1,
+				pin_order: optimisticPinOrder,
 			});
 		}
 		return { previousChat };
