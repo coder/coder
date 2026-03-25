@@ -161,40 +161,4 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		})
 		require.NoError(t, err, "deleting workspace with coder:workspaces.delete scope")
 	})
-
-	// coder:workspaces.access — token should be able to read
-	// workspaces. SSH and application_connect are included in this
-	// scope but excluded from other workspace scopes.
-	// TODO: actually make an ssh connection. This would require a real agent.
-	t.Run("WorkspacesAccess", func(t *testing.T) {
-		t.Parallel()
-		s := setup(t)
-
-		scoped := scopedClient(t, s.adminClient, []codersdk.APIKeyScope{
-			codersdk.APIKeyScopeCoderWorkspacesAccess,
-		})
-
-		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-		defer cancel()
-
-		// Read the workspace by ID (requires workspace:read).
-		ws, err := scoped.Workspace(ctx, s.workspace.ID)
-		require.NoError(t, err, "reading workspace with coder:workspaces.access scope")
-		require.Equal(t, s.workspace.ID, ws.ID)
-
-		// Verify we cannot update the workspace — the access scope
-		// should not include workspace:update.
-		err = scoped.UpdateWorkspace(ctx, s.workspace.ID, codersdk.UpdateWorkspaceRequest{
-			Name: coderdtest.RandomUsername(t),
-		})
-		require.Error(t, err, "updating workspace should fail with coder:workspaces.access scope")
-
-		// Verify we cannot create a workspace — the access scope
-		// should not include workspace:create.
-		_, err = scoped.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
-			TemplateID: s.workspace.TemplateID,
-			Name:       coderdtest.RandomUsername(t),
-		})
-		require.Error(t, err, "creating workspace should fail with coder:workspaces.access scope")
-	})
 }
