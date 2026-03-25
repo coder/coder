@@ -35,9 +35,13 @@ export const ExecuteTool: React.FC<{
 	const isRunning = status === "running";
 
 	// Track whether the command text is truncated so we can offer
-	// a click-to-expand interaction.
+	// a click-to-expand interaction. The ResizeObserver may clear
+	// commandOverflows while the text is wrapped, but
+	// canToggleCommand stays true via commandExpanded so the
+	// collapse affordance remains visible.
 	const [commandExpanded, setCommandExpanded] = useState(false);
 	const [commandOverflows, setCommandOverflows] = useState(false);
+	const canToggleCommand = commandOverflows || commandExpanded;
 	const commandRef = (node: HTMLElement | null) => {
 		if (!node) return;
 		const measure = () => {
@@ -72,15 +76,13 @@ export const ExecuteTool: React.FC<{
 					className={cn(
 						"flex min-w-0 flex-1 gap-2",
 						commandExpanded ? "items-start" : "items-center",
-						commandOverflows && "cursor-pointer",
+						canToggleCommand && "cursor-pointer",
 					)}
 					onClick={
-						commandOverflows || commandExpanded
-							? () => setCommandExpanded((v) => !v)
-							: undefined
+						canToggleCommand ? () => setCommandExpanded((v) => !v) : undefined
 					}
 					onKeyDown={
-						commandOverflows || commandExpanded
+						canToggleCommand
 							? (e) => {
 									if (e.key === "Enter" || e.key === " ") {
 										e.preventDefault();
@@ -89,8 +91,8 @@ export const ExecuteTool: React.FC<{
 								}
 							: undefined
 					}
-					role={commandOverflows ? "button" : undefined}
-					tabIndex={commandOverflows ? 0 : undefined}
+					role={canToggleCommand ? "button" : undefined}
+					tabIndex={canToggleCommand ? 0 : undefined}
 				>
 					<span className="shrink-0 font-mono text-xs leading-5 text-content-secondary">
 						$
@@ -106,7 +108,7 @@ export const ExecuteTool: React.FC<{
 					</code>
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
-					{commandOverflows && (
+					{canToggleCommand && (
 						<button
 							type="button"
 							onClick={() => setCommandExpanded((v) => !v)}
