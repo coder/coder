@@ -2992,6 +2992,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeSessionList = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/sessions", options);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListSessionsResponse>(url);
+		return response.data;
+	};
+
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 

@@ -1,7 +1,7 @@
-import { API } from "api/api";
-import type { AIBridgeListInterceptionsResponse } from "api/typesGenerated";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import { API } from "#/api/api";
+import type { AIBridgeListInterceptionsResponse } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 export const paginatedInterceptions = (
 	searchParams: URLSearchParams,
