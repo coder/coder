@@ -93,21 +93,30 @@ export const ExecuteTool: React.FC<{
 				</button>
 				<div className="flex shrink-0 items-center gap-1">
 					{commandOverflows && (
-						<button
-							type="button"
-							onClick={() => setCommandExpanded((v) => !v)}
-							className="border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors"
-							aria-label={
-								commandExpanded ? "Collapse command" : "Expand command"
-							}
+						<span
+							className={cn(
+								"transition-opacity",
+								commandExpanded
+									? "opacity-100"
+									: "opacity-0 group-hover/exec:opacity-100",
+							)}
 						>
-							<ChevronDownIcon
-								className={cn(
-									"h-3.5 w-3.5 transition-transform",
-									commandExpanded && "rotate-180",
-								)}
-							/>
-						</button>
+							<button
+								type="button"
+								onClick={() => setCommandExpanded((v) => !v)}
+								className="border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors"
+								aria-label={
+									commandExpanded ? "Collapse command" : "Expand command"
+								}
+							>
+								<ChevronDownIcon
+									className={cn(
+										"h-3.5 w-3.5 transition-transform",
+										commandExpanded && "rotate-180",
+									)}
+								/>
+							</button>
+						</span>
 					)}
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
