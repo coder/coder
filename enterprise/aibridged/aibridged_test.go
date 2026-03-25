@@ -196,20 +196,6 @@ func TestServeHTTP_StripCoderSessionToken(t *testing.T) {
 			},
 		},
 		{
-			// Proxy centralized: client sends Coder token as
-			// Authorization: Bearer via proxy. Same as direct
-			// centralized — no BYOK header, so Authorization is
-			// stripped.
-			name: "proxy centralized",
-			reqHeaders: map[string]string{
-				"Authorization": "Bearer coder-token",
-			},
-			expectAbsent: []string{
-				"Authorization",
-				"X-Api-Key",
-			},
-		},
-		{
 			// BYOK with OAuth token (Claude Max/Pro): Coder token in
 			// BYOK header, user's OAuth token in Authorization. Only
 			// the BYOK header is stripped.
