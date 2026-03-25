@@ -1167,7 +1167,7 @@ func (s *MethodTestSuite) TestAutomations() {
 	}))
 	s.Run("UpdateAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.Automation{})
-		arg := database.UpdateAutomationWebhookSecretParams{ID: automation.ID, WebhookSecret: "new-secret"}
+		arg := database.UpdateAutomationWebhookSecretParams{ID: automation.ID, WebhookSecret: sql.NullString{String: "new-secret", Valid: true}}
 		dbm.EXPECT().GetAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
 		dbm.EXPECT().UpdateAutomationWebhookSecret(gomock.Any(), arg).Return(automation, nil).AnyTimes()
 		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(automation)

@@ -5,11 +5,11 @@ INSERT INTO automations (
     name,
     description,
     webhook_secret,
+    cron_schedule,
     filter,
-    session_labels,
-    system_prompt,
+    label_paths,
+    instructions,
     model_config_id,
-    workspace_id,
     mcp_server_ids,
     allowed_tools,
     status,
@@ -20,12 +20,12 @@ INSERT INTO automations (
     @organization_id::uuid,
     @name::text,
     @description::text,
-    @webhook_secret::text,
+    sqlc.narg('webhook_secret')::text,
+    sqlc.narg('cron_schedule')::text,
     sqlc.narg('filter')::jsonb,
-    sqlc.narg('session_labels')::jsonb,
-    @system_prompt::text,
+    sqlc.narg('label_paths')::jsonb,
+    @instructions::text,
     sqlc.narg('model_config_id')::uuid,
-    sqlc.narg('workspace_id')::uuid,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(@allowed_tools::text[], '{}'::text[]),
     @status::text,
@@ -62,11 +62,11 @@ LIMIT
 UPDATE automations SET
     name = @name::text,
     description = @description::text,
+    cron_schedule = sqlc.narg('cron_schedule')::text,
     filter = sqlc.narg('filter')::jsonb,
-    session_labels = sqlc.narg('session_labels')::jsonb,
-    system_prompt = @system_prompt::text,
+    label_paths = sqlc.narg('label_paths')::jsonb,
+    instructions = @instructions::text,
     model_config_id = sqlc.narg('model_config_id')::uuid,
-    workspace_id = sqlc.narg('workspace_id')::uuid,
     mcp_server_ids = @mcp_server_ids::uuid[],
     allowed_tools = @allowed_tools::text[],
     status = @status::text,
@@ -78,7 +78,7 @@ RETURNING *;
 
 -- name: UpdateAutomationWebhookSecret :one
 UPDATE automations SET
-    webhook_secret = @webhook_secret::text,
+    webhook_secret = sqlc.narg('webhook_secret')::text,
     updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING *;

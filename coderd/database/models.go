@@ -4135,26 +4135,29 @@ type AuditLog struct {
 }
 
 type Automation struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-	Description    string    `db:"description" json:"description"`
-	WebhookSecret  string    `db:"webhook_secret" json:"webhook_secret"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	OwnerID        uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Name           string         `db:"name" json:"name"`
+	Description    string         `db:"description" json:"description"`
+	WebhookSecret  sql.NullString `db:"webhook_secret" json:"webhook_secret"`
 	// The ID of the key used to encrypt the webhook secret. If this is NULL, the webhook secret is not encrypted
-	WebhookSecretKeyID    sql.NullString        `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
-	Filter                pqtype.NullRawMessage `db:"filter" json:"filter"`
-	SessionLabels         pqtype.NullRawMessage `db:"session_labels" json:"session_labels"`
-	SystemPrompt          string                `db:"system_prompt" json:"system_prompt"`
-	ModelConfigID         uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
-	WorkspaceID           uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	MCPServerIDs          []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	AllowedTools          []string              `db:"allowed_tools" json:"allowed_tools"`
-	Status                string                `db:"status" json:"status"`
-	MaxChatCreatesPerHour int32                 `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
-	MaxMessagesPerHour    int32                 `db:"max_messages_per_hour" json:"max_messages_per_hour"`
-	CreatedAt             time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time             `db:"updated_at" json:"updated_at"`
+	WebhookSecretKeyID sql.NullString `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
+	// Cron expression for scheduled automations. NULL means webhook-only. Mutually exclusive with webhook_secret in v1.
+	CronSchedule sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
+	Filter       pqtype.NullRawMessage `db:"filter" json:"filter"`
+	// Map of chat label keys to gjson paths for extracting values from webhook payloads. Used for session resolution.
+	LabelPaths pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+	// User message sent to the chat when the automation triggers. Replaces what would otherwise be a system prompt.
+	Instructions          string        `db:"instructions" json:"instructions"`
+	ModelConfigID         uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
+	MCPServerIDs          []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
+	AllowedTools          []string      `db:"allowed_tools" json:"allowed_tools"`
+	Status                string        `db:"status" json:"status"`
+	MaxChatCreatesPerHour int32         `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
+	MaxMessagesPerHour    int32         `db:"max_messages_per_hour" json:"max_messages_per_hour"`
+	CreatedAt             time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 type AutomationWebhookEvent struct {

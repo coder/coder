@@ -29,10 +29,10 @@ type Automation struct {
 	Description           string            `json:"description"`
 	WebhookURL            string            `json:"webhook_url"`
 	Filter                json.RawMessage   `json:"filter"`
-	SessionLabels         json.RawMessage   `json:"session_labels"`
-	SystemPrompt          string            `json:"system_prompt"`
+	LabelPaths            json.RawMessage   `json:"label_paths"`
+	Instructions          string            `json:"instructions"`
 	ModelConfigID         *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	WorkspaceID           *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	CronSchedule          *string           `json:"cron_schedule,omitempty"`
 	MCPServerIDs          []uuid.UUID       `json:"mcp_server_ids"`
 	AllowedTools          []string          `json:"allowed_tools"`
 	Status                AutomationStatus  `json:"status"`
@@ -47,10 +47,10 @@ type CreateAutomationRequest struct {
 	Name                  string           `json:"name"`
 	Description           string           `json:"description,omitempty"`
 	Filter                json.RawMessage  `json:"filter,omitempty"`
-	SessionLabels         json.RawMessage  `json:"session_labels,omitempty"`
-	SystemPrompt          string           `json:"system_prompt,omitempty"`
+	LabelPaths            json.RawMessage  `json:"label_paths,omitempty"`
+	Instructions          string           `json:"instructions,omitempty"`
 	ModelConfigID         *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	WorkspaceID           *uuid.UUID       `json:"workspace_id,omitempty" format:"uuid"`
+	CronSchedule          *string          `json:"cron_schedule,omitempty"`
 	MCPServerIDs          []uuid.UUID      `json:"mcp_server_ids,omitempty"`
 	AllowedTools          []string         `json:"allowed_tools,omitempty"`
 	MaxChatCreatesPerHour *int32           `json:"max_chat_creates_per_hour,omitempty"`
@@ -62,10 +62,10 @@ type UpdateAutomationRequest struct {
 	Name                  *string          `json:"name,omitempty"`
 	Description           *string          `json:"description,omitempty"`
 	Filter                json.RawMessage  `json:"filter,omitempty"`
-	SessionLabels         json.RawMessage  `json:"session_labels,omitempty"`
-	SystemPrompt          *string          `json:"system_prompt,omitempty"`
+	LabelPaths            json.RawMessage  `json:"label_paths,omitempty"`
+	Instructions          *string          `json:"instructions,omitempty"`
 	ModelConfigID         *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	WorkspaceID           *uuid.UUID       `json:"workspace_id,omitempty" format:"uuid"`
+	CronSchedule          *string          `json:"cron_schedule,omitempty"`
 	MCPServerIDs          *[]uuid.UUID     `json:"mcp_server_ids,omitempty"`
 	AllowedTools          *[]string        `json:"allowed_tools,omitempty"`
 	Status                *AutomationStatus `json:"status,omitempty"`

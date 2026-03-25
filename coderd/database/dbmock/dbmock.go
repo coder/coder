@@ -1847,21 +1847,6 @@ func (mr *MockStoreMockRecorder) GetAuthorizedAuditLogsOffset(ctx, arg, prepared
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedAuditLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuthorizedAuditLogsOffset), ctx, arg, prepared)
 }
 
-// GetAuthorizedChats mocks base method.
-func (m *MockStore) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuthorizedChats", ctx, arg, prepared)
-	ret0, _ := ret[0].([]database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAuthorizedChats indicates an expected call of GetAuthorizedChats.
-func (mr *MockStoreMockRecorder) GetAuthorizedChats(ctx, arg, prepared any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedChats", reflect.TypeOf((*MockStore)(nil).GetAuthorizedChats), ctx, arg, prepared)
-}
-
 // GetAuthorizedAutomations mocks base method.
 func (m *MockStore) GetAuthorizedAutomations(ctx context.Context, arg database.GetAutomationsParams, prepared rbac.PreparedAuthorized) ([]database.Automation, error) {
 	m.ctrl.T.Helper()
@@ -1875,6 +1860,21 @@ func (m *MockStore) GetAuthorizedAutomations(ctx context.Context, arg database.G
 func (mr *MockStoreMockRecorder) GetAuthorizedAutomations(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedAutomations", reflect.TypeOf((*MockStore)(nil).GetAuthorizedAutomations), ctx, arg, prepared)
+}
+
+// GetAuthorizedChats mocks base method.
+func (m *MockStore) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedChats", ctx, arg, prepared)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedChats indicates an expected call of GetAuthorizedChats.
+func (mr *MockStoreMockRecorder) GetAuthorizedChats(ctx, arg, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedChats", reflect.TypeOf((*MockStore)(nil).GetAuthorizedChats), ctx, arg, prepared)
 }
 
 // GetAuthorizedConnectionLogsOffset mocks base method.

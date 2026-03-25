@@ -1317,3 +1317,62 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 
 	return result
 }
+
+// Automation converts a database Automation to a codersdk Automation.
+func Automation(a database.Automation, accessURL string) codersdk.Automation {
+	result := codersdk.Automation{
+		ID:                    a.ID,
+		OwnerID:               a.OwnerID,
+		OrganizationID:        a.OrganizationID,
+		Name:                  a.Name,
+		Description:           a.Description,
+		WebhookURL:            accessURL + "/api/v2/automations/" + a.ID.String() + "/webhook",
+		Filter:                a.Filter.RawMessage,
+		LabelPaths:            a.LabelPaths.RawMessage,
+		Instructions:          a.Instructions,
+		MCPServerIDs:          a.MCPServerIDs,
+		AllowedTools:          a.AllowedTools,
+		Status:                codersdk.AutomationStatus(a.Status),
+		MaxChatCreatesPerHour: a.MaxChatCreatesPerHour,
+		MaxMessagesPerHour:    a.MaxMessagesPerHour,
+		CreatedAt:             a.CreatedAt,
+		UpdatedAt:             a.UpdatedAt,
+	}
+	if a.ModelConfigID.Valid {
+		result.ModelConfigID = &a.ModelConfigID.UUID
+	}
+	if a.CronSchedule.Valid {
+		result.CronSchedule = &a.CronSchedule.String
+	}
+	if a.MCPServerIDs == nil {
+		result.MCPServerIDs = []uuid.UUID{}
+	}
+	if a.AllowedTools == nil {
+		result.AllowedTools = []string{}
+	}
+	return result
+}
+
+// AutomationWebhookEvent converts a database AutomationWebhookEvent to
+// a codersdk AutomationWebhookEvent.
+func AutomationWebhookEvent(e database.AutomationWebhookEvent) codersdk.AutomationWebhookEvent {
+	result := codersdk.AutomationWebhookEvent{
+		ID:             e.ID,
+		AutomationID:   e.AutomationID,
+		ReceivedAt:     e.ReceivedAt,
+		Payload:        e.Payload,
+		FilterMatched:  e.FilterMatched,
+		ResolvedLabels: e.ResolvedLabels.RawMessage,
+		Status:         codersdk.AutomationWebhookEventStatus(e.Status),
+	}
+	if e.MatchedChatID.Valid {
+		result.MatchedChatID = &e.MatchedChatID.UUID
+	}
+	if e.CreatedChatID.Valid {
+		result.CreatedChatID = &e.CreatedChatID.UUID
+	}
+	if e.Error.Valid {
+		result.Error = &e.Error.String
+	}
+	return result
+}

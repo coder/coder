@@ -4,13 +4,13 @@ CREATE TABLE automations (
     organization_id uuid NOT NULL,
     name text NOT NULL,
     description text NOT NULL DEFAULT '',
-    webhook_secret text NOT NULL DEFAULT '',
+    webhook_secret text,
     webhook_secret_key_id text,
+    cron_schedule text,
     filter jsonb,
-    session_labels jsonb,
-    system_prompt text NOT NULL DEFAULT '',
+    label_paths jsonb,
+    instructions text NOT NULL DEFAULT '',
     model_config_id uuid,
-    workspace_id uuid,
     mcp_server_ids uuid[] NOT NULL DEFAULT '{}',
     allowed_tools text[] NOT NULL DEFAULT '{}',
     status text NOT NULL DEFAULT 'disabled',
@@ -22,13 +22,15 @@ CREATE TABLE automations (
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
     FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL,
-    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL,
     CONSTRAINT automations_status_check CHECK (status IN ('disabled', 'preview', 'active')),
     CONSTRAINT automations_max_chat_creates_per_hour_check CHECK (max_chat_creates_per_hour > 0),
     CONSTRAINT automations_max_messages_per_hour_check CHECK (max_messages_per_hour > 0)
 );
 
 COMMENT ON COLUMN automations.webhook_secret_key_id IS 'The ID of the key used to encrypt the webhook secret. If this is NULL, the webhook secret is not encrypted';
+COMMENT ON COLUMN automations.cron_schedule IS 'Cron expression for scheduled automations. NULL means webhook-only. Mutually exclusive with webhook_secret in v1.';
+COMMENT ON COLUMN automations.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads. Used for session resolution.';
+COMMENT ON COLUMN automations.instructions IS 'User message sent to the chat when the automation triggers. Replaces what would otherwise be a system prompt.';
 
 CREATE INDEX idx_automations_owner_id ON automations (owner_id);
 CREATE INDEX idx_automations_organization_id ON automations (organization_id);

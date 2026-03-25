@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/automations"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -26,62 +27,6 @@ func generateWebhookSecret() (string, error) {
 		return "", xerrors.Errorf("generate webhook secret: %w", err)
 	}
 	return hex.EncodeToString(b), nil
-}
-
-func convertAutomation(a database.Automation, accessURL string) codersdk.Automation {
-	result := codersdk.Automation{
-		ID:                    a.ID,
-		OwnerID:               a.OwnerID,
-		OrganizationID:        a.OrganizationID,
-		Name:                  a.Name,
-		Description:           a.Description,
-		WebhookURL:            accessURL + "/api/v2/automations/" + a.ID.String() + "/webhook",
-		Filter:                a.Filter.RawMessage,
-		SessionLabels:         a.SessionLabels.RawMessage,
-		SystemPrompt:          a.SystemPrompt,
-		MCPServerIDs:          a.MCPServerIDs,
-		AllowedTools:          a.AllowedTools,
-		Status:                codersdk.AutomationStatus(a.Status),
-		MaxChatCreatesPerHour: a.MaxChatCreatesPerHour,
-		MaxMessagesPerHour:    a.MaxMessagesPerHour,
-		CreatedAt:             a.CreatedAt,
-		UpdatedAt:             a.UpdatedAt,
-	}
-	if a.ModelConfigID.Valid {
-		result.ModelConfigID = &a.ModelConfigID.UUID
-	}
-	if a.WorkspaceID.Valid {
-		result.WorkspaceID = &a.WorkspaceID.UUID
-	}
-	if a.MCPServerIDs == nil {
-		result.MCPServerIDs = []uuid.UUID{}
-	}
-	if a.AllowedTools == nil {
-		result.AllowedTools = []string{}
-	}
-	return result
-}
-
-func convertWebhookEvent(e database.AutomationWebhookEvent) codersdk.AutomationWebhookEvent {
-	result := codersdk.AutomationWebhookEvent{
-		ID:             e.ID,
-		AutomationID:   e.AutomationID,
-		ReceivedAt:     e.ReceivedAt,
-		Payload:        e.Payload,
-		FilterMatched:  e.FilterMatched,
-		ResolvedLabels: e.ResolvedLabels.RawMessage,
-		Status:         codersdk.AutomationWebhookEventStatus(e.Status),
-	}
-	if e.MatchedChatID.Valid {
-		result.MatchedChatID = &e.MatchedChatID.UUID
-	}
-	if e.CreatedChatID.Valid {
-		result.CreatedChatID = &e.CreatedChatID.UUID
-	}
-	if e.Error.Valid {
-		result.Error = &e.Error.String
-	}
-	return result
 }
 
 // postAutomation creates a new automation.
@@ -136,8 +81,8 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		OrganizationID:        orgID,
 		Name:                  req.Name,
 		Description:           req.Description,
-		WebhookSecret:         secret,
-		SystemPrompt:          req.SystemPrompt,
+		WebhookSecret:         sql.NullString{String: secret, Valid: true},
+		Instructions:          req.Instructions,
 		MCPServerIDs:          req.MCPServerIDs,
 		AllowedTools:          req.AllowedTools,
 		Status:                "disabled",
@@ -147,14 +92,14 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 	if len(req.Filter) > 0 {
 		arg.Filter = pqtype.NullRawMessage{RawMessage: req.Filter, Valid: true}
 	}
-	if len(req.SessionLabels) > 0 {
-		arg.SessionLabels = pqtype.NullRawMessage{RawMessage: req.SessionLabels, Valid: true}
+	if len(req.LabelPaths) > 0 {
+		arg.LabelPaths = pqtype.NullRawMessage{RawMessage: req.LabelPaths, Valid: true}
 	}
 	if req.ModelConfigID != nil {
 		arg.ModelConfigID = uuid.NullUUID{UUID: *req.ModelConfigID, Valid: true}
 	}
-	if req.WorkspaceID != nil {
-		arg.WorkspaceID = uuid.NullUUID{UUID: *req.WorkspaceID, Valid: true}
+	if req.CronSchedule != nil {
+		arg.CronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
 	}
 
 	automation, err := api.Database.InsertAutomation(ctx, arg)
@@ -166,7 +111,7 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertAutomation(automation, api.AccessURL.String()))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Automation(automation, api.AccessURL.String()))
 }
 
 // listAutomations returns all automations visible to the user.
@@ -187,7 +132,7 @@ func (api *API) listAutomations(rw http.ResponseWriter, r *http.Request) {
 
 	result := make([]codersdk.Automation, 0, len(dbAutomations))
 	for _, a := range dbAutomations {
-		result = append(result, convertAutomation(a, api.AccessURL.String()))
+		result = append(result, db2sdk.Automation(a, api.AccessURL.String()))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
@@ -196,7 +141,7 @@ func (api *API) listAutomations(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	automation := httpmw.AutomationParam(r)
-	httpapi.Write(ctx, rw, http.StatusOK, convertAutomation(automation, api.AccessURL.String()))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(automation, api.AccessURL.String()))
 }
 
 // patchAutomation updates an automation's configuration.
@@ -215,10 +160,10 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 		Name:                  automation.Name,
 		Description:           automation.Description,
 		Filter:                automation.Filter,
-		SessionLabels:         automation.SessionLabels,
-		SystemPrompt:          automation.SystemPrompt,
+		LabelPaths:            automation.LabelPaths,
+		Instructions:          automation.Instructions,
 		ModelConfigID:         automation.ModelConfigID,
-		WorkspaceID:           automation.WorkspaceID,
+		CronSchedule:          automation.CronSchedule,
 		MCPServerIDs:          automation.MCPServerIDs,
 		AllowedTools:          automation.AllowedTools,
 		Status:                automation.Status,
@@ -234,17 +179,17 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 	if req.Filter != nil {
 		arg.Filter = pqtype.NullRawMessage{RawMessage: req.Filter, Valid: true}
 	}
-	if req.SessionLabels != nil {
-		arg.SessionLabels = pqtype.NullRawMessage{RawMessage: req.SessionLabels, Valid: true}
+	if req.LabelPaths != nil {
+		arg.LabelPaths = pqtype.NullRawMessage{RawMessage: req.LabelPaths, Valid: true}
 	}
-	if req.SystemPrompt != nil {
-		arg.SystemPrompt = *req.SystemPrompt
+	if req.Instructions != nil {
+		arg.Instructions = *req.Instructions
 	}
 	if req.ModelConfigID != nil {
 		arg.ModelConfigID = uuid.NullUUID{UUID: *req.ModelConfigID, Valid: true}
 	}
-	if req.WorkspaceID != nil {
-		arg.WorkspaceID = uuid.NullUUID{UUID: *req.WorkspaceID, Valid: true}
+	if req.CronSchedule != nil {
+		arg.CronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
 	}
 	if req.MCPServerIDs != nil {
 		arg.MCPServerIDs = *req.MCPServerIDs
@@ -271,7 +216,7 @@ func (api *API) patchAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertAutomation(updated, api.AccessURL.String()))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(updated, api.AccessURL.String()))
 }
 
 // deleteAutomation deletes an automation.
@@ -308,7 +253,7 @@ func (api *API) regenerateAutomationSecret(rw http.ResponseWriter, r *http.Reque
 
 	updated, err := api.Database.UpdateAutomationWebhookSecret(ctx, database.UpdateAutomationWebhookSecretParams{
 		ID:            automation.ID,
-		WebhookSecret: secret,
+		WebhookSecret: sql.NullString{String: secret, Valid: true},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -318,7 +263,7 @@ func (api *API) regenerateAutomationSecret(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertAutomation(updated, api.AccessURL.String()))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Automation(updated, api.AccessURL.String()))
 }
 
 // listAutomationEvents returns recent webhook events for an
@@ -340,7 +285,7 @@ func (api *API) listAutomationEvents(rw http.ResponseWriter, r *http.Request) {
 
 	result := make([]codersdk.AutomationWebhookEvent, 0, len(events))
 	for _, e := range events {
-		result = append(result, convertWebhookEvent(e))
+		result = append(result, db2sdk.AutomationWebhookEvent(e))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
@@ -363,11 +308,10 @@ func (api *API) testAutomation(rw http.ResponseWriter, r *http.Request) {
 		FilterMatched: matched,
 	}
 
-	// If filter matched and session_labels are configured, resolve
-	// them.
-	if matched && automation.SessionLabels.Valid {
+	// If filter matched and label_paths are configured, resolve them.
+	if matched && automation.LabelPaths.Valid {
 		var labelPaths map[string]string
-		if err := json.Unmarshal(automation.SessionLabels.RawMessage, &labelPaths); err == nil {
+		if err := json.Unmarshal(automation.LabelPaths.RawMessage, &labelPaths); err == nil {
 			resolvedLabels := automations.ResolveLabels(payloadStr, labelPaths)
 			if labelsJSON, err := json.Marshal(resolvedLabels); err == nil {
 				result.ResolvedLabels = labelsJSON
@@ -430,7 +374,7 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 
 	// Verify HMAC signature.
 	sig := r.Header.Get("X-Hub-Signature-256")
-	if !automations.VerifySignature(payload, automation.WebhookSecret, sig) {
+	if !automations.VerifySignature(payload, automation.WebhookSecret.String, sig) {
 		// Log event as error but still return 200.
 		//nolint:gocritic // System context for event logging.
 		_, _ = api.Database.InsertAutomationWebhookEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationWebhookEventParams{
@@ -459,12 +403,12 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve session labels.
+	// Resolve labels.
 	var resolvedLabels map[string]string
 	var resolvedLabelsJSON pqtype.NullRawMessage
-	if automation.SessionLabels.Valid {
+	if automation.LabelPaths.Valid {
 		var labelPaths map[string]string
-		if err := json.Unmarshal(automation.SessionLabels.RawMessage, &labelPaths); err == nil {
+		if err := json.Unmarshal(automation.LabelPaths.RawMessage, &labelPaths); err == nil {
 			resolvedLabels = automations.ResolveLabels(payloadStr, labelPaths)
 			if j, err := json.Marshal(resolvedLabels); err == nil {
 				resolvedLabelsJSON = pqtype.NullRawMessage{RawMessage: j, Valid: true}

@@ -1232,13 +1232,13 @@ CREATE TABLE automations (
     organization_id uuid NOT NULL,
     name text NOT NULL,
     description text DEFAULT ''::text NOT NULL,
-    webhook_secret text DEFAULT ''::text NOT NULL,
+    webhook_secret text,
     webhook_secret_key_id text,
+    cron_schedule text,
     filter jsonb,
-    session_labels jsonb,
-    system_prompt text DEFAULT ''::text NOT NULL,
+    label_paths jsonb,
+    instructions text DEFAULT ''::text NOT NULL,
     model_config_id uuid,
-    workspace_id uuid,
     mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     allowed_tools text[] DEFAULT '{}'::text[] NOT NULL,
     status text DEFAULT 'disabled'::text NOT NULL,
@@ -1252,6 +1252,12 @@ CREATE TABLE automations (
 );
 
 COMMENT ON COLUMN automations.webhook_secret_key_id IS 'The ID of the key used to encrypt the webhook secret. If this is NULL, the webhook secret is not encrypted';
+
+COMMENT ON COLUMN automations.cron_schedule IS 'Cron expression for scheduled automations. NULL means webhook-only. Mutually exclusive with webhook_secret in v1.';
+
+COMMENT ON COLUMN automations.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads. Used for session resolution.';
+
+COMMENT ON COLUMN automations.instructions IS 'User message sent to the chat when the automation triggers. Replaces what would otherwise be a system prompt.';
 
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
@@ -4065,9 +4071,6 @@ ALTER TABLE ONLY automations
 
 ALTER TABLE ONLY automations
     ADD CONSTRAINT automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY automations
-    ADD CONSTRAINT automations_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
