@@ -1710,7 +1710,7 @@ func (api *API) reorderPinnedChats(rw http.ResponseWriter, r *http.Request) {
 		for i, chatID := range req.ChatIDs {
 			if err := tx.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
 				ID:       chatID,
-				PinOrder: int32(i + 1),
+				PinOrder: int32(i + 1), //nolint:gosec // i is bounded by the 500-item cap above
 			}); err != nil {
 				return err
 			}
