@@ -65,9 +65,11 @@ export function FileReferenceChip({
 			tabIndex={0}
 		>
 			<FileIcon fileName={shortFile} className="shrink-0" />
-			<span className="shrink-0 text-content-secondary">
-				{shortFile}
-				<span className="text-content-link">:{lineLabel}</span>
+			<span className="inline-flex min-w-0 text-content-secondary">
+				<span dir="rtl" className="min-w-0 truncate">
+					{shortFile}
+				</span>
+				<span className="shrink-0 text-content-link">:{lineLabel}</span>
 			</span>
 			{onRemove && (
 				<button
