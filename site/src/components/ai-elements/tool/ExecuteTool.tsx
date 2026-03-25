@@ -63,20 +63,29 @@ export const ExecuteTool: React.FC<{
 					commandExpanded ? "items-start" : "items-center",
 				)}
 			>
-				<button
-					type="button"
+				<div
 					className={cn(
-						"flex min-w-0 flex-1 gap-2 border-0 bg-transparent p-0 m-0 font-[inherit] text-left",
+						"flex min-w-0 flex-1 gap-2",
 						commandExpanded ? "items-start" : "items-center",
-						commandOverflows || commandExpanded
-							? "cursor-pointer"
-							: "cursor-default",
+						commandOverflows && "cursor-pointer",
 					)}
 					onClick={
 						commandOverflows || commandExpanded
 							? () => setCommandExpanded((v) => !v)
 							: undefined
 					}
+					onKeyDown={
+						commandOverflows || commandExpanded
+							? (e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										setCommandExpanded((v) => !v);
+									}
+								}
+							: undefined
+					}
+					role={commandOverflows ? "button" : undefined}
+					tabIndex={commandOverflows ? 0 : undefined}
 				>
 					<span className="shrink-0 font-mono text-xs leading-5 text-content-secondary">
 						$
@@ -90,33 +99,31 @@ export const ExecuteTool: React.FC<{
 					>
 						{command}
 					</code>
-				</button>
+				</div>
 				<div className="flex shrink-0 items-center gap-1">
 					{commandOverflows && (
-						<span
+						<button
+							type="button"
+							onClick={() => setCommandExpanded((v) => !v)}
 							className={cn(
-								"transition-opacity",
+								"border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors transition-opacity",
 								commandExpanded
 									? "opacity-100"
 									: "opacity-0 group-hover/exec:opacity-100",
 							)}
+							tabIndex={commandExpanded ? undefined : -1}
+							aria-hidden={!commandExpanded || undefined}
+							aria-label={
+								commandExpanded ? "Collapse command" : "Expand command"
+							}
 						>
-							<button
-								type="button"
-								onClick={() => setCommandExpanded((v) => !v)}
-								className="border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors"
-								aria-label={
-									commandExpanded ? "Collapse command" : "Expand command"
-								}
-							>
-								<ChevronDownIcon
-									className={cn(
-										"h-3.5 w-3.5 transition-transform",
-										commandExpanded && "rotate-180",
-									)}
-								/>
-							</button>
-						</span>
+							<ChevronDownIcon
+								className={cn(
+									"h-3.5 w-3.5 transition-transform",
+									commandExpanded && "rotate-180",
+								)}
+							/>
+						</button>
 					)}
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />

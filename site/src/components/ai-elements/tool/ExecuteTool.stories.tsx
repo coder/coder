@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { userEvent } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const meta: Meta<typeof ExecuteTool> = {
@@ -37,15 +37,15 @@ export const LongCommand: Story = {
 		output: "",
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Hover the container to reveal the chevron.
+		// Click the command text to expand it. The command area
+		// becomes a button when the text overflows.
+		const commandButton = canvasElement.querySelector(
+			".group\\/exec [role='button']",
+		)!;
+		await userEvent.click(commandButton);
+		// Hover the container so the chevron stays visible.
 		const container = canvasElement.querySelector(".group\\/exec")!;
 		await userEvent.hover(container);
-		// Click the chevron to expand the command.
-		const chevronButton = canvas.getByRole("button", {
-			name: /expand command/i,
-		});
-		await userEvent.click(chevronButton);
 	},
 };
 
