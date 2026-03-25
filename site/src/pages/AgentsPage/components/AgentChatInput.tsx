@@ -28,7 +28,6 @@ import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/components/ai-elements";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Button } from "#/components/Button/Button";
 import {
 	ChatMessageInput,
@@ -49,6 +48,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import {
