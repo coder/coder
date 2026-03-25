@@ -6157,25 +6157,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                 | Type                                            | Required | Restrictions | Description |
-|----------------------|-------------------------------------------------|----------|--------------|-------------|
-| `avatar_url`         | string                                          | false    |              |             |
-| `created_at`         | string                                          | false    |              |             |
-| `email`              | string                                          | false    |              |             |
-| `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `has_ai_seat`        | boolean                                         | false    |              |             |
-| `is_service_account` | boolean                                         | false    |              |             |
-| `last_seen_at`       | string                                          | false    |              |             |
-| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
-| `name`               | string                                          | false    |              |             |
-| `organization_id`    | string                                          | false    |              |             |
-| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `updated_at`         | string                                          | false    |              |             |
-| `user_created_at`    | string                                          | false    |              |             |
-| `user_id`            | string                                          | false    |              |             |
-| `user_updated_at`    | string                                          | false    |              |             |
-| `username`           | string                                          | false    |              |             |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | false    |              |                                                                                                  |
+| `email`              | string                                          | false    |              |                                                                                                  |
+| `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_id`    | string                                          | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `user_created_at`    | string                                          | false    |              |                                                                                                  |
+| `user_id`            | string                                          | false    |              |                                                                                                  |
+| `user_updated_at`    | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | false    |              |                                                                                                  |
 
 #### Enumerated Values
 
@@ -9555,24 +9555,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                 | Type                                            | Required | Restrictions | Description                                                                                |
-|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `avatar_url`         | string                                          | false    |              |                                                                                            |
-| `created_at`         | string                                          | true     |              |                                                                                            |
-| `email`              | string                                          | true     |              |                                                                                            |
-| `has_ai_seat`        | boolean                                         | false    |              |                                                                                            |
-| `id`                 | string                                          | true     |              |                                                                                            |
-| `is_service_account` | boolean                                         | false    |              |                                                                                            |
-| `last_seen_at`       | string                                          | false    |              |                                                                                            |
-| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
-| `name`               | string                                          | false    |              |                                                                                            |
-| `organization_ids`   | array of string                                 | false    |              |                                                                                            |
-| `role`               | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |                                                                                            |
-| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
-| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
-| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `updated_at`         | string                                          | false    |              |                                                                                            |
-| `username`           | string                                          | true     |              |                                                                                            |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | true     |              |                                                                                                  |
+| `email`              | string                                          | true     |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_ids`   | array of string                                 | false    |              |                                                                                                  |
+| `role`               | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | true     |              |                                                                                                  |
 
 #### Enumerated Values
 
@@ -10452,23 +10452,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type                                            | Required | Restrictions | Description                                                                                |
-|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `avatar_url`         | string                                          | false    |              |                                                                                            |
-| `created_at`         | string                                          | true     |              |                                                                                            |
-| `email`              | string                                          | true     |              |                                                                                            |
-| `has_ai_seat`        | boolean                                         | false    |              |                                                                                            |
-| `id`                 | string                                          | true     |              |                                                                                            |
-| `is_service_account` | boolean                                         | false    |              |                                                                                            |
-| `last_seen_at`       | string                                          | false    |              |                                                                                            |
-| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
-| `name`               | string                                          | false    |              |                                                                                            |
-| `organization_ids`   | array of string                                 | false    |              |                                                                                            |
-| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
-| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
-| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `updated_at`         | string                                          | false    |              |                                                                                            |
-| `username`           | string                                          | true     |              |                                                                                            |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | true     |              |                                                                                                  |
+| `email`              | string                                          | true     |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_ids`   | array of string                                 | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | true     |              |                                                                                                  |
 
 #### Enumerated Values
 

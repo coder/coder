@@ -17427,6 +17427,7 @@ const docTemplate = `{
                     }
                 },
                 "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
                     "type": "boolean"
                 },
                 "is_service_account": {
@@ -20226,6 +20227,7 @@ const docTemplate = `{
                     "format": "email"
                 },
                 "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
                     "type": "boolean"
                 },
                 "id": {
@@ -21078,6 +21080,7 @@ const docTemplate = `{
                     "format": "email"
                 },
                 "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
                     "type": "boolean"
                 },
                 "id": {
