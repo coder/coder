@@ -37,10 +37,13 @@ const readInfiniteChats = (
 };
 
 import type * as TypesGen from "api/typesGenerated";
+import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
+import themes, { DEFAULT_THEME } from "theme";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { AgentDetailTimeline } from "../AgentDetailContent";
 import {
 	selectChatStatus,
@@ -623,7 +626,11 @@ describe("useChatStore", () => {
 
 		render(
 			<QueryClientProvider client={queryClient}>
-				<TestHarness />
+				<ThemeOverride theme={themes[DEFAULT_THEME]}>
+					<TooltipProvider delayDuration={100}>
+						<TestHarness />
+					</TooltipProvider>
+				</ThemeOverride>
 			</QueryClientProvider>,
 		);
 
