@@ -30,6 +30,12 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			want:     ptr.Ref(string(fantasyopenai.ReasoningEffortHigh)),
 		},
 		{
+			name:     "OpenAIXHighEffort",
+			provider: "openai",
+			input:    ptr.Ref("xhigh"),
+			want:     ptr.Ref(string(fantasyopenai.ReasoningEffortXHigh)),
+		},
+		{
 			name:     "AnthropicEffort",
 			provider: "anthropic",
 			input:    ptr.Ref("max"),
