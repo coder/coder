@@ -578,14 +578,15 @@ const ScrollAnchoredContainer: FC<{
 	useEffect(() => {
 		if (isFetchingMoreMessages) {
 			const container = scrollContainerRef.current;
-			if (!container) return;
+			const content = contentRef.current;
+			if (!container || !content) return;
 			prevScrollHeightRef.current = container.scrollHeight;
 			const observer = new ResizeObserver(() => {
 				if (scrollContainerRef.current) {
 					prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
 				}
 			});
-			observer.observe(container);
+			observer.observe(content);
 			return () => observer.disconnect();
 		}
 
@@ -606,7 +607,7 @@ const ScrollAnchoredContainer: FC<{
 		return () => {
 			cancelAnimationFrame(rafId);
 		};
-	}, [isFetchingMoreMessages, scrollContainerRef]);
+	}, [isFetchingMoreMessages, scrollContainerRef, contentRef]);
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
