@@ -616,7 +616,9 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.User(user, req.OrganizationIDs))
+	sdkUser := db2sdk.User(user, req.OrganizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusCreated, sdkUser)
 }
 
 // @Summary Delete user
