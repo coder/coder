@@ -538,11 +538,13 @@ export const MCPToolCompleted: Story = {
 		expect(toggle).toBeInTheDocument();
 		// Expand to see result content.
 		await userEvent.click(toggle);
-		// The JSON output is syntax-highlighted, splitting text across
-		// DOM nodes, and the file viewer renders lazily after expand.
-		await waitFor(() =>
-			expect(canvasElement.textContent).toContain("Fix auth flow"),
-		);
+		// @pierre/diffs renders inside a Shadow DOM (<diffs-container>)
+		// so textContent on the host element can't see the content.
+		// Query into the shadow root to verify the JSON rendered.
+		await waitFor(() => {
+			const shadow = canvasElement.querySelector("diffs-container")?.shadowRoot;
+			expect(shadow?.textContent).toContain("Fix auth flow");
+		});
 	},
 };
 
