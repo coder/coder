@@ -61,12 +61,7 @@ export const EditFilesTool: React.FC<{
 			defaultExpanded
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							"text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						{label}
 					</span>
 					{isError && (

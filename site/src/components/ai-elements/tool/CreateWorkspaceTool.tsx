@@ -46,14 +46,7 @@ export const CreateWorkspaceTool: React.FC<{
 	return (
 		<div className="w-full">
 			<div className="flex items-center gap-2">
-				<span
-					className={cn(
-						"text-sm",
-						"text-content-secondary",
-					)}
-				>
-					{label}
-				</span>
+				<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
 				{isError && (
 					<Tooltip>
 						<TooltipTrigger asChild>

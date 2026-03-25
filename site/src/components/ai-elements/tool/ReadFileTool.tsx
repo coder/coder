@@ -38,12 +38,7 @@ export const ReadFileTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							"text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						Read {path.split("/").pop() || path}
 					</span>
 					{isError && (

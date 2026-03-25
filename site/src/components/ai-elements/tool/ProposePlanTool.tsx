@@ -57,18 +57,16 @@ export const ProposePlanTool: React.FC<{
 	return (
 		<div className="w-full">
 			<div className="flex items-center gap-1.5 py-0.5">
-				<span
-					className={cn(
-						"text-sm",
-						"text-content-secondary",
-					)}
-				>
+				<span className={cn("text-sm", "text-content-secondary")}>
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
 				</span>
 				{effectiveError && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<TriangleAlertIcon aria-label="Error" className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							<TriangleAlertIcon
+								aria-label="Error"
+								className="h-3.5 w-3.5 shrink-0 text-content-secondary"
+							/>
 						</TooltipTrigger>
 						<TooltipContent>
 							{effectiveErrorMessage || "Failed to propose plan"}

@@ -28,7 +28,7 @@ export const ExecuteTool: React.FC<{
 	output: string;
 	status: ToolStatus;
 	isError: boolean;
-}> = ({ command, output, status, isError }) => {
+}> = ({ command, output, status }) => {
 	const [expanded, setExpanded] = useState(false);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;

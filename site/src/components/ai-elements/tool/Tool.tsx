@@ -537,19 +537,34 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 				</>
 			}
 		>
-				{writeFileDiff ? (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileDiff
-							fileDiff={stripNoNewline(writeFileDiff)}
-							options={getDiffViewerOptions(isDark)}
-							style={DIFFS_FONT_STYLE}
-						/>
-					</ScrollArea>
-				) : fileContent ? (
+			{writeFileDiff ? (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<FileDiff
+						fileDiff={stripNoNewline(writeFileDiff)}
+						options={getDiffViewerOptions(isDark)}
+						style={DIFFS_FONT_STYLE}
+					/>
+				</ScrollArea>
+			) : fileContent ? (
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+					viewportClassName="max-h-64"
+					scrollBarClassName="w-1.5"
+				>
+					<FileViewer
+						file={{
+							name: fileContent.path,
+							contents: fileContent.content,
+						}}
+						options={fileContentOptions}
+					/>
+				</ScrollArea>
+			) : (
+				resultOutput && (
 					<ScrollArea
 						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 						viewportClassName="max-h-64"
@@ -557,30 +572,15 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					>
 						<FileViewer
 							file={{
-								name: fileContent.path,
-								contents: fileContent.content,
+								name: "output.json",
+								contents: resultOutput,
 							}}
-							options={fileContentOptions}
+							options={getFileViewerOptionsNoHeader(isDark)}
+							style={DIFFS_FONT_STYLE}
 						/>
 					</ScrollArea>
-				) : (
-					resultOutput && (
-						<ScrollArea
-							className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-							viewportClassName="max-h-64"
-							scrollBarClassName="w-1.5"
-						>
-							<FileViewer
-								file={{
-									name: "output.json",
-									contents: resultOutput,
-								}}
-								options={getFileViewerOptionsNoHeader(isDark)}
-								style={DIFFS_FONT_STYLE}
-							/>
-						</ScrollArea>
-					)
-				)}
+				)
+			)}
 		</ToolCollapsible>
 	);
 };

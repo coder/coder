@@ -560,11 +560,11 @@ export const MCPToolError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		// Warning triangle icon should be present.
-		expect(canvasElement.querySelector(".lucide-triangle-alert")).not.toBeNull();
-		// Label text should NOT use the destructive color.
 		expect(
-			canvasElement.querySelector(".text-content-destructive"),
-		).toBeNull();
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Label text should NOT use the destructive color.
+		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
 	},
 };
 
@@ -905,7 +905,9 @@ export const ComputerError: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
 		// Warning icon should be present, not the old destructive style.
-		expect(canvasElement.querySelector(".lucide-triangle-alert")).not.toBeNull();
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
 	},
 };
 
@@ -947,7 +949,9 @@ export const GenericToolFailed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Should show "Failed" badge instead of scary red alert.
-		expect(canvasElement.querySelector(".lucide-triangle-alert")).not.toBeNull();
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
 		// Label should NOT have destructive color.
 		const label = canvas.getByText("some_custom_tool");
 		expect(label.className).not.toContain("text-content-destructive");
@@ -963,8 +967,9 @@ export const GenericToolFailedNoResult: Story = {
 		isError: true,
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvasElement.querySelector(".lucide-triangle-alert")).not.toBeNull();
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
 	},
 };
 
@@ -1044,9 +1049,7 @@ export const SubagentSpawnError: Story = {
 		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
 		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
 		// Should show error verb.
-		expect(
-			canvas.getByText(/Failed to spawn/),
-		).toBeInTheDocument();
+		expect(canvas.getByText(/Failed to spawn/)).toBeInTheDocument();
 		expect(canvas.getByText("Database migration")).toBeInTheDocument();
 	},
 };
@@ -1083,12 +1086,11 @@ export const MCPToolFailedUnifiedStyle: Story = {
 		mcpServers: sampleMCPServers,
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		// Should show warning triangle icon.
-		expect(canvasElement.querySelector(".lucide-triangle-alert")).not.toBeNull();
-		// Icon should NOT be red.
 		expect(
-			canvasElement.querySelector(".text-content-destructive"),
-		).toBeNull();
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+		// Icon should NOT be red.
+		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
 	},
 };

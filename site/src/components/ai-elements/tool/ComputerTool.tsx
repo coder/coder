@@ -40,12 +40,7 @@ export const ComputerTool: React.FC<{
 			defaultExpanded={hasImage}
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							"text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						{isRunning ? "Taking screenshot…" : "Screenshot"}
 					</span>
 					{isError && (

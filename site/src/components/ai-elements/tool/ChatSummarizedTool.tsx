@@ -30,12 +30,7 @@ export const ChatSummarizedTool: React.FC<{
 			hasContent={hasSummary}
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							"text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						{isRunning ? "Summarizing…" : "Summarized"}
 					</span>
 					{isError && (

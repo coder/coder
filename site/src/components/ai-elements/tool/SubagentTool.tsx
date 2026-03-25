@@ -63,14 +63,10 @@ const SubagentStatusIcon: React.FC<{
 }> = ({ subagentStatus, toolStatus, isError, isTimeout }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	if (isTimeout && !subagentCompleted) {
-		return (
-			<ClockIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-		);
+		return <ClockIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
-		return (
-			<CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-		);
+		return <CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
 	if (toolStatus === "running") {
 		return (
