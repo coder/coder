@@ -72,6 +72,7 @@ import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
 import { SectionHeader } from "./components/SectionHeader";
+import { TextPreviewDialog } from "./components/TextPreviewDialog";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const AdminBadge: FC = () => (
@@ -553,8 +554,18 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	} = useMutation(updateChatWorkspaceTTL(queryClient));
 
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
+	const serverIncludeDefault =
+		systemPromptQuery.data?.include_default_system_prompt ?? true;
+	const defaultSystemPrompt =
+		systemPromptQuery.data?.default_system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
+	const [localIncludeDefault, setLocalIncludeDefault] = useState<
+		boolean | null
+	>(null);
+	const [showDefaultPromptPreview, setShowDefaultPromptPreview] =
+		useState(false);
 	const systemPromptDraft = localEdit ?? serverPrompt;
+	const includeDefaultDraft = localIncludeDefault ?? serverIncludeDefault;
 
 	const serverUserPrompt = userPromptQuery.data?.custom_prompt ?? "";
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
@@ -572,7 +583,10 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
-	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
+	const isSystemPromptDirty =
+		(localEdit !== null && localEdit !== serverPrompt) ||
+		(localIncludeDefault !== null &&
+			localIncludeDefault !== serverIncludeDefault);
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
@@ -594,8 +608,16 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		event.preventDefault();
 		if (!isSystemPromptDirty) return;
 		saveSystemPrompt(
-			{ system_prompt: systemPromptDraft },
-			{ onSuccess: () => setLocalEdit(null) },
+			{
+				system_prompt: systemPromptDraft,
+				include_default_system_prompt: includeDefaultDraft,
+			},
+			{
+				onSuccess: () => {
+					setLocalEdit(null);
+					setLocalIncludeDefault(null);
+				},
+			},
 		);
 	};
 
@@ -732,16 +754,37 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										</h3>
 										<AdminBadge />
 									</div>
+									<div className="flex items-center justify-between gap-4">
+										<div className="flex min-w-0 items-center gap-2 text-xs font-medium text-content-primary">
+											<span>Include Coder Agents default system prompt</span>
+											<Button
+												size="xs"
+												variant="subtle"
+												type="button"
+												onClick={() => setShowDefaultPromptPreview(true)}
+												className="min-w-0 px-0 text-content-link hover:text-content-link"
+											>
+												Preview
+											</Button>
+										</div>
+										<Switch
+											checked={includeDefaultDraft}
+											onCheckedChange={setLocalIncludeDefault}
+											aria-label="Include Coder Agents default system prompt"
+											disabled={isPromptSaving}
+										/>
+									</div>
 									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										Applied to all chats for every user. When empty, the
-										built-in default is used.
+										{includeDefaultDraft
+											? "The built-in Coder Agents prompt is prepended. Additional instructions below are appended."
+											: "Only the additional instructions below are used. When empty, no deployment-wide system prompt is sent."}
 									</p>
 									<TextareaAutosize
 										className={cn(
 											textareaBaseClassName,
 											isSystemPromptOverflowing && textareaOverflowClassName,
 										)}
-										placeholder="Additional behavior, style, and tone preferences for all users"
+										placeholder="Additional instructions for all users"
 										value={systemPromptDraft}
 										onChange={(event) => setLocalEdit(event.target.value)}
 										onHeightChange={(height) =>
@@ -942,6 +985,13 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 					<TemplateAllowlistSection />
 				)}
 			</div>
+			{showDefaultPromptPreview && (
+				<TextPreviewDialog
+					content={defaultSystemPrompt}
+					fileName="Default System Prompt"
+					onClose={() => setShowDefaultPromptPreview(false)}
+				/>
+			)}
 		</div>
 	);
 };

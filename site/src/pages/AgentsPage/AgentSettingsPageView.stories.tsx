@@ -127,6 +127,7 @@ const getChatCostUsersCalls = () =>
 	).mock.calls;
 
 const fixedNow = dayjs("2026-03-12T00:00:00Z");
+const mockDefaultSystemPrompt = "You are Coder, an AI coding assistant...";
 
 // ── Meta ───────────────────────────────────────────────────────
 
@@ -147,6 +148,8 @@ const meta = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
@@ -227,6 +230,79 @@ export const TogglesDesktop: Story = {
 				enable_desktop: true,
 			});
 		});
+	},
+};
+
+export const AdminWithDefaultToggleOn: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "Always use TypeScript for code examples.",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Include Coder Agents default system prompt",
+		});
+		expect(toggle).toBeChecked();
+		expect(
+			await canvas.findByDisplayValue(
+				"Always use TypeScript for code examples.",
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText(/built-in Coder Agents prompt is prepended/i),
+		).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Preview" }));
+		expect(await body.findByText("Default System Prompt")).toBeInTheDocument();
+		expect(body.getByText(mockDefaultSystemPrompt)).toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(body.queryByText("Default System Prompt")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(toggle);
+		const promptForm = canvas
+			.getByDisplayValue("Always use TypeScript for code examples.")
+			.closest("form")!;
+		const saveButton = within(promptForm).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(API.experimental.updateChatSystemPrompt).toHaveBeenCalledWith({
+				system_prompt: "Always use TypeScript for code examples.",
+				include_default_system_prompt: false,
+			});
+		});
+	},
+};
+
+export const AdminWithDefaultToggleOff: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "You are a custom assistant.",
+			include_default_system_prompt: false,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Include Coder Agents default system prompt",
+		});
+		expect(toggle).not.toBeChecked();
+		expect(
+			await canvas.findByDisplayValue("You are a custom assistant."),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText(/only the additional instructions below are used/i),
+		).toBeInTheDocument();
 	},
 };
 

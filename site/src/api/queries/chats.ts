@@ -395,11 +395,13 @@ const chatSystemPromptKey = ["chat-system-prompt"] as const;
 
 export const chatSystemPrompt = () => ({
 	queryKey: chatSystemPromptKey,
-	queryFn: () => API.experimental.getChatSystemPrompt(),
+	queryFn: (): Promise<TypesGen.ChatSystemPromptResponse> =>
+		API.experimental.getChatSystemPrompt(),
 });
 
 export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatSystemPrompt,
+	mutationFn: (req: TypesGen.UpdateChatSystemPromptRequest) =>
+		API.experimental.updateChatSystemPrompt(req),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,
