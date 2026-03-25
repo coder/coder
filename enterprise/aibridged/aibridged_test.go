@@ -174,7 +174,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 	}
 }
 
-func TestServeHTTP_StripCoderSessionToken(t *testing.T) {
+func TestServeHTTP_StripCoderToken(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
