@@ -24,15 +24,32 @@ export const ToolIcon: React.FC<{
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
 	if (iconUrl && !imgError) {
+		// On error, use the image as a CSS mask so the fill color is
+		// exactly bg-content-destructive, matching the lucide icons.
+		if (isError) {
+			return (
+				<div
+					role="img"
+					aria-label={`${name} icon`}
+					className="h-4 w-4 shrink-0 bg-content-destructive"
+					style={{
+						WebkitMaskImage: `url(${iconUrl})`,
+						maskImage: `url(${iconUrl})`,
+						WebkitMaskSize: "contain",
+						maskSize: "contain",
+						WebkitMaskRepeat: "no-repeat",
+						maskRepeat: "no-repeat",
+						WebkitMaskPosition: "center",
+						maskPosition: "center",
+					}}
+				/>
+			);
+		}
 		return (
 			<ExternalImage
 				src={iconUrl}
 				alt={`${name} icon`}
-				className={cn(
-					"block h-4 w-4 shrink-0",
-					isError &&
-						"brightness-0 invert-[.35] sepia saturate-[10] hue-rotate-[340deg]",
-				)}
+				className="block h-4 w-4 shrink-0"
 				onError={() => setImgError(true)}
 			/>
 		);
