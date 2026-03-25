@@ -1,6 +1,3 @@
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
@@ -17,6 +14,9 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Stack } from "#/components/Stack/Stack";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
 const CustomRolesPage: FC = () => {

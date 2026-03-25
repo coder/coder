@@ -15,7 +15,6 @@ import { withWebSocket } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
-import { permissionChecks } from "modules/permissions";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -23,6 +22,7 @@ import {
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "#/api/typesGenerated";
+import { permissionChecks } from "#/modules/permissions";
 import TerminalPage from "./TerminalPage";
 
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {

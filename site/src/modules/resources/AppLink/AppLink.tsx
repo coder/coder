@@ -7,8 +7,6 @@ import {
 	SquareArrowOutUpRightIcon,
 	UsersIcon,
 } from "lucide-react";
-import { isExternalApp, needsSessionToken } from "modules/apps/apps";
-import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, type ReactNode, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
@@ -20,6 +18,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isExternalApp, needsSessionToken } from "#/modules/apps/apps";
+import { useAppLink } from "#/modules/apps/useAppLink";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 

@@ -1,5 +1,4 @@
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
@@ -9,6 +8,7 @@ import {
 	experiments,
 	isKnownExperiment,
 } from "#/api/queries/experiments";
+import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
 import { OverviewPageView } from "./OverviewPageView";
 
 const OverviewPage: FC = () => {

@@ -1,10 +1,4 @@
 import { ChevronRightIcon } from "lucide-react";
-import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
-import {
-	ProvisionerTag,
-	ProvisionerTags,
-	ProvisionerTruncateTags,
-} from "modules/provisioners/ProvisionerTags";
 import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -21,6 +15,12 @@ import {
 	type StatusIndicatorProps,
 } from "#/components/StatusIndicator/StatusIndicator";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import { JobStatusIndicator } from "#/modules/provisioners/JobStatusIndicator";
+import {
+	ProvisionerTag,
+	ProvisionerTags,
+	ProvisionerTruncateTags,
+} from "#/modules/provisioners/ProvisionerTags";
 import { ProvisionerVersion } from "./ProvisionerVersion";
 
 const variantByStatus: Record<

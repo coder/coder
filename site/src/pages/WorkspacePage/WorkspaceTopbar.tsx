@@ -1,9 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
@@ -32,6 +29,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";

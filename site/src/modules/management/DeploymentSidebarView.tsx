@@ -1,5 +1,4 @@
 import { ArrowUpRight } from "lucide-react";
-import type { Permissions } from "modules/permissions";
 import type { FC } from "react";
 import { isDevBuild } from "utils/buildInfo";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
@@ -8,6 +7,7 @@ import {
 	SettingsSidebarNavItem as SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
 import { Stack } from "#/components/Stack/Stack";
+import type { Permissions } from "#/modules/permissions";
 
 interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */

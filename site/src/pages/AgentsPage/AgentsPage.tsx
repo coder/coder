@@ -1,5 +1,4 @@
 import { useAuthenticated } from "hooks";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -29,6 +28,7 @@ import {
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { maybePlayChime } from "./components/AgentDetail/useAgentChime";

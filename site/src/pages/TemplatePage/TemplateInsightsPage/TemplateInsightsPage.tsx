@@ -4,7 +4,6 @@ import {
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import {
 	DateRangePicker as DailyPicker,
 	type DateRangeValue,
@@ -65,6 +64,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { getTemplatePageTitle } from "../utils";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";

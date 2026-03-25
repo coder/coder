@@ -3,7 +3,6 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
@@ -44,6 +43,7 @@ import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 

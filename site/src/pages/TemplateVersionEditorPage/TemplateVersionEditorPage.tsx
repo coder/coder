@@ -1,5 +1,3 @@
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
 import {
 	keepPreviousData,
@@ -29,6 +27,8 @@ import type {
 	TemplateVersion,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const TemplateVersionEditorPage: FC = () => {

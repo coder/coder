@@ -1,4 +1,3 @@
-import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
 import { Link } from "react-router";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -9,6 +8,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { linkToAuditing } from "#/modules/navigation";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;

@@ -1,5 +1,4 @@
 import Link from "@mui/material/Link";
-import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { docs } from "utils/docs";
@@ -8,6 +7,7 @@ import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Stack } from "#/components/Stack/Stack";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [

@@ -7,7 +7,6 @@ import {
 } from "testHelpers/entities";
 import { act, render } from "@testing-library/react";
 import { ThemeOverride } from "contexts/ThemeProvider";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
@@ -15,6 +14,7 @@ import themes, { DEFAULT_THEME } from "theme";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 // ---- IntersectionObserver mock ----

@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -23,6 +22,7 @@ import {
 } from "#/components/Form/Form";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { ClassicParameterFlowDeprecationWarning } from "#/modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 
 export type WorkspaceParametersFormValues = {
 	rich_parameter_values: WorkspaceBuildParameter[];

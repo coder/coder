@@ -2,7 +2,6 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
@@ -19,6 +18,7 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "#/components/HelpTooltip/HelpTooltip";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,

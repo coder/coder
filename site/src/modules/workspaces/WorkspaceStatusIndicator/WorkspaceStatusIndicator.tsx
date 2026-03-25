@@ -1,4 +1,3 @@
-import { getAgentHealthIssue } from "modules/workspaces/health";
 import type React from "react";
 import type { FC } from "react";
 import {
@@ -16,6 +15,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getAgentHealthIssue } from "#/modules/workspaces/health";
 
 const variantByStatusType: Record<
 	DisplayWorkspaceStatusType,

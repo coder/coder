@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { isEveryoneGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
@@ -36,6 +35,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { MemberAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import { isEveryoneGroup } from "#/modules/groups";
 import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {

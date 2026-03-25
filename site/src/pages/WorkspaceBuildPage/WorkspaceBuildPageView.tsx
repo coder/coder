@@ -1,14 +1,5 @@
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ExternalLinkIcon } from "lucide-react";
-import { BuildAvatar } from "modules/builds/BuildAvatar/BuildAvatar";
-import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
-import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
-import { useAgentLogs } from "modules/resources/useAgentLogs";
-import {
-	WorkspaceBuildData,
-	WorkspaceBuildDataSkeleton,
-} from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
 	type FC,
 	type HTMLProps,
@@ -37,6 +28,15 @@ import {
 import { Stack } from "#/components/Stack/Stack";
 import { Stats, StatsItem } from "#/components/Stats/Stats";
 import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { BuildAvatar } from "#/modules/builds/BuildAvatar/BuildAvatar";
+import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
+import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
+import { useAgentLogs } from "#/modules/resources/useAgentLogs";
+import {
+	WorkspaceBuildData,
+	WorkspaceBuildDataSkeleton,
+} from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";

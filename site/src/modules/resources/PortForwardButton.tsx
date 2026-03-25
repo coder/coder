@@ -15,7 +15,6 @@ import {
 	ShareIcon,
 	X as XIcon,
 } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { docs } from "utils/docs";
@@ -60,6 +59,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 interface PortForwardButtonProps {
 	host: string;

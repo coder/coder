@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import { isEveryoneGroup } from "modules/groups";
 import type { FC } from "react";
 import {
 	getFormHelpers,
@@ -13,6 +12,7 @@ import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { isEveryoneGroup } from "#/modules/groups";
 
 type FormData = {
 	name: string;

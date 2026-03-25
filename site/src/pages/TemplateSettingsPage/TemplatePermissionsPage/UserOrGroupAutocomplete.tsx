@@ -1,5 +1,4 @@
 import { Check } from "lucide-react";
-import { getGroupSubtitle, isGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
@@ -7,6 +6,7 @@ import { templaceACLAvailable } from "#/api/queries/templates";
 import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { getGroupSubtitle, isGroup } from "#/modules/groups";
 
 export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
 type AutocompleteOption = Exclude<UserOrGroupAutocompleteValue, null>;
