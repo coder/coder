@@ -31,8 +31,8 @@ export const TokensCell: FC<{
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className="inline-flex items-center gap-1 whitespace-nowrap">
-					<span className="inline-flex items-center gap-0.5">
+				<span className="inline-grid grid-cols-[1fr_auto_1fr] items-center gap-1 whitespace-nowrap">
+					<span className="inline-flex items-center justify-end gap-0.5">
 						<ArrowDownIcon className="h-3 w-3" />
 						{formatTokenCount(inputTokens)}
 					</span>
@@ -171,7 +171,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		<div className="space-y-6">
 			<div className="grid grid-cols-2 gap-4 md:grid-cols-3">
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Total Cost
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -179,7 +179,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Input Tokens
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -187,7 +187,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Output Tokens
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -195,7 +195,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Cache Read
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -203,7 +203,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Cache Write
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -211,7 +211,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Messages
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -227,7 +227,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					<div className="flex flex-col gap-4">
 						<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
 							<div>
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+								<p className="text-xs font-medium tracking-wide text-content-secondary">
 									{usageLimitPeriodLabel} Spend Limit
 								</p>
 								{usageLimitCurrentPeriod && (
