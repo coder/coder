@@ -40,6 +40,7 @@ type Automation struct {
 
 // CreateAutomationRequest is the request body for creating an automation.
 type CreateAutomationRequest struct {
+	OrganizationID        uuid.UUID   `json:"organization_id" format:"uuid"`
 	Name                  string      `json:"name"`
 	Description           string      `json:"description,omitempty"`
 	Instructions          string      `json:"instructions,omitempty"`
@@ -76,8 +77,9 @@ type AutomationTrigger struct {
 	ID           uuid.UUID             `json:"id" format:"uuid"`
 	AutomationID uuid.UUID             `json:"automation_id" format:"uuid"`
 	Type         AutomationTriggerType `json:"type"`
-	WebhookURL   string                `json:"webhook_url,omitempty"`
-	CronSchedule *string               `json:"cron_schedule,omitempty"`
+	WebhookURL    string                `json:"webhook_url,omitempty"`
+	WebhookSecret string                `json:"webhook_secret,omitempty"`
+	CronSchedule  *string               `json:"cron_schedule,omitempty"`
 	Filter       json.RawMessage       `json:"filter"`
 	LabelPaths   json.RawMessage       `json:"label_paths"`
 	CreatedAt    time.Time             `json:"created_at" format:"date-time"`

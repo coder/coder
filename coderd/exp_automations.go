@@ -48,17 +48,12 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the first organization the user belongs to.
-	orgs, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-		UserID: apiKey.UserID,
-	})
-	if err != nil || len(orgs) == 0 {
+	if req.OrganizationID == uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Could not determine organization.",
+			Message: "organization_id is required.",
 		})
 		return
 	}
-	orgID := orgs[0].ID
 
 	maxCreates := int32(10)
 	if req.MaxChatCreatesPerHour != nil {
@@ -84,7 +79,7 @@ func (api *API) postAutomation(rw http.ResponseWriter, r *http.Request) {
 
 	arg := database.InsertAutomationParams{
 		OwnerID:               apiKey.UserID,
-		OrganizationID:        orgID,
+		OrganizationID:        req.OrganizationID,
 		Name:                  req.Name,
 		Description:           req.Description,
 		Instructions:          req.Instructions,
@@ -411,7 +406,14 @@ func (api *API) postAutomationTrigger(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.AutomationTrigger(trigger, api.AccessURL.String()))
+	result := db2sdk.AutomationTrigger(trigger, api.AccessURL.String())
+	// Reveal the secret on creation so the user can configure
+	// their webhook provider. This is the only time the plaintext
+	// secret is included in a response.
+	if trigger.WebhookSecret.Valid {
+		result.WebhookSecret = trigger.WebhookSecret.String
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, result)
 }
 
 // listAutomationTriggers lists triggers for an automation.
@@ -510,7 +512,13 @@ func (api *API) regenerateAutomationTriggerSecret(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.AutomationTrigger(updated, api.AccessURL.String()))
+	result := db2sdk.AutomationTrigger(updated, api.AccessURL.String())
+	// Reveal the new secret so the user can reconfigure their
+	// webhook provider.
+	if updated.WebhookSecret.Valid {
+		result.WebhookSecret = updated.WebhookSecret.String
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
 
 // postAutomationWebhook is the unauthenticated stable v2 endpoint
@@ -522,6 +530,14 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	triggerIDStr := chi.URLParam(r, "trigger_id")
 	triggerID, err := uuid.Parse(triggerIDStr)
 	if err != nil {
+		rw.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Respect the experiment flag even on the unauthenticated
+	// webhook path. We check here rather than in middleware
+	// because the endpoint must always return 200.
+	if !api.Experiments.Enabled(codersdk.ExperimentAgents) {
 		rw.WriteHeader(http.StatusOK)
 		return
 	}
@@ -568,7 +584,7 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 		_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationEventParams{
 			AutomationID:  automation.ID,
 			TriggerID:     uuid.NullUUID{UUID: trigger.ID, Valid: true},
-			Payload:       truncatePayload(payload),
+			Payload:       safePayload(payload),
 			FilterMatched: false,
 			Status:        "error",
 			Error:         sql.NullString{String: "signature verification failed", Valid: true},
@@ -585,7 +601,7 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 		_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationEventParams{
 			AutomationID:  automation.ID,
 			TriggerID:     uuid.NullUUID{UUID: trigger.ID, Valid: true},
-			Payload:       truncatePayload(payload),
+			Payload:       safePayload(payload),
 			FilterMatched: false,
 			Status:        "filtered",
 		})
@@ -611,7 +627,7 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 		eventArg := database.InsertAutomationEventParams{
 			AutomationID:   automation.ID,
 			TriggerID:      uuid.NullUUID{UUID: trigger.ID, Valid: true},
-			Payload:        truncatePayload(payload),
+			Payload:        safePayload(payload),
 			FilterMatched:  true,
 			ResolvedLabels: resolvedLabelsJSON,
 			Status:         "preview",
@@ -646,12 +662,34 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 	_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationEventParams{
 		AutomationID:   automation.ID,
 		TriggerID:      uuid.NullUUID{UUID: trigger.ID, Valid: true},
-		Payload:        truncatePayload(payload),
+		Payload:        safePayload(payload),
 		FilterMatched:  true,
 		ResolvedLabels: resolvedLabelsJSON,
 		Status:         "created",
 	})
 	rw.WriteHeader(http.StatusOK)
+}
+
+// safePayload ensures the payload is valid JSON before storing
+// it in the jsonb column. If the payload is not valid JSON, it
+// is base64-encoded and wrapped in a valid JSON envelope so
+// the event audit trail is preserved.
+func safePayload(payload []byte) json.RawMessage {
+	if json.Valid(payload) {
+		return truncatePayload(payload)
+	}
+	// Wrap non-JSON payloads in a valid envelope. We use the
+	// raw string rather than base64 to keep it readable when
+	// the content is plaintext (form-encoded, XML, etc.).
+	wrapped, err := json.Marshal(map[string]any{
+		"_raw_body":     string(payload),
+		"_content_note": "Original payload was not valid JSON.",
+	})
+	if err != nil {
+		// Fallback: this should never fail.
+		return json.RawMessage(`{"_error":"failed to encode payload"}`)
+	}
+	return truncatePayload(wrapped)
 }
 
 // truncatePayload limits the stored payload to 64 KB. If the
