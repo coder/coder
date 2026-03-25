@@ -1,17 +1,18 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import { addMember, removeMember } from "api/queries/groups";
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-	ReducedUser,
-} from "api/typesGenerated";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import {
+	groupMembersByOrganizationQueryKey,
+	removeMember,
+} from "api/queries/groups";
+import type { Group, ReducedUser } from "api/typesGenerated";
+import { EllipsisVertical } from "lucide-react";
 import { isEveryoneGroup } from "modules/groups";
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
+import { AddUsersMenu } from "#/components/AddUsersMenu/AddUsersMenu";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -25,8 +26,6 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -35,7 +34,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { MemberAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
 import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {
@@ -48,12 +46,14 @@ const GroupMembersPage: FC = () => {
 		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const addMemberMutation = useMutation(addMember(queryClient, organization));
+	const addMemberMutation = useMutation({
+		mutationFn: ({ userId }: { userId: string }) =>
+			API.addMember(groupData.id, userId),
+	});
 	const removeMemberMutation = useMutation(
 		removeMember(queryClient, organization),
 	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
-	const groupId = groupData.id;
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -61,21 +61,40 @@ const GroupMembersPage: FC = () => {
 				<UsersFilter {...filterProps} />
 
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-					<AddGroupMember
+					<AddUsersMenu
 						isLoading={addMemberMutation.isPending}
-						organizationId={groupData.organization_id}
-						onSubmit={async (member, reset) => {
-							try {
-								await addMemberMutation.mutateAsync({
-									groupId,
-									userId: member.user_id,
-								});
-								reset();
-							} catch (error) {
-								toast.error(getErrorMessage(error, "Failed to add member."), {
+						existingUserIds={new Set(members.map((m) => m.id))}
+						onSubmit={async (usersToAdd) => {
+							const addPromises = usersToAdd.map((user) =>
+								addMemberMutation.mutateAsync({ userId: user.id }),
+							);
+							const addAllPromise = Promise.all(addPromises);
+
+							toast.promise(addAllPromise, {
+								loading:
+									usersToAdd.length === 1
+										? `Adding "${usersToAdd[0].username}" to "${groupData.name}"...`
+										: `Adding ${usersToAdd.length} members to "${groupData.name}"...`,
+								success:
+									usersToAdd.length === 1
+										? `Added "${usersToAdd[0].username}" to "${groupData.name}" successfully.`
+										: `Added ${usersToAdd.length} members to "${groupData.name}" successfully.`,
+								error: (error) => ({
+									message: getErrorMessage(error, "Failed to add members."),
 									description: getErrorDetail(error),
-								});
-							}
+								}),
+							});
+
+							await addAllPromise;
+						}}
+						onSuccess={async () => {
+							// Only invalidate the group-members list we are updating.
+							await queryClient.invalidateQueries({
+								queryKey: groupMembersByOrganizationQueryKey(
+									organization,
+									groupData.name,
+								),
+							});
 						}}
 					/>
 				)}
@@ -126,55 +145,6 @@ const GroupMembersPage: FC = () => {
 				</Table>
 			</PaginationContainer>
 		</div>
-	);
-};
-
-interface AddGroupMemberProps {
-	isLoading: boolean;
-	onSubmit: (user: OrganizationMemberWithUserData, reset: () => void) => void;
-	organizationId: string;
-}
-
-const AddGroupMember: FC<AddGroupMemberProps> = ({
-	isLoading,
-	onSubmit,
-	organizationId,
-}) => {
-	const [selectedUser, setSelectedUser] =
-		useState<OrganizationMemberWithUserData | null>(null);
-
-	const resetValues = () => {
-		setSelectedUser(null);
-	};
-
-	return (
-		<form
-			onSubmit={(e) => {
-				e.preventDefault();
-
-				if (selectedUser) {
-					onSubmit(selectedUser, resetValues);
-				}
-			}}
-		>
-			<Stack direction="row" alignItems="center" spacing={1}>
-				<MemberAutocomplete
-					css={styles.autoComplete}
-					value={selectedUser}
-					organizationId={organizationId}
-					onChange={(newValue) => {
-						setSelectedUser(newValue);
-					}}
-				/>
-
-				<Button disabled={!selectedUser || isLoading} type="submit">
-					<Spinner loading={isLoading}>
-						<UserPlusIcon className="size-icon-sm" />
-					</Spinner>
-					Add user
-				</Button>
-			</Stack>
-		</form>
 	);
 };
 

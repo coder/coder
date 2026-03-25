@@ -63,12 +63,17 @@ export const group = (
 	};
 };
 
+export const groupMembersByOrganizationQueryKey = (
+	organization: string,
+	groupName: string,
+) => ["organization", organization, "group", groupName, "members"];
+
 export const getGroupMembersQueryKey = (
 	organization: string,
 	groupName: string,
 	req?: UsersRequest,
 ) => {
-	const base = [...getRootGroupQueryKey(organization, groupName), "members"];
+	const base = groupMembersByOrganizationQueryKey(organization, groupName);
 	return req ? [...base, req] : base;
 };
 

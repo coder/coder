@@ -1,4 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -6,10 +5,11 @@ import type {
 	User,
 } from "api/typesGenerated";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
-import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
+import { EllipsisVertical, TriangleAlert } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
-import { type FC, useState } from "react";
+import type { ComponentProps, FC } from "react";
 import { toast } from "sonner";
+import { AddUsersMenu } from "#/components/AddUsersMenu/AddUsersMenu";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -20,13 +20,13 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { Loader } from "#/components/Loader/Loader";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
@@ -36,7 +36,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
@@ -44,6 +43,7 @@ interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
 	canEditMembers: boolean;
 	canViewMembers: boolean;
+	filterProps: ComponentProps<typeof UsersFilter>;
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
@@ -52,7 +52,7 @@ interface OrganizationMembersPageViewProps {
 	membersQuery: PaginationResultInfo & {
 		isPlaceholderData: boolean;
 	};
-	addMember: (user: User) => Promise<void>;
+	addMembers: (users: readonly User[]) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
 		member: OrganizationMemberWithUserData,
@@ -70,13 +70,14 @@ export const OrganizationMembersPageView: FC<
 	allAvailableRoles,
 	canEditMembers,
 	canViewMembers,
+	filterProps,
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
 	me,
 	membersQuery,
 	members,
-	addMember,
+	addMembers,
 	removeMember,
 	updateMemberRoles,
 }) => {
@@ -89,12 +90,16 @@ export const OrganizationMembersPageView: FC<
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
 
-				{canEditMembers && (
-					<AddOrganizationMember
-						isLoading={isAddingMember}
-						onSubmit={addMember}
-					/>
-				)}
+				<div className="flex flex-row flex-wrap items-start justify-between gap-4">
+					<UsersFilter {...filterProps} />
+					{canEditMembers && (
+						<AddUsersMenu
+							isLoading={isAddingMember}
+							onSubmit={addMembers}
+							existingUserIds={new Set(members?.map((m) => m.user_id) ?? [])}
+						/>
+					)}
+				</div>
 
 				{!canViewMembers && (
 					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
@@ -198,65 +203,5 @@ export const OrganizationMembersPageView: FC<
 				</PaginationContainer>
 			</div>
 		</div>
-	);
-};
-
-interface AddOrganizationMemberProps {
-	isLoading: boolean;
-	onSubmit: (user: User) => Promise<void>;
-}
-
-const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
-	isLoading,
-	onSubmit,
-}) => {
-	const [selectedUser, setSelectedUser] = useState<User | null>(null);
-
-	return (
-		<form
-			onSubmit={async (event) => {
-				event.preventDefault();
-
-				if (selectedUser) {
-					try {
-						await onSubmit(selectedUser);
-						setSelectedUser(null);
-					} catch (error) {
-						toast.error(
-							getErrorMessage(
-								error,
-								selectedUser
-									? `Failed to add "${selectedUser.username}" as a member.`
-									: "Failed to add member.",
-							),
-							{
-								description: getErrorDetail(error),
-							},
-						);
-					}
-				}
-			}}
-		>
-			<Stack direction="row" alignItems="center" spacing={1}>
-				<UserAutocomplete
-					className="w-[300px]"
-					value={selectedUser}
-					onChange={(newValue) => {
-						setSelectedUser(newValue);
-					}}
-				/>
-
-				<Button
-					disabled={!selectedUser || isLoading}
-					type="submit"
-					variant="outline"
-				>
-					<Spinner loading={isLoading}>
-						<UserPlusIcon className="size-icon-sm" />
-					</Spinner>
-					Add user
-				</Button>
-			</Stack>
-		</form>
 	);
 };

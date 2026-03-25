@@ -1,4 +1,4 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
 	addOrganizationMember,
@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
 import { Stack } from "#/components/Stack/Stack";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -29,7 +30,7 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const searchParamsResult = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -37,8 +38,14 @@ const OrganizationMembersPage: FC = () => {
 	);
 
 	const membersQuery = usePaginatedQuery(
-		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
+		paginatedOrganizationMembers(organizationName, searchParams),
 	);
+
+	const useFilterResult = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: membersQuery.goToFirstPage,
+	});
 
 	const members = membersQuery.data?.members.map(
 		(member: OrganizationMemberWithUserData) => {
@@ -86,6 +93,9 @@ const OrganizationMembersPage: FC = () => {
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}
 				canViewMembers={organizationPermissions.viewMembers}
+				filterProps={{
+					filter: useFilterResult,
+				}}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??
@@ -99,8 +109,28 @@ const OrganizationMembersPage: FC = () => {
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
-				addMember={async (user: User) => {
-					await addMemberMutation.mutateAsync(user.id);
+				addMembers={async (usersToAdd: readonly User[]) => {
+					const addMutationPromises = usersToAdd.map((user) =>
+						addMemberMutation.mutateAsync(user.id),
+					);
+					const addAllMembersPromise = Promise.all(addMutationPromises);
+
+					toast.promise(addAllMembersPromise, {
+						loading:
+							usersToAdd.length === 1
+								? `Adding "${usersToAdd[0].username}" to "${organization.display_name}"...`
+								: `Adding ${usersToAdd.length} members to "${organization.display_name}"...`,
+						success:
+							usersToAdd.length === 1
+								? `Added "${usersToAdd[0].username}" to "${organization.display_name}".`
+								: `Added ${usersToAdd.length} members to "${organization.display_name}".`,
+						error: (error) => ({
+							message: getErrorMessage(error, "Failed to add members."),
+							description: getErrorDetail(error),
+						}),
+					});
+
+					await addAllMembersPromise;
 					void membersQuery.refetch();
 				}}
 				removeMember={setMemberToDelete}
