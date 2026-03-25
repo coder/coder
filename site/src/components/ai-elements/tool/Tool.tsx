@@ -490,13 +490,13 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			hasContent={hasContent}
 			header={
 				<>
-					<span className={cn(isRunning && "grayscale")}>
+					<div className={cn("shrink-0", isRunning && "grayscale")}>
 						<ToolIcon
 							name={name}
 							isError={status === "error" || isError}
 							iconUrl={mcpServer?.icon_url}
 						/>
-					</span>
+					</div>
 					<ToolLabel
 						name={name}
 						args={args}
