@@ -100,7 +100,7 @@ func readInstructionFile(
 }
 
 func sanitizeInstructionMarkdown(content string) string {
-	// Remove HTML comments first so that the subsequent newline
+	// Remove Markdown comments first so that the subsequent newline
 	// collapsing in SanitizePromptText covers any gaps left behind.
 	content = markdownCommentPattern.ReplaceAllString(content, "")
 	return SanitizePromptText(content)

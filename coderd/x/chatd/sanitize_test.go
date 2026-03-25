@@ -243,13 +243,6 @@ func TestSanitizePromptText(t *testing.T) {
 			want:  "above\n\nbelow",
 		},
 		{
-			name: "Idempotency",
-			// Running the function twice must produce the same
-			// result as running it once.
-			input: "hello\u200B \u200Cworld\n\n\n\nfoo",
-			want:  "hello \u200Cworld\n\nfoo",
-		},
-		{
 			name: "MixedZWSPaddedHiddenInstruction",
 			// Reproduces the PoC pattern: normal text, then many
 			// lines of only ZWS (scroll padding), then a hidden
@@ -267,34 +260,22 @@ func TestSanitizePromptText(t *testing.T) {
 			t.Parallel()
 			got := chatd.SanitizePromptText(tt.input)
 			require.Equal(t, tt.want, got)
+
+			// Verify idempotency: f(f(x)) == f(x).
+			again := chatd.SanitizePromptText(got)
+			require.Equal(t, got, again,
+				"SanitizePromptText is not idempotent for case %q", tt.name)
 		})
 	}
-
-	// Verify idempotency as a separate property: f(f(x)) == f(x)
-	// for every test case.
-	// This also covers the ZWNJ tests — surviving ZWNJs must not
-	// cause a different result on the second pass.
-	t.Run("IdempotencyAll", func(t *testing.T) {
-		t.Parallel()
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-				once := chatd.SanitizePromptText(tt.input)
-				twice := chatd.SanitizePromptText(once)
-				require.Equal(t, once, twice,
-					"SanitizePromptText is not idempotent")
-			})
-		}
-	})
 }
 
-func TestInvisibleRuneCanonicalList(t *testing.T) {
+func TestIsVisibleCanonicalList(t *testing.T) {
 	t.Parallel()
 
 	// Canonical list — must match site/src/utils/invisibleUnicode.test.ts
 	//
-	// Every codepoint that isInvisibleRune returns true for is
-	// listed here, with ranges expanded to individual values. If a
+	// Every codepoint that isVisible returns false for is listed
+	// here, with ranges expanded to individual values. If a
 	// codepoint is added or removed, this test must be updated.
 	stripped := []rune{
 		0x00AD,

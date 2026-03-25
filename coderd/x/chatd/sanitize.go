@@ -27,7 +27,7 @@ func SanitizePromptText(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
-		if isInvisibleRune(r) {
+		if !isVisible(r) {
 			continue
 		}
 		_, _ = b.WriteRune(r)
@@ -44,32 +44,32 @@ func SanitizePromptText(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// isInvisibleRune reports whether r is an invisible Unicode character
-// that should be stripped from prompt text. Each range is documented
-// with its Unicode name and rationale.
-func isInvisibleRune(r rune) bool {
+// isVisible reports whether r is a visible Unicode character that
+// should be preserved in prompt text. Each invisible range is
+// documented with its Unicode name and rationale.
+func isVisible(r rune) bool {
 	switch {
 	// Soft hyphen — invisible in most renderers, used to hide
 	// content boundaries.
 	case r == 0x00AD:
-		return true
+		return false
 
 	// Combining grapheme joiner — invisible, no legitimate
 	// prompt use.
 	case r == 0x034F:
-		return true
+		return false
 
 	// Arabic letter mark — bidi control, invisible.
 	case r == 0x061C:
-		return true
+		return false
 
 	// Mongolian vowel separator — invisible spacing character.
 	case r == 0x180E:
-		return true
+		return false
 
 	// Zero-width space (U+200B).
 	case r == 0x200B:
-		return true
+		return false
 
 	// U+200C (ZWNJ) is deliberately NOT stripped. It is
 	// required for correct rendering of Persian, Urdu, and
@@ -82,85 +82,78 @@ func isInvisibleRune(r rune) bool {
 	// but actively exploited in steganography. See
 	// SanitizePromptText doc comment.
 	case r == 0x200D:
-		return true
+		return false
 
 	// Left-to-right mark (U+200E).
 	case r == 0x200E:
-		return true
+		return false
 
 	// Right-to-left mark (U+200F).
 	case r == 0x200F:
-		return true
+		return false
 
 	// Bidi embedding and override controls (U+202A–U+202E):
 	// LRE, RLE, PDF, LRO, RLO.
 	case r >= 0x202A && r <= 0x202E:
-		return true
+		return false
 
 	// Word joiner and invisible operators (U+2060–U+2064):
 	// word joiner, function application, invisible times,
 	// invisible separator, invisible plus.
 	case r >= 0x2060 && r <= 0x2064:
-		return true
+		return false
 
 	// Bidi isolate controls (U+2066–U+2069):
 	// LRI, RLI, FSI, PDI.
 	case r >= 0x2066 && r <= 0x2069:
-		return true
+		return false
 
 	// Deprecated format characters (U+206A–U+206F): inhibit
 	// symmetric swapping through nominal digit shapes.
 	case r >= 0x206A && r <= 0x206F:
-		return true
+		return false
 
 	// Byte order mark / zero-width no-break space (U+FEFF).
 	// Common at start of Windows-edited files.
 	case r == 0xFEFF:
-		return true
+		return false
 
 	// Interlinear annotation anchor, separator, and
 	// terminator (U+FFF9–U+FFFB).
 	case r >= 0xFFF9 && r <= 0xFFFB:
-		return true
+		return false
 
 	default:
-		return false
+		return true
 	}
 }
 
 // collapseNewlines replaces runs of 3 or more consecutive newlines
 // with exactly 2, preserving single blank lines (paragraph breaks)
-// while eliminating scroll-padding attacks. Whitespace-only lines
-// (spaces/tabs between newlines) are treated as empty and do not
-// reset the newline counter.
+// while eliminating scroll-padding attacks. Trailing whitespace on
+// each line is stripped first so that whitespace-only lines become
+// empty and collapse naturally.
 func collapseNewlines(s string) string {
+	// Step 1: Trim trailing whitespace from each line, preserving
+	// leading whitespace for indentation.
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
+	}
+	s = strings.Join(lines, "\n")
+
+	// Step 2: Collapse runs of 3+ consecutive newlines down to 2.
 	var b strings.Builder
 	b.Grow(len(s))
 	consecutiveNewlines := 0
-	var wsBuf []rune // buffered spaces/tabs between newlines
 	for _, r := range s {
 		if r == '\n' {
-			// Discard buffered whitespace — it was on a
-			// blank-ish line that we're collapsing.
-			wsBuf = wsBuf[:0]
 			consecutiveNewlines++
 			if consecutiveNewlines <= 2 {
 				_, _ = b.WriteRune(r)
 			}
 			continue
 		}
-		if consecutiveNewlines > 0 && (r == ' ' || r == '\t') {
-			// Inside a newline run — buffer whitespace in
-			// case the next char is another newline.
-			wsBuf = append(wsBuf, r)
-			continue
-		}
-		// Visible character: flush buffered whitespace, reset
-		// the newline counter, and write the character.
-		for _, ws := range wsBuf {
-			_, _ = b.WriteRune(ws)
-		}
-		wsBuf = wsBuf[:0]
 		consecutiveNewlines = 0
 		_, _ = b.WriteRune(r)
 	}

@@ -3972,6 +3972,10 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 	}
 	sanitized := SanitizePromptText(raw)
 	if sanitized == "" {
+		if strings.TrimSpace(raw) != "" {
+			p.logger.Warn(ctx, "user custom prompt became empty after sanitization",
+				slog.F("user_id", userID))
+		}
 		return ""
 	}
 	return "<user-instructions>\n" + sanitized + "\n</user-instructions>"

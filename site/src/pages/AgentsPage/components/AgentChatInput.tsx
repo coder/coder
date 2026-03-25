@@ -24,6 +24,7 @@ import {
 import { cn } from "utils/cn";
 import { countInvisibleCharacters } from "utils/invisibleUnicode";
 import { isMobileViewport } from "utils/mobile";
+import { Alert } from "#/components/Alert/Alert";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -789,12 +790,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				 * instructions encoded as zero-width characters. */}
 				{invisibleCharCount > 0 && (
 					<div className="px-3 pb-1">
-						<p className="m-0 text-xs text-content-warning">
-							<AlertTriangleIcon className="inline-block h-3 w-3 mr-1" />
+						<Alert severity="warning">
 							This message contains {invisibleCharCount} invisible Unicode
 							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
 							content. Review carefully before sending.
-						</p>
+						</Alert>
 					</div>
 				)}
 

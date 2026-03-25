@@ -3013,6 +3013,9 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 		return chatd.DefaultSystemPrompt
 	}
 	sanitized := chatd.SanitizePromptText(custom)
+	if sanitized == "" && strings.TrimSpace(custom) != "" {
+		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, using default")
+	}
 	if sanitized != "" {
 		return sanitized
 	}
