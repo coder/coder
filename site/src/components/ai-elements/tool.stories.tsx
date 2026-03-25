@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { Tool } from "./tool";
 
@@ -539,8 +539,10 @@ export const MCPToolCompleted: Story = {
 		// Expand to see result content.
 		await userEvent.click(toggle);
 		// The JSON output is syntax-highlighted, splitting text across
-		// DOM nodes. Check the raw text content of the container instead.
-		expect(canvasElement.textContent).toContain("Fix auth flow");
+		// DOM nodes, and the file viewer renders lazily after expand.
+		await waitFor(() =>
+			expect(canvasElement.textContent).toContain("Fix auth flow"),
+		);
 	},
 };
 
