@@ -1208,6 +1208,14 @@ func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, err
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTemplateAllowlist(ctx)
+	m.queryLatencies.WithLabelValues("GetChatTemplateAllowlist").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTemplateAllowlist").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatUsageLimitConfig(ctx)
@@ -4805,6 +4813,14 @@ func (m queryMetricsStore) UpsertChatSystemPrompt(ctx context.Context, value str
 	r0 := m.s.UpsertChatSystemPrompt(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertChatSystemPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatSystemPrompt").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatTemplateAllowlist(ctx, templateAllowlist)
+	m.queryLatencies.WithLabelValues("UpsertChatTemplateAllowlist").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatTemplateAllowlist").Inc()
 	return r0
 }
 
