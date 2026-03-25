@@ -3,8 +3,10 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -32,6 +34,10 @@ const (
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow = time.Second
 )
+
+// errInvalidCursor is returned when a pagination cursor does not
+// reference a valid resource in the expected scope.
+var errInvalidCursor = xerrors.New("invalid pagination cursor")
 
 // aibridgeHandler handles all aibridged-related endpoints.
 func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
@@ -126,12 +132,9 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		rows  []database.ListAIBridgeInterceptionsRow
 	)
 	err := api.Database.InTx(func(db database.Store) error {
-		// Ensure the after_id interception exists and is visible to the user.
-		if page.AfterID != uuid.Nil {
-			_, err := db.GetAIBridgeInterceptionByID(ctx, page.AfterID)
-			if err != nil {
-				return xerrors.Errorf("get aibridge interception by id %s for cursor pagination: %w", page.AfterID, err)
-			}
+		// Validate the cursor interception exists and is visible.
+		if err := validateInterceptionCursor(ctx, db, page.AfterID, "after_id", ""); err != nil {
+			return err
 		}
 
 		var err error
@@ -158,6 +161,13 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		return nil
 	}, nil)
 	if err != nil {
+		if errors.Is(err, errInvalidCursor) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid pagination cursor.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting AI Bridge interceptions.",
 			Detail:  err.Error(),
@@ -363,14 +373,15 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 
 	var limit int32 = 50
 	if v := r.URL.Query().Get("limit"); v != "" {
-		parsed, err := fmt.Sscanf(v, "%d", &limit)
-		if err != nil || parsed != 1 || limit < 1 || limit > 200 {
+		parsed, err := strconv.ParseInt(v, 10, 32)
+		if err != nil || parsed < 1 || parsed > 200 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid limit query parameter.",
 				Detail:  "Limit must be between 1 and 200.",
 			})
 			return
 		}
+		limit = int32(parsed)
 	}
 
 	// Fetch session metadata by reusing the sessions list query
@@ -405,6 +416,16 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		modelThoughts []database.AIBridgeModelThought
 	)
 	err = api.Database.InTx(func(db database.Store) error {
+		// Validate cursor IDs before querying threads. The SQL
+		// subquery returns NULL for unknown cursors, which silently
+		// filters out all rows instead of surfacing an error.
+		if err := validateInterceptionCursor(ctx, db, afterID, "after_id", sessionIDParam); err != nil {
+			return err
+		}
+		if err := validateInterceptionCursor(ctx, db, beforeID, "before_id", sessionIDParam); err != nil {
+			return err
+		}
+
 		var err error
 		threadRows, err = db.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
 			SessionID: sessionIDParam,
@@ -449,6 +470,13 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		TxIdentifier: "aibridge_get_session_threads",
 	})
 	if err != nil {
+		if errors.Is(err, errInvalidCursor) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid pagination cursor.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching session threads.",
 			Detail:  err.Error(),
@@ -511,6 +539,24 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, models)
+}
+
+// validateInterceptionCursor checks that a pagination cursor refers to an
+// existing interception. When sessionID is non-empty the interception must
+// also belong to that session. Returns errInvalidCursor on failure so
+// callers can distinguish bad cursors from internal errors.
+func validateInterceptionCursor(ctx context.Context, db database.Store, cursorID uuid.UUID, cursorName, sessionID string) error {
+	if cursorID == uuid.Nil {
+		return nil
+	}
+	interception, err := db.GetAIBridgeInterceptionByID(ctx, cursorID)
+	if err != nil {
+		return xerrors.Errorf("%s: interception %s not found: %w", cursorName, cursorID, errInvalidCursor)
+	}
+	if sessionID != "" && interception.SessionID != sessionID {
+		return xerrors.Errorf("%s: interception %s does not belong to session %s: %w", cursorName, cursorID, sessionID, errInvalidCursor)
+	}
+	return nil
 }
 
 func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.ListAIBridgeInterceptionsRow) ([]codersdk.AIBridgeInterception, error) {

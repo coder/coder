@@ -5507,6 +5507,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("ListAIBridgeSessionThreads", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.ListAIBridgeSessionThreadsParams{}
 		db.EXPECT().ListAuthorizedAIBridgeSessionThreads(gomock.Any(), params, gomock.Any()).Return([]database.ListAIBridgeSessionThreadsRow{}, nil).AnyTimes()
+		// No asserts here because SQLFilter.
 		check.Args(params).Asserts()
 	}))
 

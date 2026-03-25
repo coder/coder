@@ -624,6 +624,25 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("InvalidCursor", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Using a nonexistent UUID as after_id should return 400,
+		// not silently return an empty page.
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.New(),
+			},
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid pagination cursor")
+	})
 }
 
 func aibridgeOpts(t *testing.T) *coderdenttest.Options {
@@ -1652,6 +1671,51 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("InvalidCursor", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "cursor-test-session", Valid: true},
+		}, &endedAt)
+
+		// A completely nonexistent UUID as after_id should return 400.
+		_, err := client.AIBridgeGetSessionThreads(ctx, "cursor-test-session", uuid.New(), uuid.Nil, 0)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid pagination cursor")
+
+		// A nonexistent UUID as before_id should also return 400.
+		_, err = client.AIBridgeGetSessionThreads(ctx, "cursor-test-session", uuid.Nil, uuid.New(), 0)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid pagination cursor")
+
+		// An interception from a different session should also return 400.
+		otherEndedAt := now.Add(time.Minute)
+		otherInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "other-session", Valid: true},
+		}, &otherEndedAt)
+
+		_, err = client.AIBridgeGetSessionThreads(ctx, "cursor-test-session", otherInterception.ID, uuid.Nil, 0)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid pagination cursor")
+		require.Contains(t, sdkErr.Detail, "does not belong to session")
 	})
 
 	t.Run("Authorization", func(t *testing.T) {
