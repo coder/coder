@@ -62,7 +62,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		// In centralized mode the token may be in Authorization (the
 		// documented path) or X-Api-Key (legacy clients that set
-		// ANTHROPIC_API_KEY to their Coder session token). Both are
+		// ANTHROPIC_API_KEY to their Coder token). Both are
 		// stripped.
 		r.Header.Del("Authorization")
 		r.Header.Del("X-Api-Key")

@@ -7,7 +7,7 @@ import (
 )
 
 // HeaderCoderBYOKToken is a header set by clients opting into BYOK
-// (Bring Your Own Key) mode. It carries the Coder session token so
+// (Bring Your Own Key) mode. It carries the Coder token so
 // that Authorization and X-Api-Key can carry the user's own LLM
 // credentials. When present, AI Bridge forwards the user's LLM
 // headers unchanged instead of injecting the centralized key.

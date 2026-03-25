@@ -1429,9 +1429,9 @@ func TestProxy_MITM(t *testing.T) {
 			}
 
 			// Simulate the primary proxy use case (Copilot): the Coder
-			// session token is in Proxy-Authorization, and the user's
+			// token is in Proxy-Authorization, and the user's
 			// own LLM token is in Authorization.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("coder-session-token"), certPool, false)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
@@ -1469,7 +1469,7 @@ func TestProxy_MITM(t *testing.T) {
 				require.Equal(t, "hello from aibridged", string(body))
 				require.Equal(t, tt.expectedPath, receivedPath)
 				require.Equal(t, "Bearer user-llm-token", receivedAuthz, "user's LLM credentials must be forwarded")
-				require.Equal(t, "coder-session-token", receivedBYOK, "proxy must inject BYOK header with Coder token")
+				require.Equal(t, "coder-token", receivedBYOK, "proxy must inject BYOK header with Coder token")
 				require.NotEmpty(t, receivedRequestID, "MITM'd requests must include request ID header")
 				_, err := uuid.Parse(receivedRequestID)
 				require.NoError(t, err, "request ID must be a valid UUID")
@@ -1488,13 +1488,13 @@ func TestProxy_MITM(t *testing.T) {
 }
 
 // TestProxy_MITM_BYOKInjection verifies that the proxy sets the BYOK header
-// when Authorization carries a bearer token different from the Coder session
+// when Authorization carries a bearer token different from the Coder
 // token. This handles clients like Copilot that send per-user LLM credentials
 // but cannot set custom headers.
 func TestProxy_MITM_BYOKInjection(t *testing.T) {
 	t.Parallel()
 
-	coderToken := "coder-session-token"
+	coderToken := "coder-token"
 
 	tests := []struct {
 		name          string

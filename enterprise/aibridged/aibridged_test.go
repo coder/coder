@@ -320,7 +320,7 @@ func TestExtractAuthToken(t *testing.T) {
 		},
 
 		// BYOK: X-Coder-AI-Governance-BYOK-Token carries the Coder
-		// session token and has the highest priority.
+		// token and has the highest priority.
 		{
 			name:    "byok/empty",
 			headers: map[string]string{agplaibridge.HeaderCoderBYOKToken: ""},
