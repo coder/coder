@@ -23,6 +23,7 @@ import {
 	pinChat,
 	promoteChatQueuedMessage,
 	reorderPinnedChat,
+	regenerateChatTitle,
 	unarchiveChat,
 	unpinChat,
 	updateInfiniteChatsCache,
@@ -41,6 +42,7 @@ vi.mock("api/api", () => ({
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
 			promoteChatQueuedMessage: vi.fn(),
+			regenerateChatTitle: vi.fn(),
 		},
 	},
 }));
@@ -552,6 +554,44 @@ describe("reorderPinnedChat", () => {
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: chatKey(chatId),
 			exact: true,
+		});
+	});
+});
+
+describe("regenerateChatTitle cache updates", () => {
+	it("preserves existing chat detail fields when the response is partial", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const cachedChat = makeChat(chatId, {
+			diff_status: {
+				chat_id: chatId,
+				url: "https://example.com/pr/1",
+				pull_request_state: "open",
+				pull_request_title: "",
+				pull_request_draft: false,
+				changes_requested: false,
+				additions: 1,
+				deletions: 2,
+				changed_files: 3,
+				refreshed_at: "2025-01-01T00:00:00.000Z",
+				stale_at: "2025-01-01T01:00:00.000Z",
+			},
+		});
+		queryClient.setQueryData(chatKey(chatId), cachedChat);
+		seedInfiniteChats(queryClient, [cachedChat]);
+
+		const mutation = regenerateChatTitle(queryClient);
+		const updatedChat = makeChat(chatId, { title: "New title" });
+
+		mutation.onSuccess(updatedChat);
+
+		expect(queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))).toEqual({
+			...cachedChat,
+			...updatedChat,
+		});
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			id: chatId,
+			title: "New title",
 		});
 	});
 });

@@ -482,7 +482,8 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	onSuccess: (updatedChat: TypesGen.Chat) => {
 		queryClient.setQueryData<TypesGen.Chat>(
 			chatKey(updatedChat.id),
-			updatedChat,
+			(previousChat) =>
+				previousChat ? { ...previousChat, ...updatedChat } : updatedChat,
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
