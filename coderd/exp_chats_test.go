@@ -1001,20 +1001,44 @@ func TestListChatProviders(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
+		disabled := false
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Secondary",
+			APIKey:      "secondary-key",
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+
 		providers, err := client.ListChatProviders(ctx)
 		require.NoError(t, err)
 
-		var openAIProvider *codersdk.ChatProviderConfig
-		for i := range providers {
-			if providers[i].Provider == "openai" {
-				openAIProvider = &providers[i]
+		var openAIProviders []codersdk.ChatProviderConfig
+		for _, provider := range providers {
+			if provider.Provider == "openai" {
+				openAIProviders = append(openAIProviders, provider)
+			}
+		}
+		require.Len(t, openAIProviders, 2)
+
+		enabledCount := 0
+		for _, provider := range openAIProviders {
+			require.NotEqual(t, uuid.Nil, provider.ID)
+			require.Equal(t, codersdk.ChatProviderConfigSourceDatabase, provider.Source)
+			if provider.Enabled {
+				enabledCount++
+			}
+		}
+		require.Equal(t, 1, enabledCount)
+
+		hasPlaceholder := false
+		for _, provider := range providers {
+			if provider.ID == uuid.Nil && provider.Provider != "openai" {
+				hasPlaceholder = true
 				break
 			}
 		}
-		require.NotNil(t, openAIProvider)
-		require.Equal(t, codersdk.ChatProviderConfigSourceDatabase, openAIProvider.Source)
-		require.True(t, openAIProvider.Enabled)
-		require.True(t, openAIProvider.HasAPIKey)
+		require.True(t, hasPlaceholder, "should still have placeholder entries for unconfigured families")
 	})
 
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
@@ -1088,7 +1112,35 @@ func TestCreateChatProvider(t *testing.T) {
 			APIKey:   "other-api-key",
 		})
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
-		require.Equal(t, "Chat provider already exists.", sdkErr.Message)
+		require.Equal(t, "Only one enabled provider config per provider family is allowed.", sdkErr.Message)
+	})
+
+	t.Run("MultipleConfigsSameFamily", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		first, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Primary",
+			APIKey:      "key-1",
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, first.ID)
+
+		disabled := false
+		second, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Secondary",
+			APIKey:      "key-2",
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, second.ID)
+		require.NotEqual(t, first.ID, second.ID)
+		require.True(t, first.Enabled)
+		require.False(t, second.Enabled)
 	})
 
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
@@ -1136,6 +1188,38 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.Equal(t, "OpenAI Updated", updated.DisplayName)
 		require.False(t, updated.Enabled)
 		require.Equal(t, baseURL, updated.BaseURL)
+	})
+
+	t.Run("EnableGuardrail", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Primary",
+			APIKey:      "key-1",
+		})
+		require.NoError(t, err)
+
+		disabled := false
+		second, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Secondary",
+			APIKey:      "key-2",
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+
+		enabled := true
+		_, err = client.UpdateChatProvider(ctx, second.ID, codersdk.UpdateChatProviderConfigRequest{
+			DisplayName: "OpenAI Secondary",
+			Enabled:     &enabled,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Only one enabled provider config per provider family is allowed.", sdkErr.Message)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
