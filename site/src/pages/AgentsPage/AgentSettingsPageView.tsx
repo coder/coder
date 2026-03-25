@@ -465,10 +465,9 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 									<TableHeader>
 										<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
 											<TableHead className="px-4 py-3">User</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Total Cost
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
+												<TableHead className="px-4 py-3 text-right">
+													Cost
+												</TableHead>											<TableHead className="px-4 py-3 text-right">
 												Messages
 											</TableHead>
 											<TableHead className="px-4 py-3 text-right">
