@@ -1602,9 +1602,6 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		// agent blocking here until it disconnects and
 		// reconnects (at which point the durable check above
 		// handles it).
-		// TODO(prebuilds): consider publishing a failure event
-		// from FailJob so the agent doesn't have to wait for
-		// reconnection.
 	}
 
 	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
