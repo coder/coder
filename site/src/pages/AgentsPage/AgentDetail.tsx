@@ -54,7 +54,6 @@ import {
 	AgentDetailNotFoundView,
 	AgentDetailView,
 } from "./components/AgentDetailView";
-import { useEmbedContext } from "./components/EmbedContext";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -303,7 +302,6 @@ const AgentDetail: FC = () => {
 		number | null
 	>(null);
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-	const { isEmbedded } = useEmbedContext();
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -887,30 +885,6 @@ const AgentDetail: FC = () => {
 		chatReadyFiredRef.current = agentId ?? null;
 		onChatReady();
 	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
-
-	// Handle scroll-to-bottom requests from the parent frame.
-	// In the flex-col-reverse layout, scrollTop = 0 is the
-	// visual bottom.
-	useEffect(() => {
-		if (!isEmbedded) {
-			return;
-		}
-		const parentWindow = window.parent;
-		const handler = (event: MessageEvent) => {
-			if (
-				event.source !== parentWindow ||
-				event.data?.type !== "coder:scroll-to-bottom"
-			) {
-				return;
-			}
-			if (scrollContainerRef.current) {
-				scrollContainerRef.current.scrollTop = 0;
-			}
-		};
-
-		window.addEventListener("message", handler);
-		return () => window.removeEventListener("message", handler);
-	}, [isEmbedded]);
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (

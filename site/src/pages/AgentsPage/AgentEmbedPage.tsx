@@ -207,7 +207,8 @@ const AgentEmbedPage: FC = () => {
 		};
 	}, [searchParams]);
 
-	// Listen for live theme changes from the parent frame.
+	// Listen for parent frame commands: theme changes and
+	// scroll-to-bottom requests.
 	useEffect(() => {
 		const parentWindow = window.parent;
 		const handler = (event: MessageEvent) => {
@@ -217,6 +218,16 @@ const AgentEmbedPage: FC = () => {
 			const theme = getThemeFromMessage(event.data);
 			if (theme) {
 				applyEmbedTheme(theme);
+				return;
+			}
+			if (event.data?.type === "coder:scroll-to-bottom") {
+				// flex-col-reverse: scrollTop 0 is the visual bottom.
+				const container = document.querySelector<HTMLElement>(
+					'[data-testid="scroll-container"]',
+				);
+				if (container) {
+					container.scrollTop = 0;
+				}
 			}
 		};
 
