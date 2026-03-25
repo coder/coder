@@ -25,20 +25,16 @@ export const ToolIcon: React.FC<{
 	// If an MCP icon URL is provided and hasn't failed, render it.
 	if (iconUrl && !imgError) {
 		return (
-			<div
+			<ExternalImage
+				src={iconUrl}
+				alt={`${name} icon`}
 				className={cn(
-					"flex h-4 w-4 shrink-0 items-center justify-center",
-					"rounded-full bg-surface-secondary",
-					isError && "ring-1 ring-content-destructive",
+					"h-4 w-4 shrink-0",
+					isError &&
+						"brightness-0 invert-[.35] sepia saturate-[10] hue-rotate-[340deg]",
 				)}
-			>
-				<ExternalImage
-					src={iconUrl}
-					alt={`${name} icon`}
-					className="h-3 w-3"
-					onError={() => setImgError(true)}
-				/>
-			</div>
+				onError={() => setImgError(true)}
+			/>
 		);
 	}
 
