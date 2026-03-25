@@ -2,10 +2,15 @@ import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { permissionChecks } from "modules/permissions";
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { Outlet, useParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import {
+	type BlockerFunction,
+	Outlet,
+	useBlocker,
+	useParams,
+} from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import type { AgentsOutletContext } from "./AgentsPage";
@@ -118,6 +123,30 @@ const AgentEmbedPage: FC = () => {
 		setIsSidebarCollapsed((current) => !current);
 	};
 
+	// Block navigations that leave the embed route and forward
+	// the target URL to the parent frame.
+	useBlocker(
+		useCallback<BlockerFunction>(
+			({ nextLocation }) => {
+				if (nextLocation.pathname.startsWith(`/agents/${agentId}/embed`)) {
+					return false;
+				}
+				window.parent.postMessage(
+					{
+						type: "coder:navigate",
+						payload: {
+							url:
+								nextLocation.pathname + nextLocation.search + nextLocation.hash,
+						},
+					},
+					"*",
+				);
+				return true;
+			},
+			[agentId],
+		),
+	);
+
 	const outletContext: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -129,6 +158,7 @@ const AgentEmbedPage: FC = () => {
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
 	};
+
 	// When signed out and not already bootstrapping, listen for the
 	// postMessage from the parent frame carrying the session token.
 	const isAwaitingBootstrapMessage =

@@ -54,6 +54,7 @@ import {
 	AgentDetailNotFoundView,
 	AgentDetailView,
 } from "./components/AgentDetailView";
+import { useEmbedContext } from "./components/EmbedContext";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -301,6 +302,8 @@ const AgentDetail: FC = () => {
 		number | null
 	>(null);
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const { isEmbedded } = useEmbedContext();
+	const chatReadyAgentIdRef = useRef<string | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -874,6 +877,57 @@ const AgentDetail: FC = () => {
 		}
 		requestUnarchiveAgent(agentId);
 	};
+
+	// When embedded, scroll to bottom once messages load and
+	// notify the parent frame that the chat is ready. Comparing
+	// against the last signaled agentId re-fires the notification
+	// when the user switches agents without a full remount.
+	useEffect(() => {
+		if (
+			!isEmbedded ||
+			chatReadyAgentIdRef.current === agentId ||
+			!chatMessagesQuery.isSuccess
+		) {
+			return;
+		}
+		chatReadyAgentIdRef.current = agentId ?? null;
+
+		// A rAF lets the browser finish layout after React's
+		// commit before we scroll.
+		const rafId = requestAnimationFrame(() => {
+			if (scrollContainerRef.current) {
+				// flex-col-reverse: scrollTop 0 is the visual bottom.
+				scrollContainerRef.current.scrollTop = 0;
+			}
+			window.parent.postMessage({ type: "coder:chat-ready" }, "*");
+		});
+
+		return () => cancelAnimationFrame(rafId);
+	}, [isEmbedded, chatMessagesQuery.isSuccess, agentId]);
+
+	// Handle scroll-to-bottom requests from the parent frame.
+	// In the flex-col-reverse layout, scrollTop = 0 is the
+	// visual bottom.
+	useEffect(() => {
+		if (!isEmbedded) {
+			return;
+		}
+		const parentWindow = window.parent;
+		const handler = (event: MessageEvent) => {
+			if (
+				event.source !== parentWindow ||
+				event.data?.type !== "coder:scroll-to-bottom"
+			) {
+				return;
+			}
+			if (scrollContainerRef.current) {
+				scrollContainerRef.current.scrollTop = 0;
+			}
+		};
+
+		window.addEventListener("message", handler);
+		return () => window.removeEventListener("message", handler);
+	}, [isEmbedded]);
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
