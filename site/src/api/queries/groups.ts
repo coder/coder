@@ -63,12 +63,17 @@ export const group = (
 	};
 };
 
+export const groupMembersByOrganizationQueryKey = (
+	organization: string,
+	groupName: string,
+) => ["organization", organization, "group", groupName, "members"];
+
 export const getGroupMembersQueryKey = (
 	organization: string,
 	groupName: string,
 	req?: UsersRequest,
 ) => {
-	const base = [...getRootGroupQueryKey(organization, groupName), "members"];
+	const base = groupMembersByOrganizationQueryKey(organization, groupName);
 	return req ? [...base, req] : base;
 };
 
@@ -200,12 +205,10 @@ export const deleteGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const addMember = (queryClient: QueryClient, organization: string) => {
+export const addMember = () => {
 	return {
 		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
 			API.addMember(groupId, userId),
-		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 

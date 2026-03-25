@@ -7,11 +7,11 @@ import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
 	Organization,
-	PaginatedMembersRequest,
 	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 	UpdateWorkspaceSharingSettingsRequest,
+	UsersRequest,
 } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
@@ -26,6 +26,7 @@ import {
 	workspacePermissionChecks,
 } from "modules/permissions/workspaces";
 import type { QueryClient, UseQueryOptions } from "react-query";
+import { prepareQuery } from "utils/filters";
 import { meKey } from "./users";
 import { cachedQuery } from "./util";
 
@@ -97,16 +98,14 @@ export const organizationMembers = (id: string) => {
 export const paginatedOrganizationMembers = (
 	id: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<
-	PaginatedMembersResponse,
-	PaginatedMembersRequest
-> => {
+): UsePaginatedQueryOptions<PaginatedMembersResponse, UsersRequest> => {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {
 			return {
 				limit: limit,
 				offset: offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
 			};
 		},
 		queryKey: ({ payload }) => [...organizationMembersKey(id), payload],
