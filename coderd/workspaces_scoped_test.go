@@ -121,9 +121,16 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 
 		// Trigger a start build (requires workspace:update). This goes
 		// through POST /workspaces/{workspace}/builds.
-		_, err = scoped.CreateWorkspaceBuild(ctx, s.workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		started, err := scoped.CreateWorkspaceBuild(ctx, s.workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: ws.LatestBuild.TemplateVersionID,
 			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err, "starting workspace with coder:workspaces.operate scope")
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, scoped, started.ID)
+
+		_, err = scoped.CreateWorkspaceBuild(ctx, s.workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: ws.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStop,
 		})
 		require.NoError(t, err, "starting workspace with coder:workspaces.operate scope")
 
