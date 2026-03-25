@@ -1,4 +1,4 @@
-import { TableCell } from "components/Table/Table";
+import { TableCell } from "#/components/Table/Table";
 import { CircleCheck, X } from "lucide-react";
 import type { FC } from "react";
 
