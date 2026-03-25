@@ -16,11 +16,11 @@ import {
 	type RouteObject,
 	RouterProvider,
 } from "react-router";
-import themes, { DEFAULT_THEME } from "theme";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { DashboardLayout } from "#/modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "#/modules/management/OrganizationSettingsLayout";
+import themes, { DEFAULT_THEME } from "#/theme";
 import { MockUserOwner } from "./entities";
 
 // Creates one query client for each test case, to make sure that tests are

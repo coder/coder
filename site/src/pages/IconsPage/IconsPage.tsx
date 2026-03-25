@@ -5,12 +5,6 @@ import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
-import { DEPRECATED_ICONS } from "theme/deprecatedIcons";
-import {
-	defaultParametersForBuiltinIcons,
-	parseImageParameters,
-} from "theme/externalImages";
-import icons from "theme/icons.json";
 import uFuzzy from "ufuzzy";
 import { pageTitle } from "utils/page";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
@@ -26,6 +20,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
+import {
+	defaultParametersForBuiltinIcons,
+	parseImageParameters,
+} from "#/theme/externalImages";
+import icons from "#/theme/icons.json";
 
 const filteredIcons = icons.filter((icon) => !DEPRECATED_ICONS.includes(icon));
 const iconsWithoutSuffix = filteredIcons.map((icon) => {

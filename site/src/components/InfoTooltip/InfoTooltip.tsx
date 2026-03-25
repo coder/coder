@@ -1,5 +1,4 @@
 import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/roles";
 import { cn } from "utils/cn";
 import {
 	HelpTooltip,
@@ -9,6 +8,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "#/components/HelpTooltip/HelpTooltip";
+import type { ThemeRole } from "#/theme/roles";
 
 interface InfoTooltipProps {
 	type?: ThemeRole;

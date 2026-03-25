@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import { CodeIcon } from "lucide-react";
 import { useOutletContext } from "react-router";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
@@ -10,6 +9,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import {
 	Header,
 	HeaderTitle,
