@@ -201,15 +201,14 @@ func TestReinitializeAgent(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			var prebuildID uuid.UUID
 			tCtx := testutil.Context(t, testutil.WaitLong)
-			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
+			require.True(t, testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				agentAndBuild, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agentToken)
 				if err != nil {
 					return false
 				}
 				prebuildID = agentAndBuild.WorkspaceBuild.ID
 				return true
-			}, testutil.IntervalFast)
-
+			}, testutil.IntervalFast))
 			prebuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, prebuildID)
 
 			preset, err := db.GetPresetByWorkspaceBuildID(ctx, prebuildID)
@@ -247,7 +246,7 @@ func TestReinitializeAgent(t *testing.T) {
 
 			var matches [][]byte
 			tCtx = testutil.Context(t, testutil.WaitLong)
-			testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
+			require.True(t, testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 				// THEN the agent script ran again and reused the same agent token
 				contents, err := os.ReadFile(tempAgentLog.Name())
 				if err != nil {
@@ -261,7 +260,7 @@ func TestReinitializeAgent(t *testing.T) {
 				// As such, we expect to have written the agent environment to the temp file twice.
 				// Once on initial startup and then once on reinitialization.
 				return len(matches) == 2
-			}, testutil.IntervalMedium)
+			}, testutil.IntervalMedium))
 			require.Equal(t, matches[0], matches[1])
 		})
 	}

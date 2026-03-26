@@ -1515,11 +1515,10 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// Wait for the message to be fetched
 				var msg *smtptest.Message
 				tCtx = testutil.Context(t, testutil.WaitShort)
-				testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
+				require.True(t, testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 					msg = backend.LastMessage()
 					return msg != nil && len(msg.Contents) > 0
-				}, testutil.IntervalFast)
-
+				}, testutil.IntervalFast))
 				body := normalizeGoldenEmail([]byte(msg.Contents))
 
 				err = smtpManager.Stop(ctx)

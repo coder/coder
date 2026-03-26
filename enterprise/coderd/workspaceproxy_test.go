@@ -122,7 +122,8 @@ func TestRegions(t *testing.T) {
 
 		// Wait for the proxy to become healthy.
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-			healthCtx := testutil.Context(t, testutil.WaitLong)
+			healthCtx, healthCancel := context.WithTimeout(ctx, testutil.WaitLong)
+			defer healthCancel()
 			err := api.ProxyHealth.ForceUpdate(healthCtx)
 			if !assert.NoError(t, err) {
 				return false

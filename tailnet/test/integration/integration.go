@@ -428,9 +428,10 @@ func (b BasicClientStarter) StartClient(t *testing.T, logger slog.Logger, server
 		// Wait for connection to be established.
 		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 		tCtx := testutil.Context(t, testutil.WaitLong)
-		testutil.Eventually(tCtx, t, func(_ context.Context) bool {
+		testutil.Eventually(tCtx, t, func(ctx context.Context) bool {
 			t.Log("attempting ping to peer to judge direct connection")
-			pingCtx := testutil.Context(t, testutil.WaitShort)
+			pingCtx, pingCancel := context.WithTimeout(ctx, testutil.WaitShort)
+			defer pingCancel()
 			_, p2p, pong, err := conn.Ping(pingCtx, peerIP)
 			if err != nil {
 				t.Logf("ping failed: %v", err)
