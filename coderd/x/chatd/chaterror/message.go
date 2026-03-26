@@ -5,73 +5,81 @@ import (
 	"strings"
 )
 
-func userFacingMessage(classified ClassifiedError) string {
+// buildMessage produces the user-facing error description for a
+// classified error. Terminal errors (forRetry=false) include HTTP
+// status codes and actionable guidance; retry messages
+// (forRetry=true) are clean factual statements suitable for display
+// alongside the retry countdown UI.
+func buildMessage(classified ClassifiedError, forRetry bool) string {
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
 	case KindOverloaded:
-		return optionalStatusMessage(
-			subject,
-			classified.StatusCode,
-			"%s is temporarily overloaded (HTTP %d).",
-			"%s is temporarily overloaded.",
-		)
+		if !forRetry && classified.StatusCode > 0 {
+			return fmt.Sprintf(
+				"%s is temporarily overloaded (HTTP %d).",
+				subject, classified.StatusCode,
+			)
+		}
+		return fmt.Sprintf("%s is temporarily overloaded.", subject)
+
 	case KindRateLimit:
-		return optionalStatusMessage(
-			subject,
-			classified.StatusCode,
-			"%s is rate limiting requests (HTTP %d).",
-			"%s is rate limiting requests.",
-		)
+		if !forRetry && classified.StatusCode > 0 {
+			return fmt.Sprintf(
+				"%s is rate limiting requests (HTTP %d).",
+				subject, classified.StatusCode,
+			)
+		}
+		return fmt.Sprintf("%s is rate limiting requests.", subject)
+
 	case KindTimeout:
-		if classified.StatusCode > 0 {
+		if !forRetry && classified.StatusCode > 0 {
 			return fmt.Sprintf(
 				"%s is temporarily unavailable (HTTP %d).",
-				subject,
-				classified.StatusCode,
+				subject, classified.StatusCode,
 			)
 		}
-		if classified.Retryable {
-			return fmt.Sprintf("%s is temporarily unavailable.", subject)
+		if !forRetry && !classified.Retryable {
+			return "The request timed out before it completed."
 		}
-		return "The request timed out before it completed."
+		return fmt.Sprintf("%s is temporarily unavailable.", subject)
+
 	case KindStartupTimeout:
-		return fmt.Sprintf("%s did not start responding in time.", subject)
-	case KindAuth:
-		if displayName := providerDisplayName(classified.Provider); displayName != "" {
-			return fmt.Sprintf(
-				"Authentication with %s failed. Check the API key, permissions, and billing settings.",
-				displayName,
-			)
-		}
-		return "Authentication with the AI provider failed. Check the API key, permissions, and billing settings."
-	case KindConfig:
 		return fmt.Sprintf(
-			"%s rejected the model configuration. Check the selected model and provider settings.",
-			subject,
+			"%s did not start responding in time.", subject,
 		)
+
+	case KindAuth:
+		displayName := providerDisplayName(classified.Provider)
+		if displayName == "" {
+			displayName = "the AI provider"
+		}
+		base := fmt.Sprintf("Authentication with %s failed.", displayName)
+		if forRetry {
+			return base
+		}
+		return base + " Check the API key, permissions, and billing settings."
+
+	case KindConfig:
+		base := fmt.Sprintf(
+			"%s rejected the model configuration.", subject,
+		)
+		if forRetry {
+			return base
+		}
+		return base + " Check the selected model and provider settings."
+
 	default:
-		if classified.StatusCode > 0 {
+		if !forRetry && classified.StatusCode > 0 {
 			return fmt.Sprintf(
 				"%s returned an unexpected error (HTTP %d).",
-				subject,
-				classified.StatusCode,
+				subject, classified.StatusCode,
 			)
 		}
-		if classified.Retryable {
-			return fmt.Sprintf(
-				"%s returned an unexpected error.",
-				subject,
-			)
+		if !forRetry && !classified.Retryable {
+			return "The chat request failed unexpectedly."
 		}
-		return "The chat request failed unexpectedly."
+		return fmt.Sprintf("%s returned an unexpected error.", subject)
 	}
-}
-
-func optionalStatusMessage(subject string, statusCode int, withStatus string, withoutStatus string) string {
-	if statusCode > 0 {
-		return fmt.Sprintf(withStatus, subject, statusCode)
-	}
-	return fmt.Sprintf(withoutStatus, subject)
 }
 
 func providerSubject(provider string) string {

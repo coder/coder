@@ -62,7 +62,7 @@ describe("deriveLiveStatus", () => {
 		hasAccumulatedOutput: false,
 		title: "Retrying request",
 		kind: "generic",
-		message: "Retrying because Anthropic returned an unexpected error.",
+		message: "Anthropic returned an unexpected error.",
 		attempt: 2,
 		provider: "anthropic",
 		delayMs: 2000,

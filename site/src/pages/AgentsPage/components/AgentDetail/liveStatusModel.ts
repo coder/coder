@@ -1,5 +1,5 @@
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
-import { getErrorTitle, getRetryMessage } from "./chatStatusHelpers";
+import { getErrorTitle } from "./chatStatusHelpers";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
 type LiveStatusBase = {
@@ -71,7 +71,7 @@ const toRetryingLiveStatus = (
 	hasAccumulatedOutput: options.hasAccumulatedOutput ?? false,
 	title: getErrorTitle(retryState.kind, "retry"),
 	kind: retryState.kind,
-	message: getRetryMessage(retryState.kind, retryState.provider),
+	message: retryState.error,
 	attempt: retryState.attempt,
 	provider: retryState.provider,
 	delayMs: retryState.delayMs,

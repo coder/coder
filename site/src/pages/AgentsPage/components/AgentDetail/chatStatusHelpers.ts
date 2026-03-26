@@ -1,16 +1,5 @@
 import type { ChatProviderFailureKind } from "../../utils/usageLimitMessage";
 
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-	anthropic: "Anthropic",
-	azure: "Azure OpenAI",
-	bedrock: "AWS Bedrock",
-	google: "Google",
-	openai: "OpenAI",
-	"openai-compat": "OpenAI Compatible",
-	openrouter: "OpenRouter",
-	vercel: "Vercel AI Gateway",
-};
-
 const PROVIDER_STATUS_URLS: Record<string, string> = {
 	anthropic: "https://status.anthropic.com",
 };
@@ -46,14 +35,6 @@ const humanizeKind = (kind: string): string => {
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
 };
-
-const getProviderDisplayName = (provider?: string): string | undefined => {
-	const normalized = normalizeProvider(provider);
-	return normalized ? PROVIDER_DISPLAY_NAMES[normalized] : undefined;
-};
-
-const getRetryProviderSubject = (provider?: string): string =>
-	getProviderDisplayName(provider) ?? "the AI provider";
 
 export const getErrorTitle = (
 	kind: ChatProviderFailureKind | (string & {}),
@@ -97,26 +78,6 @@ export const getKindLabel = (
 			return "Configuration";
 		default:
 			return humanizeKind(kind);
-	}
-};
-
-export const getRetryMessage = (
-	kind: ChatProviderFailureKind | (string & {}),
-	provider?: string,
-): string => {
-	const subject = getRetryProviderSubject(provider);
-
-	switch (kind) {
-		case "overloaded":
-			return `Retrying because ${subject} is temporarily overloaded.`;
-		case "rate_limit":
-			return `Retrying because ${subject} is rate limiting requests.`;
-		case "timeout":
-			return `Retrying because ${subject} is temporarily unavailable.`;
-		case "startup_timeout":
-			return `Retrying because ${subject} did not start responding in time.`;
-		default:
-			return `Retrying because ${subject} returned an unexpected error.`;
 	}
 };
 
