@@ -167,7 +167,12 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 				}}
 			/>
 			{interval === "day" ? (
-				<DailyPicker value={dateRange} onChange={setDateRange} now={now} />
+				<DailyPicker
+					value={dateRange}
+					onChange={setDateRange}
+					now={now}
+					size="lg"
+				/>
 			) : (
 				<WeekPicker value={dateRange} onChange={setDateRange} />
 			)}
