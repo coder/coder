@@ -1532,6 +1532,7 @@ export interface ChatModelConfig {
 	readonly context_limit: number;
 	readonly compression_threshold: number;
 	readonly model_config?: ChatModelCallConfig;
+	readonly provider_configs?: readonly ChatModelProviderAttachment[];
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -1647,6 +1648,19 @@ export interface ChatModelProvider {
 	readonly available: boolean;
 	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
 	readonly models: readonly ChatModel[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelProviderAttachment describes a provider config attached to a model.
+ */
+export interface ChatModelProviderAttachment {
+	readonly provider_config_id: string;
+	readonly provider: string;
+	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly has_api_key: boolean;
+	readonly priority: number;
 }
 
 // From codersdk/chats.go
@@ -2225,6 +2239,7 @@ export interface CreateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+	readonly provider_config_ids?: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -6993,6 +7008,7 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+	readonly provider_config_ids?: string[];
 }
 
 // From codersdk/chats.go

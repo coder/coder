@@ -1327,6 +1327,15 @@ CREATE TABLE chat_model_configs (
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
 
+CREATE TABLE chat_model_provider_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    model_config_id uuid NOT NULL,
+    provider_config_id uuid NOT NULL,
+    priority integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE chat_providers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     provider text NOT NULL,
@@ -3328,6 +3337,15 @@ ALTER TABLE ONLY chat_messages
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_model_provider_configs
+    ADD CONSTRAINT chat_model_provider_configs_model_config_id_priority_key UNIQUE (model_config_id, priority);
+
+ALTER TABLE ONLY chat_model_provider_configs
+    ADD CONSTRAINT chat_model_provider_configs_model_config_id_provider_config_key UNIQUE (model_config_id, provider_config_id);
+
+ALTER TABLE ONLY chat_model_provider_configs
+    ADD CONSTRAINT chat_model_provider_configs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
 
@@ -3722,6 +3740,8 @@ CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING b
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
 
+CREATE INDEX idx_chat_model_provider_configs_order ON chat_model_provider_configs USING btree (model_config_id, priority);
+
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
@@ -4019,6 +4039,12 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_model_provider_configs
+    ADD CONSTRAINT chat_model_provider_configs_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_model_provider_configs
+    ADD CONSTRAINT chat_model_provider_configs_provider_config_id_fkey FOREIGN KEY (provider_config_id) REFERENCES chat_providers(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

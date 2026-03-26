@@ -40,6 +40,7 @@ const createModelConfig = (
 	context_limit: overrides.context_limit ?? 200000,
 	compression_threshold: overrides.compression_threshold ?? 70,
 	model_config: overrides.model_config,
+	provider_configs: overrides.provider_configs,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 });
@@ -117,6 +118,17 @@ const setupChatSpies = (state: {
 
 	spyOn(API.experimental, "createChatModelConfig").mockImplementation(
 		async (req) => {
+			const providerConfigs = req.provider_config_ids?.map((id, index) => {
+				const providerConfig = state.providerConfigs.find((p) => p.id === id);
+				return {
+					provider_config_id: id,
+					provider: providerConfig?.provider ?? req.provider,
+					display_name: providerConfig?.display_name ?? "",
+					enabled: providerConfig?.enabled ?? true,
+					has_api_key: providerConfig?.has_api_key ?? false,
+					priority: index,
+				};
+			});
 			const created = createModelConfig({
 				id: `model-${state.modelConfigs.length + 1}`,
 				provider: req.provider,
@@ -133,6 +145,7 @@ const setupChatSpies = (state: {
 						? req.compression_threshold
 						: 70,
 				model_config: req.model_config,
+				provider_configs: providerConfigs,
 			});
 			state.modelConfigs = [...state.modelConfigs, created];
 			return created;
@@ -154,12 +167,59 @@ const setupChatSpies = (state: {
 			);
 		},
 	);
-	spyOn(API.experimental, "updateChatModelConfig").mockResolvedValue(
-		createModelConfig({
-			id: "stub",
-			provider: "stub",
-			model: "stub",
-		}),
+	spyOn(API.experimental, "updateChatModelConfig").mockImplementation(
+		async (modelConfigId, req) => {
+			const index = state.modelConfigs.findIndex((m) => m.id === modelConfigId);
+			const existing = state.modelConfigs[index];
+			if (!existing) {
+				return createModelConfig({
+					id: modelConfigId,
+					provider: "stub",
+					model: "stub",
+				});
+			}
+
+			const providerConfigs = req.provider_config_ids
+				? req.provider_config_ids.map((id, priority) => {
+						const providerConfig = state.providerConfigs.find(
+							(p) => p.id === id,
+						);
+						return {
+							provider_config_id: id,
+							provider: providerConfig?.provider ?? existing.provider,
+							display_name: providerConfig?.display_name ?? "",
+							enabled: providerConfig?.enabled ?? true,
+							has_api_key: providerConfig?.has_api_key ?? false,
+							priority,
+						};
+					})
+				: existing.provider_configs;
+
+			const updated = createModelConfig({
+				...existing,
+				...(req.model !== undefined && { model: req.model }),
+				...(req.display_name !== undefined && {
+					display_name: req.display_name,
+				}),
+				...(req.enabled !== undefined && { enabled: req.enabled }),
+				...(req.is_default !== undefined && { is_default: req.is_default }),
+				...(req.context_limit !== undefined && {
+					context_limit: req.context_limit,
+				}),
+				...(req.compression_threshold !== undefined && {
+					compression_threshold: req.compression_threshold,
+				}),
+				...(req.model_config !== undefined && {
+					model_config: req.model_config,
+				}),
+				provider_configs: providerConfigs,
+				updated_at: new Date().toISOString(),
+			});
+			state.modelConfigs = state.modelConfigs.map((modelConfig, idx) =>
+				idx === index ? updated : modelConfig,
+			);
+			return updated;
+		},
 	);
 };
 
@@ -1137,5 +1197,204 @@ export const ValidatesModelConfigFields: Story = {
 		});
 		// No API call should have been made.
 		expect(API.experimental.createChatModelConfig).not.toHaveBeenCalled();
+	},
+};
+
+export const EditModelWithProviderConfigs: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		const openAIPrimary = createProviderConfig({
+			id: "oai-config-1",
+			provider: "openai",
+			display_name: "OpenAI Primary",
+			has_api_key: true,
+			enabled: true,
+		});
+		const openAIBackup = createProviderConfig({
+			id: "oai-config-2",
+			provider: "openai",
+			display_name: "OpenAI Backup",
+			has_api_key: true,
+			enabled: true,
+		});
+		const openAIDisabled = createProviderConfig({
+			id: "oai-config-3",
+			provider: "openai",
+			display_name: "OpenAI Disabled",
+			has_api_key: false,
+			enabled: false,
+		});
+		const model = createModelConfig({
+			id: "gpt4-model",
+			provider: "openai",
+			model: "gpt-4.1",
+			display_name: "GPT-4.1",
+			provider_configs: [
+				{
+					provider_config_id: openAIPrimary.id,
+					provider: "openai",
+					display_name: openAIPrimary.display_name,
+					enabled: true,
+					has_api_key: true,
+					priority: 0,
+				},
+				{
+					provider_config_id: openAIBackup.id,
+					provider: "openai",
+					display_name: openAIBackup.display_name,
+					enabled: true,
+					has_api_key: true,
+					priority: 1,
+				},
+				{
+					provider_config_id: openAIDisabled.id,
+					provider: "openai",
+					display_name: openAIDisabled.display_name,
+					enabled: false,
+					has_api_key: false,
+					priority: 2,
+				},
+			],
+		});
+		setupChatSpies({
+			providerConfigs: [openAIPrimary, openAIBackup, openAIDisabled],
+			modelConfigs: [model],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByText("GPT-4.1"));
+
+		await waitFor(() => {
+			expect(body.getByText("OpenAI Primary")).toBeInTheDocument();
+			expect(body.getByText("OpenAI Backup")).toBeInTheDocument();
+			expect(body.getByText("OpenAI Disabled")).toBeInTheDocument();
+		});
+		expect(body.getByText("Disabled")).toBeInTheDocument();
+		expect(body.getByText("No API key")).toBeInTheDocument();
+	},
+};
+
+export const ReorderProviderConfigs: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		const openAIPrimary = createProviderConfig({
+			id: "oai-config-1",
+			provider: "openai",
+			display_name: "OpenAI Primary",
+			has_api_key: true,
+			enabled: true,
+		});
+		const openAIBackup = createProviderConfig({
+			id: "oai-config-2",
+			provider: "openai",
+			display_name: "OpenAI Backup",
+			has_api_key: true,
+			enabled: true,
+		});
+		const model = createModelConfig({
+			id: "gpt4-model",
+			provider: "openai",
+			model: "gpt-4.1",
+			display_name: "GPT-4.1",
+			provider_configs: [
+				{
+					provider_config_id: openAIPrimary.id,
+					provider: "openai",
+					display_name: openAIPrimary.display_name,
+					enabled: true,
+					has_api_key: true,
+					priority: 0,
+				},
+				{
+					provider_config_id: openAIBackup.id,
+					provider: "openai",
+					display_name: openAIBackup.display_name,
+					enabled: true,
+					has_api_key: true,
+					priority: 1,
+				},
+			],
+		});
+		setupChatSpies({
+			providerConfigs: [openAIPrimary, openAIBackup],
+			modelConfigs: [model],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByText("GPT-4.1"));
+		await body.findByText("OpenAI Primary");
+
+		await userEvent.click(
+			await body.findByRole("button", {
+				name: /move openai backup up/i,
+			}),
+		);
+		await userEvent.click(await body.findByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.updateChatModelConfig).toHaveBeenCalledWith(
+				"gpt4-model",
+				expect.objectContaining({
+					provider_config_ids: ["oai-config-2", "oai-config-1"],
+				}),
+			);
+		});
+	},
+};
+
+export const CreateModelWithProviderConfigs: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		const openAIPrimary = createProviderConfig({
+			id: "oai-config-1",
+			provider: "openai",
+			display_name: "OpenAI Primary",
+			has_api_key: true,
+			enabled: true,
+		});
+		const openAIBackup = createProviderConfig({
+			id: "oai-config-2",
+			provider: "openai",
+			display_name: "OpenAI Backup",
+			has_api_key: true,
+			enabled: true,
+		});
+		setupChatSpies({
+			providerConfigs: [openAIPrimary, openAIBackup],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await openAddModelForm(body, "OpenAI");
+
+		await waitFor(() => {
+			expect(body.getByText("OpenAI Primary")).toBeInTheDocument();
+			expect(body.getByText("OpenAI Backup")).toBeInTheDocument();
+		});
+		await userEvent.type(
+			body.getByLabelText(/Model Identifier/i),
+			"gpt-4.1-custom",
+		);
+		await userEvent.type(body.getByLabelText(/Context limit/i), "128000");
+		await userEvent.click(
+			await body.findByRole("button", { name: "Add model" }),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					provider_config_ids: ["oai-config-1", "oai-config-2"],
+				}),
+			);
+		});
 	},
 };

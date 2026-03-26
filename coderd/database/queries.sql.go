@@ -3536,6 +3536,186 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 	return i, err
 }
 
+const deleteModelProviderConfigsByModelID = `-- name: DeleteModelProviderConfigsByModelID :exec
+DELETE FROM chat_model_provider_configs
+WHERE model_config_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteModelProviderConfigsByModelID(ctx context.Context, modelConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteModelProviderConfigsByModelID, modelConfigID)
+	return err
+}
+
+const getModelProviderConfigs = `-- name: GetModelProviderConfigs :many
+SELECT
+    cmpc.id, cmpc.model_config_id, cmpc.provider_config_id, cmpc.priority, cmpc.created_at, cmpc.updated_at,
+    cp.provider,
+    cp.display_name AS provider_display_name,
+    cp.enabled AS provider_enabled,
+    cp.api_key AS provider_api_key,
+    cp.base_url AS provider_base_url
+FROM
+    chat_model_provider_configs cmpc
+JOIN
+    chat_providers cp ON cp.id = cmpc.provider_config_id
+WHERE
+    cmpc.model_config_id = $1::uuid
+ORDER BY
+    cmpc.priority ASC
+`
+
+type GetModelProviderConfigsRow struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	ModelConfigID       uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	ProviderConfigID    uuid.UUID `db:"provider_config_id" json:"provider_config_id"`
+	Priority            int32     `db:"priority" json:"priority"`
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+	Provider            string    `db:"provider" json:"provider"`
+	ProviderDisplayName string    `db:"provider_display_name" json:"provider_display_name"`
+	ProviderEnabled     bool      `db:"provider_enabled" json:"provider_enabled"`
+	ProviderApiKey      string    `db:"provider_api_key" json:"provider_api_key"`
+	ProviderBaseUrl     string    `db:"provider_base_url" json:"provider_base_url"`
+}
+
+// Returns all provider config attachments for a single model, ordered by priority.
+func (q *sqlQuerier) GetModelProviderConfigs(ctx context.Context, modelConfigID uuid.UUID) ([]GetModelProviderConfigsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getModelProviderConfigs, modelConfigID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetModelProviderConfigsRow
+	for rows.Next() {
+		var i GetModelProviderConfigsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ModelConfigID,
+			&i.ProviderConfigID,
+			&i.Priority,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Provider,
+			&i.ProviderDisplayName,
+			&i.ProviderEnabled,
+			&i.ProviderApiKey,
+			&i.ProviderBaseUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getModelProviderConfigsByModelIDs = `-- name: GetModelProviderConfigsByModelIDs :many
+SELECT
+    cmpc.id, cmpc.model_config_id, cmpc.provider_config_id, cmpc.priority, cmpc.created_at, cmpc.updated_at,
+    cp.provider,
+    cp.display_name AS provider_display_name,
+    cp.enabled AS provider_enabled,
+    cp.api_key AS provider_api_key,
+    cp.base_url AS provider_base_url
+FROM
+    chat_model_provider_configs cmpc
+JOIN
+    chat_providers cp ON cp.id = cmpc.provider_config_id
+WHERE
+    cmpc.model_config_id = ANY($1::uuid[])
+ORDER BY
+    cmpc.model_config_id,
+    cmpc.priority ASC
+`
+
+type GetModelProviderConfigsByModelIDsRow struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	ModelConfigID       uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	ProviderConfigID    uuid.UUID `db:"provider_config_id" json:"provider_config_id"`
+	Priority            int32     `db:"priority" json:"priority"`
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+	Provider            string    `db:"provider" json:"provider"`
+	ProviderDisplayName string    `db:"provider_display_name" json:"provider_display_name"`
+	ProviderEnabled     bool      `db:"provider_enabled" json:"provider_enabled"`
+	ProviderApiKey      string    `db:"provider_api_key" json:"provider_api_key"`
+	ProviderBaseUrl     string    `db:"provider_base_url" json:"provider_base_url"`
+}
+
+// Batch-loads provider config attachments for multiple models.
+func (q *sqlQuerier) GetModelProviderConfigsByModelIDs(ctx context.Context, modelConfigIds []uuid.UUID) ([]GetModelProviderConfigsByModelIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getModelProviderConfigsByModelIDs, pq.Array(modelConfigIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetModelProviderConfigsByModelIDsRow
+	for rows.Next() {
+		var i GetModelProviderConfigsByModelIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ModelConfigID,
+			&i.ProviderConfigID,
+			&i.Priority,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Provider,
+			&i.ProviderDisplayName,
+			&i.ProviderEnabled,
+			&i.ProviderApiKey,
+			&i.ProviderBaseUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertModelProviderConfig = `-- name: InsertModelProviderConfig :one
+INSERT INTO chat_model_provider_configs (
+    model_config_id,
+    provider_config_id,
+    priority
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::integer
+)
+RETURNING id, model_config_id, provider_config_id, priority, created_at, updated_at
+`
+
+type InsertModelProviderConfigParams struct {
+	ModelConfigID    uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	ProviderConfigID uuid.UUID `db:"provider_config_id" json:"provider_config_id"`
+	Priority         int32     `db:"priority" json:"priority"`
+}
+
+func (q *sqlQuerier) InsertModelProviderConfig(ctx context.Context, arg InsertModelProviderConfigParams) (ChatModelProviderConfig, error) {
+	row := q.db.QueryRowContext(ctx, insertModelProviderConfig, arg.ModelConfigID, arg.ProviderConfigID, arg.Priority)
+	var i ChatModelProviderConfig
+	err := row.Scan(
+		&i.ID,
+		&i.ModelConfigID,
+		&i.ProviderConfigID,
+		&i.Priority,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteChatProviderByID = `-- name: DeleteChatProviderByID :exec
 DELETE FROM
     chat_providers

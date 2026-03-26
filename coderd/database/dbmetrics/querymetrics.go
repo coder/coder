@@ -512,6 +512,14 @@ func (m queryMetricsStore) DeleteMCPServerUserToken(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) DeleteModelProviderConfigsByModelID(ctx context.Context, modelConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteModelProviderConfigsByModelID(ctx, modelConfigID)
+	m.queryLatencies.WithLabelValues("DeleteModelProviderConfigsByModelID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteModelProviderConfigsByModelID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteOAuth2ProviderAppByClientID(ctx, id)
@@ -1669,6 +1677,22 @@ func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, u
 	r0, r1 := m.s.GetMCPServerUserTokensByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetMCPServerUserTokensByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerUserTokensByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetModelProviderConfigs(ctx context.Context, modelConfigID uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetModelProviderConfigs(ctx, modelConfigID)
+	m.queryLatencies.WithLabelValues("GetModelProviderConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetModelProviderConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetModelProviderConfigsByModelIDs(ctx context.Context, modelConfigIds []uuid.UUID) ([]database.GetModelProviderConfigsByModelIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetModelProviderConfigsByModelIDs(ctx, modelConfigIds)
+	m.queryLatencies.WithLabelValues("GetModelProviderConfigsByModelIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetModelProviderConfigsByModelIDs").Inc()
 	return r0, r1
 }
 
@@ -3341,6 +3365,14 @@ func (m queryMetricsStore) InsertMissingGroups(ctx context.Context, arg database
 	r0, r1 := m.s.InsertMissingGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertMissingGroups").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertMissingGroups").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertModelProviderConfig(ctx context.Context, arg database.InsertModelProviderConfigParams) (database.ChatModelProviderConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertModelProviderConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertModelProviderConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertModelProviderConfig").Inc()
 	return r0, r1
 }
 

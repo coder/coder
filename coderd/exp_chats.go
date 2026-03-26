@@ -4067,13 +4067,15 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	// configs, which is sufficient for using the chat feature.
 	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
 
+	readCtx := ctx
 	var configs []database.ChatModelConfig
 	var err error
 	if isAdmin {
-		configs, err = api.Database.GetChatModelConfigs(ctx)
+		configs, err = api.Database.GetChatModelConfigs(readCtx)
 	} else {
 		//nolint:gocritic // All authenticated users need to read enabled model configs to use the chat feature.
-		configs, err = api.Database.GetEnabledChatModelConfigs(dbauthz.AsSystemRestricted(ctx))
+		readCtx = dbauthz.AsSystemRestricted(ctx)
+		configs, err = api.Database.GetEnabledChatModelConfigs(readCtx)
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4083,9 +4085,40 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modelIDs := make([]uuid.UUID, 0, len(configs))
+	for _, config := range configs {
+		modelIDs = append(modelIDs, config.ID)
+	}
+
+	var allAttachments []database.GetModelProviderConfigsByModelIDsRow
+	if len(modelIDs) > 0 {
+		allAttachments, err = api.Database.GetModelProviderConfigsByModelIDs(readCtx, modelIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to load provider config attachments.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	attachmentsByModel := make(map[uuid.UUID][]database.GetModelProviderConfigsByModelIDsRow)
+	for _, attachment := range allAttachments {
+		attachmentsByModel[attachment.ModelConfigID] = append(
+			attachmentsByModel[attachment.ModelConfigID],
+			attachment,
+		)
+	}
+
 	resp := make([]codersdk.ChatModelConfig, 0, len(configs))
 	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config))
+		resp = append(
+			resp,
+			convertChatModelConfig(
+				config,
+				convertModelProviderConfigsFromBatch(attachmentsByModel[config.ID]),
+			),
+		)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -4160,6 +4193,16 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.ProviderConfigIDs) > 0 {
+		if valErr := validateProviderConfigIDs(ctx, api.Database, provider, req.ProviderConfigIDs); valErr != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid provider config IDs.",
+				Detail:  valErr.Error(),
+			})
+			return
+		}
+	}
+
 	insertParams := database.InsertChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
@@ -4201,6 +4244,24 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		inserted = config
 
+		if len(req.ProviderConfigIDs) > 0 {
+			if err := insertModelProviderConfigs(ctx, tx, inserted.ID, req.ProviderConfigIDs); err != nil {
+				return err
+			}
+		} else {
+			enabledProvider, autoErr := tx.GetEnabledChatProviderByProvider(ctx, provider)
+			switch {
+			case autoErr == nil:
+				if err := insertModelProviderConfigs(ctx, tx, inserted.ID, []uuid.UUID{enabledProvider.ID}); err != nil {
+					return err
+				}
+			case xerrors.Is(autoErr, sql.ErrNoRows):
+				// No enabled provider is available to attach yet.
+			case autoErr != nil:
+				return xerrors.Errorf("get enabled provider config: %w", autoErr)
+			}
+		}
+
 		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
 			return err
 		}
@@ -4235,9 +4296,23 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	attachments, err := api.Database.GetModelProviderConfigs(ctx, inserted.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load provider config attachments.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
+	httpapi.Write(
+		ctx,
+		rw,
+		http.StatusCreated,
+		convertChatModelConfig(inserted, convertModelProviderConfigs(attachments)),
+	)
 }
 
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -4351,6 +4426,23 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ID:                   existing.ID,
 	}
 
+	if req.ProviderConfigIDs != nil {
+		if len(*req.ProviderConfigIDs) == 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Provider config IDs cannot be empty.",
+				Detail:  "To keep existing attachments, omit provider_config_ids. An explicit empty list is not allowed.",
+			})
+			return
+		}
+		if valErr := validateProviderConfigIDs(ctx, api.Database, provider, *req.ProviderConfigIDs); valErr != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid provider config IDs.",
+				Detail:  valErr.Error(),
+			})
+			return
+		}
+	}
+
 	var updated database.ChatModelConfig
 	err = api.Database.InTx(func(tx database.Store) error {
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
@@ -4363,6 +4455,15 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		_, err := tx.UpdateChatModelConfig(ctx, updateParams)
 		if err != nil {
 			return err
+		}
+
+		if req.ProviderConfigIDs != nil {
+			if err := tx.DeleteModelProviderConfigsByModelID(ctx, existing.ID); err != nil {
+				return xerrors.Errorf("delete existing provider configs: %w", err)
+			}
+			if err := insertModelProviderConfigs(ctx, tx, existing.ID, *req.ProviderConfigIDs); err != nil {
+				return err
+			}
 		}
 
 		excludeConfigID := uuid.Nil
@@ -4408,9 +4509,23 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	attachments, err := api.Database.GetModelProviderConfigs(ctx, updated.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load provider config attachments.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
+	httpapi.Write(
+		ctx,
+		rw,
+		http.StatusOK,
+		convertChatModelConfig(updated, convertModelProviderConfigs(attachments)),
+	)
 }
 
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -4611,7 +4726,122 @@ func convertChatProviderConfig(
 	}
 }
 
-func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
+func validateProviderConfigIDs(
+	ctx context.Context,
+	store database.Store,
+	modelProvider string,
+	providerConfigIDs []uuid.UUID,
+) error {
+	seen := make(map[uuid.UUID]struct{}, len(providerConfigIDs))
+	for _, providerConfigID := range providerConfigIDs {
+		if _, ok := seen[providerConfigID]; ok {
+			return xerrors.Errorf("provider_config_ids contains duplicate ID %q", providerConfigID)
+		}
+		seen[providerConfigID] = struct{}{}
+
+		providerConfig, err := store.GetChatProviderByID(ctx, providerConfigID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("provider config %q was not found", providerConfigID)
+			}
+			return xerrors.Errorf("get provider config %q: %w", providerConfigID, err)
+		}
+
+		providerFamily := chatprovider.NormalizeProvider(providerConfig.Provider)
+		if providerFamily != modelProvider {
+			return xerrors.Errorf(
+				"provider config %q uses provider family %q, expected %q",
+				providerConfigID,
+				providerFamily,
+				modelProvider,
+			)
+		}
+	}
+
+	return nil
+}
+
+func insertModelProviderConfigs(
+	ctx context.Context,
+	store database.Store,
+	modelConfigID uuid.UUID,
+	providerConfigIDs []uuid.UUID,
+) error {
+	for idx, providerConfigID := range providerConfigIDs {
+		if idx > math.MaxInt32 {
+			return xerrors.Errorf("too many provider configs: %d", len(providerConfigIDs))
+		}
+
+		_, err := store.InsertModelProviderConfig(ctx, database.InsertModelProviderConfigParams{
+			ModelConfigID:    modelConfigID,
+			ProviderConfigID: providerConfigID,
+			// #nosec G115 - idx is bounded to int32 range just above.
+			Priority: int32(idx),
+		})
+		if err != nil {
+			return xerrors.Errorf("insert model provider config %q: %w", providerConfigID, err)
+		}
+	}
+
+	return nil
+}
+
+func convertModelProviderConfig(
+	providerConfigID uuid.UUID,
+	provider string,
+	displayName string,
+	enabled bool,
+	apiKey string,
+	priority int32,
+) codersdk.ChatModelProviderAttachment {
+	return codersdk.ChatModelProviderAttachment{
+		ProviderConfigID: providerConfigID,
+		Provider:         provider,
+		DisplayName:      displayName,
+		Enabled:          enabled,
+		HasAPIKey:        strings.TrimSpace(apiKey) != "",
+		Priority:         priority,
+	}
+}
+
+func convertModelProviderConfigs(rows []database.GetModelProviderConfigsRow) []codersdk.ChatModelProviderAttachment {
+	result := make([]codersdk.ChatModelProviderAttachment, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, convertModelProviderConfig(
+			row.ProviderConfigID,
+			row.Provider,
+			row.ProviderDisplayName,
+			row.ProviderEnabled,
+			row.ProviderApiKey,
+			row.Priority,
+		))
+	}
+	return result
+}
+
+func convertModelProviderConfigsFromBatch(rows []database.GetModelProviderConfigsByModelIDsRow) []codersdk.ChatModelProviderAttachment {
+	result := make([]codersdk.ChatModelProviderAttachment, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, convertModelProviderConfig(
+			row.ProviderConfigID,
+			row.Provider,
+			row.ProviderDisplayName,
+			row.ProviderEnabled,
+			row.ProviderApiKey,
+			row.Priority,
+		))
+	}
+	return result
+}
+
+func convertChatModelConfig(
+	config database.ChatModelConfig,
+	providerConfigs []codersdk.ChatModelProviderAttachment,
+) codersdk.ChatModelConfig {
+	if providerConfigs == nil {
+		providerConfigs = []codersdk.ChatModelProviderAttachment{}
+	}
+
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
 		Provider:             config.Provider,
@@ -4622,6 +4852,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
 		ModelConfig:          unmarshalChatModelCallConfig(config.Options),
+		ProviderConfigs:      providerConfigs,
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
 	}

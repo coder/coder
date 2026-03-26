@@ -4253,6 +4253,15 @@ type ChatModelConfig struct {
 	Options              json.RawMessage `db:"options" json:"options"`
 }
 
+type ChatModelProviderConfig struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	ModelConfigID    uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	ProviderConfigID uuid.UUID `db:"provider_config_id" json:"provider_config_id"`
+	Priority         int32     `db:"priority" json:"priority"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatProvider struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Provider    string    `db:"provider" json:"provider"`
