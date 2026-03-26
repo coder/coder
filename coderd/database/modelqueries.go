@@ -791,6 +791,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Mode,
 			pq.Array(&i.MCPServerIDs),
 			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
 		); err != nil {
 			return nil, err
 		}

@@ -49,6 +49,8 @@ type Chat struct {
 	ID                uuid.UUID         `json:"id" format:"uuid"`
 	OwnerID           uuid.UUID         `json:"owner_id" format:"uuid"`
 	WorkspaceID       *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID        `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID        `json:"agent_id,omitempty" format:"uuid"`
 	ParentChatID      *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID        *uuid.UUID        `json:"root_chat_id,omitempty" format:"uuid"`
 	LastModelConfigID uuid.UUID         `json:"last_model_config_id" format:"uuid"`
