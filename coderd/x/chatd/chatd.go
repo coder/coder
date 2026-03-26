@@ -1470,9 +1470,11 @@ func (p *Server) recordManualTitleUsage(
 
 	return p.db.InTx(func(tx database.Store) error {
 		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{uuid.Nil},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			ChatID:    chat.ID,
+			CreatedBy: []uuid.UUID{uuid.Nil},
+			// Keep this synthetic usage write from mutating the chat's
+			// selected model through InsertChatMessages.
+			ModelConfigID:       []uuid.UUID{uuid.Nil},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
 			Content:             []string{content},
 			ContentVersion:      []int16{chatprompt.CurrentContentVersion},

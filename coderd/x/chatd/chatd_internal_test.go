@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -107,6 +108,47 @@ func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
 	updated, err := server.RegenerateChatTitle(userCtx, chat)
 	require.NoError(t, err)
 	require.Equal(t, chat, updated)
+}
+
+func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	server := &Server{db: db}
+
+	chat := database.Chat{ID: uuid.New()}
+	modelConfig := database.ChatModelConfig{
+		ID:           uuid.New(),
+		ContextLimit: 8192,
+	}
+	usage := fantasy.Usage{
+		InputTokens:  12,
+		OutputTokens: 7,
+		TotalTokens:  19,
+	}
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, opts *database.TxOptions) error {
+			require.Nil(t, opts)
+			return fn(tx)
+		},
+	)
+	tx.EXPECT().InsertChatMessages(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(database.InsertChatMessagesParams{}),
+	).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+			require.Equal(t, []uuid.UUID{uuid.Nil}, arg.ModelConfigID)
+			require.Equal(t, []string{"[]"}, arg.Content)
+			return []database.ChatMessage{{ID: 1}}, nil
+		},
+	)
+	tx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(1)).Return(nil)
+
+	err := server.recordManualTitleUsage(context.Background(), chat, modelConfig, usage)
+	require.NoError(t, err)
 }
 
 func TestMergeManualTitleMessages(t *testing.T) {

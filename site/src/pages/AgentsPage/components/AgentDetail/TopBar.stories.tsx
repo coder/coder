@@ -256,6 +256,7 @@ export const ArchivedWithUnarchive: Story = {
 			expect(body.getByText("Unarchive Agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
+		expect(body.queryByText("Generate new title")).not.toBeInTheDocument();
 		expect(body.queryByText("Archive Agent")).not.toBeInTheDocument();
 		expect(
 			body.queryByText("Archive & Delete Workspace"),
