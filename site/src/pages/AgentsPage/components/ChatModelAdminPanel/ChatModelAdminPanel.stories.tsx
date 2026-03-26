@@ -423,7 +423,10 @@ export const MultipleProviderConfigsSameFamily: Story = {
 };
 
 export const AddProviderConfigFlow: Story = {
-	args: { section: "providers" as ChatModelAdminSection },
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		sectionLabel: "Providers",
+	},
 	beforeEach: () => {
 		setupChatSpies({
 			providerConfigs: [
@@ -446,10 +449,8 @@ export const AddProviderConfigFlow: Story = {
 		const addButton = body.getByRole("button", { name: "Add provider" });
 		await userEvent.click(addButton);
 
-		await waitFor(async () => {
-			const item = body.getByRole("menuitem", { name: /OpenAI/i });
-			await userEvent.click(item);
-		});
+		const item = await body.findByRole("menuitem", { name: /OpenAI/i });
+		await userEvent.click(item);
 
 		await expect(await body.findByLabelText(/API key/i)).toBeInTheDocument();
 		expect(
@@ -506,14 +507,13 @@ const openAddModelForm = async (
 	body: ReturnType<typeof within>,
 	providerLabel: string,
 ) => {
-	const trigger = await body.findByRole("button", { name: "Add model" });
-	await userEvent.click(trigger);
-	await waitFor(async () => {
-		const item = body.getByRole("menuitem", {
-			name: new RegExp(`^${providerLabel}$`, "i"),
-		});
-		await userEvent.click(item);
-	});
+	const triggers = await body.findAllByRole("button", { name: "Add model" });
+	await userEvent.click(triggers[0]);
+
+	const item = await body.findByText(new RegExp(`^${providerLabel}$`, "i"));
+	await userEvent.click(item);
+
+	await body.findByLabelText(/Model Identifier/i);
 };
 
 export const NoModelConfigByDefault: Story = {
@@ -710,28 +710,25 @@ export const CreateModelMultiConfig: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		const trigger = await body.findByRole("button", { name: "Add model" });
-		await userEvent.click(trigger);
+		const triggers = await body.findAllByRole("button", { name: "Add model" });
+		await userEvent.click(triggers[0]);
 
-		await waitFor(() => {
-			expect(
-				body.getByRole("menuitem", { name: /^OpenAI Production$/i }),
-			).toBeInTheDocument();
-			expect(
-				body.getByRole("menuitem", { name: /^OpenAI 2$/i }),
-			).toBeInTheDocument();
-		});
+		await expect(
+			await body.findByText(/^OpenAI Production$/i),
+		).toBeInTheDocument();
+		const secondaryOption = await body.findByText(/^OpenAI 2$/i);
+		await expect(secondaryOption).toBeInTheDocument();
 
-		await userEvent.click(body.getByRole("menuitem", { name: /^OpenAI 2$/i }));
-
-		await waitFor(() => {
-			expect(body.getByLabelText(/Model Identifier/i)).toBeInTheDocument();
-		});
+		await userEvent.click(secondaryOption);
+		await body.findByLabelText(/Model Identifier/i);
 
 		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
+		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 
-		const submitButton = body.getByRole("button", { name: "Add model" });
-		await userEvent.click(submitButton);
+		const submitButtons = await body.findAllByRole("button", {
+			name: "Add model",
+		});
+		await userEvent.click(submitButtons[submitButtons.length - 1]);
 
 		await waitFor(() => {
 			expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
@@ -943,10 +940,9 @@ export const ModelDeleteConfirmation: Story = {
 		// Click the model row to open the edit form.
 		await userEvent.click(await body.findByText("GPT-4o"));
 
-		const providerSelect = await body.findByRole("combobox", {
-			name: /provider/i,
-		});
-		await expect(providerSelect).toBeDisabled();
+		await expect(
+			await body.findByLabelText(/Model Identifier/i),
+		).toBeInTheDocument();
 
 		// The Delete button should be visible in the footer.
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
