@@ -68,8 +68,8 @@ const statusBorderClassByLifecycle: Partial<
 	ready: "border-border-success",
 	start_timeout: "border-border-warning",
 	shutdown_timeout: "border-border-warning",
-	start_error: "border-border-destructive",
-	shutdown_error: "border-border-destructive",
+	start_error: "border-border-warning",
+	shutdown_error: "border-border-warning",
 	off: "border-border",
 };
 
