@@ -92,7 +92,7 @@ export const WithAIAddonColumn: Story = {
 			name: /AI add-on/i,
 		});
 
-		expect(header).toBeVisible();
+		await expect(header).toBeVisible();
 	},
 };
 
@@ -104,7 +104,7 @@ export const WithoutAIAddonColumn: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("columnheader", { name: "User" });
 
-		expect(
+		await expect(
 			canvas.queryByRole("columnheader", { name: /AI add-on/i }),
 		).not.toBeInTheDocument();
 	},
