@@ -92,9 +92,41 @@ export const TerminalOverloadedError: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
-		expect(canvas.getByText("overloaded")).toBeVisible();
+		expect(canvas.getByText("Overloaded")).toBeVisible();
 		expect(canvas.getByText(/http 529/i)).toBeVisible();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
+	},
+};
+
+/** Terminal startup timeouts get a specific heading without provider metadata. */
+export const TerminalStartupTimeoutError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			persistedError: {
+				kind: "startup_timeout",
+				message:
+					"Anthropic did not start responding in time. Please try again.",
+				provider: "anthropic",
+				retryable: true,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /startup timed out/i }),
+		).toBeVisible();
+		expect(canvas.getByText("Startup timeout")).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic did not start responding in time/i),
+		).toBeVisible();
+		expect(canvas.getByText(/retryable/i)).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
