@@ -181,7 +181,7 @@ export const MembersError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add user(s)" }),
+			await canvas.findByRole("button", { name: "Add users" }),
 		);
 	},
 };
@@ -198,7 +198,7 @@ export const NoMembers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add user(s)" }),
+			await canvas.findByRole("button", { name: "Add users" }),
 		);
 	},
 };
@@ -220,7 +220,7 @@ export const FiltersByMembers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add user(s)" }),
+			await canvas.findByRole("button", { name: "Add users" }),
 		);
 	},
 };

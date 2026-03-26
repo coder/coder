@@ -138,7 +138,7 @@ const AddUsersDialog: FC<AddUsersDialogProps> = ({
 		<>
 			<Button size="lg" onClick={() => setAddUserDialogOpen(true)}>
 				<UserPlusIcon />
-				Add user(s)
+				Add users
 			</Button>
 			<ConfirmDialog
 				open={addUserDialogOpen}
