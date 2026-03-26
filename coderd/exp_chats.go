@@ -3279,8 +3279,8 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	}
 	includeDefault, err := api.Database.GetChatIncludeDefaultSystemPrompt(ctx)
 	if err != nil {
-		api.Logger.Error(ctx, "failed to fetch include-default setting, using default", slog.Error(err))
-		return chatd.DefaultSystemPrompt
+		api.Logger.Error(ctx, "failed to fetch include-default setting, assuming true", slog.Error(err))
+		includeDefault = true
 	}
 
 	sanitized := chatd.SanitizePromptText(custom)

@@ -11,12 +11,14 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -25,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -61,6 +64,19 @@ func newChatClientWithDatabase(t testing.TB) (*codersdk.ExperimentalClient, data
 		DeploymentValues: chatDeploymentValues(t),
 	})
 	return codersdk.NewExperimentalClient(client), db
+}
+
+type failNextChatIncludeDefaultStore struct {
+	database.Store
+
+	failNextGetChatIncludeDefaultSystemPrompt atomic.Bool
+}
+
+func (s *failNextChatIncludeDefaultStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
+	if s.failNextGetChatIncludeDefaultSystemPrompt.CompareAndSwap(true, false) {
+		return false, xerrors.New("forced include-default read failure")
+	}
+	return s.Store.GetChatIncludeDefaultSystemPrompt(ctx)
 }
 
 func requireChatUsageLimitExceededError(
@@ -4978,6 +4994,56 @@ func TestChatSystemPrompt(t *testing.T) {
 			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
 			assertInjectedSystemMessages(t, ctx, "")
 		})
+	})
+
+	t.Run("CreateChatFallsBackToDefaultPlusCustomWhenIncludeDefaultReadFails", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := &failNextChatIncludeDefaultStore{Store: rawDB}
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Keep custom instructions",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		store.failNextGetChatIncludeDefaultSystemPrompt.Store(true)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: fmt.Sprintf("include-default fallback %s", t.Name()),
+			}},
+		})
+		require.NoError(t, err)
+
+		messages, err := rawDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		var systemTexts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+			systemTexts = append(systemTexts, parts[0].Text)
+		}
+
+		const workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+		require.Equal(t, []string{
+			chatd.DefaultSystemPrompt + "\n\nKeep custom instructions",
+			workspaceAwareness,
+		}, systemTexts)
 	})
 
 	t.Run("NonAdminFails", func(t *testing.T) {

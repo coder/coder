@@ -613,6 +613,7 @@ export const DefaultAutostopNotVisibleToNonAdmin: Story = {
 
 		const desktopHeading = canvas.queryByText("Virtual Desktop");
 		expect(desktopHeading).toBeNull();
+		expect(API.experimental.getChatSystemPrompt).not.toHaveBeenCalled();
 	},
 };
 
@@ -861,6 +862,8 @@ export const InvisibleUnicodeWarningSystemPrompt: Story = {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt:
 				"Normal prompt text\u200b\u200b\u200b\u200bhidden instruction",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
 		});
 	},
 	play: async ({ canvasElement }) => {
@@ -921,6 +924,8 @@ export const NoWarningForCleanPrompt: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "You are a helpful coding assistant.",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
 		});
 		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "Be concise and use TypeScript.",
