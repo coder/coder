@@ -1292,6 +1292,23 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// selectPreferredAgent returns the preferred agent for chat operations.
+// In workspaces with devcontainers, sub-agents (parent_id IS NOT NULL) are
+// preferred over the parent (host) agent so that AI chat runs inside the
+// devcontainer rather than on the host. Falls back to agents[0] if no
+// sub-agents are found.
+func selectPreferredAgent(agents []database.WorkspaceAgent) database.WorkspaceAgent {
+	if len(agents) == 0 {
+		return database.WorkspaceAgent{}
+	}
+	for _, agent := range agents {
+		if agent.ParentID.Valid {
+			return agent
+		}
+	}
+	return agents[0]
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1324,10 +1341,11 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	preferredAgent := selectPreferredAgent(agents)
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		preferredAgent,
 		nil,
 		nil,
 		nil,
@@ -1351,7 +1369,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, preferredAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -1485,10 +1503,11 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	preferredAgent := selectPreferredAgent(agents)
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		preferredAgent,
 		nil,
 		nil,
 		nil,
@@ -1512,7 +1531,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, preferredAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to dial workspace agent.",
