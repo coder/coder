@@ -294,13 +294,14 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
+		onChatReady,
+		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -878,6 +879,16 @@ const AgentDetail: FC = () => {
 		}
 		requestUnarchiveAgent(agentId);
 	};
+
+	// Signal the parent layout that messages have loaded.
+	const chatReadyFiredRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
+			return;
+		}
+		chatReadyFiredRef.current = agentId ?? null;
+		onChatReady();
+	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (

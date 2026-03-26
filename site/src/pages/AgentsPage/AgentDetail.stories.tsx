@@ -11,6 +11,7 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
+import { useRef } from "react";
 import { Outlet } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -36,6 +37,7 @@ import type { AgentsOutletContext } from "./AgentsPage";
 // Layout wrapper – provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentDetailLayout: FC = () => {
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -54,6 +56,8 @@ const AgentDetailLayout: FC = () => {
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
+							onChatReady: () => {},
+							scrollContainerRef,
 						} satisfies AgentsOutletContext
 					}
 				/>

@@ -69,6 +69,10 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	useEffect(() => {
 		const root = document.documentElement;
+		// Embedded pages manage theme independently.
+		if (root.dataset.embedTheme) {
+			return;
+		}
 		if (themePreference === "auto") {
 			root.classList.add(preferredColorScheme);
 		} else {
@@ -76,7 +80,9 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		}
 
 		return () => {
-			root.classList.remove("light", "dark");
+			if (!root.dataset.embedTheme) {
+				root.classList.remove("light", "dark");
+			}
 		};
 	}, [themePreference, preferredColorScheme]);
 
