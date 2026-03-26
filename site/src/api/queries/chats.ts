@@ -453,7 +453,13 @@ export const unpinChat = (queryClient: QueryClient) => ({
 export const reorderPinnedChat = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, pinOrder }: { chatId: string; pinOrder: number }) =>
 		API.experimental.updateChat(chatId, { pin_order: pinOrder }),
-	onMutate: async ({ chatId }: { chatId: string; pinOrder: number }) => {
+	onMutate: async ({
+		chatId,
+		pinOrder,
+	}: {
+		chatId: string;
+		pinOrder: number;
+	}) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
 			predicate: isChatListQuery,
@@ -462,6 +468,26 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+
+		// Optimistically reorder pinned chats in the cache so the
+		// sidebar reflects the new order immediately without waiting
+		// for the server round-trip.
+		const allChats = readInfiniteChatsCache(queryClient) ?? [];
+		const pinned = allChats
+			.filter((c) => c.pin_order > 0)
+			.sort((a, b) => a.pin_order - b.pin_order);
+		const oldIdx = pinned.findIndex((c) => c.id === chatId);
+		if (oldIdx !== -1) {
+			const moved = pinned.splice(oldIdx, 1)[0];
+			pinned.splice(pinOrder - 1, 0, moved);
+			const newOrders = new Map(pinned.map((c, i) => [c.id, i + 1]));
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((c) => {
+					const order = newOrders.get(c.id);
+					return order !== undefined ? { ...c, pin_order: order } : c;
+				}),
+			);
+		}
 	},
 	onSettled: async (
 		_data: unknown,
