@@ -142,6 +142,7 @@ interface TemplateInsightsControlsProps {
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
+	now?: Date;
 }
 
 export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
@@ -150,6 +151,7 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 	setDateRange,
 	searchParams,
 	setSearchParams,
+	now,
 }) => {
 	return (
 		<>
@@ -165,7 +167,7 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 				}}
 			/>
 			{interval === "day" ? (
-				<DailyPicker value={dateRange} onChange={setDateRange} />
+				<DailyPicker value={dateRange} onChange={setDateRange} now={now} />
 			) : (
 				<WeekPicker value={dateRange} onChange={setDateRange} />
 			)}

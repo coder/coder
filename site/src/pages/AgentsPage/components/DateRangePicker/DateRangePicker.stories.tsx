@@ -14,6 +14,9 @@ const defaultValue: DateRangeValue = {
 const meta: Meta<typeof DateRangePicker> = {
 	title: "components/DateRangePicker",
 	component: DateRangePicker,
+	args: {
+		now: fixedNow.toDate(),
+	},
 };
 
 export default meta;
@@ -61,7 +64,13 @@ export const Open: Story = {
 export const SelectPreset: Story = {
 	render: function SelectPresetStory() {
 		const [value, setValue] = useState<DateRangeValue>(defaultValue);
-		return <DateRangePicker value={value} onChange={setValue} />;
+		return (
+			<DateRangePicker
+				value={value}
+				onChange={setValue}
+				now={fixedNow.toDate()}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -93,7 +102,13 @@ export const SelectCalendarRange: Story = {
 			startDate: new Date("2025-03-01"),
 			endDate: new Date("2025-03-15"),
 		});
-		return <DateRangePicker value={value} onChange={setValue} />;
+		return (
+			<DateRangePicker
+				value={value}
+				onChange={setValue}
+				now={fixedNow.toDate()}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -119,7 +134,13 @@ export const SelectCalendarRange: Story = {
 export const CancelClosesWithoutApplying: Story = {
 	render: function CancelStory() {
 		const [value, setValue] = useState<DateRangeValue>(defaultValue);
-		return <DateRangePicker value={value} onChange={setValue} />;
+		return (
+			<DateRangePicker
+				value={value}
+				onChange={setValue}
+				now={fixedNow.toDate()}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
