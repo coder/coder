@@ -1652,6 +1652,14 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// The behavior depends on current pin state:
+		// - pinOrder == 0: unpin.
+		// - pinOrder > 0 && already pinned: reorder (shift
+		//   neighbors, clamp to [1, count]).
+		// - pinOrder > 0 && not pinned: append to end. The
+		//   requested value is intentionally ignored because
+		//   PinChatByID also bumps updated_at to keep the
+		//   chat visible in the paginated sidebar.
 		var err error
 		action := "pin"
 		switch {
