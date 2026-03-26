@@ -575,7 +575,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													: onPinAgent(chat.id)
 											}
 										>
-											{" "}
 											{chat.pin_order > 0 ? (
 												<>
 													<PinOffIcon className="h-3.5 w-3.5" />
@@ -797,13 +796,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 		if (!over || active.id === over.id) return;
 
-		const oldIndex = pinnedChatIds.indexOf(active.id as string);
-		const newIndex = pinnedChatIds.indexOf(over.id as string);
+		const activeId = String(active.id);
+		const overId = String(over.id);
+		const oldIndex = pinnedChatIds.indexOf(activeId);
+		const newIndex = pinnedChatIds.indexOf(overId);
 		if (oldIndex === -1 || newIndex === -1) return;
 
 		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
-		onReorderPinnedAgent?.(active.id as string, newIndex + 1);
+		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
 	// The filter dropdown attaches to the first visible section

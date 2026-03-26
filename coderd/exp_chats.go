@@ -1668,13 +1668,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		//   PinChatByID also bumps updated_at to keep the
 		//   chat visible in the paginated sidebar.
 		var err error
-		action := "pin"
+		errMsg := "Failed to pin chat."
 		switch {
 		case pinOrder == 0:
-			action = "unpin"
+			errMsg = "Failed to unpin chat."
 			err = api.Database.UnpinChatByID(ctx, chat.ID)
 		case chat.PinOrder > 0:
-			action = "update pin order"
+			errMsg = "Failed to reorder pinned chat."
 			err = api.Database.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
 				ID:       chat.ID,
 				PinOrder: pinOrder,
@@ -1684,7 +1684,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Failed to %s chat.", action),
+				Message: errMsg,
 				Detail:  err.Error(),
 			})
 			return
