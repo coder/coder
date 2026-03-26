@@ -1100,6 +1100,7 @@ export interface Chat {
 	readonly updated_at: string;
 	readonly archived: boolean;
 	readonly mcp_server_ids: readonly string[];
+	readonly labels: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -1113,6 +1114,28 @@ export const ChatCompactionThresholdKeyPrefix =
 // From codersdk/deployment.go
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
+}
+
+// From codersdk/chats.go
+export interface ChatContextFilePart {
+	readonly type: "context-file";
+	/**
+	 * ContextFilePath is the absolute path of a file loaded into
+	 * the LLM context (e.g. an AGENTS.md instruction file).
+	 */
+	readonly context_file_path: string;
+	/**
+	 * ContextFileTruncated indicates the file exceeded the 64KiB
+	 * instruction file limit and was truncated.
+	 */
+	readonly context_file_truncated?: boolean;
+	/**
+	 * ContextFileAgentID is the workspace agent that provided
+	 * this context file. Used to detect when the agent changes
+	 * (e.g. workspace rebuilt) so instruction files can be
+	 * re-persisted with fresh content.
+	 */
+	readonly context_file_agent_id?: string;
 }
 
 // From codersdk/chats.go
@@ -1375,10 +1398,12 @@ export type ChatMessagePart =
 	| ChatToolResultPart
 	| ChatSourcePart
 	| ChatFilePart
-	| ChatFileReferencePart;
+	| ChatFileReferencePart
+	| ChatContextFilePart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
+	| "context-file"
 	| "file"
 	| "file-reference"
 	| "reasoning"
@@ -1388,6 +1413,7 @@ export type ChatMessagePartType =
 	| "tool-result";
 
 export const ChatMessagePartTypes: ChatMessagePartType[] = [
+	"context-file",
 	"file",
 	"file-reference",
 	"reasoning",
@@ -1881,6 +1907,16 @@ export interface ChatSystemPrompt {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatTemplateAllowlist is the request and response body for the
+ * chat template allowlist configuration endpoint. An empty list
+ * means all templates are allowed.
+ */
+export interface ChatTemplateAllowlist {
+	readonly template_ids: readonly string[];
+}
+
+// From codersdk/chats.go
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
@@ -1909,6 +1945,7 @@ export interface ChatToolResultPart {
 	readonly mcp_server_config_id?: string;
 	readonly result?: Record<string, string>;
 	readonly is_error?: boolean;
+	readonly is_media?: boolean;
 	/**
 	 * ProviderExecuted indicates the tool call was executed by
 	 * the provider (e.g. Anthropic computer use).
@@ -2209,6 +2246,7 @@ export interface CreateChatRequest {
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
+	readonly labels?: Record<string, string>;
 }
 
 // From codersdk/users.go
@@ -3741,6 +3779,7 @@ export interface LinkConfig {
  */
 export interface ListChatsOptions extends Pagination {
 	readonly Query: string;
+	readonly Labels: Record<string, string>;
 }
 
 // From codersdk/inboxnotification.go
@@ -6977,6 +7016,7 @@ export interface UpdateChatProviderConfigRequest {
 export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
+	readonly labels?: Record<string, string>;
 }
 
 // From codersdk/chats.go

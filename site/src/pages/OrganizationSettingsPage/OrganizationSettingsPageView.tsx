@@ -1,10 +1,4 @@
 import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
-import type {
-	Organization,
-	ShareableWorkspaceOwners,
-	UpdateOrganizationRequest,
-} from "api/typesGenerated";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {
@@ -14,6 +8,12 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import type {
+	Organization,
+	ShareableWorkspaceOwners,
+	UpdateOrganizationRequest,
+} from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";

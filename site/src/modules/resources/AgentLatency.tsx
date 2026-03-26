@@ -1,7 +1,7 @@
-import type { DERPRegion, WorkspaceAgent } from "api/typesGenerated";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
+import type { DERPRegion, WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	HelpTooltip,
 	HelpTooltipContent,

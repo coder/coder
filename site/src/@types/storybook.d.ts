@@ -5,7 +5,7 @@ import type {
 	Organization,
 	SerpentOption,
 	User,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import type { Permissions } from "modules/permissions";
 import type { QueryKey } from "react-query";
 import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-react-router";

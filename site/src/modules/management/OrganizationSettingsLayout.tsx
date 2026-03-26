@@ -1,5 +1,3 @@
-import { organizationsPermissions } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	canViewOrganization,
@@ -9,6 +7,8 @@ import NotFoundPage from "pages/404Page/404Page";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
+import { organizationsPermissions } from "#/api/queries/organizations";
+import type { Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {

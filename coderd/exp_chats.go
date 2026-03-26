@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -43,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -191,10 +193,38 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var labelFilter pqtype.NullRawMessage
+	if labelParams := r.URL.Query()["label"]; len(labelParams) > 0 {
+		labelMap := make(map[string]string, len(labelParams))
+		for _, lp := range labelParams {
+			key, value, ok := strings.Cut(lp, ":")
+			if !ok || key == "" || value == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Invalid label filter: %q (expected format key:value, both must be non-empty)", lp),
+				})
+				return
+			}
+			labelMap[key] = value
+		}
+		labelsJSON, err := json.Marshal(labelMap)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal label filter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		labelFilter = pqtype.NullRawMessage{
+			RawMessage: labelsJSON,
+			Valid:      true,
+		}
+	}
+
 	params := database.GetChatsParams{
-		OwnerID:  apiKey.UserID,
-		Archived: searchParams.Archived,
-		AfterID:  paginationParams.AfterID,
+		OwnerID:     apiKey.UserID,
+		Archived:    searchParams.Archived,
+		AfterID:     paginationParams.AfterID,
+		LabelFilter: labelFilter,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -320,6 +350,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		mcpServerIDs = []uuid.UUID{}
 	}
 
+	labels := req.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	if errs := httpapi.ValidateChatLabels(labels); len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid labels.",
+			Validations: errs,
+		})
+		return
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -328,6 +370,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
+		Labels:             labels,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -1407,8 +1450,8 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Currently supports toggling the
-// archived state via the Archived field.
+// patchChat updates a chat resource. Supports updating labels and
+// toggling the archived state.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1416,6 +1459,40 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.UpdateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	if req.Labels != nil {
+		if errs := httpapi.ValidateChatLabels(*req.Labels); len(errs) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid labels.",
+				Validations: errs,
+			})
+			return
+		}
+		labelsJSON, err := json.Marshal(*req.Labels)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal labels.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		updatedChat, err := api.Database.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
+			ID:     chat.ID,
+			Labels: labelsJSON,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat labels.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
 	}
 
 	if req.Archived != nil {
@@ -2618,21 +2695,24 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Cap the raw request body to prevent excessive memory use from
+	// payloads padded with invisible characters that sanitize away.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.ChatSystemPrompt
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	trimmedPrompt := strings.TrimSpace(req.SystemPrompt)
+	sanitizedPrompt := chatd.SanitizePromptText(req.SystemPrompt)
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
-	if len(trimmedPrompt) > maxSystemPromptLenBytes {
+	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
-	err := api.Database.UpsertChatSystemPrompt(ctx, trimmedPrompt)
+	err := api.Database.UpsertChatSystemPrompt(ctx, sanitizedPrompt)
 	if httpapi.Is404Error(err) { // also catches authz error
 		httpapi.ResourceNotFound(rw)
 		return
@@ -2777,6 +2857,140 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	raw, err := api.Database.GetChatTemplateAllowlist(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	parsed, parseErr := xjson.ParseUUIDList(raw)
+	if parseErr != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored template allowlist is corrupt.",
+			Detail:  parseErr.Error(),
+		})
+		return
+	}
+	ids := make([]string, len(parsed))
+	for i, id := range parsed {
+		ids[i] = id.String()
+	}
+	resp := codersdk.ChatTemplateAllowlist{
+		TemplateIDs: ids,
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.ChatTemplateAllowlist
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Validate all entries are valid UUIDs and deduplicate.
+	seen := make(map[string]struct{}, len(req.TemplateIDs))
+	deduped := make([]string, 0, len(req.TemplateIDs))
+	for _, id := range req.TemplateIDs {
+		parsed, err := uuid.Parse(id)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid template ID in allowlist.",
+				Detail:  fmt.Sprintf("%q is not a valid UUID.", id),
+			})
+			return
+		}
+		// Canonicalize to lowercase so deduplication is
+		// case-insensitive and stored values are consistent.
+		canonical := parsed.String()
+		if _, ok := seen[canonical]; !ok {
+			seen[canonical] = struct{}{}
+			deduped = append(deduped, canonical)
+		}
+	}
+
+	// Convert to UUIDs for the database query.
+	parsedUUIDs := make([]uuid.UUID, len(deduped))
+	for i, s := range deduped {
+		// Already validated above, safe to ignore error.
+		parsedUUIDs[i], _ = uuid.Parse(s)
+	}
+
+	raw, err := json.Marshal(deduped)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error encoding template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Verify all IDs refer to existing, non-deprecated templates
+		// in a single query.
+		if len(parsedUUIDs) > 0 {
+			found, err := tx.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				IDs: parsedUUIDs,
+				Deprecated: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("fetch templates: %w", err)
+			}
+			if len(found) != len(parsedUUIDs) {
+				foundSet := make(map[uuid.UUID]struct{}, len(found))
+				for _, t := range found {
+					foundSet[t.ID] = struct{}{}
+				}
+				var missing []string
+				for _, id := range parsedUUIDs {
+					if _, ok := foundSet[id]; !ok {
+						missing = append(missing, id.String())
+					}
+				}
+				return xerrors.Errorf("templates not found or deprecated: %s", strings.Join(missing, ", "))
+			}
+		}
+		return tx.UpsertChatTemplateAllowlist(ctx, string(raw))
+	}, nil)
+	if err != nil {
+		// If the error mentions "not found or deprecated", it's a
+		// validation failure, not an internal error.
+		if strings.Contains(err.Error(), "not found or deprecated") {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more templates not found or deprecated.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -2807,25 +3021,28 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		ctx    = r.Context()
 		apiKey = httpmw.APIKey(r)
 	)
+	// Cap the raw request body to prevent excessive memory use from
+	// payloads padded with invisible characters that sanitize away.
+	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 
 	var params codersdk.UserChatCustomPrompt
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
-	trimmedPrompt := strings.TrimSpace(params.CustomPrompt)
+	sanitizedPrompt := chatd.SanitizePromptText(params.CustomPrompt)
 	// Apply the same 128 KiB limit as the deployment system prompt.
-	if len(trimmedPrompt) > maxSystemPromptLenBytes {
+	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Custom prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
 
 	updatedConfig, err := api.Database.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
 		UserID:           apiKey.UserID,
-		ChatCustomPrompt: trimmedPrompt,
+		ChatCustomPrompt: sanitizedPrompt,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -3012,8 +3229,12 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}
-	if strings.TrimSpace(custom) != "" {
-		return custom
+	sanitized := chatd.SanitizePromptText(custom)
+	if sanitized == "" && strings.TrimSpace(custom) != "" {
+		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, using default")
+	}
+	if sanitized != "" {
+		return sanitized
 	}
 	return chatd.DefaultSystemPrompt
 }
@@ -3342,6 +3563,10 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
 	}
+	labels := map[string]string(c.Labels)
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
@@ -3352,6 +3577,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
 		MCPServerIDs:      mcpServerIDs,
+		Labels:            labels,
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String

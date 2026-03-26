@@ -5,9 +5,6 @@ import {
 } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { Chat } from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useState } from "react";
 import {
@@ -20,6 +17,9 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
@@ -27,9 +27,11 @@ import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import { AgentsPageView } from "./AgentsPageView";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -38,7 +40,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
-		id: "config-openai-gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -63,7 +65,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	total_cache_creation_tokens: 5_432,
 	by_model: [
 		{
-			model_config_id: "model-config-1",
+			model_config_id: defaultModelConfigID,
 			display_name: "GPT-4.1",
 			provider: "OpenAI",
 			model: "gpt-4.1",
@@ -120,6 +122,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
@@ -226,7 +229,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
-				id: "config-openai-gpt-4o",
+				id: defaultModelConfigID,
 				provider: "openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
@@ -238,6 +241,7 @@ const meta: Meta<typeof AgentsPageView> = {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 		]);
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
 			enable_desktop: false,
 		});

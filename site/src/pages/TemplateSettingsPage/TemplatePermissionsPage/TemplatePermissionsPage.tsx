@@ -1,11 +1,15 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	setGroupRole,
+	setUserRole,
+	templateACL,
+} from "#/api/queries/templates";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
@@ -31,7 +35,7 @@ const TemplatePermissionsPage: FC = () => {
 			{!isTemplateRBACEnabled ? (
 				<PaywallPremium
 					message="Template permissions"
-					description="Control access of templates for users and groups to templates. You need a Premium license to use this feature."
+					description="Control users and groups access to templates. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/templates/template-permissions")}
 				/>
 			) : (

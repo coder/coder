@@ -161,6 +161,12 @@ SET value = CASE
 END
 WHERE site_configs.key = 'agents_desktop_enabled';
 
+-- GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
+-- Returns an empty string when no allowlist has been configured (all templates allowed).
+-- name: GetChatTemplateAllowlist :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist;
+
 -- name: GetChatWorkspaceTTL :one
 -- Returns the global TTL for chat workspaces as a Go duration string.
 -- Returns "0s" (disabled) when no value has been configured.
@@ -169,6 +175,10 @@ SELECT
         (SELECT value FROM site_configs WHERE key = 'agents_workspace_ttl'),
         '0s'
     )::text AS workspace_ttl;
+
+-- name: UpsertChatTemplateAllowlist :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_template_allowlist', @template_allowlist)
+ON CONFLICT (key) DO UPDATE SET value = @template_allowlist WHERE site_configs.key = 'agents_template_allowlist';
 
 -- name: UpsertChatWorkspaceTTL :exec
 INSERT INTO site_configs (key, value)

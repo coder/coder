@@ -1,5 +1,6 @@
 import {
 	type ChatDetailError,
+	chatDetailErrorsEqual,
 	formatUsageLimitMessage,
 	isUsageLimitData,
 } from "./usageLimitMessage";
@@ -70,6 +71,32 @@ describe("formatUsageLimitMessage", () => {
 		expect(result).toContain("$0.90");
 		expect(result).toContain("$0.50");
 		expect(result).not.toContain("Resets");
+	});
+});
+
+describe("chatDetailErrorsEqual", () => {
+	it("compares matching errors by value", () => {
+		const left: ChatDetailError = {
+			kind: "rate_limit",
+			message: "Slow down.",
+			provider: "anthropic",
+			retryable: true,
+			statusCode: 429,
+		};
+
+		expect(chatDetailErrorsEqual(left, { ...left })).toBe(true);
+	});
+
+	it("treats missing and mismatched errors as different", () => {
+		const error: ChatDetailError = {
+			kind: "generic",
+			message: "Provider request failed.",
+		};
+
+		expect(chatDetailErrorsEqual(error, null)).toBe(false);
+		expect(chatDetailErrorsEqual(error, { ...error, statusCode: 500 })).toBe(
+			false,
+		);
 	});
 });
 

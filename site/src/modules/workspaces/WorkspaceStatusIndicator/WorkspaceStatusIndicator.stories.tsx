@@ -1,6 +1,10 @@
-import { MockWorkspace } from "testHelpers/entities";
+import {
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceResource,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
+import type { Workspace, WorkspaceStatus } from "#/api/typesGenerated";
 import { WorkspaceStatusIndicator } from "./WorkspaceStatusIndicator";
 
 const meta: Meta<typeof WorkspaceStatusIndicator> = {
@@ -33,7 +37,24 @@ export const Unhealthy: Story = {
 			...createWorkspaceWithStatus("running"),
 			health: {
 				healthy: false,
-				failing_agents: [],
+				failing_agents: [MockWorkspaceAgent.id],
+			},
+			latest_build: {
+				...MockWorkspace.latest_build,
+				status: "running",
+				resources: [
+					{
+						...MockWorkspaceResource,
+						agents: [
+							{
+								...MockWorkspaceAgent,
+								status: "connected",
+								lifecycle_state: "start_error",
+								health: { healthy: false },
+							},
+						],
+					},
+				],
 			},
 		},
 	},

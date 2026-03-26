@@ -4,7 +4,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import CreateTokenPage from "./CreateTokenPage";
 
 describe("TokenPage", () => {

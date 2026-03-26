@@ -1,7 +1,7 @@
-import { getErrorMessage } from "api/errors";
-import type { User } from "api/typesGenerated";
 import { type FC, useId } from "react";
 import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+import { getErrorMessage } from "#/api/errors";
+import type { User } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";

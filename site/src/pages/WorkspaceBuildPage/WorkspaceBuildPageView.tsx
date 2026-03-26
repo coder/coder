@@ -1,8 +1,3 @@
-import type {
-	ProvisionerJobLog,
-	WorkspaceAgent,
-	WorkspaceBuild,
-} from "api/typesGenerated";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { ExternalLinkIcon } from "lucide-react";
 import { BuildAvatar } from "modules/builds/BuildAvatar/BuildAvatar";
@@ -25,6 +20,11 @@ import { Link } from "react-router";
 import { cn } from "utils/cn";
 import { formatDate } from "utils/time";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
+import type {
+	ProvisionerJobLog,
+	WorkspaceAgent,
+	WorkspaceBuild,
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";

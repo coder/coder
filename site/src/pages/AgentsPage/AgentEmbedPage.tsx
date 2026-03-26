@@ -1,4 +1,3 @@
-import { getErrorMessage } from "api/errors";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
@@ -6,6 +5,7 @@ import { permissionChecks } from "modules/permissions";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useParams } from "react-router";
+import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import type { AgentsOutletContext } from "./AgentsPage";
@@ -13,7 +13,10 @@ import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
 } from "./components/EmbedContext";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -72,18 +75,18 @@ const AgentEmbedPage: FC = () => {
 		if (!chatId || !trimmedMessage) {
 			return;
 		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
-			if (
-				existing &&
-				existing.kind === reason.kind &&
-				existing.message === trimmedMessage
-			) {
+			if (chatDetailErrorsEqual(existing, nextReason)) {
 				return current;
 			}
 			return {
 				...current,
-				[chatId]: { kind: reason.kind, message: trimmedMessage },
+				[chatId]: nextReason,
 			};
 		});
 	};

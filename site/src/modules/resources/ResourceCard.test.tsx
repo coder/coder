@@ -1,7 +1,7 @@
 import { MockWorkspaceResource } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
-import type { WorkspaceResourceMetadata } from "api/typesGenerated";
+import type { WorkspaceResourceMetadata } from "#/api/typesGenerated";
 import { ResourceCard } from "./ResourceCard";
 
 describe("Resource Card", () => {

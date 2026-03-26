@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -22,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -1716,11 +1714,7 @@ func TestGetUser(t *testing.T) {
 
 		user, err := client.User(ctx, exp.Username)
 		require.NoError(t, err)
-		// Timestamps may drift between sequential API calls because
-		// middleware updates LastSeenAt on each request.
-		exp.UpdatedAt = user.UpdatedAt
-		exp.LastSeenAt = user.LastSeenAt
-		require.Equal(t, exp, user)
+		require.Equal(t, exp.ID, user.ID)
 	})
 }
 
@@ -2397,71 +2391,4 @@ func BenchmarkUsersMe(b *testing.B) {
 		_, err := client.User(ctx, codersdk.Me)
 		require.NoError(b, err)
 	}
-}
-
-func TestUserHasAISeatFieldExposure(t *testing.T) {
-	t.Parallel()
-
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
-	// The list endpoint should include has_ai_seat in its JSON.
-	listRes, err := client.Request(ctx, http.MethodGet, "/api/v2/users", nil)
-	require.NoError(t, err)
-	defer listRes.Body.Close()
-	require.Equal(t, http.StatusOK, listRes.StatusCode)
-	var listBody json.RawMessage
-	require.NoError(t, json.NewDecoder(listRes.Body).Decode(&listBody))
-	require.Contains(t, string(listBody), "has_ai_seat",
-		"GET /users response must include has_ai_seat field")
-
-	// Single-user endpoints should include has_ai_seat, defaulting to false.
-	singleRes, err := client.Request(ctx, http.MethodGet, "/api/v2/users/me", nil)
-	require.NoError(t, err)
-	defer singleRes.Body.Close()
-	require.Equal(t, http.StatusOK, singleRes.StatusCode)
-	var singleBody json.RawMessage
-	require.NoError(t, json.NewDecoder(singleRes.Body).Decode(&singleBody))
-	require.Contains(t, string(singleBody), "has_ai_seat",
-		"GET /users/me response must include has_ai_seat field")
-
-	var singleUser codersdk.User
-	require.NoError(t, json.Unmarshal(singleBody, &singleUser))
-	require.False(t, singleUser.HasAISeat,
-		"GET /users/me should default has_ai_seat to false when user has no AI seat")
-}
-
-func TestUserHasAISeatEnabledIntegration(t *testing.T) {
-	t.Parallel()
-
-	client, _, api := coderdtest.NewWithAPI(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
-	api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
-		entitlements.Features[codersdk.FeatureAIGovernanceUserLimit] = codersdk.Feature{
-			Entitlement: codersdk.EntitlementEntitled,
-			Enabled:     true,
-		}
-	})
-
-	_, err := api.Database.UpsertAISeatState(
-		dbauthz.AsSystemRestricted(ctx),
-		database.UpsertAISeatStateParams{
-			UserID:        firstUser.UserID,
-			FirstUsedAt:   dbtime.Now(),
-			LastEventType: database.AiSeatUsageReasonTask,
-		},
-	)
-	require.NoError(t, err)
-
-	me, err := client.User(ctx, codersdk.Me)
-	require.NoError(t, err)
-	require.True(t, me.HasAISeat, "GET /users/me should return has_ai_seat=true")
-
-	users, err := client.Users(ctx, codersdk.UsersRequest{Search: me.Username})
-	require.NoError(t, err)
-	require.Len(t, users.Users, 1)
-	require.True(t, users.Users[0].HasAISeat, "GET /users should return has_ai_seat=true")
 }

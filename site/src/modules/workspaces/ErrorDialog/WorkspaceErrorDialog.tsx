@@ -1,6 +1,6 @@
-import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,

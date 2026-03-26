@@ -1,4 +1,3 @@
-import { AuditActions, ResourceTypes } from "api/typesGenerated";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
@@ -6,6 +5,7 @@ import {
 } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import { AuditActions, ResourceTypes } from "#/api/typesGenerated";
 import {
 	Filter,
 	MenuSkeleton,

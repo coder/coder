@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type {
 	WorkspaceAgentMetadataDescription,
 	WorkspaceAgentMetadataResult,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import { AgentMetadataView } from "./AgentMetadata";
 
 const meta: Meta<typeof AgentMetadataView> = {

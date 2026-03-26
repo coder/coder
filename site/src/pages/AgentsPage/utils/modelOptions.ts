@@ -1,4 +1,4 @@
-import type * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { asNumber, asString } from "#/components/ai-elements/runtimeTypeUtils";
 
@@ -27,9 +27,14 @@ type ModelCatalogLike = {
 	readonly providers?: readonly CatalogProviderLike[];
 };
 
-type ChatModelConfigLike =
-	| Pick<TypesGen.ChatModelConfig, "provider" | "model" | "context_limit">
-	| (RuntimeModelRef & Pick<TypesGen.ChatModelConfig, "context_limit">);
+type ModelOptionConfigLike =
+	| TypesGen.ChatModelConfig
+	| (RuntimeModelRef & {
+			readonly id?: unknown;
+			readonly display_name?: unknown;
+			readonly enabled?: unknown;
+			readonly context_limit?: unknown;
+	  });
 
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
@@ -39,41 +44,6 @@ export const getNormalizedModelRef = (
 		provider: asString(modelRef.provider).trim().toLowerCase(),
 		model: asString(modelRef.model).trim(),
 	};
-};
-
-/**
- * Build a lookup from model reference strings (both "provider:model" and
- * "provider/model" forms) to model config IDs.
- */
-export const buildModelConfigIDByModelID = (
-	configs:
-		| readonly Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">[]
-		| undefined,
-): ReadonlyMap<string, string> => {
-	const byModelID = new Map<string, string>();
-	for (const config of configs ?? []) {
-		const { provider, model } = getNormalizedModelRef(config);
-		if (!provider || !model) continue;
-		const colonRef = `${provider}:${model}`;
-		if (!byModelID.has(colonRef)) byModelID.set(colonRef, config.id);
-		const slashRef = `${provider}/${model}`;
-		if (!byModelID.has(slashRef)) byModelID.set(slashRef, config.id);
-	}
-	return byModelID;
-};
-
-/**
- * Build a reverse lookup from model config IDs back to model reference
- * strings. Uses the first matching reference for each config ID.
- */
-export const buildModelIDByConfigID = (
-	modelConfigIDByModelID: ReadonlyMap<string, string>,
-): ReadonlyMap<string, string> => {
-	const byConfigID = new Map<string, string>();
-	for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
-		if (!byConfigID.has(configID)) byConfigID.set(configID, modelID);
-	}
-	return byConfigID;
 };
 
 const getCatalogProviders = (
@@ -109,65 +79,89 @@ export const hasConfiguredModelsInCatalog = (
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
 };
 
-export const getModelOptionsFromCatalog = (
-	catalog: ModelCatalogLike | null | undefined,
-	configs?: readonly ChatModelConfigLike[],
-): readonly ModelSelectorOption[] => {
-	const optionsByID = new Map<string, ModelSelectorOption>();
-
-	// Build a lookup of context limits from admin model configs so
-	// we can surface this in the model selector tooltip.
-	const contextLimitByKey = new Map<string, number>();
-	if (configs) {
-		for (const config of configs) {
-			const contextLimit = asNumber(config.context_limit);
-			if (contextLimit === undefined || contextLimit <= 0) {
-				continue;
-			}
-			const { provider, model } = getNormalizedModelRef(config);
-			if (!provider || !model) {
-				continue;
-			}
-			const key = `${provider}:${model}`;
-			if (!contextLimitByKey.has(key)) {
-				contextLimitByKey.set(key, contextLimit);
-			}
-		}
-	}
-
+const getAvailableProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): ReadonlySet<string> => {
+	const availableProviders = new Set<string>();
 	for (const provider of getCatalogProviders(catalog)) {
-		const models = getProviderModels(provider);
-		if (provider.available !== true || models.length === 0) {
+		if (provider.available !== true) {
 			continue;
 		}
-		for (const model of models) {
-			if (!model) {
-				continue;
-			}
-
-			const modelID = asString(model.id).trim();
-			const { provider: modelProvider, model: modelRef } =
-				getNormalizedModelRef(model);
-			if (!modelID || !modelProvider || !modelRef) {
-				continue;
-			}
-			if (optionsByID.has(modelID)) {
-				continue;
-			}
-
-			const configKey = `${modelProvider.toLowerCase()}:${modelRef}`;
-
-			optionsByID.set(modelID, {
-				id: modelID,
-				provider: modelProvider,
-				model: modelRef,
-				displayName: asString(model.display_name).trim() || modelRef,
-				contextLimit: contextLimitByKey.get(configKey),
-			});
+		const providerName = asString(provider.provider).trim().toLowerCase();
+		if (providerName) {
+			availableProviders.add(providerName);
 		}
 	}
+	return availableProviders;
+};
 
-	return Array.from(optionsByID.values()).sort((a, b) => {
+/**
+ * Resolves a stored model reference (config ID or legacy
+ * "provider:model" string) to the ID of a matching model option.
+ * Returns the matched option ID, or an empty string if no match is
+ * found.
+ */
+export const resolveModelOptionId = (
+	storedRef: string | null | undefined,
+	modelOptions: readonly ModelSelectorOption[],
+): string => {
+	const normalized = asString(storedRef).trim();
+	if (!normalized) {
+		return "";
+	}
+
+	const directMatch = modelOptions.find((option) => option.id === normalized);
+	if (directMatch) {
+		return directMatch.id;
+	}
+
+	const legacyMatch = modelOptions.find(
+		(option) => `${option.provider}:${option.model}` === normalized,
+	);
+	if (legacyMatch) {
+		return legacyMatch.id;
+	}
+
+	return "";
+};
+
+export const getModelOptionsFromConfigs = (
+	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): readonly ModelSelectorOption[] => {
+	if (!configs || !catalog) {
+		return [];
+	}
+
+	const availableProviders = getAvailableProviders(catalog);
+	const options: ModelSelectorOption[] = [];
+
+	for (const config of configs as readonly ModelOptionConfigLike[]) {
+		if (config.enabled !== true) {
+			continue;
+		}
+
+		const configID = asString(config.id).trim();
+		const { provider, model } = getNormalizedModelRef(config);
+		if (!configID || !provider || !model) {
+			continue;
+		}
+		if (!availableProviders.has(provider)) {
+			continue;
+		}
+
+		const displayName = asString(config.display_name).trim() || model;
+		const contextLimit = asNumber(config.context_limit);
+		options.push({
+			id: configID,
+			provider,
+			model,
+			displayName,
+			...(contextLimit !== undefined ? { contextLimit } : {}),
+		});
+	}
+
+	return options.sort((a, b) => {
 		const providerCompare = a.provider.localeCompare(b.provider);
 		if (providerCompare !== 0) {
 			return providerCompare;
@@ -216,28 +210,7 @@ export const getModelSelectorPlaceholder = (
 		return "Loading models...";
 	}
 	if (hasConfiguredModels) {
-		return "No available models";
+		return "No Models Available";
 	}
-	return "No models configured";
-};
-
-export const getModelCatalogStatusMessage = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
-	modelOptions: readonly ModelSelectorOption[],
-	isModelCatalogLoading: boolean,
-	hasModelCatalogError: boolean,
-): string | null => {
-	if (modelOptions.length > 0) {
-		return null;
-	}
-	if (isModelCatalogLoading) {
-		return "Loading model catalog...";
-	}
-	if (hasModelCatalogError) {
-		return "Model catalog unavailable. Unable to verify model availability.";
-	}
-	if (hasConfiguredModelsInCatalog(catalog)) {
-		return "Models are configured but unavailable. Check provider settings.";
-	}
-	return "No chat models are configured. Ask an admin to configure one.";
+	return "No Models Configured";
 };

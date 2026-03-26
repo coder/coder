@@ -1,15 +1,15 @@
-import type {
-	DERPNodeReport,
-	DERPRegionReport,
-	HealthcheckReport,
-	HealthSeverity,
-} from "api/typesGenerated";
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 import { pageTitle } from "utils/page";
+import type {
+	DERPNodeReport,
+	DERPRegionReport,
+	HealthcheckReport,
+	HealthSeverity,
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import {
 	Table,

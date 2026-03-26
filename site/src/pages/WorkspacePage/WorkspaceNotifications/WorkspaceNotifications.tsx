@@ -1,17 +1,18 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
-import type {
-	Template,
-	TemplateVersion,
-	Workspace,
-	WorkspaceBuild,
-} from "api/typesGenerated";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import { getAgentHealthIssue } from "modules/workspaces/health";
 import { type FC, useEffect, useState } from "react";
+import { workspaceResolveAutostart } from "#/api/queries/workspaceQuota";
+import type {
+	Template,
+	TemplateVersion,
+	Workspace,
+	WorkspaceBuild,
+} from "#/api/typesGenerated";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 
 dayjs.extend(relativeTime);
@@ -92,19 +93,12 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	) {
 		const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
 		const hasActions = permissions.updateWorkspace || troubleshootingURL;
+		const healthIssue = getAgentHealthIssue(workspace);
 
 		notifications.push({
-			title: "Workspace is unhealthy",
-			severity: "warning",
-			detail: (
-				<>
-					Your workspace is running but{" "}
-					{workspace.health.failing_agents.length > 1
-						? `${workspace.health.failing_agents.length} agents are unhealthy`
-						: "1 agent is unhealthy"}
-					.
-				</>
-			),
+			title: healthIssue.title,
+			severity: healthIssue.severity,
+			detail: healthIssue.detail,
 			actions: hasActions ? (
 				<>
 					{permissions.updateWorkspace && (

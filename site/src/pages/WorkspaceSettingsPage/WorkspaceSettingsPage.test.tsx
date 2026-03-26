@@ -5,7 +5,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import WorkspaceSettingsPage from "./WorkspaceSettingsPage";
 
 test("Submit the workspace settings page successfully", async () => {

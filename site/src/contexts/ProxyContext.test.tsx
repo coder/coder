@@ -12,8 +12,8 @@ import {
 import { server } from "testHelpers/server";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Region } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
+import type { Region } from "#/api/typesGenerated";
 import {
 	getPreferredProxy,
 	ProxyProvider,

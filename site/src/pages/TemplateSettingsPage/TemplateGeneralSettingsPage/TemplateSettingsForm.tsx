@@ -3,12 +3,6 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import {
-	CORSBehaviors,
-	type Template,
-	type UpdateTemplateMeta,
-	WorkspaceAppSharingLevels,
-} from "api/typesGenerated";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -20,6 +14,12 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import {
+	CORSBehaviors,
+	type Template,
+	type UpdateTemplateMeta,
+	WorkspaceAppSharingLevels,
+} from "#/api/typesGenerated";
 import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import {

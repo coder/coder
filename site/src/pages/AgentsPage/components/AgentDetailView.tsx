@@ -1,19 +1,15 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
-import {
-	selectChatStatus,
-	useChatSelector,
-	type useChatStore,
-} from "./AgentDetail/ChatContext";
+import type { useChatStore } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetailContent";
 import {
@@ -55,8 +51,7 @@ interface AgentDetailViewProps {
 	agentId: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
-	chatErrorReasons: Record<string, ChatDetailError>;
-	chatRecord: TypesGen.Chat | undefined;
+	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
 
@@ -73,8 +68,7 @@ interface AgentDetailViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	compressionThreshold: number | undefined;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
@@ -140,8 +134,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	agentId,
 	chatTitle,
 	parentChat,
-	chatErrorReasons,
-	chatRecord,
+	persistedError,
 	isArchived,
 	hasWorkspace,
 	store,
@@ -152,8 +145,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	compressionThreshold,
 	isInputDisabled,
 	isSubmissionPending,
@@ -194,7 +186,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
-	const chatStatus = useChatSelector(store, selectChatStatus);
 
 	// Compute local diff stats from git watcher unified diffs.
 
@@ -216,7 +207,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 			{titleElement}
 			<div
 				className={cn(
-					"relative flex min-h-0 min-w-0 flex-1 flex-col",
+					"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden",
 					visualExpanded && "hidden",
 					shouldShowSidebar && "max-md:hidden",
 				)}
@@ -271,13 +262,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				>
 					<div className="px-4">
 						<AgentDetailTimeline
+							chatID={agentId}
 							store={store}
-							persistedErrorReason={
-								chatErrorReasons[agentId] ??
-								(chatStatus === "error" && chatRecord?.last_error
-									? { kind: "generic" as const, message: chatRecord.last_error }
-									: undefined)
-							}
+							persistedError={persistedError}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
@@ -302,8 +289,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						isModelCatalogLoading={isModelCatalogLoading}
 						inputRef={editing.chatInputRef}
 						initialValue={editing.editorInitialValue}
 						onContentChange={editing.handleContentChange}
@@ -372,8 +358,7 @@ interface AgentDetailLoadingViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	showRightPanel: boolean;
@@ -387,8 +372,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	showRightPanel,
@@ -439,11 +423,10 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
 					/>
-				</div>
+				</div>{" "}
 			</div>
 			{showRightPanel && (
 				<RightPanel

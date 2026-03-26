@@ -1,6 +1,6 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
@@ -99,6 +99,20 @@ const isChatListQuery = (query: { queryKey: readonly unknown[] }): boolean => {
 
 export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	return queryClient.invalidateQueries({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
+};
+
+/**
+ * Cancel in-flight refetches for sidebar chat-list queries.
+ * Call this before writing WebSocket-driven cache updates so a
+ * concurrent refetch (e.g. from createChat.onSuccess or the
+ * watchChats onOpen handler) cannot overwrite the update with
+ * stale server data that predates async title generation.
+ */
+export const cancelChatListQueries = (queryClient: QueryClient) => {
+	return queryClient.cancelQueries({
 		queryKey: chatsKey,
 		predicate: isChatListQuery,
 	});
@@ -421,6 +435,22 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatWorkspaceTTLKey,
+		});
+	},
+});
+
+const chatTemplateAllowlistKey = ["chat-template-allowlist"] as const;
+
+export const chatTemplateAllowlist = () => ({
+	queryKey: chatTemplateAllowlistKey,
+	queryFn: () => API.experimental.getChatTemplateAllowlist(),
+});
+
+export const updateChatTemplateAllowlist = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatTemplateAllowlist,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatTemplateAllowlistKey,
 		});
 	},
 });

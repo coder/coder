@@ -1,4 +1,4 @@
-import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
+import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 

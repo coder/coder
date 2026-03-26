@@ -1,8 +1,8 @@
-import type * as TypesGen from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
@@ -17,21 +17,16 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
-	selectRetryState,
-	selectStreamError,
-	selectStreamState,
-	selectSubagentStatusOverrides,
 	useChatSelector,
 	type useChatStore,
 } from "./AgentDetail/ChatContext";
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import { getLatestContextUsage } from "./AgentDetail/chatHelpers";
+import { LiveStreamTail } from "./AgentDetail/LiveStreamTail";
 import {
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
-import { buildStreamTools } from "./AgentDetail/streamState";
-import type { ParsedMessageEntry } from "./AgentDetail/types";
 import { useOnRenderProfiler } from "./AgentDetail/useOnRenderProfiler";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -41,8 +36,9 @@ const isChatMessage = (
 ): message is TypesGen.ChatMessage => Boolean(message);
 
 interface AgentDetailTimelineProps {
+	chatID?: string;
 	store: ChatStoreHandle;
-	persistedErrorReason: ChatDetailError | undefined;
+	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -54,12 +50,10 @@ interface AgentDetailTimelineProps {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
-// Reads only message-related store state (stable during streaming).
-// Computes parsedMessages once and passes them to ConversationTimeline
-// via a memo boundary so that streaming ticks don't re-parse history.
-const MessageListProvider: FC<AgentDetailTimelineProps> = ({
+export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
+	chatID,
 	store,
-	persistedErrorReason,
+	persistedError,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -68,121 +62,37 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const chatStatus = useChatSelector(store, selectChatStatus);
-	const streamError = useChatSelector(store, selectStreamError);
-	const subagentStatusOverrides = useChatSelector(
-		store,
-		selectSubagentStatusOverrides,
-	);
-	const retryState = useChatSelector(store, selectRetryState);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
-	const detailError: ChatDetailError | undefined =
-		(persistedErrorReason?.kind === "usage-limit" || chatStatus === "error"
-			? persistedErrorReason
-			: undefined) ??
-		(streamError
-			? { kind: "generic" as const, message: streamError }
-			: undefined);
-	const latestMessage = messages[messages.length - 1];
-	const latestMessageNeedsAssistantResponse =
-		!latestMessage || latestMessage.role !== "assistant";
-
-	return (
-		<StreamingBridge
-			store={store}
-			isEmpty={messages.length === 0}
-			parsedMessages={parsedMessages}
-			subagentTitles={subagentTitles}
-			subagentStatusOverrides={subagentStatusOverrides}
-			retryState={retryState}
-			detailError={detailError}
-			latestMessageNeedsAssistantResponse={latestMessageNeedsAssistantResponse}
-			chatStatus={chatStatus}
-			onEditUserMessage={onEditUserMessage}
-			editingMessageId={editingMessageId}
-			savingMessageId={savingMessageId}
-			urlTransform={urlTransform}
-			mcpServers={mcpServers}
-		/>
-	);
-};
-
-// Reads stream-specific store state (changes every token). Isolated
-// so that streamState changes don't invalidate parsedMessages above.
-const StreamingBridge: FC<{
-	store: ChatStoreHandle;
-	isEmpty: boolean;
-	parsedMessages: ParsedMessageEntry[];
-	subagentTitles: Map<string, string>;
-	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	retryState: { attempt: number; error: string } | null;
-	detailError: ChatDetailError | undefined;
-	latestMessageNeedsAssistantResponse: boolean;
-	chatStatus: TypesGen.ChatStatus | null;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
-	editingMessageId?: number | null;
-	savingMessageId?: number | null;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-}> = ({
-	store,
-	isEmpty,
-	parsedMessages,
-	subagentTitles,
-	subagentStatusOverrides,
-	retryState,
-	detailError,
-	latestMessageNeedsAssistantResponse,
-	chatStatus,
-	onEditUserMessage,
-	editingMessageId,
-	savingMessageId,
-	urlTransform,
-	mcpServers,
-}) => {
-	const streamState = useChatSelector(store, selectStreamState);
-	const streamTools = buildStreamTools(streamState);
 	const onRenderProfiler = useOnRenderProfiler();
-	const isAwaitingFirstStreamChunk =
-		!streamState &&
-		(chatStatus === "running" || chatStatus === "pending") &&
-		latestMessageNeedsAssistantResponse;
-	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<ConversationTimeline
-				isEmpty={isEmpty}
-				parsedMessages={parsedMessages}
-				hasStreamOutput={hasStreamOutput}
-				streamState={streamState}
-				streamTools={streamTools}
-				subagentTitles={subagentTitles}
-				subagentStatusOverrides={subagentStatusOverrides}
-				retryState={retryState}
-				isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-				detailError={detailError}
-				onEditUserMessage={onEditUserMessage}
-				editingMessageId={editingMessageId}
-				savingMessageId={savingMessageId}
-				urlTransform={urlTransform}
-				mcpServers={mcpServers}
-			/>
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-6">
+				<ConversationTimeline
+					parsedMessages={parsedMessages}
+					onEditUserMessage={onEditUserMessage}
+					editingMessageId={editingMessageId}
+					savingMessageId={savingMessageId}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+				/>
+				<LiveStreamTail
+					store={store}
+					persistedError={persistedError}
+					startingResetKey={chatID}
+					isTranscriptEmpty={parsedMessages.length === 0}
+					subagentTitles={subagentTitles}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+				/>
+			</div>
 		</Profiler>
 	);
-};
-
-export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = (props) => {
-	return <MessageListProvider {...props} />;
 };
 
 interface AgentDetailInputProps {
@@ -200,8 +110,7 @@ interface AgentDetailInputProps {
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	// Controlled input value and editing state, owned by the
 	// conversation component.
 	inputRef?: React.Ref<ChatMessageInputRef>;
@@ -219,6 +128,7 @@ interface AgentDetailInputProps {
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	// MCP server picker state.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
@@ -240,8 +150,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onModelChange,
 	modelOptions,
 	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
 	onContentChange,
@@ -392,8 +301,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			inputStatusText={inputStatusText}
-			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			isModelCatalogLoading={isModelCatalogLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}

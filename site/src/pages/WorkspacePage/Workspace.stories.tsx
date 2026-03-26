@@ -5,8 +5,8 @@ import {
 	withProxyProvider,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ProvisionerJobLog } from "api/typesGenerated";
 import { action } from "storybook/actions";
+import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { Workspace } from "./Workspace";
 import { defaultPermissions } from "./WorkspaceNotifications/WorkspaceNotifications.stories";

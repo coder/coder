@@ -1,10 +1,10 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
 import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
 const AddNewLicensePage: FC = () => {

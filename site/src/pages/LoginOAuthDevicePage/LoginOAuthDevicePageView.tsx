@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { ApiErrorResponse } from "api/errors";
-import type { ExternalAuthDevice } from "api/typesGenerated";
 import type { FC } from "react";
+import type { ApiErrorResponse } from "#/api/errors";
+import type { ExternalAuthDevice } from "#/api/typesGenerated";
 import { GitDeviceAuth } from "#/components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
 import { Welcome } from "#/components/Welcome/Welcome";

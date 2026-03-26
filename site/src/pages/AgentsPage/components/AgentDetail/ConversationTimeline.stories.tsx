@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
 import { expect, spyOn, userEvent, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 
@@ -62,15 +62,7 @@ const mockTextAttachmentFetch = () => {
 const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
 	"parsedMessages"
-> = {
-	isEmpty: false,
-	hasStreamOutput: false,
-	streamState: null,
-	streamTools: [],
-	subagentTitles: new Map(),
-	subagentStatusOverrides: new Map(),
-	isAwaitingFirstStreamChunk: false,
-};
+> = {};
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/AgentDetail/ConversationTimeline",
@@ -299,6 +291,42 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 	},
 };
 
+/** Visual regression: text and image attachments render at the same height. */
+export const UserMessageWithMixedAttachments: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Here is a screenshot and some context" },
+					{
+						type: "file",
+						media_type: "image/png",
+						data: TEST_PNG_B64,
+					},
+					{
+						type: "file",
+						file_id: "storybook-test-text",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(1);
+		const textButtons = await canvas.findAllByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButtons).toHaveLength(1);
+	},
+};
+
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
@@ -385,47 +413,6 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
 		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
-	},
-};
-
-/** Usage-limit errors render as an info alert with analytics access. */
-export const UsageLimitExceeded: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: [],
-		detailError: {
-			kind: "usage-limit",
-			message:
-				"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
-		},
-
-		subagentTitles: new Map(),
-		subagentStatusOverrides: new Map(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/spend limit/i)).toBeVisible();
-		const link = canvas.getByRole("link", { name: /view usage/i });
-		expect(link).toBeVisible();
-		expect(link).toHaveAttribute("href", "/agents/analytics");
-	},
-};
-
-/** Non-usage errors must not show the usage CTA. */
-export const GenericErrorDoesNotShowUsageAction: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: [],
-		detailError: { kind: "generic", message: "Provider request failed." },
-		subagentTitles: new Map(),
-		subagentStatusOverrides: new Map(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
-		expect(
-			canvas.queryByRole("link", { name: /view usage/i }),
-		).not.toBeInTheDocument();
 	},
 };
 

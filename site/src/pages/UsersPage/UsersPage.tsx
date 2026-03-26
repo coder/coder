@@ -1,17 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { deploymentConfig } from "api/queries/deployment";
-import { groupsByUserId } from "api/queries/groups";
-import { roles } from "api/queries/roles";
-import {
-	activateUser,
-	authMethods,
-	deleteUser,
-	paginatedUsers,
-	suspendUser,
-	updatePassword,
-	updateRoles,
-} from "api/queries/users";
-import type { User } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { shouldShowAISeatColumn } from "modules/dashboard/entitlements";
@@ -22,6 +8,20 @@ import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { deploymentConfig } from "#/api/queries/deployment";
+import { groupsByUserId } from "#/api/queries/groups";
+import { roles } from "#/api/queries/roles";
+import {
+	activateUser,
+	authMethods,
+	deleteUser,
+	paginatedUsers,
+	suspendUser,
+	updatePassword,
+	updateRoles,
+} from "#/api/queries/users";
+import type { User } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";

@@ -23,7 +23,10 @@ import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
-import { OneWayWebSocket } from "../utils/OneWayWebSocket";
+import {
+	OneWayWebSocket,
+	type OneWayWebSocketApi,
+} from "../utils/OneWayWebSocket";
 import { type FieldError, isApiError } from "./errors";
 import type {
 	DeleteExternalAuthByIDResponse,
@@ -142,7 +145,7 @@ export const watchWorkspace = (
 export const watchChat = (
 	chatId: string,
 	afterMessageId?: number,
-): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+): OneWayWebSocketApi<TypesGen.ServerSentEvent> => {
 	const params = new URLSearchParams();
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
@@ -3213,10 +3216,27 @@ class ExperimentalApiMethods {
 			return response.data;
 		};
 
+	getChatTemplateAllowlist =
+		async (): Promise<TypesGen.ChatTemplateAllowlist> => {
+			const response = await this.axios.get<TypesGen.ChatTemplateAllowlist>(
+				"/api/experimental/chats/config/template-allowlist",
+			);
+			return response.data;
+		};
+
 	updateChatWorkspaceTTL = async (
 		req: TypesGen.UpdateChatWorkspaceTTLRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
+	};
+
+	updateChatTemplateAllowlist = async (
+		req: TypesGen.ChatTemplateAllowlist,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/template-allowlist",
+			req,
+		);
 	};
 
 	getUserChatCustomPrompt =

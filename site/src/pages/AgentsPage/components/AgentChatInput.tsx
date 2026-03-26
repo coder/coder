@@ -24,6 +24,7 @@ import {
 } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -48,6 +49,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import {
@@ -57,6 +59,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useSpeechRecognition } from "#/hooks/useSpeechRecognition";
 import { cn } from "#/utils/cn";
+import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
 import {
 	fetchTextAttachmentContent,
@@ -104,9 +107,7 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	// Status messages.
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
@@ -442,7 +443,7 @@ export const AttachmentPreview: FC<{
 						)}
 						<button
 							type="button"
-							onClick={() => onRemove(index)}
+							onClick={() => onRemove(file)}
 							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 							aria-label={`Remove ${file.name}`}
 						>
@@ -468,8 +469,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
@@ -664,9 +664,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		Boolean(initialValue?.trim()),
 	);
 
+	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
+		countInvisibleCharacters(initialValue ?? ""),
+	);
+
 	const handleContentChange = (content: string, hasRefs: boolean) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
+		setInvisibleCharCount(countInvisibleCharacters(content));
 		onContentChange?.(content);
 	};
 
@@ -870,6 +875,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					disabled={isDisabled || isLoading}
 					autoFocus
 				/>
+				{/* Warn about invisible Unicode in the message text.
+				 * Unlike the admin/user prompt textareas (which strip
+				 * invisible chars server-side on save), the chat input
+				 * is the user's free-form message — we don't silently
+				 * mutate it. Instead we surface a warning so the user
+				 * can make an informed decision. This guards against
+				 * social engineering attacks where a user is tricked
+				 * into pasting a "prompt" containing hidden LLM
+				 * instructions encoded as zero-width characters. */}
+				{invisibleCharCount > 0 && (
+					<div className="px-3 pb-1">
+						<Alert severity="warning">
+							This message contains {invisibleCharCount} invisible Unicode
+							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
+							content. Review carefully before sending.
+						</Alert>
+					</div>
+				)}
 				{/* Hidden file input for image attachment */}
 				{onAttach && (
 					<input
@@ -1027,16 +1050,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</PopoverContent>
 						</Popover>
-						<ModelSelector
-							value={selectedModel}
-							onValueChange={onModelChange}
-							options={modelOptions}
-							disabled={isDisabled}
-							placeholder={modelSelectorPlaceholder}
-							formatProviderLabel={formatProviderLabel}
-							dropdownSide="top"
-							dropdownAlign="center"
-						/>
+						{isModelCatalogLoading ? (
+							<Skeleton className="h-6 w-24 rounded" />
+						) : (
+							<ModelSelector
+								value={selectedModel}
+								onValueChange={onModelChange}
+								options={modelOptions}
+								disabled={isDisabled}
+								placeholder={modelSelectorPlaceholder}
+								formatProviderLabel={formatProviderLabel}
+								dropdownSide="top"
+								dropdownAlign="center"
+							/>
+						)}
 						{selectedWorkspace && onWorkspaceChange && (
 							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
 								<MonitorIcon className="size-3" />
@@ -1081,11 +1108,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								</span>
 							);
 						})}
-						{inputStatusText && (
-							<span className="hidden text-xs text-content-secondary sm:inline">
-								{inputStatusText}
-							</span>
-						)}
 					</div>
 					<div className="flex items-center gap-2">
 						{speech.isSupported && !isStreaming && (
@@ -1158,16 +1180,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						)}
 					</div>
 				</div>
-				{inputStatusText && (
-					<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-						{inputStatusText}
-					</div>
-				)}
-				{modelCatalogStatusMessage && (
-					<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-						{modelCatalogStatusMessage}
-					</div>
-				)}
 			</div>
 		</div>
 	);

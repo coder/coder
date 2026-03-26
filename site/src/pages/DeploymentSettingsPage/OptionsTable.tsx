@@ -1,5 +1,5 @@
-import type { SerpentOption } from "api/typesGenerated";
 import type { FC } from "react";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Table,
 	TableBody,

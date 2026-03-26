@@ -1,4 +1,3 @@
-import type { Template, TemplateVersion } from "api/typesGenerated";
 import type { FC } from "react";
 import { Link } from "react-router";
 import { createDayString } from "utils/createDayString";
@@ -6,6 +5,7 @@ import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
 } from "utils/templates";
+import type { Template, TemplateVersion } from "#/api/typesGenerated";
 import { Stats, StatsItem } from "#/components/Stats/Stats";
 
 const Language = {

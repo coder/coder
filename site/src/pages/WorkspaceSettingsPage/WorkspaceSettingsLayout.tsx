@@ -1,11 +1,11 @@
-import {
-	workspaceByOwnerAndName,
-	workspacePermissions,
-} from "api/queries/workspaces";
 import { type FC, Suspense } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
 import { pageTitle } from "utils/page";
+import {
+	workspaceByOwnerAndName,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";

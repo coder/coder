@@ -1,12 +1,6 @@
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import type {
-	Template,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceAgentMetadata,
-} from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -23,6 +17,12 @@ import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { cn } from "utils/cn";
+import type {
+	Template,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceAgentMetadata,
+} from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";

@@ -1,24 +1,3 @@
-import { API, watchWorkspace } from "api/api";
-
-import { isApiError } from "api/errors";
-import {
-	chat,
-	chatDesktopEnabled,
-	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
-	chatModels,
-	createChatMessage,
-	deleteChatQueuedMessage,
-	editChatMessage,
-	interruptChat,
-	mcpServerConfigs,
-	promoteChatQueuedMessage,
-	userCompactionThresholds,
-} from "api/queries/chats";
-import { deploymentSSHConfig } from "api/queries/deployment";
-import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatMessagePart } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	getTerminalHref,
@@ -38,9 +17,33 @@ import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
 import { rewriteLocalhostURL } from "utils/portForward";
+import { API, watchWorkspace } from "#/api/api";
+import { isApiError } from "#/api/errors";
+import {
+	chat,
+	chatDesktopEnabled,
+	chatMessagesForInfiniteScroll,
+	chatModelConfigs,
+	chatModels,
+	createChatMessage,
+	deleteChatQueuedMessage,
+	editChatMessage,
+	interruptChat,
+	mcpServerConfigs,
+	promoteChatQueuedMessage,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { useChatStore } from "./components/AgentDetail/ChatContext";
+import {
+	selectChatStatus,
+	useChatSelector,
+	useChatStore,
+} from "./components/AgentDetail/ChatContext";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -58,15 +61,14 @@ import {
 } from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
-	buildModelConfigIDByModelID,
-	buildModelIDByConfigID,
-	getModelCatalogStatusMessage,
-	getModelOptionsFromCatalog,
+	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	resolveModelOptionId,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
+	type ChatDetailError,
 	formatUsageLimitMessage,
 	isUsageLimitData,
 } from "./utils/usageLimitMessage";
@@ -96,17 +98,22 @@ export function useConversationEditingState(deps: {
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
 	const [editorInitialValue, setEditorInitialValue] = useState(() => {
-		if (!draftStorageKey) {
+		if (typeof window === "undefined" || !draftStorageKey) {
 			return "";
 		}
 		return localStorage.getItem(draftStorageKey) ?? "";
 	});
 
-	// Sync the ref with the editor value so callers that read
-	// inputValueRef.current see the persisted draft. Uses a layout
-	// effect so the value is available before paint.
+	// Sync the ref with the initial draft value so callers that
+	// read inputValueRef.current see the persisted draft. Uses a
+	// layout effect so the value is available before paint.
+	const initialSyncDone = useRef(false);
 	useLayoutEffect(() => {
-		inputValueRef.current = editorInitialValue;
+		if (!initialSyncDone.current && editorInitialValue) {
+			initialSyncDone.current = true;
+			(inputValueRef as React.MutableRefObject<string>).current =
+				editorInitialValue;
+		}
 	}, [editorInitialValue, inputValueRef]);
 
 	// -- History editing state --
@@ -117,14 +124,6 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
-
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
-		string | null
-	>(null);
 
 	const handleEditUserMessage = (
 		messageId: number,
@@ -151,6 +150,14 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
 		}
 	};
+
+	// -- Queue editing state --
+	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
+		number | null
+	>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
+		string | null
+	>(null);
 
 	const handleStartQueueEdit = (
 		id: number,
@@ -231,6 +238,30 @@ export function useConversationEditingState(deps: {
 	};
 }
 
+const getPersistedDetailError = ({
+	chatStatus,
+	chatRecord,
+	cachedError,
+}: {
+	chatStatus: TypesGen.ChatStatus | null;
+	chatRecord: TypesGen.Chat | undefined;
+	cachedError: ChatDetailError | undefined;
+}): ChatDetailError | undefined => {
+	if (cachedError?.kind === "usage-limit") {
+		return cachedError;
+	}
+	if (chatStatus === "error") {
+		if (cachedError) {
+			return cachedError;
+		}
+		const lastError = chatRecord?.last_error?.trim();
+		if (lastError) {
+			return { kind: "generic", message: lastError };
+		}
+	}
+	return undefined;
+};
+
 /**
  * Resolves the effective compaction threshold for a model configuration,
  * preferring the user's override when set.
@@ -238,13 +269,13 @@ export function useConversationEditingState(deps: {
 function resolveCompactionThreshold(
 	modelConfigID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
+	modelConfigs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 ): number | undefined {
-	if (!modelConfigID) return undefined;
+	if (!modelConfigID || !Array.isArray(modelConfigs)) return undefined;
 	const config = modelConfigs.find((c) => c.id === modelConfigID);
 	if (!config) return undefined;
 	const userOverride = userThresholds?.find(
-		(t) => t.model_config_id === modelConfigID,
+		(threshold) => threshold.model_config_id === modelConfigID,
 	);
 	if (userOverride) {
 		return userOverride.threshold_percent;
@@ -334,18 +365,13 @@ const AgentDetail: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromCatalog(
+	const modelOptions = getModelOptionsFromConfigs(
+		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
-		chatModelConfigsQuery.data,
 	);
-	const modelConfigIDByModelID = buildModelConfigIDByModelID(
-		chatModelConfigsQuery.data,
-	);
-	const modelIDByConfigID = buildModelIDByConfigID(modelConfigIDByModelID);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
-	const modelCatalogError = chatModelsQuery.error;
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -477,6 +503,13 @@ const AgentDetail: FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
+	const liveChatStatus =
+		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
+	const persistedError = getPersistedDetailError({
+		chatStatus: liveChatStatus,
+		chatRecord,
+		cachedError: agentId ? chatErrorReasons[agentId] : undefined,
+	});
 
 	// Git watcher: runs regardless of sidebar visibility, but only
 	// connects when the workspace agent is in the "connected" state
@@ -515,18 +548,22 @@ const AgentDetail: FC = () => {
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
 	const effectiveSelectedModel = (() => {
-		if (
-			selectedModel &&
-			modelOptions.some((model) => model.id === selectedModel)
-		) {
-			return selectedModel;
+		const resolvedSelectedModel = resolveModelOptionId(
+			selectedModel,
+			modelOptions,
+		);
+		if (resolvedSelectedModel) {
+			return resolvedSelectedModel;
 		}
-		if (chatLastModelConfigID) {
-			const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
-			if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
-				return fromChat;
-			}
+
+		const resolvedChatModel = resolveModelOptionId(
+			chatLastModelConfigID,
+			modelOptions,
+		);
+		if (resolvedChatModel) {
+			return resolvedChatModel;
 		}
+
 		return modelOptions[0]?.id ?? "";
 	})();
 
@@ -542,17 +579,6 @@ const AgentDetail: FC = () => {
 		isModelCatalogLoading,
 		hasConfiguredModels,
 	);
-	const modelCatalogStatusMessage = getModelCatalogStatusMessage(
-		modelCatalog,
-		modelOptions,
-		isModelCatalogLoading,
-		Boolean(modelCatalogError),
-	);
-	const inputStatusText = hasModelOptions
-		? null
-		: hasConfiguredModels
-			? "Models are configured but unavailable. Ask an admin."
-			: "No models configured. Ask an admin.";
 	const isSubmissionPending =
 		sendMutation.isPending ||
 		editMutation.isPending ||
@@ -568,15 +594,19 @@ const AgentDetail: FC = () => {
 			error.response?.status === 409 &&
 			isUsageLimitData(error.response.data)
 		) {
-			setChatErrorReason(agentId, {
+			const reason: ChatDetailError = {
 				kind: "usage-limit",
 				message: formatUsageLimitMessage(error.response.data),
-			});
+			};
+			store.setStreamError(reason);
+			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
-			setChatErrorReason(agentId, {
+			const reason: ChatDetailError = {
 				kind: "generic",
 				message: error.message || "An unexpected error occurred.",
-			});
+			};
+			store.setStreamError(reason);
+			setChatErrorReason(agentId, reason);
 		}
 	};
 
@@ -653,10 +683,7 @@ const AgentDetail: FC = () => {
 			}
 			return;
 		}
-		const selectedModelConfigID =
-			(effectiveSelectedModel &&
-				modelConfigIDByModelID.get(effectiveSelectedModel)) ||
-			undefined;
+		const selectedModelConfigID = effectiveSelectedModel || undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
 			content,
 			model_config_id: selectedModelConfigID,
@@ -858,8 +885,7 @@ const AgentDetail: FC = () => {
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
-				inputStatusText={inputStatusText}
-				modelCatalogStatusMessage={modelCatalogStatusMessage}
+				isModelCatalogLoading={isModelCatalogLoading}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				showRightPanel={showSidebarPanel}
@@ -882,8 +908,7 @@ const AgentDetail: FC = () => {
 			agentId={agentId}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
-			chatErrorReasons={chatErrorReasons}
-			chatRecord={chatRecord}
+			persistedError={persistedError}
 			isArchived={isArchived}
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
@@ -894,8 +919,7 @@ const AgentDetail: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			hasModelOptions={hasModelOptions}
-			inputStatusText={inputStatusText}
-			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			isModelCatalogLoading={isModelCatalogLoading}
 			compressionThreshold={compressionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}

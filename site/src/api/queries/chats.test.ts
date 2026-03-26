@@ -1,9 +1,10 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	archiveChat,
+	cancelChatListQueries,
 	chatCostSummary,
 	chatCostSummaryKey,
 	chatCostUsers,
@@ -21,6 +22,7 @@ import {
 	invalidateChatListQueries,
 	promoteChatQueuedMessage,
 	unarchiveChat,
+	updateInfiniteChatsCache,
 } from "./chats";
 
 vi.mock("api/api", () => ({
@@ -76,6 +78,7 @@ const makeChat = (
 	owner_id: "owner-1",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
+	labels: {},
 	title: `Chat ${id}`,
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
@@ -831,5 +834,95 @@ describe("diff_status_change invalidation scope", () => {
 			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
 			"chatDiffContentsKey IS invalidated without exact: true (old bug)",
 		).toBe(true);
+	});
+});
+
+describe("sidebar title race condition", () => {
+	const readTitle = (
+		queryClient: QueryClient,
+		chatId: string,
+	): string | undefined => {
+		const data = queryClient.getQueryData<InfiniteData>(infiniteChatsTestKey);
+		return data?.pages.flat().find((c) => c.id === chatId)?.title;
+	};
+
+	it("in-flight refetch overwrites a WebSocket title update (the bug)", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { title: "fallback title" }),
+		]);
+
+		// Simulate invalidateChatListQueries triggering a refetch that
+		// returns stale data (the server hadn't generated the title yet
+		// when it processed this request).
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: infiniteChatsTestKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "fallback title" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		// Simulate the title_change WebSocket event arriving while the
+		// refetch is in flight. This mirrors what AgentsPage does.
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((c) =>
+				c.id === chatId ? { ...c, title: "generated title" } : c,
+			),
+		);
+
+		// The cache shows the generated title immediately.
+		expect(readTitle(queryClient, chatId)).toBe("generated title");
+
+		// After the refetch settles, it overwrites with stale data.
+		await fetchDone;
+		expect(readTitle(queryClient, chatId)).toBe("fallback title");
+	});
+
+	it("cancelChatListQueries before the update prevents the overwrite (the fix)", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { title: "fallback title" }),
+		]);
+
+		const fetchDone = queryClient.prefetchQuery({
+			queryKey: infiniteChatsTestKey,
+			queryFn: () =>
+				new Promise<InfiniteData>((resolve) => {
+					setTimeout(
+						() =>
+							resolve({
+								pages: [[makeChat(chatId, { title: "fallback title" })]],
+								pageParams: [0],
+							}),
+						50,
+					);
+				}),
+		});
+
+		// Cancel, then write. Matches the new WebSocket handler code.
+		await cancelChatListQueries(queryClient);
+
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((c) =>
+				c.id === chatId ? { ...c, title: "generated title" } : c,
+			),
+		);
+
+		expect(readTitle(queryClient, chatId)).toBe("generated title");
+
+		await fetchDone;
+		expect(readTitle(queryClient, chatId)).toBe("generated title");
 	});
 });

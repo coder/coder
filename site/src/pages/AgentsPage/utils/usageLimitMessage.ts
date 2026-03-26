@@ -13,11 +13,43 @@ interface UsageLimitData {
 /**
  * Typed classification for errors surfaced in the agent detail view.
  * - "usage-limit": the user hit a spending cap (409 + valid usage data).
- * - "generic": any other error (stream failures, last_error, etc.).
+ * - other kinds come from normalized stream/provider failures such as
+ *   "generic", "overloaded", "rate_limit", or "timeout".
  */
 export type ChatDetailError = {
 	message: string;
-	kind: "generic" | "usage-limit";
+	kind:
+		| "usage-limit"
+		| "generic"
+		| "overloaded"
+		| "rate_limit"
+		| "timeout"
+		| (string & {});
+	provider?: string;
+	retryable?: boolean;
+	statusCode?: number;
+};
+
+/**
+ * Compare two chat-detail errors by their user-visible fields.
+ */
+export const chatDetailErrorsEqual = (
+	left: ChatDetailError | null | undefined,
+	right: ChatDetailError | null | undefined,
+): boolean => {
+	if (left === right) {
+		return true;
+	}
+	if (!left || !right) {
+		return false;
+	}
+	return (
+		left.kind === right.kind &&
+		left.message === right.message &&
+		left.provider === right.provider &&
+		left.retryable === right.retryable &&
+		left.statusCode === right.statusCode
+	);
 };
 
 /**

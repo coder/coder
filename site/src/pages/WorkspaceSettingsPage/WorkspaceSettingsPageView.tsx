@@ -1,5 +1,5 @@
-import type { Workspace } from "api/typesGenerated";
 import type { ComponentProps, FC } from "react";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	PageHeader,
 	PageHeaderTitle,

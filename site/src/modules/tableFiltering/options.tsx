@@ -7,8 +7,9 @@
  * centralizing the logic). We currently have two separate implementations for
  * the workspaces and audits page that have a risk of getting out of sync.
  */
-import { API } from "api/api";
+
 import type { FC } from "react";
+import { API } from "#/api/api";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {

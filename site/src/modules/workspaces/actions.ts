@@ -1,4 +1,4 @@
-import type { Workspace } from "api/typesGenerated";
+import type { Workspace } from "#/api/typesGenerated";
 
 /**
  * An iterable of all action types supported by the workspace UI

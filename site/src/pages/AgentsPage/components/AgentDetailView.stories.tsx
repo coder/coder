@@ -1,13 +1,14 @@
 import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ComponentProps, FC } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
@@ -20,9 +21,11 @@ import {
 // ---------------------------------------------------------------------------
 const AGENT_ID = "agent-detail-view-1";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -36,8 +39,9 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	owner_id: "owner-1",
 	title: "Help me refactor",
 	status: "completed",
-	last_model_config_id: "model-config-1",
+	last_model_config_id: defaultModelConfigID,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
@@ -97,22 +101,17 @@ const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	const props = {
 		agentId: AGENT_ID,
 		chatTitle: "Help me refactor",
-		chatErrorReasons: {} as ComponentProps<
-			typeof AgentDetailView
-		>["chatErrorReasons"],
+		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
-		chatRecord: buildChat(),
 		isArchived: false,
 		hasWorkspace: true,
 		store: createChatStore(),
 		pendingEditMessageId: null as number | null,
-		effectiveSelectedModel: "openai:gpt-4o",
+		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
-		inputStatusText: null as string | null,
-		modelCatalogStatusMessage: null as string | null,
 		compressionThreshold: undefined as number | undefined,
 		isInputDisabled: false,
 		isSubmissionPending: false,
@@ -189,13 +188,7 @@ export const Default: Story = {
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
-	render: () => (
-		<StoryAgentDetailView
-			isArchived
-			chatRecord={buildChat({ archived: true })}
-			isInputDisabled
-		/>
-	),
+	render: () => <StoryAgentDetailView isArchived isInputDisabled />,
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
@@ -211,8 +204,12 @@ export const WithParentChat: Story = {
 export const WithError: Story = {
 	render: () => (
 		<StoryAgentDetailView
-			chatErrorReasons={{
-				[AGENT_ID]: { kind: "generic", message: "Model rate limited" },
+			persistedError={{
+				kind: "overloaded",
+				message: "Anthropic is currently overloaded. Please try again shortly.",
+				provider: "anthropic",
+				retryable: true,
+				statusCode: 529,
 			}}
 		/>
 	),
@@ -276,7 +273,6 @@ export const NoModelOptions: Story = {
 		<StoryAgentDetailView
 			hasModelOptions={false}
 			modelOptions={[]}
-			inputStatusText="No models configured. Ask an admin."
 			isInputDisabled
 		/>
 	),
@@ -303,13 +299,11 @@ export const Loading: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
@@ -323,13 +317,11 @@ export const LoadingWithModelOptions: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled={false}
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
@@ -342,13 +334,11 @@ export const LoadingWithRightPanel: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel
@@ -362,13 +352,11 @@ export const LoadingSidebarCollapsed: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}

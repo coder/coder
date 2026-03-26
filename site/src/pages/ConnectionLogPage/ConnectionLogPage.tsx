@@ -1,4 +1,3 @@
-import { paginatedConnectionLogs } from "api/queries/connectionlog";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -6,6 +5,7 @@ import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { paginatedConnectionLogs } from "#/api/queries/connectionlog";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";

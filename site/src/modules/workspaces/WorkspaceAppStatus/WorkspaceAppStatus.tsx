@@ -1,6 +1,6 @@
-import type { WorkspaceAppStatus as APIWorkspaceAppStatus } from "api/typesGenerated";
 import capitalize from "lodash/capitalize";
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
+import type { WorkspaceAppStatus as APIWorkspaceAppStatus } from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,

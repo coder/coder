@@ -1,11 +1,11 @@
+import type { FC } from "react";
 import type {
 	Group,
 	GroupSyncSettings,
 	Organization,
 	Role,
 	RoleSyncSettings,
-} from "api/typesGenerated";
-import type { FC } from "react";
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";

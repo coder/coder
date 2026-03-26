@@ -1,8 +1,8 @@
-import type { WorkspaceAgent } from "api/typesGenerated";
 import { RefreshCwIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	Alert,
 	type AlertColor,

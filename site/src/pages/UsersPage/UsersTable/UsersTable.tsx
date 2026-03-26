@@ -1,6 +1,6 @@
-import type { GroupsByUserId } from "api/queries/groups";
-import type * as TypesGen from "api/typesGenerated";
 import type { FC } from "react";
+import type { GroupsByUserId } from "#/api/queries/groups";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,

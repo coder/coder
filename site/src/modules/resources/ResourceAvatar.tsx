@@ -1,6 +1,6 @@
-import type { WorkspaceResource } from "api/typesGenerated";
 import type { FC } from "react";
 import { getResourceIconPath } from "utils/workspace";
+import type { WorkspaceResource } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 
 type ResourceAvatarProps = { resource: WorkspaceResource };

@@ -1,10 +1,10 @@
 import Skeleton from "@mui/material/Skeleton";
-import type * as TypesGen from "api/typesGenerated";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Abbr } from "#/components/Abbr/Abbr";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";

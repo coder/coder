@@ -512,7 +512,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										data-testid="clear-option-button"
 										className={cn(
 											`ml-1 pr-0 rounded-sm bg-transparent border-none outline-none
-												focus:ring-2 focus:ring-content-link focus:ml-2.5 focus:pl-0 cursor-pointer`,
+												focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ml-2.5 focus-visible:pl-0 cursor-pointer`,
 											(disabled || option.fixed) && "hidden",
 										)}
 										onKeyDown={(e) => {
@@ -585,7 +585,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							className={cn(
 								"bg-transparent mt-1 border-none rounded-sm",
 								"cursor-pointer text-content-secondary hover:text-content-primary",
-								"outline-none focus:ring-2 focus:ring-content-link [&>svg]:p-0.5",
+								"outline-none focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:p-0.5",
 								(hideClearAllButton ||
 									disabled ||
 									selected.length < 1 ||

@@ -1,11 +1,12 @@
-import type * as TypesGen from "api/typesGenerated";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { BlocksIcon, HistoryIcon } from "lucide-react";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
+import { getAgentHealthIssue } from "modules/workspaces/health";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
@@ -193,7 +194,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 						{!workspace.health.healthy && (
 							<WorkspaceAlert
-								workspace={workspace}
+								{...getAgentHealthIssue(workspace)}
 								troubleshootingURL={troubleshootingURL}
 							/>
 						)}

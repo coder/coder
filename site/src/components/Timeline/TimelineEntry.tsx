@@ -15,7 +15,7 @@ export const TimelineEntry: React.FC<TimelineEntryProps> = ({
 	return (
 		<TableRow
 			className={cn(
-				"focus:outline focus:-outline-offset-1 focus:outline-2 focus:outline-content-primary ",
+				"focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-2 focus-visible:outline-content-primary ",
 				"[&_td]:relative [&_td]:overflow-hidden",
 				"[&_td:before]:absolute [&_td:before]:block [&_td:before]:h-full [&_td:before]:content-[''] [&_td:before]:bg-border [&_td:before]:w-0.5 [&_td:before]:left-[calc((32px+(var(--avatar-default)/2))-1px)]",
 				clickable && "cursor-pointer hover:bg-surface-secondary",

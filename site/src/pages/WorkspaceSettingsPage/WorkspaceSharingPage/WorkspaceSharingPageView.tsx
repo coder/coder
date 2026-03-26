@@ -1,3 +1,7 @@
+import { isGroup } from "modules/groups";
+import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
+import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
+import type { FC } from "react";
 import type {
 	Group,
 	Workspace,
@@ -5,11 +9,7 @@ import type {
 	WorkspaceGroup,
 	WorkspaceRole,
 	WorkspaceUser,
-} from "api/typesGenerated";
-import { isGroup } from "modules/groups";
-import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
-import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
-import type { FC } from "react";
+} from "#/api/typesGenerated";
 
 interface WorkspaceSharingPageViewProps {
 	workspace: Workspace;
