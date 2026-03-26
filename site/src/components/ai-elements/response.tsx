@@ -262,7 +262,7 @@ export const Response = ({
 		>
 			<Streamdown
 				controls={false}
-				animated={isAnimating ? streamAnimationOptions : false}
+				animated={streamAnimationOptions}
 				isAnimating={isAnimating}
 				caret={isAnimating ? "block" : undefined}
 				components={components}

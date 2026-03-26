@@ -3,6 +3,8 @@
 	Related issue: https://github.com/shadcn-ui/ui/issues/805#issuecomment-1616021820
 */
 
+@import "streamdown/styles.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
