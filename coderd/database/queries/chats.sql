@@ -54,7 +54,12 @@ updates AS (
 UPDATE
     chats c
 SET
-    pin_order = updates.pin_order
+    pin_order = updates.pin_order,
+    -- Bump updated_at for the newly pinned chat so it appears
+    -- on page 1 of the (updated_at, id) DESC paginated list.
+    -- Without this, an old pinned chat can fall off the sidebar
+    -- after 50+ newer chats push it past the page boundary.
+    updated_at = CASE WHEN c.id = (SELECT id FROM target_chat) THEN NOW() ELSE c.updated_at END
 FROM
     updates
 WHERE
