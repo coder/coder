@@ -1339,6 +1339,20 @@ var ErrManualTitleRegenerationInProgress = xerrors.New(
 	"manual title regeneration already in progress",
 )
 
+type manualTitleGenerationError struct {
+	cause       error
+	modelConfig database.ChatModelConfig
+	usage       fantasy.Usage
+}
+
+func (e *manualTitleGenerationError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *manualTitleGenerationError) Unwrap() error {
+	return e.cause
+}
+
 func manualTitleRegenerationLockID(chatID uuid.UUID) int64 {
 	return database.GenLockID(fmt.Sprintf("chat-title-regenerate:%s", chatID))
 }
@@ -1382,6 +1396,23 @@ func (p *Server) RegenerateChatTitle(
 		return err
 	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
 	if err != nil {
+		var generationErr *manualTitleGenerationError
+		if errors.As(err, &generationErr) {
+			if _, recordErr := recordManualTitleUsage(
+				ctx,
+				p.db,
+				chat,
+				generationErr.modelConfig,
+				generationErr.usage,
+				"",
+			); recordErr != nil {
+				return database.Chat{}, errors.Join(
+					generationErr,
+					xerrors.Errorf("record manual title usage: %w", recordErr),
+				)
+			}
+			return database.Chat{}, generationErr
+		}
 		return database.Chat{}, err
 	}
 	return updatedChat, nil
@@ -1437,20 +1468,15 @@ func (p *Server) regenerateChatTitleWithStore(
 
 	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
-		if _, recordErr := recordManualTitleUsage(
-			ctx,
-			store,
-			chat,
-			modelConfig,
-			usage,
-			"",
-		); recordErr != nil {
-			return database.Chat{}, errors.Join(
-				xerrors.Errorf("generate manual title: %w", err),
-				xerrors.Errorf("record manual title usage: %w", recordErr),
-			)
+		wrappedErr := xerrors.Errorf("generate manual title: %w", err)
+		if usage == (fantasy.Usage{}) {
+			return database.Chat{}, wrappedErr
 		}
-		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
+		return database.Chat{}, &manualTitleGenerationError{
+			cause:       wrappedErr,
+			modelConfig: modelConfig,
+			usage:       usage,
+		}
 	}
 
 	updatedChat, recordErr := recordManualTitleUsage(
