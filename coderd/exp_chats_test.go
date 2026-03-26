@@ -3575,6 +3575,68 @@ func TestRegenerateChatTitle(t *testing.T) {
 		)
 	})
 
+	t.Run("AlreadyInProgress", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat with lock held",
+		})
+		require.NoError(t, err)
+
+		lockHeld := make(chan error, 1)
+		releaseLock := make(chan struct{})
+		lockErr := make(chan error, 1)
+		go func() {
+			lockErr <- db.InTx(func(tx database.Store) error {
+				ok, err := tx.TryAcquireLock(
+					ctx,
+					database.GenLockID(
+						fmt.Sprintf("chat-title-regenerate:%s", chat.ID),
+					),
+				)
+				if err != nil {
+					lockHeld <- err
+					return err
+				}
+				if !ok {
+					err = xerrors.New("expected to acquire test title lock")
+					lockHeld <- err
+					return err
+				}
+				lockHeld <- nil
+				<-releaseLock
+				return nil
+			}, database.DefaultTXOptions().WithID("test_chat_title_regenerate_lock"))
+		}()
+		defer func() {
+			close(releaseLock)
+			require.NoError(t, <-lockErr)
+		}()
+
+		require.NoError(t, <-lockHeld)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
+	})
+
 	t.Run("RegenerationFailure", func(t *testing.T) {
 		t.Parallel()
 

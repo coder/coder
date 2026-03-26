@@ -111,7 +111,15 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
-var regeneratingChats sync.Map
+var errChatTitleRegenerationInProgress = xerrors.New(
+	"chat title regeneration already in progress",
+)
+
+func chatTitleRegenerationLockID(chatID uuid.UUID) int64 {
+	return database.GenLockID(
+		fmt.Sprintf("chat-title-regenerate:%s", chatID),
+	)
+}
 
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
 	payload, err := json.Marshal(pubsub.ChatConfigEvent{
@@ -2118,13 +2126,6 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	if _, loaded := regeneratingChats.LoadOrStore(chat.ID, struct{}{}); loaded {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Title regeneration already in progress for this chat.",
-		})
-		return
-	}
-	defer regeneratingChats.Delete(chat.ID)
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",
@@ -2133,8 +2134,29 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
+	var updatedChat database.Chat
+	err := api.Database.InTx(func(tx database.Store) error {
+		ok, err := tx.TryAcquireLock(ctx, chatTitleRegenerationLockID(chat.ID))
+		if err != nil {
+			return xerrors.Errorf(
+				"acquire chat title regeneration lock: %w",
+				err,
+			)
+		}
+		if !ok {
+			return errChatTitleRegenerationInProgress
+		}
+
+		updatedChat, err = api.chatDaemon.RegenerateChatTitle(ctx, chat)
+		return err
+	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
 	if err != nil {
+		if errors.Is(err, errChatTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, err) {
 			return
 		}
