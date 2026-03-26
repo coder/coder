@@ -7,7 +7,7 @@ import { normalizeProvider } from "./helpers";
 
 const providerIconMap: Record<string, string> = {
 	openai: "/icon/openai.svg",
-	anthropic: "/icon/claude.svg",
+	anthropic: "/icon/anthropic.svg",
 	azure: "/icon/azure.svg",
 	bedrock: "/icon/aws.svg",
 	google: "/icon/google.svg",
