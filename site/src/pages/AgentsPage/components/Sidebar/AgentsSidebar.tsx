@@ -413,6 +413,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isArchiving,
 		archivingChatId,
 		isRegeneratingTitle,
+		regeneratingTitleChatId,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -457,6 +458,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
+	const isRegeneratingThisChat =
+		isRegeneratingTitle && regeneratingTitleChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	return (
@@ -521,6 +524,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											isActive && "font-medium",
+											isRegeneratingThisChat && "animate-pulse",
 										)}
 									>
 										{chat.title}
@@ -608,7 +612,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									) : (
 										<>
 											<DropdownMenuItem
-												disabled={isRegeneratingTitle}
+												disabled={isRegeneratingThisChat}
 												onSelect={() => onRegenerateTitle(chat.id)}
 											>
 												<WandSparklesIcon className="h-3.5 w-3.5" />

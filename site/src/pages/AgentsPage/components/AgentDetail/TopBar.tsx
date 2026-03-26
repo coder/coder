@@ -17,6 +17,7 @@ import {
 import type { FC } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -27,7 +28,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { cn } from "#/utils/cn";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import { useEmbedContext } from "../EmbedContext";
 import { PrStateIcon } from "../GitPanel/GitPanel";
@@ -122,7 +123,12 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 			{/* Title area */}
 			<div className="flex min-w-0 flex-1 items-center">
 				{chatTitle && (
-					<div className="flex min-w-0 items-center gap-1.5">
+					<div
+						role="status"
+						aria-live="polite"
+						aria-busy={isRegeneratingTitle}
+						className="flex min-w-0 items-center gap-1.5"
+					>
 						{parentChat && (
 							<>
 								<Button
@@ -138,9 +144,21 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
-						<span className="truncate text-sm text-content-primary">
+						<span
+							className={cn(
+								"truncate text-sm text-content-primary",
+								isRegeneratingTitle && "animate-pulse",
+							)}
+						>
 							{chatTitle}
 						</span>
+						{isRegeneratingTitle && (
+							<Spinner
+								aria-label="Regenerating title"
+								className="h-3.5 w-3.5 shrink-0 text-content-secondary"
+								loading
+							/>
+						)}
 					</div>
 				)}
 			</div>
@@ -234,12 +252,23 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<MonitorIcon className="h-3.5 w-3.5" />
 								View Workspace
 							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem onSelect={onRegenerateTitle}>
-								<WandSparklesIcon className="h-3.5 w-3.5" />
-								Generate new title
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
+							{!isArchived && (
+								<>
+									<DropdownMenuSeparator />
+									{onRegenerateTitle && (
+										<>
+											<DropdownMenuItem
+												disabled={isRegenerateTitleDisabled}
+												onSelect={onRegenerateTitle}
+											>
+												<WandSparklesIcon className="h-3.5 w-3.5" />
+												Generate new title
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+										</>
+									)}
+								</>
+							)}
 							{isArchived ? (
 								<DropdownMenuItem onSelect={onUnarchiveAgent}>
 									<ArchiveRestoreIcon className="h-3.5 w-3.5" />
