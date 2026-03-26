@@ -659,9 +659,9 @@ const AgentDetail: FC = () => {
 		}
 
 		// Don't clear stream state before the POST completes.
-		// For queued sends the WebSocket status events handle the
-		// reset; for non-queued sends we clear explicitly below.
-		// Clearing eagerly causes a visible cutoff when queued.
+		// For queued sends the WebSocket status events handle
+		// clearing; for non-queued sends we clear explicitly
+		// below. Clearing eagerly causes a visible cutoff.
 		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
 		try {
 			response = await sendMutation.mutateAsync(request);

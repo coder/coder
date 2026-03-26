@@ -1031,7 +1031,7 @@ export const StreamedReasoning: Story = {
  * queued acknowledgement. The streaming content must remain visible in the
  * DOM after the send completes.
  */
-export const StreamingSurvivesQueuedSend: Story = {
+export const QueuedSendWithActiveStream: Story = {
 	beforeEach: () => {
 		const spy = spyOn(API.experimental, "createChatMessage").mockResolvedValue({
 			queued: true,
@@ -1085,11 +1085,80 @@ export const StreamingSurvivesQueuedSend: Story = {
 		await userEvent.type(textbox, "follow-up");
 		await userEvent.keyboard("{Enter}");
 
-		// After the queued send, the streaming text must still be visible.
+		// Verify the send actually fired (guards against the test
+		// passing trivially if a future change blocks the send).
 		await waitFor(() => {
-			expect(
-				canvas.getByText("I am helping you with the implementation"),
-			).toBeInTheDocument();
+			expect(API.experimental.createChatMessage).toHaveBeenCalledTimes(1);
 		});
+
+		// After the queued send, the streaming text must still be visible.
+		expect(
+			canvas.getByText("I am helping you with the implementation"),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * Validates that a failed POST during an active stream does not wipe
+ * the streaming output. The catch block re-throws before reaching
+ * clearStreamState(), so the in-progress text must survive.
+ */
+export const FailedSendWithActiveStream: Story = {
+	beforeEach: () => {
+		const spy = spyOn(API.experimental, "createChatMessage").mockRejectedValue(
+			new Error("network error"),
+		);
+		return () => spy.mockRestore();
+	},
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Failed send preserves stream",
+				status: "running",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						message_part: {
+							part: {
+								type: "text",
+								text: "I am helping you with the implementation",
+							},
+						},
+					}),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the streamed text to appear.
+		await expect(
+			canvas.findByText("I am helping you with the implementation"),
+		).resolves.toBeInTheDocument();
+
+		// Type a message and send it (the POST will reject).
+		const textbox = canvas.getByRole("textbox");
+		await userEvent.type(textbox, "this will fail");
+		await userEvent.keyboard("{Enter}");
+
+		// Verify the send was attempted.
+		await waitFor(() => {
+			expect(API.experimental.createChatMessage).toHaveBeenCalledTimes(1);
+		});
+
+		// The streaming text must survive the failed send.
+		expect(
+			canvas.getByText("I am helping you with the implementation"),
+		).toBeInTheDocument();
 	},
 };
