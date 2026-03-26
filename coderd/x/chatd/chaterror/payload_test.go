@@ -20,7 +20,7 @@ func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	payload := chaterror.StreamErrorPayload(classified)
 
 	require.Equal(t, &codersdk.ChatStreamError{
-		Message:    "Azure OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Message:    "Azure OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -40,7 +40,7 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	delay := 3 * time.Second
 	startedAt := time.Now()
 	payload := chaterror.StreamRetryPayload(2, delay, chaterror.ClassifiedError{
-		Message:    "retry me",
+		Message:    "OpenAI returned an unexpected error (HTTP 503).",
 		Kind:       chaterror.KindGeneric,
 		Provider:   "openai",
 		Retryable:  true,
@@ -50,7 +50,9 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	require.NotNil(t, payload)
 	require.Equal(t, 2, payload.Attempt)
 	require.Equal(t, delay.Milliseconds(), payload.DelayMs)
-	require.Equal(t, "retry me", payload.Error)
+	// Retry messages omit the HTTP status code; the status code is
+	// surfaced separately in the payload's StatusCode field.
+	require.Equal(t, "OpenAI returned an unexpected error.", payload.Error)
 	require.Equal(t, chaterror.KindGeneric, payload.Kind)
 	require.Equal(t, "openai", payload.Provider)
 	require.Equal(t, 503, payload.StatusCode)

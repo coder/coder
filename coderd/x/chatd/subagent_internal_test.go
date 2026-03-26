@@ -149,6 +149,45 @@ func seedInternalChatDeps(
 	return user, model
 }
 
+func seedWorkspaceBinding(
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+) (database.WorkspaceTable, database.WorkspaceBuild, database.WorkspaceAgent) {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      userID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       userID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     tpl.ID,
+		OwnerID:        userID,
+		OrganizationID: org.ID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    userID,
+		OrganizationID: org.ID,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       workspace.ID,
+		JobID:             job.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		Transition: database.WorkspaceTransitionStart,
+		JobID:      job.ID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	return workspace, build, agent
+}
+
 // findToolByName returns the tool with the given name from the
 // slice, or nil if no match is found.
 func findToolByName(tools []fantasy.AgentTool, name string) fantasy.AgentTool {
@@ -163,6 +202,49 @@ func findToolByName(tools []fantasy.AgentTool, name string) fantasy.AgentTool {
 func chatdTestContext(t *testing.T) context.Context {
 	t.Helper()
 	return dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
+}
+
+func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspace.ID,
+			Valid: true,
+		},
+		BuildID: uuid.NullUUID{
+			UUID:  build.ID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agent.ID,
+			Valid: true,
+		},
+		Title:              "bound-parent",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
+	require.Equal(t, parentChat.BuildID, childChat.BuildID)
+	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 }
 
 func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
@@ -292,13 +374,26 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	user, model := seedInternalChatDeps(ctx, t, db)
+	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
 
 	// The parent uses an OpenAI model.
 	require.Equal(t, "openai", model.Provider,
 		"seed helper must create an OpenAI model")
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
-		OwnerID:            user.ID,
+		OwnerID: user.ID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspace.ID,
+			Valid: true,
+		},
+		BuildID: uuid.NullUUID{
+			UUID:  build.ID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agent.ID,
+			Valid: true,
+		},
 		Title:              "parent-openai",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -331,6 +426,10 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 
 	childChat, err := db.GetChatByID(ctx, childID)
 	require.NoError(t, err)
+
+	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
+	require.Equal(t, parentChat.BuildID, childChat.BuildID)
+	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 
 	// The child must have Mode=computer_use which causes
 	// runChat to override the model to the predefined computer

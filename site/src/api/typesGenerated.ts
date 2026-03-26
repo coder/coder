@@ -1089,6 +1089,8 @@ export interface Chat {
 	readonly id: string;
 	readonly owner_id: string;
 	readonly workspace_id?: string;
+	readonly build_id?: string;
+	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	readonly last_model_config_id: string;
@@ -4666,6 +4668,11 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly user_updated_at: string;
 	readonly is_service_account?: boolean;
 	readonly global_roles: readonly SlimRole[];
+	/**
+	 * HasAISeat intentionally omits omitempty so the API always includes the
+	 * field, even when false.
+	 */
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/users.go
@@ -7442,6 +7449,11 @@ export interface UsageStatsConfig {
 export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
 	readonly roles: readonly SlimRole[];
+	/**
+	 * HasAISeat intentionally omits omitempty so the API always includes the
+	 * field, even when false.
+	 */
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/insights.go

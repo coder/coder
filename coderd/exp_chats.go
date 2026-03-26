@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -108,6 +109,28 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 		return true
 	}
 	return false
+}
+
+func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
+	payload, err := json.Marshal(pubsub.ChatConfigEvent{
+		Kind:     kind,
+		EntityID: entityID,
+	})
+	if err != nil {
+		logger.Error(context.Background(), "failed to marshal chat config event",
+			slog.F("kind", kind),
+			slog.F("entity_id", entityID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := ps.Publish(pubsub.ChatConfigEventChannel, payload); err != nil {
+		logger.Error(context.Background(), "failed to publish chat config event",
+			slog.F("kind", kind),
+			slog.F("entity_id", entityID),
+			slog.Error(err),
+		)
+	}
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3052,6 +3075,8 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventUserPrompt, apiKey.UserID)
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: updatedConfig.Value,
 	})
@@ -3600,6 +3625,12 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	if c.BuildID.Valid {
+		chat.BuildID = &c.BuildID.UUID
+	}
+	if c.AgentID.Valid {
+		chat.AgentID = &c.AgentID.UUID
+	}
 	if diffStatus != nil {
 		convertedDiffStatus := db2sdk.ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
@@ -3880,6 +3911,8 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+
 	httpapi.Write(
 		ctx,
 		rw,
@@ -3966,6 +3999,8 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+
 	httpapi.Write(
 		ctx,
 		rw,
@@ -4019,6 +4054,8 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -4199,6 +4236,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
+
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
 }
 
@@ -4370,6 +4409,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
 }
 
@@ -4409,6 +4450,8 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, modelConfigID)
 
 	rw.WriteHeader(http.StatusNoContent)
 }

@@ -1171,7 +1171,7 @@ export const updateTemplateSettings = async (
 	await page.getByRole("button", { name: /save/i }).click();
 
 	const name = templateSettingValues.name ?? templateName;
-	await expectUrl(page).toHavePathNameEndingWith(`/${name}`);
+	await expectUrl(page).toHavePathNameEndingWith(`/${name}/docs`);
 };
 
 export const updateWorkspace = async (

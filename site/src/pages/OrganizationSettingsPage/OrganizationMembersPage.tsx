@@ -1,5 +1,7 @@
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "modules/dashboard/entitlements";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
@@ -32,7 +34,9 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { entitlements } = useDashboard();
 	const searchParamsResult = useSearchParams();
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -99,6 +103,7 @@ const OrganizationMembersPage: FC = () => {
 				}
 				isAddingMember={addMemberMutation.isPending}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
+				showAISeatColumn={showAISeatColumn}
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
