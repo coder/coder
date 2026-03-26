@@ -108,7 +108,7 @@ export const JsxInProse: Story = {
 // remend so the user never sees raw syntax during the reveal animation.
 export const StreamingInlineMarkdown: Story = {
 	args: {
-		children: "This is **bold text that hasn't been clos",
+		children: "This is **bold text that has not been close",
 		streaming: true,
 	},
 	play: async ({ canvasElement }) => {
