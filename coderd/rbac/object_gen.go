@@ -82,6 +82,16 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceChatAutomation
+	// Valid Actions
+	//  - "ActionCreate" :: create a chat automation
+	//  - "ActionDelete" :: delete a chat automation
+	//  - "ActionRead" :: read chat automation configuration
+	//  - "ActionUpdate" :: update a chat automation
+	ResourceChatAutomation = Object{
+		Type: "chat_automation",
+	}
+
 	// ResourceConnectionLog
 	// Valid Actions
 	//  - "ActionRead" :: read connection logs
@@ -440,6 +450,7 @@ func AllResources() []Objecter {
 		ResourceAuditLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
+		ResourceChatAutomation,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

@@ -182,6 +182,13 @@ func (r GetChatsRow) RBACObject() rbac.Object {
 	return r.Chat.RBACObject()
 }
 
+func (a ChatAutomation) RBACObject() rbac.Object {
+	return rbac.ResourceChatAutomation.
+		WithID(a.ID).
+		WithOwner(a.OwnerID.String()).
+		InOrg(a.OrganizationID)
+}
+
 func (c ChatFile) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }

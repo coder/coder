@@ -1121,6 +1121,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().CleanupDeletedMCPServerIDsFromChats(gomock.Any()).Return(nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceChat, policy.ActionUpdate)
 	}))
+	s.Run("CleanupDeletedMCPServerIDsFromChatAutomations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CleanupDeletedMCPServerIDsFromChatAutomations(gomock.Any()).Return(nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceChatAutomation, policy.ActionUpdate)
+	}))
 	s.Run("DeleteMCPServerConfigByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
 		dbm.EXPECT().DeleteMCPServerConfigByID(gomock.Any(), id).Return(nil).AnyTimes()
@@ -1247,6 +1251,226 @@ func (s *MethodTestSuite) TestChats() {
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
 		dbm.EXPECT().UpsertMCPServerUserToken(gomock.Any(), arg).Return(token, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(token)
+	}))
+}
+
+func (s *MethodTestSuite) TestChatAutomations() {
+	s.Run("CountChatAutomationChatCreatesInWindow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		arg := database.CountChatAutomationChatCreatesInWindowParams{
+			AutomationID: automation.ID,
+			WindowStart:  dbtime.Now().Add(-time.Hour),
+		}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().CountChatAutomationChatCreatesInWindow(gomock.Any(), arg).Return(int64(3), nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionRead).Returns(int64(3))
+	}))
+	s.Run("CountChatAutomationMessagesInWindow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		arg := database.CountChatAutomationMessagesInWindowParams{
+			AutomationID: automation.ID,
+			WindowStart:  dbtime.Now().Add(-time.Hour),
+		}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().CountChatAutomationMessagesInWindow(gomock.Any(), arg).Return(int64(5), nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionRead).Returns(int64(5))
+	}))
+	s.Run("DeleteChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns()
+	}))
+	s.Run("DeleteChatAutomationTriggerByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		trigger := testutil.Fake(s.T(), faker, database.ChatAutomationTrigger{
+			AutomationID: automation.ID,
+			Type:         database.ChatAutomationTriggerTypeWebhook,
+		})
+		dbm.EXPECT().GetChatAutomationTriggerByID(gomock.Any(), trigger.ID).Return(trigger, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatAutomationTriggerByID(gomock.Any(), trigger.ID).Return(nil).AnyTimes()
+		check.Args(trigger.ID).Asserts(automation, policy.ActionUpdate).Returns()
+	}))
+	s.Run("GetActiveChatAutomationCronTriggers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.GetActiveChatAutomationCronTriggersRow{}
+		dbm.EXPECT().GetActiveChatAutomationCronTriggers(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceChatAutomation.All(), policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionRead).Returns(automation)
+	}))
+	s.Run("GetChatAutomationEventsByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		arg := database.GetChatAutomationEventsByAutomationIDParams{
+			AutomationID: automation.ID,
+		}
+		events := []database.ChatAutomationEvent{}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomationEventsByAutomationID(gomock.Any(), arg).Return(events, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionRead).Returns(events)
+	}))
+	s.Run("GetChatAutomationTriggerByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		trigger := testutil.Fake(s.T(), faker, database.ChatAutomationTrigger{
+			AutomationID: automation.ID,
+			Type:         database.ChatAutomationTriggerTypeWebhook,
+		})
+		dbm.EXPECT().GetChatAutomationTriggerByID(gomock.Any(), trigger.ID).Return(trigger, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		check.Args(trigger.ID).Asserts(automation, policy.ActionRead).Returns(trigger)
+	}))
+	s.Run("GetChatAutomationTriggersByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		triggers := []database.ChatAutomationTrigger{}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomationTriggersByAutomationID(gomock.Any(), automation.ID).Return(triggers, nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionRead).Returns(triggers)
+	}))
+	s.Run("GetChatAutomations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetChatAutomationsParams{}
+		dbm.EXPECT().GetChatAutomations(gomock.Any(), params).Return([]database.ChatAutomation{}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizedChatAutomations(gomock.Any(), params, gomock.Any()).Return([]database.ChatAutomation{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceChatAutomation.All(), policy.ActionRead).WithNotAuthorized("nil")
+	}))
+	s.Run("GetAuthorizedChatAutomations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetChatAutomationsParams{}
+		dbm.EXPECT().GetAuthorizedChatAutomations(gomock.Any(), params, gomock.Any()).Return([]database.ChatAutomation{}, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomations(gomock.Any(), params).Return([]database.ChatAutomation{}, nil).AnyTimes()
+		check.Args(params, emptyPreparedAuthorized{}).Asserts(rbac.ResourceChatAutomation.All(), policy.ActionRead)
+	}))
+	s.Run("InsertChatAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertChatAutomationParams{
+			ID:             uuid.New(),
+			OwnerID:        uuid.New(),
+			OrganizationID: uuid.New(),
+			Name:           "test-automation",
+			Description:    "test description",
+			Instructions:   "test instructions",
+			Status:         database.ChatAutomationStatusActive,
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+		}
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{
+			ID:             arg.ID,
+			OwnerID:        arg.OwnerID,
+			OrganizationID: arg.OrganizationID,
+			Status:         arg.Status,
+		})
+		dbm.EXPECT().InsertChatAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionCreate).Returns(automation)
+	}))
+	s.Run("InsertChatAutomationEvent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		arg := database.InsertChatAutomationEventParams{
+			ID:           uuid.New(),
+			AutomationID: automation.ID,
+			ReceivedAt:   dbtime.Now(),
+			Payload:      json.RawMessage(`{}`),
+			Status:       database.ChatAutomationEventStatusFiltered,
+		}
+		event := testutil.Fake(s.T(), faker, database.ChatAutomationEvent{
+			ID:           arg.ID,
+			AutomationID: automation.ID,
+			Status:       arg.Status,
+		})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().InsertChatAutomationEvent(gomock.Any(), arg).Return(event, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(event)
+	}))
+	s.Run("InsertChatAutomationTrigger", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		arg := database.InsertChatAutomationTriggerParams{
+			ID:           uuid.New(),
+			AutomationID: automation.ID,
+			Type:         database.ChatAutomationTriggerTypeWebhook,
+			CreatedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+		}
+		trigger := testutil.Fake(s.T(), faker, database.ChatAutomationTrigger{
+			ID:           arg.ID,
+			AutomationID: automation.ID,
+			Type:         arg.Type,
+		})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().InsertChatAutomationTrigger(gomock.Any(), arg).Return(trigger, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(trigger)
+	}))
+	s.Run("PurgeOldChatAutomationEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.PurgeOldChatAutomationEventsParams{
+			Before:     dbtime.Now().Add(-7 * 24 * time.Hour),
+			LimitCount: 1000,
+		}
+		dbm.EXPECT().PurgeOldChatAutomationEvents(gomock.Any(), arg).Return(int64(5), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatAutomation.All(), policy.ActionDelete).Returns(int64(5))
+	}))
+	s.Run("UpdateChatAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		arg := database.UpdateChatAutomationParams{
+			ID:          automation.ID,
+			Name:        "updated-name",
+			Description: "updated description",
+			Status:      database.ChatAutomationStatusActive,
+			UpdatedAt:   dbtime.Now(),
+		}
+		updated := automation
+		updated.Name = arg.Name
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomation(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("UpdateChatAutomationTrigger", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		trigger := testutil.Fake(s.T(), faker, database.ChatAutomationTrigger{
+			AutomationID: automation.ID,
+			Type:         database.ChatAutomationTriggerTypeCron,
+		})
+		arg := database.UpdateChatAutomationTriggerParams{
+			ID:        trigger.ID,
+			UpdatedAt: dbtime.Now(),
+		}
+		updated := trigger
+		dbm.EXPECT().GetChatAutomationTriggerByID(gomock.Any(), trigger.ID).Return(trigger, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationTrigger(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("UpdateChatAutomationTriggerLastTriggeredAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		trigger := testutil.Fake(s.T(), faker, database.ChatAutomationTrigger{
+			AutomationID: automation.ID,
+			Type:         database.ChatAutomationTriggerTypeCron,
+		})
+		arg := database.UpdateChatAutomationTriggerLastTriggeredAtParams{
+			ID:              trigger.ID,
+			LastTriggeredAt: dbtime.Now(),
+		}
+		dbm.EXPECT().GetChatAutomationTriggerByID(gomock.Any(), trigger.ID).Return(trigger, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationTriggerLastTriggeredAt(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns()
+	}))
+	s.Run("UpdateChatAutomationTriggerWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{Status: database.ChatAutomationStatusActive})
+		trigger := testutil.Fake(s.T(), faker, database.ChatAutomationTrigger{
+			AutomationID: automation.ID,
+			Type:         database.ChatAutomationTriggerTypeWebhook,
+		})
+		arg := database.UpdateChatAutomationTriggerWebhookSecretParams{
+			ID:        trigger.ID,
+			UpdatedAt: dbtime.Now(),
+			WebhookSecret: sql.NullString{
+				String: "new-secret",
+				Valid:  true,
+			},
+		}
+		updated := trigger
+		dbm.EXPECT().GetChatAutomationTriggerByID(gomock.Any(), trigger.ID).Return(trigger, nil).AnyTimes()
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationTriggerWebhookSecret(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionUpdate).Returns(updated)
 	}))
 }
 
