@@ -1,11 +1,11 @@
 import { chromatic } from "testHelpers/chromatic";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
-import { expect, within } from "storybook/test";
 import { docs } from "#/utils/docs";
 import { LicenseBannerView } from "./LicenseBannerView";
 

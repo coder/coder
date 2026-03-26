@@ -1,9 +1,9 @@
 import { cva } from "class-variance-authority";
 import { TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
-import { cn } from "#/utils/cn";
 import { Expander } from "#/components/Expander/Expander";
 import { Link } from "#/components/Link/Link";
+import { cn } from "#/utils/cn";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.
