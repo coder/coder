@@ -2879,6 +2879,58 @@ func TestResolveChatModel(t *testing.T) {
 		waitForCapturedError(t, logs, "no usable provider config")
 	})
 
+	t.Run("AllProvidersNoAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+
+		providerA, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    "openai",
+			DisplayName: "OpenAI A",
+			APIKey:      "",
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+		providerB, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    "openai",
+			DisplayName: "OpenAI B",
+			APIKey:      "",
+			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+		model := newModelConfig(ctx, t, db, user)
+		attachProviderToModel(ctx, t, db, model.ID, providerA.ID, 0)
+		attachProviderToModel(ctx, t, db, model.ID, providerB.ID, 1)
+
+		logs := &captureSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logs)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.Logger = logger
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			Title:         "all-providers-no-api-key",
+			ModelConfigID: model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+
+		snapshot, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+		require.True(t, ok)
+		t.Cleanup(cancel)
+
+		waitForChatStatus(t, snapshot, events, codersdk.ChatStatusError)
+		chatResult := waitForChatError(ctx, t, db, chat.ID)
+		require.Contains(t, chatResult.LastError.String, "The chat request failed unexpectedly")
+		waitForCapturedError(t, logs, "no usable provider config")
+	})
+
 	t.Run("NoAttachments", func(t *testing.T) {
 		t.Parallel()
 

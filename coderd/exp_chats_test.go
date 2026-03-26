@@ -1518,6 +1518,31 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.EqualValues(t, 0, modelConfig.ProviderConfigs[0].Priority)
 	})
 
+	t.Run("DuplicateProviderConfigIDs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:          "openai",
+			Model:             "gpt-4o-mini-duplicate-provider-config-ids",
+			ContextLimit:      &contextLimit,
+			ProviderConfigIDs: []uuid.UUID{provider.ID, provider.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid provider config IDs.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "contains duplicate ID")
+	})
+
 	t.Run("CreateWithoutProviderConfigs_AutoAttaches", func(t *testing.T) {
 		t.Parallel()
 

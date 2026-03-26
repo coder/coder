@@ -4081,6 +4081,11 @@ func (p *Server) resolveChatModel(
 			chatprovider.CoderHeaders(chat),
 		)
 		if err != nil {
+			// Do not continue to the next attachment here. The selected
+			// model name and options come from the shared model config, so
+			// a selection-time ModelFromConfig failure would repeat for
+			// every attachment. We only skip attachments that are unusable
+			// because the provider is disabled or has no effective API key.
 			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf("create model: %w", err)
 		}
 		return model, dbConfig, keys, nil

@@ -6,6 +6,8 @@ CREATE TABLE chat_model_provider_configs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (model_config_id, provider_config_id),
+    -- Handlers replace attachment ordering with DELETE + INSERT, so keep
+    -- priorities unique per model instead of relying on partial updates.
     UNIQUE (model_config_id, priority)
 );
 
@@ -16,7 +18,7 @@ INSERT INTO chat_model_provider_configs (model_config_id, provider_config_id, pr
 SELECT
     cmc.id,
     cp.id,
-    0
+    ROW_NUMBER() OVER (PARTITION BY cmc.id ORDER BY cp.created_at) - 1
 FROM
     chat_model_configs cmc
 JOIN
