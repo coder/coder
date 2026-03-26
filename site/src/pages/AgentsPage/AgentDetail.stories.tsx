@@ -673,6 +673,92 @@ export const WithSubagentCards: Story = {
 	},
 };
 
+/** spawn_computer_use_agent tool renders with an "Open Desktop" button
+ *  that opens the right sidebar panel and switches to the Desktop tab. */
+export const WithComputerUseAgent: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Desktop automation task",
+					status: "running",
+				},
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:00:01.000Z",
+							role: "user",
+							content: [
+								{
+									type: "text",
+									text: "Can you check the browser for visual regressions?",
+								},
+							],
+						},
+						{
+							id: 2,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:00:02.000Z",
+							role: "assistant",
+							content: [
+								{
+									type: "text",
+									text: "I'll spawn a computer use agent to visually inspect the browser.",
+								},
+								{
+									type: "tool-call",
+									tool_call_id: "tool-desktop-1",
+									tool_name: "spawn_computer_use_agent",
+									args: {
+										title: "Visual regression check",
+										prompt:
+											"Open the browser and check for visual regressions on the dashboard page.",
+									},
+								},
+								{
+									type: "tool-result",
+									tool_call_id: "tool-desktop-1",
+									tool_name: "spawn_computer_use_agent",
+									result: {
+										chat_id: "desktop-child-1",
+										title: "Visual regression check",
+										status: "completed",
+										duration_ms: "12400",
+									},
+								},
+								{
+									type: "text",
+									text: "The desktop agent has finished its visual inspection. No regressions found. You can click **Open Desktop** above to view the desktop session.",
+								},
+							],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+				{ diffUrl: undefined },
+			),
+			// Enable the desktop feature so the Desktop tab appears in the sidebar.
+			{
+				key: ["chat-desktop-enabled"],
+				data: { enable_desktop: true },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The tool should show "Spawned ... Visual regression check".
+		await waitFor(() => {
+			expect(canvas.getByText(/Visual regression check/)).toBeInTheDocument();
+		});
+	},
+};
+
 /** Completed reasoning part renders inline. */
 export const WithReasoningInline: Story = {
 	parameters: {
@@ -1186,5 +1272,90 @@ export const FailedSendWithActiveStream: Story = {
 		expect(
 			canvas.getByText("I am helping you with the implementation"),
 		).toBeInTheDocument();
+	},
+};
+
+/** wait_agent for a computer-use subagent renders the VNC preview card
+ *  (SubagentTool with computer-use variant) instead of the plain SubagentTool card. */
+export const WithWaitAgentComputerUseVNC: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Wait agent computer use",
+					status: "running",
+				},
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:00:01.000Z",
+							role: "assistant",
+							content: [
+								{
+									type: "tool-call",
+									tool_call_id: "tool-spawn-desktop",
+									tool_name: "spawn_computer_use_agent",
+									args: {
+										title: "Visual check",
+										prompt: "Check the browser.",
+									},
+								},
+								{
+									type: "tool-result",
+									tool_call_id: "tool-spawn-desktop",
+									tool_name: "spawn_computer_use_agent",
+									result: {
+										chat_id: "desktop-child-1",
+										title: "Visual check",
+										status: "completed",
+									},
+								},
+							],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+				{ diffUrl: undefined },
+			),
+			{
+				key: ["chat-desktop-enabled"],
+				data: { enable_desktop: true },
+			},
+		],
+		// The wait_agent arrives via WebSocket so it renders in
+		// the streaming/running state (no tool-result yet).
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						chat_id: CHAT_ID,
+						message_part: {
+							part: {
+								type: "tool-call",
+								tool_call_id: "tool-wait-desktop",
+								tool_name: "wait_agent",
+								args_delta: '{"chat_id":"desktop-child-1"}',
+							},
+						},
+					}),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The wait_agent card should show "Waiting for" (running state)
+		// rendered via SubagentTool with VNC preview.
+		await waitFor(() => {
+			expect(canvas.getByText(/Waiting for/)).toBeInTheDocument();
+		});
 	},
 };

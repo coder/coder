@@ -45,6 +45,13 @@ describe("parseToolResultIsError", () => {
 				{ status: "completed" },
 			),
 		).toBe(false);
+		expect(
+			parseToolResultIsError(
+				"spawn_computer_use_agent",
+				{ error: "metadata" },
+				{ status: "completed" },
+			),
+		).toBe(false);
 	});
 });
 

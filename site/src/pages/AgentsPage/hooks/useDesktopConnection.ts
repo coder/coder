@@ -15,7 +15,7 @@ type DesktopConnectionStatus =
 	| "disconnected"
 	| "error";
 
-interface UseDesktopConnectionResult {
+export interface UseDesktopConnectionResult {
 	/** Current connection status. */
 	status: DesktopConnectionStatus;
 	/** Whether the connection has ever been established. */
