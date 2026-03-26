@@ -521,6 +521,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							<div className="min-w-0 flex-1 overflow-hidden text-left">
 								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 									<span
+										aria-busy={isRegeneratingThisChat}
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											isActive && "font-medium",
@@ -530,6 +531,11 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									>
 										{chat.title}
 									</span>
+									{isRegeneratingThisChat && (
+										<span className="sr-only" role="status">
+											Regenerating title…
+										</span>
+									)}
 								</div>
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
