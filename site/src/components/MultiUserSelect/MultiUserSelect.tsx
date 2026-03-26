@@ -23,6 +23,8 @@ import { keepPreviousData, useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { prepareQuery } from "utils/filters";
 
+const DEBOUNCE_MS = 750;
+
 type SelectedUser = ReducedUser | OrganizationMemberWithUserData;
 
 type CommonMultiSelectProps<T extends SelectedUser> = {
@@ -104,8 +106,6 @@ const InnerMultiSelect = <T extends SelectedUser>({
 	setFilter,
 	users,
 }: InnerAutocompleteProps<T>) => {
-	const DEBOUNCE_MS = 750;
-
 	const [inputValue, setInputValue] = useState("");
 	const { debounced, cancelDebounce } = useDebouncedFunction(
 		(nextFilter: string) => {
