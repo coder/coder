@@ -1382,7 +1382,7 @@ func (p *Server) RegenerateChatTitle(
 
 	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
-		if recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); recordErr != nil {
+		if _, recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage, ""); recordErr != nil {
 			return database.Chat{}, errors.Join(
 				xerrors.Errorf("generate manual title: %w", err),
 				xerrors.Errorf("record manual title usage: %w", recordErr),
@@ -1390,22 +1390,24 @@ func (p *Server) RegenerateChatTitle(
 		}
 		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
 	}
-	if recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); recordErr != nil {
+
+	newTitle := ""
+	if title != "" && title != chat.Title {
+		newTitle = title
+	}
+
+	updatedChat, recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage, newTitle)
+	if recordErr != nil {
+		if newTitle != "" {
+			return database.Chat{}, xerrors.Errorf("record manual title usage and update chat title: %w", recordErr)
+		}
 		p.logger.Warn(ctx, "failed to record manual title usage",
 			slog.F("chat_id", chat.ID),
 			slog.Error(recordErr),
 		)
 	}
-	if title == "" || title == chat.Title {
+	if newTitle == "" {
 		return chat, nil
-	}
-
-	updatedChat, err := p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-		ID:    chat.ID,
-		Title: title,
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("update chat title: %w", err)
 	}
 
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
@@ -1434,40 +1436,51 @@ func mergeManualTitleMessages(
 	return merged
 }
 
+func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsage {
+	var chatUsage codersdk.ChatMessageUsage
+	if usage.InputTokens != 0 {
+		chatUsage.InputTokens = ptr.Ref(usage.InputTokens)
+	}
+	if usage.OutputTokens != 0 {
+		chatUsage.OutputTokens = ptr.Ref(usage.OutputTokens)
+	}
+	if usage.ReasoningTokens != 0 {
+		chatUsage.ReasoningTokens = ptr.Ref(usage.ReasoningTokens)
+	}
+	if usage.CacheCreationTokens != 0 {
+		chatUsage.CacheCreationTokens = ptr.Ref(usage.CacheCreationTokens)
+	}
+	if usage.CacheReadTokens != 0 {
+		chatUsage.CacheReadTokens = ptr.Ref(usage.CacheReadTokens)
+	}
+	return chatUsage
+}
+
 func (p *Server) recordManualTitleUsage(
 	ctx context.Context,
 	chat database.Chat,
 	modelConfig database.ChatModelConfig,
 	usage fantasy.Usage,
-) error {
-	if usage == (fantasy.Usage{}) {
-		return nil
+	newTitle string,
+) (database.Chat, error) {
+	hasUsage := usage != (fantasy.Usage{})
+	if !hasUsage && newTitle == "" {
+		return chat, nil
 	}
 
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return xerrors.Errorf("parse model call config: %w", err)
+	var totalCostMicros *int64
+	if hasUsage {
+		callConfig := codersdk.ChatModelCallConfig{}
+		if len(modelConfig.Options) > 0 {
+			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+				return database.Chat{}, xerrors.Errorf("parse model call config: %w", err)
+			}
 		}
+		totalCostMicros = chatcost.CalculateTotalCostMicros(
+			fantasyUsageToChatMessageUsage(usage),
+			callConfig.Cost,
+		)
 	}
-
-	usageForCost := codersdk.ChatMessageUsage{}
-	if usage.InputTokens != 0 {
-		usageForCost.InputTokens = ptr.Ref(usage.InputTokens)
-	}
-	if usage.OutputTokens != 0 {
-		usageForCost.OutputTokens = ptr.Ref(usage.OutputTokens)
-	}
-	if usage.ReasoningTokens != 0 {
-		usageForCost.ReasoningTokens = ptr.Ref(usage.ReasoningTokens)
-	}
-	if usage.CacheCreationTokens != 0 {
-		usageForCost.CacheCreationTokens = ptr.Ref(usage.CacheCreationTokens)
-	}
-	if usage.CacheReadTokens != 0 {
-		usageForCost.CacheReadTokens = ptr.Ref(usage.CacheReadTokens)
-	}
-	totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
 
 	// Use a valid empty JSON array for the content column.
 	// MarshalParts returns a null NullRawMessage for empty
@@ -1475,50 +1488,67 @@ func (p *Server) recordManualTitleUsage(
 	// rejects as invalid JSON.
 	content := "[]"
 
-	return p.db.InTx(func(tx database.Store) error {
+	updatedChat := chat
+	err := p.db.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title usage: %w", err)
 		}
-		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{uuid.Nil},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			Content:             []string{content},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
-			InputTokens:         []int64{usage.InputTokens},
-			OutputTokens:        []int64{usage.OutputTokens},
-			TotalTokens:         []int64{usage.TotalTokens},
-			ReasoningTokens:     []int64{usage.ReasoningTokens},
-			CacheCreationTokens: []int64{usage.CacheCreationTokens},
-			CacheReadTokens:     []int64{usage.CacheReadTokens},
-			ContextLimit:        []int64{modelConfig.ContextLimit},
-			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
-			RuntimeMs:           []int64{0},
-			ProviderResponseID:  []string{""},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert manual title usage message: %w", err)
+		updatedChat = lockedChat
+		if hasUsage {
+			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:              chat.ID,
+				CreatedBy:           []uuid.UUID{uuid.Nil},
+				ModelConfigID:       []uuid.UUID{modelConfig.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+				Content:             []string{content},
+				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
+				InputTokens:         []int64{usage.InputTokens},
+				OutputTokens:        []int64{usage.OutputTokens},
+				TotalTokens:         []int64{usage.TotalTokens},
+				ReasoningTokens:     []int64{usage.ReasoningTokens},
+				CacheCreationTokens: []int64{usage.CacheCreationTokens},
+				CacheReadTokens:     []int64{usage.CacheReadTokens},
+				ContextLimit:        []int64{modelConfig.ContextLimit},
+				Compressed:          []bool{false},
+				TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
+				RuntimeMs:           []int64{0},
+				ProviderResponseID:  []string{""},
+			})
+			if err != nil {
+				return xerrors.Errorf("insert manual title usage message: %w", err)
+			}
+			if len(messages) != 1 {
+				return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
+			}
+			if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+				return xerrors.Errorf("soft delete manual title usage message: %w", err)
+			}
+			if lockedChat.LastModelConfigID != modelConfig.ID {
+				if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+					ID:                chat.ID,
+					LastModelConfigID: lockedChat.LastModelConfigID,
+				}); err != nil {
+					return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
+				}
+			}
 		}
-		if len(messages) != 1 {
-			return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
-		}
-		if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
-			return xerrors.Errorf("soft delete manual title usage message: %w", err)
-		}
-		if lockedChat.LastModelConfigID != modelConfig.ID {
-			if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-				ID:                chat.ID,
-				LastModelConfigID: lockedChat.LastModelConfigID,
-			}); err != nil {
-				return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
+		if newTitle != "" {
+			updatedChat, err = tx.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+				ID:    chat.ID,
+				Title: newTitle,
+			})
+			if err != nil {
+				return xerrors.Errorf("update chat title: %w", err)
 			}
 		}
 		return nil
 	}, nil)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return updatedChat, nil
 }
 
 // RefreshStatus loads the latest chat status and publishes it to stream subscribers.
@@ -3663,24 +3693,7 @@ func (p *Server) runChat(
 		}
 
 		hasUsage := step.Usage != (fantasy.Usage{})
-		var usageForCost codersdk.ChatMessageUsage
-		if hasUsage {
-			if step.Usage.InputTokens != 0 {
-				usageForCost.InputTokens = ptr.Ref(step.Usage.InputTokens)
-			}
-			if step.Usage.OutputTokens != 0 {
-				usageForCost.OutputTokens = ptr.Ref(step.Usage.OutputTokens)
-			}
-			if step.Usage.ReasoningTokens != 0 {
-				usageForCost.ReasoningTokens = ptr.Ref(step.Usage.ReasoningTokens)
-			}
-			if step.Usage.CacheCreationTokens != 0 {
-				usageForCost.CacheCreationTokens = ptr.Ref(step.Usage.CacheCreationTokens)
-			}
-			if step.Usage.CacheReadTokens != 0 {
-				usageForCost.CacheReadTokens = ptr.Ref(step.Usage.CacheReadTokens)
-			}
-		}
+		usageForCost := fantasyUsageToChatMessageUsage(step.Usage)
 		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
 
 		var insertedMessages []database.ChatMessage
