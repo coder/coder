@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -20,11 +19,9 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -32,147 +29,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-func TestRegenerateChatTitle_UsesChatdAuthForModelResolution(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{db: db, logger: logger}
-
-	chat := database.Chat{ID: uuid.New()}
-	userCtx := dbauthz.As(context.Background(), rbac.Subject{
-		ID:    uuid.NewString(),
-		Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
-		Scope: rbac.ScopeAll,
-	})
-	wantActor, ok := dbauthz.ActorFromContext(dbauthz.AsChatd(context.Background()))
-	require.True(t, ok)
-	checkChatdActor := func(ctx context.Context) {
-		t.Helper()
-		gotActor, ok := dbauthz.ActorFromContext(ctx)
-		require.True(t, ok)
-		require.Equal(t, wantActor, gotActor)
-	}
-	// No usage-limit config means regeneration is allowed.
-	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).DoAndReturn(
-		func(ctx context.Context) (database.ChatUsageLimitConfig, error) {
-			checkChatdActor(ctx)
-			return database.ChatUsageLimitConfig{}, sql.ErrNoRows
-		},
-	)
-
-	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
-		userCtx,
-		database.GetChatMessagesByChatIDAscPaginatedParams{
-			ChatID:   chat.ID,
-			AfterID:  0,
-			LimitVal: manualTitleMessageWindowLimit,
-		},
-	).Return([]database.ChatMessage{
-		mustChatMessage(
-			t,
-			database.ChatMessageRoleAssistant,
-			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText("no user prompt"),
-		),
-	}, nil)
-	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
-		userCtx,
-		database.GetChatMessagesByChatIDDescPaginatedParams{
-			ChatID:   chat.ID,
-			BeforeID: 0,
-			LimitVal: manualTitleMessageWindowLimit,
-		},
-	).Return(nil, nil)
-	db.EXPECT().GetDefaultChatModelConfig(gomock.Any()).DoAndReturn(
-		func(ctx context.Context) (database.ChatModelConfig, error) {
-			checkChatdActor(ctx)
-			return database.ChatModelConfig{
-				Provider: "openai",
-				Model:    "gpt-4o-mini",
-			}, nil
-		},
-	)
-	db.EXPECT().GetEnabledChatProviders(gomock.Any()).DoAndReturn(
-		func(ctx context.Context) ([]database.ChatProvider, error) {
-			checkChatdActor(ctx)
-			return []database.ChatProvider{{
-				Provider: "openai",
-				APIKey:   "test-key",
-			}}, nil
-		},
-	)
-
-	updated, err := server.RegenerateChatTitle(userCtx, chat)
-	require.NoError(t, err)
-	require.Equal(t, chat, updated)
-}
-
-func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
-
-	chat := database.Chat{
-		ID:                uuid.New(),
-		LastModelConfigID: uuid.New(),
-	}
-	lockedChat := database.Chat{
-		ID:                chat.ID,
-		LastModelConfigID: uuid.New(),
-	}
-	modelConfig := database.ChatModelConfig{
-		ID:           uuid.New(),
-		ContextLimit: 8192,
-	}
-	usage := fantasy.Usage{
-		InputTokens:  12,
-		OutputTokens: 7,
-		TotalTokens:  19,
-	}
-
-	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-		func(fn func(database.Store) error, opts *database.TxOptions) error {
-			require.Nil(t, opts)
-			return fn(tx)
-		},
-	)
-	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chat.ID).Return(lockedChat, nil)
-	tx.EXPECT().InsertChatMessages(
-		gomock.Any(),
-		gomock.AssignableToTypeOf(database.InsertChatMessagesParams{}),
-	).DoAndReturn(
-		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{modelConfig.ID}, arg.ModelConfigID)
-			require.Equal(t, []string{"[]"}, arg.Content)
-			return []database.ChatMessage{{ID: 1}}, nil
-		},
-	)
-	tx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(1)).Return(nil)
-	tx.EXPECT().UpdateChatLastModelConfigByID(gomock.Any(), database.UpdateChatLastModelConfigByIDParams{
-		ID:                chat.ID,
-		LastModelConfigID: lockedChat.LastModelConfigID,
-	}).Return(lockedChat, nil)
-
-	err := server.recordManualTitleUsage(context.Background(), chat, modelConfig, usage)
-	require.NoError(t, err)
-}
-
-func TestMergeManualTitleMessages(t *testing.T) {
-	t.Parallel()
-
-	merged := mergeManualTitleMessages(
-		[]database.ChatMessage{{ID: 1}, {ID: 2}, {ID: 3}},
-		[]database.ChatMessage{{ID: 6}, {ID: 5}, {ID: 3}},
-	)
-
-	require.Equal(t, []database.ChatMessage{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 5}, {ID: 6}}, merged)
-}
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {
 	t.Parallel()

@@ -6329,7 +6329,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
 `
 
 type UpdateChatLastModelConfigByIDParams struct {
@@ -6359,6 +6359,8 @@ func (q *sqlQuerier) UpdateChatLastModelConfigByID(ctx context.Context, arg Upda
 		&i.Mode,
 		pq.Array(&i.MCPServerIDs),
 		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
 	)
 	return i, err
 }
