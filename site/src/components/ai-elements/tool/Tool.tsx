@@ -102,6 +102,8 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 		rec ? asString(rec.provider_type).trim() : "",
 	);
 
+	const backgroundProcessId = rec ? asString(rec.background_process_id) : "";
+
 	if (authRequired && authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
@@ -118,6 +120,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			output={output}
 			status={status}
 			isError={isError}
+			isBackgrounded={backgroundProcessId.length > 0}
 		/>
 	);
 };

@@ -3,6 +3,7 @@ import {
 	ChevronDownIcon,
 	CircleAlertIcon,
 	ExternalLinkIcon,
+	LayersIcon,
 	LoaderIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
@@ -12,6 +13,11 @@ import { cn } from "utils/cn";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import {
 	BORDER_BG_STYLE,
 	COLLAPSED_OUTPUT_HEIGHT,
@@ -28,7 +34,8 @@ export const ExecuteTool: React.FC<{
 	output: string;
 	status: ToolStatus;
 	isError: boolean;
-}> = ({ command, output, status }) => {
+	isBackgrounded?: boolean;
+}> = ({ command, output, status, isBackgrounded = false }) => {
 	const [expanded, setExpanded] = useState(false);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
@@ -59,6 +66,14 @@ export const ExecuteTool: React.FC<{
 				<div className="flex shrink-0 items-center gap-1">
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
+					{isBackgrounded && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<LayersIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>Running in background</TooltipContent>
+						</Tooltip>
 					)}
 					<span className="opacity-0 transition-opacity group-hover/exec:opacity-100">
 						<CopyButton text={command} label="Copy command" />

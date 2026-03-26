@@ -51,6 +51,21 @@ export const ExecuteSuccess: Story = {
 	},
 };
 
+export const ExecuteBackgrounded: Story = {
+	args: {
+		result: {
+			output: "",
+			background_process_id: "proc-abc-123",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("$ git fetch origin")).toBeTruthy();
+		// The layers icon should be present as the background indicator.
+		expect(canvasElement.querySelector(".lucide-layers")).not.toBeNull();
+	},
+};
+
 export const ExecuteAuthRequired: Story = {
 	args: {
 		result: {
