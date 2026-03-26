@@ -266,7 +266,7 @@ func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
 	require.Equal(t, int32(1), store.userPromptCalls.Load())
 }
 
-func TestConfigCache_UserPrompt_ShorterTTL(t *testing.T) {
+func TestConfigCache_UserPrompt_ExpiredEntryRefetches(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -278,15 +278,16 @@ func TestConfigCache_UserPrompt_ShorterTTL(t *testing.T) {
 		return fmt.Sprintf("prompt-%d", call), nil
 	}
 	cache := newChatConfigCache(ctx, store, clock)
+	cache.userPrompts.Set(userID, "stale", 0)
 
 	first, err := cache.UserPrompt(ctx, userID)
 	require.NoError(t, err)
-	clock.Advance(chatConfigUserPromptTTL + time.Second).MustWait(ctx)
 	second, err := cache.UserPrompt(ctx, userID)
 	require.NoError(t, err)
 
-	require.NotEqual(t, first, second)
-	require.Equal(t, int32(2), store.userPromptCalls.Load())
+	require.Equal(t, "prompt-1", first)
+	require.Equal(t, first, second)
+	require.Equal(t, int32(1), store.userPromptCalls.Load())
 }
 
 func TestConfigCache_InvalidateUserPrompt(t *testing.T) {
@@ -366,7 +367,7 @@ func TestConfigCache_InvalidateUserPrompt_BlocksStaleInFlightPrompt(t *testing.T
 	first := <-firstResult
 	require.NoError(t, first.err)
 	require.Equal(t, stalePrompt, first.prompt)
-	_, ok := cache.userPrompts[userID]
+	_, _, ok := cache.userPrompts.Get(userID)
 	require.False(t, ok)
 
 	close(releaseSecond)

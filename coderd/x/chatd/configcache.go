@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ammario/tlru"
 	"github.com/google/uuid"
 	"tailscale.com/util/singleflight"
 
@@ -20,6 +21,9 @@ const (
 	chatConfigProvidersTTL   = 10 * time.Second
 	chatConfigModelConfigTTL = 10 * time.Second
 	chatConfigUserPromptTTL  = 5 * time.Second
+	// Bound user-prompt cache cardinality so one-shot users do not
+	// accumulate forever in long-lived chatd processes.
+	chatConfigUserPromptEntryLimit = 64 * 1024
 )
 
 type cachedProviders struct {
@@ -29,11 +33,6 @@ type cachedProviders struct {
 
 type cachedModelConfig struct {
 	config    database.ChatModelConfig
-	expiresAt time.Time
-}
-
-type cachedUserPrompt struct {
-	prompt    string
 	expiresAt time.Time
 }
 
@@ -82,7 +81,7 @@ type chatConfigCache struct {
 
 	// User custom prompts (keyed by user ID).
 	userPromptEpoch   uint64
-	userPrompts       map[uuid.UUID]cachedUserPrompt
+	userPrompts       *tlru.Cache[uuid.UUID, string]
 	userPromptFetches singleflight.Group[string, string]
 }
 
@@ -93,7 +92,10 @@ func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clo
 		ctx:                    ctx,
 		modelConfigs:           make(map[uuid.UUID]cachedModelConfig),
 		modelConfigGenerations: make(map[uuid.UUID]uint64),
-		userPrompts:            make(map[uuid.UUID]cachedUserPrompt),
+		userPrompts: tlru.New[uuid.UUID](
+			tlru.ConstantCost[string],
+			chatConfigUserPromptEntryLimit,
+		),
 	}
 }
 
@@ -376,23 +378,11 @@ func (c *chatConfigCache) UserPrompt(ctx context.Context, userID uuid.UUID) (str
 }
 
 func (c *chatConfigCache) cachedUserPrompt(userID uuid.UUID) (string, bool) {
-	c.mu.RLock()
-	entry, ok := c.userPrompts[userID]
-	c.mu.RUnlock()
+	prompt, _, ok := c.userPrompts.Get(userID)
 	if !ok {
 		return "", false
 	}
-	if c.clock.Now().Before(entry.expiresAt) {
-		return entry.prompt, true
-	}
-
-	c.mu.Lock()
-	if current, ok := c.userPrompts[userID]; ok && !c.clock.Now().Before(current.expiresAt) {
-		delete(c.userPrompts, userID)
-	}
-	c.mu.Unlock()
-
-	return "", false
+	return prompt, true
 }
 
 func (c *chatConfigCache) currentUserPromptEpoch() uint64 {
@@ -410,10 +400,7 @@ func (c *chatConfigCache) storeUserPrompt(epoch uint64, userID uuid.UUID, prompt
 		return
 	}
 
-	c.userPrompts[userID] = cachedUserPrompt{
-		prompt:    prompt,
-		expiresAt: c.clock.Now().Add(chatConfigUserPromptTTL),
-	}
+	c.userPrompts.Set(userID, prompt, chatConfigUserPromptTTL)
 }
 
 func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
@@ -428,7 +415,7 @@ func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
 
 func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 	c.mu.Lock()
-	delete(c.userPrompts, userID)
+	c.userPrompts.Delete(userID)
 	c.userPromptEpoch++
 	c.mu.Unlock()
 }
