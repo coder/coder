@@ -194,6 +194,52 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 	return merged
 }
 
+// ProviderKeysFromConfig creates a ProviderAPIKeys for a single
+// provider-config attachment row. It deep-copies the fallback keys
+// so environment-preset credentials are preserved for other providers,
+// then overlays the DB-stored API key and base URL for the selected
+// provider when they are non-empty.
+func ProviderKeysFromConfig(
+	fallback ProviderAPIKeys,
+	provider string,
+	dbAPIKey string,
+	dbBaseURL string,
+) ProviderAPIKeys {
+	result := ProviderAPIKeys{
+		OpenAI:            fallback.OpenAI,
+		Anthropic:         fallback.Anthropic,
+		ByProvider:        make(map[string]string),
+		BaseURLByProvider: make(map[string]string),
+	}
+	for name, apiKey := range fallback.ByProvider {
+		result.ByProvider[name] = apiKey
+	}
+	for name, baseURL := range fallback.BaseURLByProvider {
+		result.BaseURLByProvider[name] = baseURL
+	}
+
+	normalizedProvider := NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return result
+	}
+
+	if key := strings.TrimSpace(dbAPIKey); key != "" {
+		result.ByProvider[normalizedProvider] = key
+		switch normalizedProvider {
+		case fantasyopenai.Name:
+			result.OpenAI = key
+		case fantasyanthropic.Name:
+			result.Anthropic = key
+		}
+	}
+
+	if baseURL := strings.TrimSpace(dbBaseURL); baseURL != "" {
+		result.BaseURLByProvider[normalizedProvider] = baseURL
+	}
+
+	return result
+}
+
 type ModelCatalog struct {
 	keys ProviderAPIKeys
 }

@@ -4028,55 +4028,47 @@ func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
 ) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
-	var (
-		dbConfig  database.ChatModelConfig
-		providers []database.ChatProvider
-	)
-
-	var g errgroup.Group
-	g.Go(func() error {
-		var err error
-		dbConfig, err = p.resolveModelConfig(ctx, chat)
-		if err != nil {
-			return xerrors.Errorf("resolve model config: %w", err)
-		}
-		return nil
-	})
-	g.Go(func() error {
-		var err error
-		providers, err = p.configCache.EnabledProviders(ctx)
-		if err != nil {
-			return xerrors.Errorf("get enabled chat providers: %w", err)
-		}
-		return nil
-	})
-	if err := g.Wait(); err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
-	}
-	dbProviders := make(
-		[]chatprovider.ConfiguredProvider, 0, len(providers),
-	)
-	for _, provider := range providers {
-		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
-		})
-	}
-	keys := chatprovider.MergeProviderAPIKeys(
-		p.providerAPIKeys, dbProviders,
-	)
-
-	model, err := chatprovider.ModelFromConfig(
-		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
-		chatprovider.CoderHeaders(chat),
-	)
+	dbConfig, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-			"create model: %w", err,
-		)
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf("resolve model config: %w", err)
 	}
-	return model, dbConfig, keys, nil
+
+	attachments, err := p.db.GetModelProviderConfigs(ctx, dbConfig.ID)
+	if err != nil {
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf("get model provider configs: %w", err)
+	}
+	if len(attachments) == 0 {
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.New("no provider configs attached")
+	}
+
+	for _, attachment := range attachments {
+		if !attachment.ProviderEnabled {
+			continue
+		}
+
+		trimmedDBKey := strings.TrimSpace(attachment.ProviderApiKey)
+		fallbackKey := p.providerAPIKeys.APIKey(attachment.Provider)
+		if trimmedDBKey == "" && fallbackKey == "" {
+			continue
+		}
+
+		keys := chatprovider.ProviderKeysFromConfig(
+			p.providerAPIKeys,
+			attachment.Provider,
+			attachment.ProviderApiKey,
+			attachment.ProviderBaseUrl,
+		)
+		model, err := chatprovider.ModelFromConfig(
+			dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
+			chatprovider.CoderHeaders(chat),
+		)
+		if err != nil {
+			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf("create model: %w", err)
+		}
+		return model, dbConfig, keys, nil
+	}
+
+	return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.New("no usable provider config")
 }
 
 // resolveModelConfig looks up the chat's model config by its
