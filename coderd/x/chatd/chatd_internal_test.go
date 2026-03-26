@@ -122,6 +122,10 @@ func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
 		ID:                uuid.New(),
 		LastModelConfigID: uuid.New(),
 	}
+	lockedChat := database.Chat{
+		ID:                chat.ID,
+		LastModelConfigID: uuid.New(),
+	}
 	modelConfig := database.ChatModelConfig{
 		ID:           uuid.New(),
 		ContextLimit: 8192,
@@ -138,6 +142,7 @@ func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
 			return fn(tx)
 		},
 	)
+	tx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chat.ID).Return(lockedChat, nil)
 	tx.EXPECT().InsertChatMessages(
 		gomock.Any(),
 		gomock.AssignableToTypeOf(database.InsertChatMessagesParams{}),
@@ -151,8 +156,8 @@ func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
 	tx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(1)).Return(nil)
 	tx.EXPECT().UpdateChatLastModelConfigByID(gomock.Any(), database.UpdateChatLastModelConfigByIDParams{
 		ID:                chat.ID,
-		LastModelConfigID: chat.LastModelConfigID,
-	}).Return(chat, nil)
+		LastModelConfigID: lockedChat.LastModelConfigID,
+	}).Return(lockedChat, nil)
 
 	err := server.recordManualTitleUsage(context.Background(), chat, modelConfig, usage)
 	require.NoError(t, err)

@@ -1469,6 +1469,10 @@ func (p *Server) recordManualTitleUsage(
 	content := "[]"
 
 	return p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for manual title usage: %w", err)
+		}
 		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 			ChatID:              chat.ID,
 			CreatedBy:           []uuid.UUID{uuid.Nil},
@@ -1498,10 +1502,10 @@ func (p *Server) recordManualTitleUsage(
 		if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
 			return xerrors.Errorf("soft delete manual title usage message: %w", err)
 		}
-		if chat.LastModelConfigID != modelConfig.ID {
+		if lockedChat.LastModelConfigID != modelConfig.ID {
 			if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
 				ID:                chat.ID,
-				LastModelConfigID: chat.LastModelConfigID,
+				LastModelConfigID: lockedChat.LastModelConfigID,
 			}); err != nil {
 				return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
 			}
