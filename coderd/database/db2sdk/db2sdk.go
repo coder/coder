@@ -1328,30 +1328,54 @@ func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridge
 }
 
 // aggregateTokenMetadata sums all numeric values from the metadata
-// JSONB across the given token usage rows by key.
+// JSONB across the given token usage rows by key. Nested objects are
+// flattened using dot-notation (e.g. {"cache": {"read_tokens": 10}}
+// becomes "cache.read_tokens"). Non-numeric leaves (strings,
+// booleans, arrays, nulls) are silently skipped.
 func aggregateTokenMetadata(tokens []database.AIBridgeTokenUsage) map[string]any {
 	sums := make(map[string]int64)
 	for _, tu := range tokens {
 		if !tu.Metadata.Valid || len(tu.Metadata.RawMessage) == 0 {
 			continue
 		}
-		var m map[string]json.Number
+		var m map[string]json.RawMessage
 		if err := json.Unmarshal(tu.Metadata.RawMessage, &m); err != nil {
 			continue
 		}
-		for k, v := range m {
-			n, err := v.Int64()
-			if err != nil {
-				continue
-			}
-			sums[k] += n
-		}
+		flattenAndSum(sums, "", m)
 	}
 	result := make(map[string]any, len(sums))
 	for k, v := range sums {
 		result[k] = v
 	}
 	return result
+}
+
+// flattenAndSum recursively walks a JSON object and sums all numeric
+// leaf values into sums, using dot-separated keys for nested objects.
+func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMessage) {
+	for k, raw := range m {
+		key := k
+		if prefix != "" {
+			key = prefix + "." + k
+		}
+
+		// Try as a number first.
+		var n json.Number
+		if err := json.Unmarshal(raw, &n); err == nil {
+			if v, err := n.Int64(); err == nil {
+				sums[key] += v
+			}
+			continue
+		}
+
+		// Try as a nested object.
+		var nested map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &nested); err == nil {
+			flattenAndSum(sums, key, nested)
+		}
+		// Arrays, strings, booleans, nulls are skipped.
+	}
 }
 
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
