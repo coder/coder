@@ -6,6 +6,7 @@ import { pageTitle } from "utils/page";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import { DesktopPanelContext } from "#/components/ai-elements/tool/DesktopPanelContext";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -187,6 +188,20 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 
+	// State for programmatically switching the sidebar tab (e.g. when
+	// the user clicks the inline desktop preview card).
+	const [sidebarTabId, setSidebarTabId] = useState<string | null>(null);
+
+	const handleOpenDesktop = () => {
+		onSetShowSidebarPanel(true);
+		setSidebarTabId("desktop");
+	};
+
+	const desktopPanelCtx = {
+		desktopChatId,
+		onOpenDesktop: desktopChatId ? handleOpenDesktop : undefined,
+	};
+
 	// Compute local diff stats from git watcher unified diffs.
 
 	const titleElement = (
@@ -198,155 +213,161 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	const shouldShowSidebar = showSidebarPanel;
 
 	return (
-		<div
-			className={cn(
-				"relative flex min-h-0 min-w-0 flex-1",
-				shouldShowSidebar && !visualExpanded && "flex-row",
-			)}
-		>
-			{titleElement}
+		<DesktopPanelContext value={desktopPanelCtx}>
 			<div
 				className={cn(
-					"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden",
-					visualExpanded && "hidden",
-					shouldShowSidebar && "max-md:hidden",
+					"relative flex min-h-0 min-w-0 flex-1",
+					shouldShowSidebar && !visualExpanded && "flex-row",
 				)}
 			>
-				<div className="relative z-10 shrink-0 overflow-visible">
-					<AgentDetailTopBar
-						chatTitle={chatTitle}
-						parentChat={parentChat}
-						panel={{
-							showSidebarPanel,
-							onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
-						}}
-						workspace={{
-							canOpenEditors,
-							canOpenWorkspace,
-							onOpenInEditor: handleOpenInEditor,
-							onViewWorkspace: handleViewWorkspace,
-							onOpenTerminal: handleOpenTerminal,
-							sshCommand,
-						}}
-						onArchiveAgent={handleArchiveAgentAction}
-						onUnarchiveAgent={handleUnarchiveAgentAction}
-						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
-						hasWorkspace={hasWorkspace}
-						isArchived={isArchived}
-						diffStatusData={diffStatusData}
-						isSidebarCollapsed={isSidebarCollapsed}
-						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					/>
-					{isArchived && (
-						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-							<ArchiveIcon className="h-4 w-4 shrink-0" />
-							This agent has been archived and is read-only.
-						</div>
+				{titleElement}
+				<div
+					className={cn(
+						"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden",
+						visualExpanded && "hidden",
+						shouldShowSidebar && "max-md:hidden",
 					)}
-					<div
-						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
-						style={{
-							maskImage:
-								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-							WebkitMaskImage:
-								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-						}}
-					/>
-				</div>
-				<ScrollAnchoredContainer
-					scrollContainerRef={scrollContainerRef}
-					isFetchingMoreMessages={isFetchingMoreMessages}
-					hasMoreMessages={hasMoreMessages}
-					onFetchMoreMessages={onFetchMoreMessages}
 				>
-					<div className="px-4">
-						<AgentDetailTimeline
-							chatID={agentId}
-							store={store}
-							persistedError={persistedError}
-							onEditUserMessage={editing.handleEditUserMessage}
-							editingMessageId={editing.editingMessageId}
-							savingMessageId={pendingEditMessageId}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
+					<div className="relative z-10 shrink-0 overflow-visible">
+						<AgentDetailTopBar
+							chatTitle={chatTitle}
+							parentChat={parentChat}
+							panel={{
+								showSidebarPanel,
+								onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
+							}}
+							workspace={{
+								canOpenEditors,
+								canOpenWorkspace,
+								onOpenInEditor: handleOpenInEditor,
+								onViewWorkspace: handleViewWorkspace,
+								onOpenTerminal: handleOpenTerminal,
+								sshCommand,
+							}}
+							onArchiveAgent={handleArchiveAgentAction}
+							onUnarchiveAgent={handleUnarchiveAgentAction}
+							onArchiveAndDeleteWorkspace={
+								handleArchiveAndDeleteWorkspaceAction
+							}
+							hasWorkspace={hasWorkspace}
+							isArchived={isArchived}
+							diffStatusData={diffStatusData}
+							isSidebarCollapsed={isSidebarCollapsed}
+							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+						/>
+						{isArchived && (
+							<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+								<ArchiveIcon className="h-4 w-4 shrink-0" />
+								This agent has been archived and is read-only.
+							</div>
+						)}
+						<div
+							aria-hidden
+							className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+							style={{
+								maskImage:
+									"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+								WebkitMaskImage:
+									"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+							}}
 						/>
 					</div>
-				</ScrollAnchoredContainer>
-				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-					<AgentDetailInput
-						store={store}
-						compressionThreshold={compressionThreshold}
-						onSend={editing.handleSendFromInput}
-						onDeleteQueuedMessage={handleDeleteQueuedMessage}
-						onPromoteQueuedMessage={handlePromoteQueuedMessage}
-						onInterrupt={handleInterrupt}
-						isInputDisabled={isInputDisabled}
-						isSendPending={isSubmissionPending}
-						isInterruptPending={isInterruptPending}
-						hasModelOptions={hasModelOptions}
-						selectedModel={effectiveSelectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						isModelCatalogLoading={isModelCatalogLoading}
-						inputRef={editing.chatInputRef}
-						initialValue={editing.editorInitialValue}
-						onContentChange={editing.handleContentChange}
-						editingQueuedMessageID={editing.editingQueuedMessageID}
-						onStartQueueEdit={editing.handleStartQueueEdit}
-						onCancelQueueEdit={editing.handleCancelQueueEdit}
-						isEditingHistoryMessage={editing.editingMessageId !== null}
-						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-						editingFileBlocks={editing.editingFileBlocks}
-						mcpServers={mcpServers}
-						selectedMCPServerIds={selectedMCPServerIds}
-						onMCPSelectionChange={onMCPSelectionChange}
-						onMCPAuthComplete={onMCPAuthComplete}
-					/>
+					<ScrollAnchoredContainer
+						scrollContainerRef={scrollContainerRef}
+						isFetchingMoreMessages={isFetchingMoreMessages}
+						hasMoreMessages={hasMoreMessages}
+						onFetchMoreMessages={onFetchMoreMessages}
+					>
+						<div className="px-4">
+							<AgentDetailTimeline
+								chatID={agentId}
+								store={store}
+								persistedError={persistedError}
+								onEditUserMessage={editing.handleEditUserMessage}
+								editingMessageId={editing.editingMessageId}
+								savingMessageId={pendingEditMessageId}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+							/>
+						</div>
+					</ScrollAnchoredContainer>
+					<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+						<AgentDetailInput
+							store={store}
+							compressionThreshold={compressionThreshold}
+							onSend={editing.handleSendFromInput}
+							onDeleteQueuedMessage={handleDeleteQueuedMessage}
+							onPromoteQueuedMessage={handlePromoteQueuedMessage}
+							onInterrupt={handleInterrupt}
+							isInputDisabled={isInputDisabled}
+							isSendPending={isSubmissionPending}
+							isInterruptPending={isInterruptPending}
+							hasModelOptions={hasModelOptions}
+							selectedModel={effectiveSelectedModel}
+							onModelChange={setSelectedModel}
+							modelOptions={modelOptions}
+							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							isModelCatalogLoading={isModelCatalogLoading}
+							inputRef={editing.chatInputRef}
+							initialValue={editing.editorInitialValue}
+							onContentChange={editing.handleContentChange}
+							editingQueuedMessageID={editing.editingQueuedMessageID}
+							onStartQueueEdit={editing.handleStartQueueEdit}
+							onCancelQueueEdit={editing.handleCancelQueueEdit}
+							isEditingHistoryMessage={editing.editingMessageId !== null}
+							onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+							editingFileBlocks={editing.editingFileBlocks}
+							mcpServers={mcpServers}
+							selectedMCPServerIds={selectedMCPServerIds}
+							onMCPSelectionChange={onMCPSelectionChange}
+							onMCPAuthComplete={onMCPAuthComplete}
+						/>
+					</div>
 				</div>
-			</div>
-			<RightPanel
-				isOpen={shouldShowSidebar}
-				isExpanded={isRightPanelExpanded}
-				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => onSetShowSidebarPanel(false)}
-				onVisualExpandedChange={setDragVisualExpanded}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			>
-				<SidebarTabView
-					tabs={[
-						{
-							id: "git",
-							label: "Git",
-							content: (
-								<GitPanel
-									prTab={
-										prNumber && agentId
-											? { prNumber, chatId: agentId }
-											: undefined
-									}
-									repositories={gitWatcher.repositories}
-									onRefresh={gitWatcher.refresh}
-									onCommit={handleCommit}
-									isExpanded={visualExpanded}
-									remoteDiffStats={diffStatusData}
-									chatInputRef={editing.chatInputRef}
-								/>
-							),
-						},
-					]}
-					onClose={() => onSetShowSidebarPanel(false)}
-					isExpanded={visualExpanded}
+				<RightPanel
+					isOpen={shouldShowSidebar}
+					isExpanded={isRightPanelExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+					onClose={() => onSetShowSidebarPanel(false)}
+					onVisualExpandedChange={setDragVisualExpanded}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					chatTitle={chatTitle}
-					desktopChatId={desktopChatId}
-				/>
-			</RightPanel>
-		</div>
+				>
+					<SidebarTabView
+						activeTabId={sidebarTabId}
+						onActiveTabChange={setSidebarTabId}
+						tabs={[
+							{
+								id: "git",
+								label: "Git",
+								content: (
+									<GitPanel
+										prTab={
+											prNumber && agentId
+												? { prNumber, chatId: agentId }
+												: undefined
+										}
+										repositories={gitWatcher.repositories}
+										onRefresh={gitWatcher.refresh}
+										onCommit={handleCommit}
+										isExpanded={visualExpanded}
+										remoteDiffStats={diffStatusData}
+										chatInputRef={editing.chatInputRef}
+									/>
+								),
+							},
+						]}
+						onClose={() => onSetShowSidebarPanel(false)}
+						isExpanded={visualExpanded}
+						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+						chatTitle={chatTitle}
+						desktopChatId={desktopChatId}
+					/>
+				</RightPanel>
+			</div>
+		</DesktopPanelContext>
 	);
 };
 

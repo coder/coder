@@ -249,6 +249,8 @@ const BlockList: FC<{
 	keyPrefix: string;
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
@@ -260,6 +262,8 @@ const BlockList: FC<{
 	keyPrefix,
 	isStreaming = false,
 	subagentTitles,
+	computerUseSubagentIds,
+	showDesktopPreviews,
 	subagentStatusOverrides,
 	mcpServers,
 	onImageClick,
@@ -353,6 +357,8 @@ const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								subagentTitles={subagentTitles}
+								computerUseSubagentIds={computerUseSubagentIds}
+								showDesktopPreviews={showDesktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
 								}
@@ -391,6 +397,8 @@ const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					subagentTitles={subagentTitles}
+					computerUseSubagentIds={computerUseSubagentIds}
+					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
 					}
@@ -401,7 +409,6 @@ const BlockList: FC<{
 		</>
 	);
 };
-
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
@@ -420,6 +427,8 @@ const ChatMessageItem = memo<{
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
 }>(
 	({
 		message,
@@ -432,6 +441,8 @@ const ChatMessageItem = memo<{
 		urlTransform,
 		mcpServers,
 		subagentTitles,
+		computerUseSubagentIds,
+		showDesktopPreviews,
 	}) => {
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
@@ -622,6 +633,8 @@ const ChatMessageItem = memo<{
 										tools={parsed.tools}
 										keyPrefix={String(message.id)}
 										subagentTitles={subagentTitles}
+										computerUseSubagentIds={computerUseSubagentIds}
+										showDesktopPreviews={showDesktopPreviews}
 										onImageClick={setPreviewImage}
 										onTextFileClick={setPreviewText}
 										urlTransform={urlTransform}
@@ -663,6 +676,7 @@ export const StreamingOutput: FC<{
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
 	startingResetKey?: string;
@@ -672,6 +686,7 @@ export const StreamingOutput: FC<{
 	streamState,
 	streamTools,
 	subagentTitles,
+	computerUseSubagentIds,
 	subagentStatusOverrides,
 	liveStatus,
 	startingResetKey,
@@ -705,6 +720,7 @@ export const StreamingOutput: FC<{
 								keyPrefix="stream"
 								isStreaming={isStreaming}
 								subagentTitles={subagentTitles}
+								computerUseSubagentIds={computerUseSubagentIds}
 								subagentStatusOverrides={subagentStatusOverrides}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
@@ -1019,6 +1035,8 @@ interface ConversationTimelineProps {
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
@@ -1028,6 +1046,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 	mcpServers,
+	computerUseSubagentIds,
+	showDesktopPreviews,
 }) => {
 	const subagentTitles = buildSubagentTitles(parsedMessages);
 
@@ -1074,6 +1094,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 						mcpServers={mcpServers}
 						subagentTitles={subagentTitles}
+						computerUseSubagentIds={computerUseSubagentIds}
+						showDesktopPreviews={showDesktopPreviews}
 					/>
 				),
 			)}

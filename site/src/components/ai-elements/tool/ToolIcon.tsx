@@ -83,6 +83,7 @@ export const ToolIcon: React.FC<{
 		case "propose_plan":
 			return <ClipboardListIcon className={base} />;
 		case "computer":
+		case "spawn_computer_use_agent":
 			return <MonitorIcon className={base} />;
 		default:
 			return <WrenchIcon className={base} />;
