@@ -2660,13 +2660,6 @@ func (q *querier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (databa
 	return q.db.GetChatProviderByID(ctx, id)
 }
 
-func (q *querier) GetChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatProvider{}, err
-	}
-	return q.db.GetChatProviderByProvider(ctx, provider)
-}
-
 func (q *querier) GetChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
@@ -2854,6 +2847,13 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.Ch
 		return nil, err
 	}
 	return q.db.GetEnabledChatModelConfigs(ctx)
+}
+
+func (q *querier) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatProvider{}, err
+	}
+	return q.db.GetEnabledChatProviderByProvider(ctx, provider)
 }
 
 func (q *querier) GetEnabledChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
