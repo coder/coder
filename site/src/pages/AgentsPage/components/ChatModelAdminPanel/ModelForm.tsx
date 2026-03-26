@@ -3,6 +3,7 @@ import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	ChevronUpIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
@@ -85,6 +86,11 @@ interface ModelFormProps {
 	onDeleteModel?: (modelConfigId: string) => Promise<void>;
 }
 
+const getTruncatedProviderConfigId = (providerConfigId: string): string =>
+	providerConfigId.length > 12
+		? `${providerConfigId.slice(0, 8)}…${providerConfigId.slice(-4)}`
+		: providerConfigId;
+
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,
 	providerStates,
@@ -128,7 +134,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 		: Boolean(resolvedProviderOption);
 
 	const form = useFormik<ModelFormValues>({
-		initialValues: buildInitialModelFormValues(editingModel),
+		initialValues: buildInitialModelFormValues({
+			editingModel,
+			availableProviderConfigs: selectedProviderState?.providerConfigs,
+		}),
 		validationSchema,
 		validateOnMount: true,
 		validateOnBlur: false,
@@ -153,6 +162,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const builtModelConfig = buildResult.modelConfig;
 
 			if (isEditing && editingModel) {
+				const existingIds = [...(editingModel.provider_configs ?? [])]
+					.sort((a, b) => a.priority - b.priority)
+					.map((attachment) => attachment.provider_config_id);
+				const idsChanged =
+					values.providerConfigIds.length !== existingIds.length ||
+					values.providerConfigIds.some(
+						(id, index) => id !== existingIds[index],
+					);
+
 				const req: TypesGen.UpdateChatModelConfigRequest = {
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
@@ -171,6 +189,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 						}),
 					...(values.isDefault !== editingModel.is_default && {
 						is_default: values.isDefault,
+					}),
+					...(idsChanged && {
+						provider_config_ids: values.providerConfigIds,
 					}),
 					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
@@ -194,6 +215,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 					}),
 					...(values.isDefault && {
 						is_default: true,
+					}),
+					...(values.providerConfigIds.length > 0 && {
+						provider_config_ids: values.providerConfigIds,
 					}),
 					...(builtModelConfig && {
 						model_config: builtModelConfig,
@@ -287,6 +311,113 @@ export const ModelForm: FC<ModelFormProps> = ({
 		</div>
 	);
 
+	const resolveProviderConfigMeta = (providerConfigId: string) => {
+		const attachedProviderConfig = editingModel?.provider_configs?.find(
+			(attachment) => attachment.provider_config_id === providerConfigId,
+		);
+		if (attachedProviderConfig) {
+			return {
+				id: providerConfigId,
+				displayName:
+					attachedProviderConfig.display_name ||
+					getTruncatedProviderConfigId(providerConfigId),
+				enabled: attachedProviderConfig.enabled,
+				hasApiKey: attachedProviderConfig.has_api_key,
+			};
+		}
+
+		const availableProviderConfig = selectedProviderState?.providerConfigs.find(
+			(config) => config.id === providerConfigId,
+		);
+		if (availableProviderConfig) {
+			return {
+				id: providerConfigId,
+				displayName:
+					availableProviderConfig.display_name ||
+					getTruncatedProviderConfigId(providerConfigId),
+				enabled: availableProviderConfig.enabled,
+				hasApiKey: availableProviderConfig.has_api_key,
+			};
+		}
+
+		return {
+			id: providerConfigId,
+			displayName: getTruncatedProviderConfigId(providerConfigId),
+			enabled: true,
+			hasApiKey: true,
+		};
+	};
+
+	const providerConfigPriorityList =
+		form.values.providerConfigIds.length > 0 ? (
+			<div className="grid gap-1.5">
+				<Label className="text-[13px] font-medium text-content-primary">
+					Provider Configurations
+				</Label>
+				<p className="text-xs text-content-secondary">
+					Order determines failover priority. The first active configuration is
+					used by default.
+				</p>
+				<div className="rounded-md border border-solid border-border">
+					{form.values.providerConfigIds.map((providerConfigId, index) => {
+						const meta = resolveProviderConfigMeta(providerConfigId);
+						const isFirst = index === 0;
+						const isLast = index === form.values.providerConfigIds.length - 1;
+
+						return (
+							<div
+								key={meta.id}
+								className={cn(
+									"flex items-center gap-2 px-3 py-2 text-sm",
+									!isLast && "border-b border-solid border-border",
+								)}
+							>
+								<span className="flex-1 truncate text-content-primary">
+									{meta.displayName}
+								</span>
+								{!meta.enabled && (
+									<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
+										Disabled
+									</span>
+								)}
+								{!meta.hasApiKey && (
+									<span className="rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-warning">
+										No API key
+									</span>
+								)}
+								<button
+									type="button"
+									disabled={isFirst || isSaving}
+									aria-label={`Move ${meta.displayName} up`}
+									onClick={() => {
+										const ids = [...form.values.providerConfigIds];
+										[ids[index - 1], ids[index]] = [ids[index], ids[index - 1]];
+										form.setFieldValue("providerConfigIds", ids);
+									}}
+									className="inline-flex h-6 w-6 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									<ChevronUpIcon className="h-4 w-4" />
+								</button>
+								<button
+									type="button"
+									disabled={isLast || isSaving}
+									aria-label={`Move ${meta.displayName} down`}
+									onClick={() => {
+										const ids = [...form.values.providerConfigIds];
+										[ids[index], ids[index + 1]] = [ids[index + 1], ids[index]];
+										form.setFieldValue("providerConfigIds", ids);
+									}}
+									className="inline-flex h-6 w-6 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									<ChevronDownIcon className="h-4 w-4" />
+								</button>
+							</div>
+						);
+					})}
+				</div>
+			</div>
+		) : null;
+
 	// No provider selected or configs unavailable.
 	if (!selectedProviderState || modelConfigsUnavailable) {
 		return (
@@ -379,6 +510,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 			{/* Form body */}
 			<form className="flex flex-1 flex-col" onSubmit={form.handleSubmit}>
 				<div className="space-y-5">
+					{providerSelect}
+					{providerConfigPriorityList}
 					{/* Model ID + Context Limit */}
 					<div className="grid items-start gap-5 sm:grid-cols-2">
 						<div className="grid gap-1.5">
