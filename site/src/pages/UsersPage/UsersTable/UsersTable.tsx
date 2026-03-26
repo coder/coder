@@ -16,6 +16,7 @@ const Language = {
 	usernameLabel: "User",
 	rolesLabel: "Roles",
 	groupsLabel: "Groups",
+	aiAddonLabel: "AI add-on",
 	statusLabel: "Status",
 	lastSeenLabel: "Last Seen",
 	loginTypeLabel: "Login Type",
@@ -28,6 +29,7 @@ interface UsersTableProps {
 	isUpdatingUserRoles?: boolean;
 	canEditUsers: boolean;
 	canViewActivity?: boolean;
+	showAISeatColumn?: boolean;
 	isLoading: boolean;
 	onSuspendUser: (user: TypesGen.User) => void;
 	onActivateUser: (user: TypesGen.User) => void;
@@ -58,6 +60,7 @@ export const UsersTable: FC<UsersTableProps> = ({
 	isUpdatingUserRoles,
 	canEditUsers,
 	canViewActivity,
+	showAISeatColumn,
 	isLoading,
 	isNonInitialPage,
 	actorID,
@@ -82,6 +85,14 @@ export const UsersTable: FC<UsersTableProps> = ({
 							<TableColumnHelpTooltip variant="groups" />
 						</Stack>
 					</TableHead>
+					{showAISeatColumn && (
+						<TableHead className="w-1/6">
+							<Stack direction="row" spacing={1} alignItems="center">
+								<span>{Language.aiAddonLabel}</span>
+								<TableColumnHelpTooltip variant="ai_addon" />
+							</Stack>
+						</TableHead>
+					)}
 					<TableHead className="w-1/6">{Language.loginTypeLabel}</TableHead>
 					<TableHead className="w-1/6">{Language.statusLabel}</TableHead>
 					{canEditUsers && <TableHead className="w-auto" />}
@@ -96,6 +107,7 @@ export const UsersTable: FC<UsersTableProps> = ({
 					isLoading={isLoading}
 					canEditUsers={canEditUsers}
 					canViewActivity={canViewActivity}
+					showAISeatColumn={showAISeatColumn}
 					isUpdatingUserRoles={isUpdatingUserRoles}
 					onActivateUser={onActivateUser}
 					onDeleteUser={onDeleteUser}

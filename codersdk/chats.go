@@ -49,6 +49,8 @@ type Chat struct {
 	ID                uuid.UUID         `json:"id" format:"uuid"`
 	OwnerID           uuid.UUID         `json:"owner_id" format:"uuid"`
 	WorkspaceID       *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID        `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID        `json:"agent_id,omitempty" format:"uuid"`
 	ParentChatID      *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID        *uuid.UUID        `json:"root_chat_id,omitempty" format:"uuid"`
 	LastModelConfigID uuid.UUID         `json:"last_model_config_id" format:"uuid"`
@@ -386,10 +388,19 @@ type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 }
 
-// ChatSystemPrompt is the request and response body for the chat
-// system prompt configuration endpoint.
-type ChatSystemPrompt struct {
-	SystemPrompt string `json:"system_prompt"`
+// ChatSystemPromptResponse is the response body for the chat system prompt
+// configuration endpoint.
+type ChatSystemPromptResponse struct {
+	SystemPrompt               string `json:"system_prompt"`
+	IncludeDefaultSystemPrompt bool   `json:"include_default_system_prompt"`
+	DefaultSystemPrompt        string `json:"default_system_prompt"`
+}
+
+// UpdateChatSystemPromptRequest is the request body for updating the chat
+// system prompt configuration.
+type UpdateChatSystemPromptRequest struct {
+	SystemPrompt               string `json:"system_prompt"`
+	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
 }
 
 // UserChatCustomPrompt is the request and response body for the
@@ -1405,21 +1416,21 @@ func (c *ExperimentalClient) GetChatCostUsers(ctx context.Context, opts ChatCost
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
-func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, error) {
+func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
 	if err != nil {
-		return ChatSystemPrompt{}, err
+		return ChatSystemPromptResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatSystemPrompt{}, ReadBodyAsError(res)
+		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
 	}
-	var resp ChatSystemPrompt
+	var resp ChatSystemPromptResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
-func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPrompt) error {
+func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
 	if err != nil {
 		return err
@@ -2024,6 +2035,26 @@ func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (Cha
 	}
 	var resp ChatUsageLimitStatus
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatsByWorkspace returns a mapping of workspace ID to the latest
+// non-archived chat ID for each requested workspace. Workspaces with
+// no chats are omitted from the response.
+func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	ids := make([]string, 0, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		ids = append(ids, id.String())
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/by-workspace?workspace_ids=%s", strings.Join(ids, ",")), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var result map[uuid.UUID]uuid.UUID
+	return result, json.NewDecoder(res.Body).Decode(&result)
 }
 
 func formatChatStreamResponseError(response Response) string {

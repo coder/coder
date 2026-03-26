@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 )
 
 // ClassifiedError is the normalized, user-facing view of an
@@ -14,6 +15,10 @@ type ClassifiedError struct {
 	Provider   string
 	Retryable  bool
 	StatusCode int
+
+	// RetryAfter is a normalized minimum retry delay derived from
+	// provider response metadata when available.
+	RetryAfter time.Duration
 }
 
 // WithProvider returns a copy of the classification using an explicit
@@ -71,13 +76,17 @@ func Classify(err error) ClassifiedError {
 		return normalizeClassification(wrapped.classified)
 	}
 
+	structured := extractProviderErrorDetails(err)
 	message := strings.TrimSpace(err.Error())
-	if message == "" {
+	if message == "" && structured.statusCode == 0 && structured.retryAfter <= 0 {
 		return ClassifiedError{}
 	}
 
 	lower := strings.ToLower(message)
-	statusCode := extractStatusCode(lower)
+	statusCode := structured.statusCode
+	if statusCode == 0 {
+		statusCode = extractStatusCode(lower)
+	}
 	provider := detectProvider(lower)
 	canceled := errors.Is(err, context.Canceled) || strings.Contains(lower, "context canceled")
 	interrupted := containsAny(lower, interruptedPatterns...)
@@ -87,6 +96,7 @@ func Classify(err error) ClassifiedError {
 			Kind:       KindGeneric,
 			Provider:   provider,
 			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
 		})
 	}
 
@@ -157,6 +167,7 @@ func Classify(err error) ClassifiedError {
 			Provider:   provider,
 			Retryable:  rule.retryable,
 			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
 		})
 	}
 
@@ -164,6 +175,7 @@ func Classify(err error) ClassifiedError {
 		Kind:       KindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,
+		RetryAfter: structured.retryAfter,
 	})
 }
 
@@ -171,14 +183,20 @@ func normalizeClassification(classified ClassifiedError) ClassifiedError {
 	classified.Message = strings.TrimSpace(classified.Message)
 	classified.Kind = strings.TrimSpace(classified.Kind)
 	classified.Provider = normalizeProvider(classified.Provider)
+	if classified.RetryAfter < 0 {
+		classified.RetryAfter = 0
+	}
 	if classified.Kind == "" && classified.Message == "" {
-		return ClassifiedError{}
+		if classified.StatusCode == 0 && classified.RetryAfter <= 0 {
+			return ClassifiedError{}
+		}
+		classified.Kind = KindGeneric
 	}
 	if classified.Kind == "" {
 		classified.Kind = KindGeneric
 	}
 	if classified.Message == "" {
-		classified.Message = userFacingMessage(classified)
+		classified.Message = terminalMessage(classified)
 	}
 	return classified
 }

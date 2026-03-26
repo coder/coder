@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -253,5 +254,66 @@ func TestRetry_OnRetryNilDoesNotPanic(t *testing.T) {
 	}, nil)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestRetry_UsesRetryAfterAsDelayFloor(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		headers        map[string]string
+		wantDelay      time.Duration
+		wantRetryAfter time.Duration
+	}{
+		{
+			name:           "LongerThanBaseDelay",
+			headers:        map[string]string{"Retry-After": "3"},
+			wantDelay:      3 * time.Second,
+			wantRetryAfter: 3 * time.Second,
+		},
+		{
+			name:           "ShorterThanBaseDelay",
+			headers:        map[string]string{"Retry-After-Ms": "500"},
+			wantDelay:      chatretry.Delay(0),
+			wantRetryAfter: 500 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			calls := 0
+			var gotClassified chatretry.ClassifiedError
+			var gotDelay time.Duration
+			err := chatretry.Retry(ctx, func(_ context.Context) error {
+				calls++
+				return &fantasy.ProviderError{
+					Message:         "upstream failed",
+					StatusCode:      429,
+					ResponseHeaders: tt.headers,
+				}
+			}, func(
+				_ int,
+				_ error,
+				classified chatretry.ClassifiedError,
+				delay time.Duration,
+			) {
+				gotClassified = classified
+				gotDelay = delay
+				cancel()
+			})
+
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, 1, calls)
+			require.True(t, gotClassified.Retryable)
+			require.Equal(t, 429, gotClassified.StatusCode)
+			require.Equal(t, tt.wantRetryAfter, gotClassified.RetryAfter)
+			require.Equal(t, tt.wantDelay, gotDelay)
+		})
 	}
 }

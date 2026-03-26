@@ -81,13 +81,9 @@ rates, and usage patterns to inform decisions about AI strategy.
 Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are
 generally available as part of the AI Governance Add-On.
 
-If you've been experimenting with these features in earlier releases, you'll see
-a notification banner in your deployment in v2.30. This banner is a reminder
-that these features have moved out of beta and are now included with the AI
-Governance Add-On.
-
-In v2.30, this notification is informational only. A future Coder release will
-require the add-on to continue using AI Bridge and Agent Boundaries.
+The AI Governance Add-On is required to use AI Bridge and Agent Boundaries.
+If your deployment does not have the add-on, you'll see a notification banner
+reminding you to enable it.
 
 To learn more about enabling the AI Governance Add-On, pricing, or trial
 options, reach out to your
@@ -154,3 +150,24 @@ entitlement limits.
 
 <small>Agent Workspace Build usage showing current consumption against
 entitlement limits in the Licenses page.</small>
+
+## Identifying AI seat consumers
+
+When the AI Governance add-on is licensed, the **Users** table and
+**Organization Members** table display an **AI add-on** column that shows
+whether each user is consuming an AI seat:
+
+- A green check icon indicates the user is actively consuming an AI seat.
+- A gray X icon indicates the user is not consuming an AI seat.
+
+A user consumes an AI seat when they use AI features such as AI Bridge or
+Tasks. The column helps administrators identify which users contribute to
+the organization's AI seat count, making it easier to manage seat
+allocations and stay within license limits.
+
+The **AI add-on** column only appears when the deployment has an active
+`ai_governance_user_limit` entitlement. If the entitlement is not present
+or the license has expired, the column is hidden.
+
+> **Tip:** Hover over the **AI add-on** column header for a tooltip
+> describing what the column represents.

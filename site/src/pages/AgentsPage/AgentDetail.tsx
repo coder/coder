@@ -247,7 +247,7 @@ const getPersistedDetailError = ({
 	chatRecord: TypesGen.Chat | undefined;
 	cachedError: ChatDetailError | undefined;
 }): ChatDetailError | undefined => {
-	if (cachedError?.kind === "usage-limit") {
+	if (cachedError?.kind === "usage_limit") {
 		return cachedError;
 	}
 	if (chatStatus === "error") {
@@ -595,7 +595,7 @@ const AgentDetail: FC = () => {
 			isUsageLimitData(error.response.data)
 		) {
 			const reason: ChatDetailError = {
-				kind: "usage-limit",
+				kind: "usage_limit",
 				message: formatUsageLimitMessage(error.response.data),
 			};
 			store.setStreamError(reason);

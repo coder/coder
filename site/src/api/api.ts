@@ -3025,6 +3025,15 @@ export type CreateTaskFeedbackRequest = {
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
+	getChatsByWorkspace = async (
+		workspaceIds: readonly string[],
+	): Promise<Record<string, string>> => {
+		const res = await this.axios.get("/api/experimental/chats/by-workspace", {
+			params: { workspace_ids: workspaceIds.join(",") },
+		});
+		return res.data;
+	};
+
 	uploadChatFile = async (
 		file: File,
 		organizationId: string,
@@ -3180,15 +3189,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getChatSystemPrompt = async (): Promise<TypesGen.ChatSystemPrompt> => {
-		const response = await this.axios.get<TypesGen.ChatSystemPrompt>(
-			"/api/experimental/chats/config/system-prompt",
-		);
-		return response.data;
-	};
+	getChatSystemPrompt =
+		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
+			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
+				"/api/experimental/chats/config/system-prompt",
+			);
+			return response.data;
+		};
 
 	updateChatSystemPrompt = async (
-		req: TypesGen.ChatSystemPrompt,
+		req: TypesGen.UpdateChatSystemPromptRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};

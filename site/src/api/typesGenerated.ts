@@ -1089,6 +1089,8 @@ export interface Chat {
 	readonly id: string;
 	readonly owner_id: string;
 	readonly workspace_id?: string;
+	readonly build_id?: string;
+	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	readonly last_model_config_id: string;
@@ -1899,11 +1901,13 @@ export interface ChatStreamStatus {
 
 // From codersdk/chats.go
 /**
- * ChatSystemPrompt is the request and response body for the chat
- * system prompt configuration endpoint.
+ * ChatSystemPromptResponse is the response body for the chat system prompt
+ * configuration endpoint.
  */
-export interface ChatSystemPrompt {
+export interface ChatSystemPromptResponse {
 	readonly system_prompt: string;
+	readonly include_default_system_prompt: boolean;
+	readonly default_system_prompt: string;
 }
 
 // From codersdk/chats.go
@@ -4674,6 +4678,11 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly user_updated_at: string;
 	readonly is_service_account?: boolean;
 	readonly global_roles: readonly SlimRole[];
+	/**
+	 * HasAISeat intentionally omits omitempty so the API always includes the
+	 * field, even when false.
+	 */
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/users.go
@@ -7024,6 +7033,16 @@ export interface UpdateChatRequest {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatSystemPromptRequest is the request body for updating the chat
+ * system prompt configuration.
+ */
+export interface UpdateChatSystemPromptRequest {
+	readonly system_prompt: string;
+	readonly include_default_system_prompt?: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatUsageLimitGroupOverrideRequest is kept as a compatibility alias.
  */
 export interface UpdateChatUsageLimitGroupOverrideRequest {
@@ -7450,6 +7469,11 @@ export interface UsageStatsConfig {
 export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
 	readonly roles: readonly SlimRole[];
+	/**
+	 * HasAISeat intentionally omits omitempty so the API always includes the
+	 * field, even when false.
+	 */
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/insights.go

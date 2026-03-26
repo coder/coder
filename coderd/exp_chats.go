@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -110,6 +111,28 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
+func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
+	payload, err := json.Marshal(pubsub.ChatConfigEvent{
+		Kind:     kind,
+		EntityID: entityID,
+	})
+	if err != nil {
+		logger.Error(context.Background(), "failed to marshal chat config event",
+			slog.F("kind", kind),
+			slog.F("entity_id", entityID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := ps.Publish(pubsub.ChatConfigEventChannel, payload); err != nil {
+		logger.Error(context.Background(), "failed to publish chat config event",
+			slog.F("kind", kind),
+			slog.F("entity_id", entityID),
+			slog.Error(err),
+		)
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -171,6 +194,88 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// EXPERIMENTAL: chatsByWorkspace returns a mapping of workspace ID to
+// the latest non-archived chat ID for each requested workspace.
+// The query returns all matching chats and RBAC post-filters them;
+// the handler then picks the latest per workspace in Go. This avoids
+// the DISTINCT ON + post-filter bug where the sole candidate is
+// silently dropped when the caller can't read it.
+//
+// TODO:
+//  1. move aggregation to a SQL view with proper in-query authz so we
+//     can return a single row per workspace without this two-pass approach.
+//  2. Restore the below router annotation and un-skip docs gen
+//     <at>Router /experimental/chats/by-workspace [post]
+//
+// @Summary Get latest chats by workspace IDs
+// @ID get-latest-chats-by-workspace-ids
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Success 200
+// @x-apidocgen {"skip": true}
+func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	idsParam := r.URL.Query().Get("workspace_ids")
+	if idsParam == "" {
+		httpapi.Write(ctx, rw, http.StatusOK, map[uuid.UUID]uuid.UUID{})
+		return
+	}
+
+	raw := strings.Split(idsParam, ",")
+
+	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
+	// site/src/components/PaginationWidget/utils.ts.
+	// If the page size changes, this limit should too.
+	const maxWorkspaceIDs = 25
+	if len(raw) > maxWorkspaceIDs {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Too many workspace IDs, maximum is %d.", maxWorkspaceIDs),
+		})
+		return
+	}
+
+	workspaceIDs := make([]uuid.UUID, 0, len(raw))
+	for _, s := range raw {
+		id, err := uuid.Parse(strings.TrimSpace(s))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid workspace ID %q: %s", s, err),
+			})
+			return
+		}
+		workspaceIDs = append(workspaceIDs, id)
+	}
+
+	chats, err := api.Database.GetChatsByWorkspaceIDs(ctx, workspaceIDs)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chats by workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// The SQL orders by (workspace_id, updated_at DESC), so the first
+	// chat seen per workspace after RBAC filtering is the latest
+	// readable one.
+	result := make(map[uuid.UUID]uuid.UUID, len(chats))
+	for _, chat := range chats {
+		if chat.WorkspaceID.Valid {
+			if _, exists := result[chat.WorkspaceID.UUID]; !exists {
+				result[chat.WorkspaceID.UUID] = chat.ID
+			}
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2680,25 +2785,35 @@ func detectChatFileType(data []byte) string {
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	prompt, err := api.Database.GetChatSystemPrompt(ctx)
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	config, err := api.Database.GetChatSystemPromptConfig(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching chat system prompt.",
+			Message: "Internal error fetching chat system prompt configuration.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPrompt{
-		SystemPrompt: prompt,
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
+		SystemPrompt:               config.ChatSystemPrompt,
+		IncludeDefaultSystemPrompt: config.IncludeDefaultSystemPrompt,
+		DefaultSystemPrompt:        chatd.DefaultSystemPrompt,
 	})
 }
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-	var req codersdk.ChatSystemPrompt
+	var req codersdk.UpdateChatSystemPromptRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -2712,13 +2827,23 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err := api.Database.UpsertChatSystemPrompt(ctx, sanitizedPrompt)
-	if httpapi.Is404Error(err) { // also catches authz error
-		httpapi.ResourceNotFound(rw)
-		return
-	} else if err != nil {
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
+			return err
+		}
+		// Only update the include-default flag when the caller explicitly
+		// provides it. Omitting the field preserves whatever is currently
+		// stored (or the schema-level default for new deployments),
+		// avoiding a backward-compatibility regression for older clients
+		// that only send system_prompt.
+		if req.IncludeDefaultSystemPrompt != nil {
+			return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
+		}
+		return nil
+	}, nil)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating chat system prompt.",
+			Message: "Internal error updating chat system prompt configuration.",
 			Detail:  err.Error(),
 		})
 		return
@@ -3052,6 +3177,8 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventUserPrompt, apiKey.UserID)
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: updatedConfig.Value,
 	})
@@ -3222,21 +3349,32 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 }
 
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
-	custom, err := api.Database.GetChatSystemPrompt(ctx)
+	config, err := api.Database.GetChatSystemPromptConfig(ctx)
 	if err != nil {
-		// Log but don't fail chat creation — fall back to the
-		// built-in default so the user isn't blocked.
-		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
+		// We intentionally fail open here. When the prompt configuration
+		// cannot be read, returning the built-in default keeps the chat
+		// grounded instead of sending no system guidance at all.
+		api.Logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}
-	sanitized := chatd.SanitizePromptText(custom)
-	if sanitized == "" && strings.TrimSpace(custom) != "" {
-		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, using default")
+
+	sanitizedCustom := chatd.SanitizePromptText(config.ChatSystemPrompt)
+	if sanitizedCustom == "" && strings.TrimSpace(config.ChatSystemPrompt) != "" {
+		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
 	}
-	if sanitized != "" {
-		return sanitized
+
+	var parts []string
+	if config.IncludeDefaultSystemPrompt {
+		parts = append(parts, chatd.DefaultSystemPrompt)
 	}
-	return chatd.DefaultSystemPrompt
+	if sanitizedCustom != "" {
+		parts = append(parts, sanitizedCustom)
+	}
+	result := strings.Join(parts, "\n\n")
+	if result == "" {
+		api.Logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
+	}
+	return result
 }
 
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
@@ -3600,6 +3738,12 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	if c.BuildID.Valid {
+		chat.BuildID = &c.BuildID.UUID
+	}
+	if c.AgentID.Valid {
+		chat.AgentID = &c.AgentID.UUID
+	}
 	if diffStatus != nil {
 		convertedDiffStatus := db2sdk.ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
@@ -3880,6 +4024,8 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+
 	httpapi.Write(
 		ctx,
 		rw,
@@ -3966,6 +4112,8 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+
 	httpapi.Write(
 		ctx,
 		rw,
@@ -4019,6 +4167,8 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -4199,6 +4349,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
+
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
 }
 
@@ -4370,6 +4522,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
 }
 
@@ -4409,6 +4563,8 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, modelConfigID)
 
 	rw.WriteHeader(http.StatusNoContent)
 }

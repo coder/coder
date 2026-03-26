@@ -180,6 +180,8 @@ LIMIT
 INSERT INTO chats (
     owner_id,
     workspace_id,
+    build_id,
+    agent_id,
     parent_chat_id,
     root_chat_id,
     last_model_config_id,
@@ -190,6 +192,8 @@ INSERT INTO chats (
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
+    sqlc.narg('build_id')::uuid,
+    sqlc.narg('agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
@@ -305,16 +309,23 @@ WHERE
 RETURNING
     *;
 
--- name: UpdateChatWorkspace :one
-UPDATE
-    chats
-SET
+-- name: UpdateChatWorkspaceBinding :one
+UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
+    build_id = sqlc.narg('build_id')::uuid,
+    agent_id = sqlc.narg('agent_id')::uuid,
+    updated_at = NOW()
+WHERE id = @id::uuid
+RETURNING *;
+
+-- name: UpdateChatBuildAgentBinding :one
+UPDATE chats SET
+    build_id = sqlc.narg('build_id')::uuid,
+    agent_id = sqlc.narg('agent_id')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *;
 
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
@@ -877,6 +888,13 @@ FROM groups g
 JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = @user_id::uuid
   AND g.chat_spend_limit_micros IS NOT NULL;
+
+-- name: GetChatsByWorkspaceIDs :many
+SELECT *
+FROM chats
+WHERE archived = false
+  AND workspace_id = ANY(@ids::uuid[])
+ORDER BY workspace_id, updated_at DESC;
 
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:

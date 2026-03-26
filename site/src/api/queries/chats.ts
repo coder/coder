@@ -7,6 +7,17 @@ export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
+const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+
+export const chatsByWorkspace = (workspaceIds: string[]) => {
+	const sorted = workspaceIds.toSorted();
+	return {
+		queryKey: [...chatsKey, "by-workspace", sorted],
+		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
+		enabled: workspaceIds.length > 0,
+	};
+};
+
 /**
  * Updates a single chat inside every page of the infinite chats query
  * cache. Use this instead of setQueryData(chatsKey, ...) which writes
@@ -240,6 +251,9 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -300,6 +314,9 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -308,6 +325,9 @@ export const createChat = (queryClient: QueryClient) => ({
 		API.experimental.createChat(req),
 	onSuccess: () => {
 		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -399,7 +419,8 @@ export const chatSystemPrompt = () => ({
 });
 
 export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatSystemPrompt,
+	mutationFn: (req: TypesGen.UpdateChatSystemPromptRequest) =>
+		API.experimental.updateChatSystemPrompt(req),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,

@@ -1,5 +1,6 @@
 import type { ReconnectSchedule } from "utils/reconnectingWebSocket";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatProviderFailureKind } from "../../utils/usageLimitMessage";
 
 export type ParsedToolCall = {
 	id: string;
@@ -66,7 +67,7 @@ export type ReconnectState = ReconnectSchedule;
 export type RetryState = {
 	attempt: number;
 	error: string;
-	kind: string;
+	kind: ChatProviderFailureKind | (string & {});
 	provider?: string;
 	delayMs?: number;
 	retryingAt?: string;
