@@ -642,10 +642,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 };
 
-const SortableChatTreeNode: FC<{ chat: Chat; justDropped: boolean }> = ({
-	chat,
-	justDropped,
-}) => {
+const SortableChatTreeNode: FC<{
+	chat: Chat;
+	recentDragRef: React.RefObject<boolean>;
+}> = ({ chat, recentDragRef }) => {
 	const {
 		attributes,
 		listeners,
@@ -653,7 +653,14 @@ const SortableChatTreeNode: FC<{ chat: Chat; justDropped: boolean }> = ({
 		transform,
 		transition,
 		isDragging,
-	} = useSortable({ id: chat.id });
+	} = useSortable({
+		id: chat.id,
+		// Skip the derived-transform measurement after drop.
+		// localPinOrder already repositions items in the DOM,
+		// so the two-frame snap-back dance produces stale deltas
+		// and a visible jitter. This makes items snap directly.
+		animateLayoutChanges: () => false,
+	});
 
 	// Strip scaleX/scaleY that dnd-kit adds by default.
 	const adjustedTransform = transform
@@ -662,20 +669,29 @@ const SortableChatTreeNode: FC<{ chat: Chat; justDropped: boolean }> = ({
 
 	const style = {
 		transform: CSS.Transform.toString(adjustedTransform),
-		// While dragging: the dragged item fades, no position transition.
-		// While idle: displaced items animate smoothly to make room.
-		// Just after drop: suppress ALL transitions so items snap to
-		// their final positions without the jump-then-settle artifact.
-		transition: justDropped
-			? undefined
-			: isDragging
-				? "opacity 200ms"
-				: transition,
+		transition: isDragging ? "opacity 200ms" : transition,
 		opacity: isDragging ? 0.5 : undefined,
 	};
 
 	return (
-		<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+		<div
+			ref={setNodeRef}
+			style={style}
+			{...attributes}
+			{...listeners}
+			onClickCapture={(e) => {
+				// After a drag, the browser synthesizes a click from
+				// pointerup. dnd-kit's sensor calls stopPropagation
+				// but never preventDefault, so the <a> tag inside
+				// NavLink still fires its default navigation action.
+				// Block it here in React's capture phase instead of
+				// racing with a global document listener + rAF.
+				if (recentDragRef.current) {
+					e.stopPropagation();
+					e.preventDefault();
+				}
+			}}
+		>
 			<ChatTreeNode chat={chat} isChildNode={false} />
 		</div>
 	);
@@ -760,7 +776,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 
-	const [justDropped, setJustDropped] = useState(false);
+	// Ref flag set after drag ends. Checked by SortableChatTreeNode's
+	// onClickCapture to block the synthetic click that the browser
+	// fires from the final pointerup. Cleared after 100ms, which
+	// comfortably exceeds dnd-kit's 50ms sensor cleanup window.
+	const recentDragRef = useRef(false);
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
@@ -777,25 +797,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
 
-		// Suppress transitions for one frame so displaced items
-		// snap to their final positions without jump-then-settle.
-		setJustDropped(true);
-		requestAnimationFrame(() => setJustDropped(false));
-
-		// After a drag, the browser synthesizes a click from the
-		// final pointerup. Capture and discard it so the NavLink
-		// inside the dragged item doesn't trigger navigation.
-		const blocker = (e: MouseEvent) => {
-			e.stopPropagation();
-			e.preventDefault();
-		};
-		document.addEventListener("click", blocker, true);
-		requestAnimationFrame(() => {
-			document.removeEventListener("click", blocker, true);
-		});
+		recentDragRef.current = true;
+		setTimeout(() => {
+			recentDragRef.current = false;
+		}, 100);
 
 		if (!over || active.id === over.id) return;
-
 		const activeId = String(active.id);
 		const overId = String(over.id);
 		const oldIndex = pinnedChatIds.indexOf(activeId);
@@ -1051,7 +1058,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																		<SortableChatTreeNode
 																			key={chat.id}
 																			chat={chat}
-																			justDropped={justDropped}
+																			recentDragRef={recentDragRef}
 																		/>
 																	))}
 																</div>
