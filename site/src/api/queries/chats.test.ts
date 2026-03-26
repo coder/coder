@@ -24,6 +24,7 @@ import {
 	promoteChatQueuedMessage,
 	reorderPinnedChat,
 	unarchiveChat,
+	unpinChat,
 	updateInfiniteChatsCache,
 } from "./chats";
 
@@ -440,6 +441,85 @@ describe("pinChat optimistic update", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
 		).toBe(5);
+	});
+});
+
+describe("unpinChat optimistic update", () => {
+	it("optimistically sets pin_order to 0 in the chats list", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 2 })]);
+
+		const mutation = unpinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(0);
+	});
+
+	it("optimistically sets pin_order to 0 in the individual chat cache", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 2 })]);
+		queryClient.setQueryData(
+			chatKey(chatId),
+			makeChat(chatId, { pin_order: 2 }),
+		);
+
+		const mutation = unpinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(0);
+	});
+
+	it("rolls back both caches on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 3 })]);
+		queryClient.setQueryData(
+			chatKey(chatId),
+			makeChat(chatId, { pin_order: 3 }),
+		);
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+		const mutation = unpinChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+
+		// Verify optimistic update.
+		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(0);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(0);
+
+		// Roll back.
+		mutation.onError(new Error("server error"), chatId, context);
+
+		// The chats list is rolled back via invalidation.
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		// The individual chat cache is restored directly.
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(3);
+	});
+
+	it("invalidates queries on settled", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+		const mutation = unpinChat(queryClient);
+		await mutation.onSettled(undefined, undefined, chatId);
+
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 	});
 });
 
