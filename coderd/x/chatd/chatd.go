@@ -1472,9 +1472,10 @@ func (p *Server) recordManualTitleUsage(
 		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 			ChatID:    chat.ID,
 			CreatedBy: []uuid.UUID{uuid.Nil},
-			// Keep this synthetic usage write from mutating the chat's
-			// selected model through InsertChatMessages.
-			ModelConfigID:       []uuid.UUID{uuid.Nil},
+			// Reuse the chat's selected model config so this synthetic
+			// usage write preserves per-model attribution without
+			// changing the chat's selected model.
+			ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
 			Content:             []string{content},
 			ContentVersion:      []int16{chatprompt.CurrentContentVersion},

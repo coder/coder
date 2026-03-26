@@ -612,7 +612,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									) : (
 										<>
 											<DropdownMenuItem
-												disabled={isRegeneratingThisChat}
+												disabled={isRegeneratingTitle}
 												onSelect={() => onRegenerateTitle(chat.id)}
 											>
 												<WandSparklesIcon className="h-3.5 w-3.5" />

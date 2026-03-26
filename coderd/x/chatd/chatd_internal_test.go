@@ -118,7 +118,10 @@ func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
 	tx := dbmock.NewMockStore(ctrl)
 	server := &Server{db: db}
 
-	chat := database.Chat{ID: uuid.New()}
+	chat := database.Chat{
+		ID:                uuid.New(),
+		LastModelConfigID: uuid.New(),
+	}
 	modelConfig := database.ChatModelConfig{
 		ID:           uuid.New(),
 		ContextLimit: 8192,
@@ -140,7 +143,7 @@ func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
 		gomock.AssignableToTypeOf(database.InsertChatMessagesParams{}),
 	).DoAndReturn(
 		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{uuid.Nil}, arg.ModelConfigID)
+			require.Equal(t, []uuid.UUID{chat.LastModelConfigID}, arg.ModelConfigID)
 			require.Equal(t, []string{"[]"}, arg.Content)
 			return []database.ChatMessage{{ID: 1}}, nil
 		},
