@@ -196,6 +196,88 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// EXPERIMENTAL: chatsByWorkspace returns a mapping of workspace ID to
+// the latest non-archived chat ID for each requested workspace.
+// The query returns all matching chats and RBAC post-filters them;
+// the handler then picks the latest per workspace in Go. This avoids
+// the DISTINCT ON + post-filter bug where the sole candidate is
+// silently dropped when the caller can't read it.
+//
+// TODO:
+//  1. move aggregation to a SQL view with proper in-query authz so we
+//     can return a single row per workspace without this two-pass approach.
+//  2. Restore the below router annotation and un-skip docs gen
+//     <at>Router /experimental/chats/by-workspace [post]
+//
+// @Summary Get latest chats by workspace IDs
+// @ID get-latest-chats-by-workspace-ids
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Success 200
+// @x-apidocgen {"skip": true}
+func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	idsParam := r.URL.Query().Get("workspace_ids")
+	if idsParam == "" {
+		httpapi.Write(ctx, rw, http.StatusOK, map[uuid.UUID]uuid.UUID{})
+		return
+	}
+
+	raw := strings.Split(idsParam, ",")
+
+	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
+	// site/src/components/PaginationWidget/utils.ts.
+	// If the page size changes, this limit should too.
+	const maxWorkspaceIDs = 25
+	if len(raw) > maxWorkspaceIDs {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Too many workspace IDs, maximum is %d.", maxWorkspaceIDs),
+		})
+		return
+	}
+
+	workspaceIDs := make([]uuid.UUID, 0, len(raw))
+	for _, s := range raw {
+		id, err := uuid.Parse(strings.TrimSpace(s))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid workspace ID %q: %s", s, err),
+			})
+			return
+		}
+		workspaceIDs = append(workspaceIDs, id)
+	}
+
+	chats, err := api.Database.GetChatsByWorkspaceIDs(ctx, workspaceIDs)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chats by workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// The SQL orders by (workspace_id, updated_at DESC), so the first
+	// chat seen per workspace after RBAC filtering is the latest
+	// readable one.
+	result := make(map[uuid.UUID]uuid.UUID, len(chats))
+	for _, chat := range chats {
+		if chat.WorkspaceID.Valid {
+			if _, exists := result[chat.WorkspaceID.UUID]; !exists {
+				result[chat.WorkspaceID.UUID] = chat.ID
+			}
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, result)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

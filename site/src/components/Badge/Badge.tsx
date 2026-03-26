@@ -49,6 +49,11 @@ const badgeVariants = cva(
 				variant: "default",
 				class: "hover:bg-surface-tertiary",
 			},
+			{
+				hover: true,
+				variant: "info",
+				class: "hover:bg-surface-info/20",
+			},
 		],
 		defaultVariants: {
 			variant: "default",

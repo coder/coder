@@ -2028,6 +2028,26 @@ func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (Cha
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// GetChatsByWorkspace returns a mapping of workspace ID to the latest
+// non-archived chat ID for each requested workspace. Workspaces with
+// no chats are omitted from the response.
+func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	ids := make([]string, 0, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		ids = append(ids, id.String())
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/by-workspace?workspace_ids=%s", strings.Join(ids, ",")), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var result map[uuid.UUID]uuid.UUID
+	return result, json.NewDecoder(res.Body).Decode(&result)
+}
+
 func formatChatStreamResponseError(response Response) string {
 	message := strings.TrimSpace(response.Message)
 	detail := strings.TrimSpace(response.Detail)
