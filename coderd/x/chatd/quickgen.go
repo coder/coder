@@ -228,7 +228,7 @@ func fallbackChatTitle(message string) string {
 
 	title := strings.Join(words, " ")
 	if truncated {
-		title += "…"
+		return truncateRunes(title, maxRunes-1) + "…"
 	}
 
 	return truncateRunes(title, maxRunes)
@@ -371,20 +371,20 @@ func renderManualTitlePrompt(
 	}
 
 	write("You are a title generator for an AI coding assistant conversation.\n\n")
-	write("The user's primary objective was:\n---\n")
+	write("The user's primary objective was:\n<primary_objective>\n")
 	write(firstUserText)
-	write("\n---")
+	write("\n</primary_objective>")
 
 	if conversationBlock != "" {
-		write("\n\nConversation sample:\n---\n")
+		write("\n\nConversation sample:\n<conversation_sample>\n")
 		write(conversationBlock)
-		write("\n---")
+		write("\n</conversation_sample>")
 	}
 
 	if strings.TrimSpace(latestUserMsg) != strings.TrimSpace(truncateRunes(firstUserText, 1000)) {
-		write("\n\nThe user's most recent message:\n---\n")
+		write("\n\nThe user's most recent message:\n<latest_message>\n")
 		write(latestUserMsg)
-		write("\n---\n")
+		write("\n</latest_message>\n")
 		write("Note: Weight the overall conversation arc more heavily than just the latest message.")
 	}
 
@@ -463,6 +463,7 @@ func generatePushSummary(
 	summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	assistantText = truncateRunes(assistantText, 6000)
 	input := "Chat title: " + chat.Title + "\n\nAgent's last message:\n" + assistantText
 
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
@@ -538,6 +539,5 @@ func generateShortText(
 		}
 	}
 	text := strings.TrimSpace(contentBlocksToText(responseParts))
-	text = strings.Trim(text, "\"'`")
 	return text, response.Usage, nil
 }
