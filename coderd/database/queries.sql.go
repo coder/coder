@@ -22771,6 +22771,51 @@ func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg Update
 	return err
 }
 
+const batchUpdateWorkspaceAgentConnections = `-- name: BatchUpdateWorkspaceAgentConnections :exec
+WITH agents AS (
+	SELECT
+		unnest($1::uuid[]) AS id,
+		unnest($2::timestamptz[]) AS first_connected_at,
+		unnest($3::timestamptz[]) AS last_connected_at,
+		unnest($4::uuid[]) AS last_connected_replica_id,
+		unnest($5::timestamptz[]) AS disconnected_at,
+		unnest($6::timestamptz[]) AS updated_at
+)
+UPDATE
+	workspace_agents wa
+SET
+	first_connected_at = a.first_connected_at,
+	last_connected_at = a.last_connected_at,
+	last_connected_replica_id = a.last_connected_replica_id,
+	disconnected_at = a.disconnected_at,
+	updated_at = a.updated_at
+FROM
+	agents a
+WHERE
+	wa.id = a.id
+`
+
+type BatchUpdateWorkspaceAgentConnectionsParams struct {
+	ID                     []uuid.UUID `db:"id" json:"id"`
+	FirstConnectedAt       []time.Time `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt        []time.Time `db:"last_connected_at" json:"last_connected_at"`
+	LastConnectedReplicaID []uuid.UUID `db:"last_connected_replica_id" json:"last_connected_replica_id"`
+	DisconnectedAt         []time.Time `db:"disconnected_at" json:"disconnected_at"`
+	UpdatedAt              []time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) BatchUpdateWorkspaceAgentConnections(ctx context.Context, arg BatchUpdateWorkspaceAgentConnectionsParams) error {
+	_, err := q.db.ExecContext(ctx, batchUpdateWorkspaceAgentConnections,
+		pq.Array(arg.ID),
+		pq.Array(arg.FirstConnectedAt),
+		pq.Array(arg.LastConnectedAt),
+		pq.Array(arg.LastConnectedReplicaID),
+		pq.Array(arg.DisconnectedAt),
+		pq.Array(arg.UpdatedAt),
+	)
+	return err
+}
+
 const batchUpdateWorkspaceAgentMetadata = `-- name: BatchUpdateWorkspaceAgentMetadata :exec
 WITH metadata AS (
 	SELECT

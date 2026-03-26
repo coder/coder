@@ -184,6 +184,14 @@ func (m queryMetricsStore) BackoffChatDiffStatus(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) BatchUpdateWorkspaceAgentConnections(ctx context.Context, arg database.BatchUpdateWorkspaceAgentConnectionsParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceAgentConnections(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceAgentConnections").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BatchUpdateWorkspaceAgentConnections").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
 	start := time.Now()
 	r0 := m.s.BatchUpdateWorkspaceAgentMetadata(ctx, arg)

@@ -78,6 +78,29 @@ SET
 WHERE
 	id = $1;
 
+-- name: BatchUpdateWorkspaceAgentConnections :exec
+WITH agents AS (
+	SELECT
+		unnest(sqlc.arg('id')::uuid[]) AS id,
+		unnest(sqlc.arg('first_connected_at')::timestamptz[]) AS first_connected_at,
+		unnest(sqlc.arg('last_connected_at')::timestamptz[]) AS last_connected_at,
+		unnest(sqlc.arg('last_connected_replica_id')::uuid[]) AS last_connected_replica_id,
+		unnest(sqlc.arg('disconnected_at')::timestamptz[]) AS disconnected_at,
+		unnest(sqlc.arg('updated_at')::timestamptz[]) AS updated_at
+)
+UPDATE
+	workspace_agents wa
+SET
+	first_connected_at = a.first_connected_at,
+	last_connected_at = a.last_connected_at,
+	last_connected_replica_id = a.last_connected_replica_id,
+	disconnected_at = a.disconnected_at,
+	updated_at = a.updated_at
+FROM
+	agents a
+WHERE
+	wa.id = a.id;
+
 -- name: UpdateWorkspaceAgentStartupByID :exec
 UPDATE
 	workspace_agents

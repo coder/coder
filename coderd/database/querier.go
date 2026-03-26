@@ -62,6 +62,7 @@ type sqlcQuerier interface {
 	// referenced by the latest build of a workspace.
 	ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
+	BatchUpdateWorkspaceAgentConnections(ctx context.Context, arg BatchUpdateWorkspaceAgentConnectionsParams) error
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error

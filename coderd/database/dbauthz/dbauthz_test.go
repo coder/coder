@@ -2623,6 +2623,20 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), arg).Return([]database.WorkspaceAgentMetadatum{dt}, nil).AnyTimes()
 		check.Args(arg).Asserts(w, policy.ActionRead).Returns([]database.WorkspaceAgentMetadatum{dt})
 	}))
+	s.Run("BatchUpdateWorkspaceAgentConnections", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		now := dbtime.Now()
+		arg := database.BatchUpdateWorkspaceAgentConnectionsParams{
+			ID:                     []uuid.UUID{agt.ID},
+			FirstConnectedAt:       []time.Time{now},
+			LastConnectedAt:        []time.Time{now},
+			LastConnectedReplicaID: []uuid.UUID{uuid.New()},
+			DisconnectedAt:         []time.Time{{}},
+			UpdatedAt:              []time.Time{now},
+		}
+		dbm.EXPECT().BatchUpdateWorkspaceAgentConnections(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspace.All(), policy.ActionUpdate).Returns()
+	}))
 	s.Run("BatchUpdateWorkspaceAgentMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
 		arg := database.BatchUpdateWorkspaceAgentMetadataParams{
