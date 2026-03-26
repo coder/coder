@@ -26,4 +26,3 @@ JOIN
 WHERE
     cmc.deleted = FALSE;
 
-DROP INDEX IF EXISTS idx_chat_providers_one_enabled_per_family;
