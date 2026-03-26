@@ -3839,19 +3839,19 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	providersByName := make(map[string]database.ChatProvider, len(providers))
 	configuredFamilies := make(map[string]struct{}, len(providers))
+	normalizedProviders := make([]database.ChatProvider, 0, len(providers))
 	for i := range providers {
 		normalizedProvider := normalizeChatProvider(providers[i].Provider)
 		if normalizedProvider == "" {
 			continue
 		}
 		providers[i].Provider = normalizedProvider
-		providersByName[normalizedProvider] = providers[i]
+		normalizedProviders = append(normalizedProviders, providers[i])
 		configuredFamilies[normalizedProvider] = struct{}{}
 	}
-	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providersByName))
-	for _, provider := range providersByName {
+	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(normalizedProviders))
+	for _, provider := range normalizedProviders {
 		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
 			Provider: provider.Provider,
 			APIKey:   provider.APIKey,
@@ -3899,11 +3899,8 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	supportedProviders := chatprovider.SupportedProviders()
-	resp := make([]codersdk.ChatProviderConfig, 0, len(providers)+len(supportedProviders))
-	for _, provider := range providers {
-		if normalizeChatProvider(provider.Provider) == "" {
-			continue
-		}
+	resp := make([]codersdk.ChatProviderConfig, 0, len(normalizedProviders)+len(supportedProviders))
+	for _, provider := range normalizedProviders {
 		resp = append(
 			resp,
 			convertChatProviderConfig(
