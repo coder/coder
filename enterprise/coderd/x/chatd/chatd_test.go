@@ -95,7 +95,7 @@ func seedChatDependencies(
 	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	chatProvider, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:    "openai",
 		DisplayName: "OpenAI",
 		APIKey:      "test-key",
@@ -116,6 +116,12 @@ func seedChatDependencies(
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertModelProviderConfig(ctx, database.InsertModelProviderConfigParams{
+		ModelConfigID:    model.ID,
+		ProviderConfigID: chatProvider.ID,
+		Priority:         0,
 	})
 	require.NoError(t, err)
 	return user, model
