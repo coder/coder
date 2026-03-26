@@ -3461,7 +3461,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+		clientRaw, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
@@ -3471,15 +3471,15 @@ func TestRegenerateChatTitle(t *testing.T) {
 				},
 			},
 			DeploymentValues: chatDeploymentValues(t),
-		}))
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		})
+		client := codersdk.NewExperimentalClient(clientRaw)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
 
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "chat with update denied",
-			}},
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat with update denied",
 		})
 		require.NoError(t, err)
 
@@ -3551,8 +3551,28 @@ func TestRegenerateChatTitle(t *testing.T) {
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
 		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
 
-		_, err = client.RegenerateChatTitle(ctx, chat.ID)
-		requireChatUsageLimitExceededError(t, err, 100, 100, wantResetsAt)
+		res, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		var limitErr codersdk.ChatUsageLimitExceededResponse
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&limitErr))
+		require.Equal(t, "Chat usage limit exceeded.", limitErr.Message)
+		require.Equal(t, int64(100), limitErr.SpentMicros)
+		require.Equal(t, int64(100), limitErr.LimitMicros)
+		require.True(
+			t,
+			limitErr.ResetsAt.Equal(wantResetsAt),
+			"expected resets_at %s, got %s",
+			wantResetsAt.UTC().Format(time.RFC3339),
+			limitErr.ResetsAt.UTC().Format(time.RFC3339),
+		)
 	})
 
 	t.Run("RegenerationFailure", func(t *testing.T) {
