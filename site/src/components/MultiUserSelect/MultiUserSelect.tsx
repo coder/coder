@@ -1,7 +1,6 @@
 import { organizationMembers } from "api/queries/organizations";
 import { users } from "api/queries/users";
 import type {
-	MinimalUser,
 	OrganizationMemberWithUserData,
 	ReducedUser,
 	User,
@@ -265,9 +264,7 @@ const UserRow = <T extends SelectedUser>({
 };
 
 function userMatches(a: SelectedUser, b: SelectedUser) {
-	const aID =
-		(a as MinimalUser).id || (a as OrganizationMemberWithUserData).user_id;
-	const bID =
-		(b as MinimalUser).id || (b as OrganizationMemberWithUserData).user_id;
+	const aID = "user_id" in a ? a.user_id : a.id;
+	const bID = "user_id" in b ? b.user_id : b.id;
 	return aID && bID && aID === bID;
 }
