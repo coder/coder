@@ -1,6 +1,6 @@
 import isChromatic from "chromatic/isChromatic";
 import type { FC } from "react";
-import { pageTitle } from "utils/page";
+import { pageTitle } from "#/utils/page";
 import { CliInstallPageView } from "./CliInstallPageView";
 
 const CliInstallPage: FC = () => {

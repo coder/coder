@@ -13,7 +13,6 @@ import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import gfm from "remark-gfm";
-import { cn } from "utils/cn";
 import {
 	Table,
 	TableBody,
@@ -22,6 +21,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import colors from "#/theme/tailwindColors";
+import { cn } from "#/utils/cn";
 
 interface MarkdownProps {
 	/**

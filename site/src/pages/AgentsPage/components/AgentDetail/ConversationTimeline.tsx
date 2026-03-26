@@ -9,7 +9,6 @@ import {
 	useState,
 } from "react";
 import type { UrlTransform } from "streamdown";
-import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConversationItem,
@@ -27,6 +26,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import {
 	decodeInlineTextAttachment,
 	fetchTextAttachmentContent,

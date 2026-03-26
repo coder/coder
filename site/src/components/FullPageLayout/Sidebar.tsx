@@ -1,6 +1,6 @@
 import type { ComponentProps, FC, HTMLAttributes } from "react";
 import { Link, type LinkProps } from "react-router";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 import { TopbarIconButton } from "./Topbar";
 
 export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {

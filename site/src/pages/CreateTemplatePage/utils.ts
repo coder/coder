@@ -1,4 +1,3 @@
-import { calculateAutostopRequirementDaysValue } from "utils/schedule";
 import type { CreateTemplateOptions } from "#/api/queries/templates";
 import type {
 	CreateTemplateVersionRequest,
@@ -7,6 +6,7 @@ import type {
 	TemplateExample,
 	VariableValue,
 } from "#/api/typesGenerated";
+import { calculateAutostopRequirementDaysValue } from "#/utils/schedule";
 import type { CreateTemplateFormData } from "./CreateTemplateForm";
 
 export const newTemplate = (

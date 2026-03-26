@@ -1,8 +1,6 @@
 import { EditIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { createDayString } from "utils/createDayString";
-import type { TemplateVersionFiles } from "utils/templateVersion";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -18,6 +16,8 @@ import { Stats, StatsItem } from "#/components/Stats/Stats";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
+import { createDayString } from "#/utils/createDayString";
+import type { TemplateVersionFiles } from "#/utils/templateVersion";
 
 export interface TemplateVersionPageViewProps {
 	organizationName: string;

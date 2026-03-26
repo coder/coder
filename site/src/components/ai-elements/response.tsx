@@ -10,7 +10,7 @@ import {
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;

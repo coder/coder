@@ -1,6 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
 import type { FC } from "react";
-import { isDevBuild } from "utils/buildInfo";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
 import {
 	Sidebar as BaseSidebar,
@@ -8,6 +7,7 @@ import {
 } from "#/components/Sidebar/Sidebar";
 import { Stack } from "#/components/Stack/Stack";
 import type { Permissions } from "#/modules/permissions";
+import { isDevBuild } from "#/utils/buildInfo";
 
 interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */

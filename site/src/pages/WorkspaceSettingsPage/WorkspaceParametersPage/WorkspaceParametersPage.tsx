@@ -2,8 +2,6 @@ import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import { isApiValidationError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -18,6 +16,8 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,

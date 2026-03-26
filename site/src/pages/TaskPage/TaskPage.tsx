@@ -20,9 +20,6 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
 import type { FixedSizeList } from "react-window";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
-import { relativeTime } from "utils/time";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
 import { pauseTask, resumeTask, taskLogs } from "#/api/queries/tasks";
@@ -54,6 +51,9 @@ import { isPauseDisabled } from "#/modules/tasks/taskActions";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { cn } from "#/utils/cn";
+import { pageTitle } from "#/utils/page";
+import { relativeTime } from "#/utils/time";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,

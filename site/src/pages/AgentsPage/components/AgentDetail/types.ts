@@ -1,5 +1,5 @@
-import type { ReconnectSchedule } from "utils/reconnectingWebSocket";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ReconnectSchedule } from "#/utils/reconnectingWebSocket";
 import type { ChatProviderFailureKind } from "../../utils/usageLimitMessage";
 
 export type ParsedToolCall = {

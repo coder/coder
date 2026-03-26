@@ -9,7 +9,6 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import { type FC, Fragment } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	type selectTemplatesByGroup,
@@ -30,6 +29,7 @@ import {
 	methodLabels,
 	type NotificationMethod,
 } from "#/modules/notifications/utils";
+import { docs } from "#/utils/docs";
 
 type NotificationEventsProps = {
 	defaultMethod: NotificationMethod;

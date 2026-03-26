@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
 import {
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
@@ -8,6 +6,8 @@ import {
 import { Expander } from "#/components/Expander/Expander";
 import { Link } from "#/components/Link/Link";
 import { Pill } from "#/components/Pill/Pill";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.

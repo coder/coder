@@ -10,13 +10,13 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { cn } from "utils/cn";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 export const ToolIcon: React.FC<{
 	name: string;

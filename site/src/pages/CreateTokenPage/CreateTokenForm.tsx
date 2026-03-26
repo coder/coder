@@ -6,7 +6,6 @@ import utc from "dayjs/plugin/utc";
 import type { FormikContextType } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
@@ -16,6 +15,7 @@ import {
 } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Stack } from "#/components/Stack/Stack";
+import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 import {
 	type CreateTokenData,
 	customLifetimeDay,

@@ -1,7 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import * as CreateDayString from "utils/createDayString";
 import { API } from "#/api/api";
 import type {
 	Workspace,
@@ -25,6 +24,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import * as CreateDayString from "#/utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
 
 describe("WorkspacesPage", () => {

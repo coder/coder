@@ -2,7 +2,6 @@ import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
-import { mustUpdateWorkspace } from "utils/workspace";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type { Template, Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -26,6 +25,7 @@ import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWi
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Stack } from "#/components/Stack/Stack";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
+import { mustUpdateWorkspace } from "#/utils/workspace";
 import {
 	type WorkspaceFilterState,
 	WorkspacesFilter,

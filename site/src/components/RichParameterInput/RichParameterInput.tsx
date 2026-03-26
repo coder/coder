@@ -7,10 +7,6 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { CircleAlertIcon, SettingsIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
-import type {
-	AutofillBuildParameter,
-	AutofillSource,
-} from "utils/richParameters";
 import type { TemplateVersionParameter } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -22,6 +18,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type {
+	AutofillBuildParameter,
+	AutofillSource,
+} from "#/utils/richParameters";
 import { TagInput } from "../TagInput/TagInput";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {

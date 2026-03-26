@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import {
 	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
@@ -24,6 +23,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
 // If the user using provisioner keys for external provisioners you're unlikely to

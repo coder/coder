@@ -17,13 +17,6 @@ import {
 } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
-import { docs } from "utils/docs";
-import { getFormHelpers } from "utils/formUtils";
-import {
-	getWorkspaceListeningPortsProtocol,
-	portForwardURL,
-	saveWorkspaceListeningPortsProtocol,
-} from "utils/portForward";
 import * as Yup from "yup";
 import { API } from "#/api/api";
 import {
@@ -60,6 +53,13 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
+import {
+	getWorkspaceListeningPortsProtocol,
+	portForwardURL,
+	saveWorkspaceListeningPortsProtocol,
+} from "#/utils/portForward";
 
 interface PortForwardButtonProps {
 	host: string;

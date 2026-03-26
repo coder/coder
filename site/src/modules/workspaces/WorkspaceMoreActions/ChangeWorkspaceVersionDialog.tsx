@@ -5,7 +5,6 @@ import TextField from "@mui/material/TextField";
 import { InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { createDayString } from "utils/createDayString";
 import { templateVersions } from "#/api/queries/templates";
 import type { TemplateVersion, Workspace } from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
@@ -18,6 +17,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { Pill } from "#/components/Pill/Pill";
 import { Stack } from "#/components/Stack/Stack";
 import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
+import { createDayString } from "#/utils/createDayString";
 
 type ChangeWorkspaceVersionDialogProps = DialogProps & {
 	workspace: Workspace;

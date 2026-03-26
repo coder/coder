@@ -5,10 +5,6 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useId, useState } from "react";
 import { useQuery } from "react-query";
-import { nameValidator } from "utils/formUtils";
-import { pageTitle } from "utils/page";
-import { getInitialRichParameterValues } from "utils/richParameters";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { ValidationError } from "yup";
 import { API } from "#/api/api";
 import type { Template, TemplateVersionParameter } from "#/api/typesGenerated";
@@ -20,6 +16,10 @@ import { Loader } from "#/components/Loader/Loader";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import { useClipboard } from "#/hooks/useClipboard";
+import { nameValidator } from "#/utils/formUtils";
+import { pageTitle } from "#/utils/page";
+import { getInitialRichParameterValues } from "#/utils/richParameters";
+import { paramsUsedToCreateWorkspace } from "#/utils/workspace";
 
 type ButtonValues = Record<string, string>;
 

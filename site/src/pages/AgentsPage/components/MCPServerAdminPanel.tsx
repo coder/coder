@@ -11,7 +11,6 @@ import {
 import { type FC, type ReactNode, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { cn } from "utils/cn";
 import {
 	createMCPServerConfig as createMCPServerConfigMutation,
 	deleteMCPServerConfig as deleteMCPServerConfigMutation,
@@ -38,6 +37,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
 import { SectionHeader } from "./SectionHeader";
 

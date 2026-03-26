@@ -2,7 +2,6 @@ import { useAuthenticated } from "hooks";
 import { type FC, useMemo } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
-import { pageTitle } from "utils/page";
 import {
 	templateByName,
 	templateFiles,
@@ -10,6 +9,7 @@ import {
 	templateVersionByName,
 } from "#/api/queries/templates";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { pageTitle } from "#/utils/page";
 import { TemplateVersionPageView } from "./TemplateVersionPageView";
 
 const TemplateVersionPage: FC = () => {

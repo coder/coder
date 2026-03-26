@@ -6,15 +6,6 @@ import { type FC, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
-import {
-	autostartDisplay,
-	autostopDisplay,
-	getDeadline,
-	getMaxDeadline,
-	getMaxDeadlineChange,
-	getMinDeadline,
-} from "utils/schedule";
-import { isWorkspaceOn } from "utils/workspace";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	updateDeadline,
@@ -30,6 +21,15 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { getWorkspaceActivityStatus } from "#/modules/workspaces/activity";
+import {
+	autostartDisplay,
+	autostopDisplay,
+	getDeadline,
+	getMaxDeadline,
+	getMaxDeadlineChange,
+	getMinDeadline,
+} from "#/utils/schedule";
+import { isWorkspaceOn } from "#/utils/workspace";
 
 interface WorkspaceScheduleContainerProps {
 	children?: ReactNode;

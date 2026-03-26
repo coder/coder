@@ -19,15 +19,6 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
-import { cn } from "utils/cn";
-import { getLatencyColor } from "utils/latency";
-import {
-	addTime,
-	formatDateTime,
-	startOfDay,
-	startOfHour,
-	subtractTime,
-} from "utils/time";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	insightsTemplate,
@@ -65,6 +56,15 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
+import {
+	addTime,
+	formatDateTime,
+	startOfDay,
+	startOfHour,
+	subtractTime,
+} from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";

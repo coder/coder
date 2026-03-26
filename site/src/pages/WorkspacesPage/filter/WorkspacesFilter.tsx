@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import {
 	Filter,
 	MenuSkeleton,
@@ -15,6 +14,7 @@ import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
 } from "#/modules/tableFiltering/options";
+import { docs } from "#/utils/docs";
 import {
 	type StatusFilterMenu,
 	StatusMenu,

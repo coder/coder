@@ -6,11 +6,6 @@ import TextField from "@mui/material/TextField";
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
-import {
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -23,6 +18,11 @@ import { PasswordField } from "#/components/PasswordField/PasswordField";
 import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Stack } from "#/components/Stack/Stack";
+import {
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 export const Language = {
 	emailLabel: "Email",

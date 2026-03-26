@@ -5,8 +5,6 @@ import {
 	ChevronRightIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { cn } from "utils/cn";
-import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -26,6 +24,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import { getFormHelpers } from "#/utils/formUtils";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,

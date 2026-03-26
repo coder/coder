@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -9,6 +8,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "#/components/HelpTooltip/HelpTooltip";
+import { docs } from "#/utils/docs";
 
 const Language = {
 	workspaceTooltipTitle: "What is a workspace?",

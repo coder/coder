@@ -17,7 +17,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	DIFFS_FONT_STYLE,
@@ -26,6 +25,7 @@ import {
 import { FileIcon } from "#/components/FileIcon/FileIcon";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { cn } from "#/utils/cn";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 
 // -------------------------------------------------------------------

@@ -8,8 +8,6 @@ import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { templateByName } from "#/api/queries/templates";
@@ -24,6 +22,8 @@ import {
 	PageHeader,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import {
 	formValuesToAutostartRequest,

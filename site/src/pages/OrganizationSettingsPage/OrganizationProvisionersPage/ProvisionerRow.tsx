@@ -2,8 +2,6 @@ import { ChevronRightIcon } from "lucide-react";
 import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
 import type {
 	ProvisionerDaemon,
 	ProvisionerDaemonStatus,
@@ -21,6 +19,8 @@ import {
 	ProvisionerTags,
 	ProvisionerTruncateTags,
 } from "#/modules/provisioners/ProvisionerTags";
+import { cn } from "#/utils/cn";
+import { relativeTime } from "#/utils/time";
 import { ProvisionerVersion } from "./ProvisionerVersion";
 
 const variantByStatus: Record<

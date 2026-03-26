@@ -4,7 +4,6 @@ import type {
 	UseMutationOptions,
 	UseQueryOptions,
 } from "react-query";
-import { prepareQuery } from "utils/filters";
 import { API } from "#/api/api";
 import type {
 	AuthorizationRequest,
@@ -26,6 +25,7 @@ import {
 	type MetadataState,
 } from "#/hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { prepareQuery } from "#/utils/filters";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 

@@ -8,7 +8,6 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
-import { docs } from "utils/docs";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
@@ -21,6 +20,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { isExternalApp, needsSessionToken } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import { docs } from "#/utils/docs";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 

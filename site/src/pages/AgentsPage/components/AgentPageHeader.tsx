@@ -6,11 +6,11 @@ import {
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink, useLocation, useOutletContext } from "react-router";
-import { cn } from "utils/cn";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { cn } from "#/utils/cn";
 import type { AgentsOutletContext } from "../AgentsPageView";
 import { sidebarViewFromPath } from "./Sidebar/AgentsSidebar";
 

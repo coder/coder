@@ -4,12 +4,12 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields } from "#/components/Form/Form";
 import { Stack } from "#/components/Stack/Stack";
+import { getFormHelpers } from "#/utils/formUtils";
 import {
 	HelpTooltip,
 	HelpTooltipContent,

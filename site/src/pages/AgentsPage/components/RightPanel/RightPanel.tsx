@@ -5,7 +5,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 const STORAGE_KEY = "agents.right-panel-width";
 const MIN_WIDTH = 360;

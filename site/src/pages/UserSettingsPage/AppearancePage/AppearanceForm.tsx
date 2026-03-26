@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { cn } from "utils/cn";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -16,6 +15,7 @@ import {
 	terminalFontLabels,
 	terminalFonts,
 } from "#/theme/constants";
+import { cn } from "#/utils/cn";
 import { Section } from "../Section";
 
 // Display Geist Mono (the default monospace font) first, then the rest

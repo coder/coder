@@ -6,8 +6,6 @@ import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
-import { getOSKey } from "utils/platform";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { templateVersionPresets } from "#/api/queries/templates";
@@ -38,6 +36,8 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useExternalAuth } from "#/hooks/useExternalAuth";
+import { docs } from "#/utils/docs";
+import { getOSKey } from "#/utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 

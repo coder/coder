@@ -9,7 +9,7 @@ import {
 	useRef,
 } from "react";
 import { Link, type LinkProps } from "react-router";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 // Keeping this for now because of a workaround in WorkspaceBUildPageView
 export const TAB_PADDING_X = 16;

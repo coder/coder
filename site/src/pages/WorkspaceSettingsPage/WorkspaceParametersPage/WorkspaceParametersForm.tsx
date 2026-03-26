@@ -1,11 +1,5 @@
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
-import {
-	type AutofillBuildParameter,
-	getInitialRichParameterValues,
-	useValidationSchemaForRichParameters,
-} from "utils/richParameters";
 import * as Yup from "yup";
 import type {
 	TemplateVersionParameter,
@@ -23,6 +17,12 @@ import {
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ClassicParameterFlowDeprecationWarning } from "#/modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
+import { getFormHelpers } from "#/utils/formUtils";
+import {
+	type AutofillBuildParameter,
+	getInitialRichParameterValues,
+	useValidationSchemaForRichParameters,
+} from "#/utils/richParameters";
 
 export type WorkspaceParametersFormValues = {
 	rich_parameter_values: WorkspaceBuildParameter[];

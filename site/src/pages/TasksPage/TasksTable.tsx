@@ -4,7 +4,6 @@ import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { relativeTime } from "utils/time";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { pauseTask, resumeTask } from "#/api/queries/tasks";
 import type { Task } from "#/api/typesGenerated";
@@ -40,6 +39,7 @@ import {
 	canResumeTask,
 	isPauseDisabled,
 } from "#/modules/tasks/taskActions";
+import { relativeTime } from "#/utils/time";
 
 type TasksTableProps = {
 	tasks: readonly Task[] | undefined;

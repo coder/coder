@@ -11,9 +11,9 @@ import {
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import { cn } from "utils/cn";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";

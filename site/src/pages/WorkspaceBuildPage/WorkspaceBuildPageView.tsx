@@ -7,9 +7,6 @@ import {
 	useRef,
 } from "react";
 import { Link } from "react-router";
-import { cn } from "utils/cn";
-import { formatDate } from "utils/time";
-import { displayWorkspaceBuildDuration } from "utils/workspace";
 import type {
 	ProvisionerJobLog,
 	WorkspaceAgent,
@@ -37,6 +34,9 @@ import {
 	WorkspaceBuildDataSkeleton,
 } from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { cn } from "#/utils/cn";
+import { formatDate } from "#/utils/time";
+import { displayWorkspaceBuildDuration } from "#/utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
