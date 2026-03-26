@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -747,6 +746,13 @@ func TestWatchChats(t *testing.T) {
 	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
 		t.Parallel()
 
+		// This test verifies that the pubsub "created" event
+		// carries a fully-populated codersdk.Chat. Exhaustive
+		// field-level coverage of the converter is handled by
+		// TestChat_AllFieldsPopulated (db2sdk) and
+		// TestChat_JSONRoundTrip (codersdk). This integration
+		// test only checks that key fields survive the full
+		// API → pubsub → websocket pipeline.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
@@ -778,21 +784,6 @@ func TestWatchChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// The pubsub event must carry all chat fields, not
-		// just the subset used for routing. A partial Chat
-		// causes the frontend sidebar to lose the model name.
-		rootChatID := createdChat.ID
-		want := codersdk.Chat{
-			ID:                createdChat.ID,
-			OwnerID:           createdChat.OwnerID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             createdChat.Title,
-			Status:            codersdk.ChatStatusPending,
-			RootChatID:        &rootChatID,
-			Archived:          false,
-			MCPServerIDs:      []uuid.UUID{},
-			Labels:            map[string]string{},
-		}
 		var got codersdk.Chat
 		testutil.Eventually(ctx, t, func(_ context.Context) bool {
 			var update watchEvent
@@ -814,13 +805,15 @@ func TestWatchChats(t *testing.T) {
 			return false
 		}, testutil.IntervalFast, "expected a created event for chat %s", createdChat.ID)
 
-		// Compare the fields we care about, ignoring
-		// server-assigned timestamps.
-		got.CreatedAt = want.CreatedAt
-		got.UpdatedAt = want.UpdatedAt
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Fatalf("created event chat mismatch (-want +got):\n%s", diff)
-		}
+		require.Equal(t, createdChat.ID, got.ID)
+		require.Equal(t, createdChat.OwnerID, got.OwnerID)
+		require.Equal(t, modelConfig.ID, got.LastModelConfigID)
+		require.Equal(t, createdChat.Title, got.Title)
+		require.Equal(t, codersdk.ChatStatusPending, got.Status)
+		require.NotNil(t, got.RootChatID)
+		require.Equal(t, createdChat.ID, *got.RootChatID)
+		require.NotZero(t, got.CreatedAt)
+		require.NotZero(t, got.UpdatedAt)
 	})
 
 	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
