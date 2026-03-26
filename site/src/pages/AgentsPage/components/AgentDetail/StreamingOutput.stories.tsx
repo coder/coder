@@ -71,13 +71,13 @@ export const ReconnectingAfterDisconnect: Story = {
 		await waitFor(() => {
 			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
 		});
-		expect(canvas.queryByText("generic")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
 		const thinkingMatches = canvas.getAllByText(/thinking\.\.\./i);
 		expect(thinkingMatches.length).toBeGreaterThanOrEqual(1);
 	},
 };
 
-/** Generic retry reasons show the mux-style retry callout. */
+/** Generic retry reasons show automatic retry copy without a manual CTA. */
 export const RetryWithVisibleReason: Story = {
 	args: {
 		streamState: null,
@@ -92,9 +92,13 @@ export const RetryWithVisibleReason: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /retrying request/i }),
 		).toBeVisible();
-		expect(canvas.getByText(/transient upstream failure/i)).toBeVisible();
-		expect(canvas.getByText("generic")).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic returned an unexpected error/i),
+		).toBeVisible();
+		expect(canvas.getByText("Unexpected error")).toBeVisible();
 		expect(canvas.getByText(/attempt 1/i)).toBeVisible();
+		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -106,7 +110,7 @@ export const RetryRateLimited: Story = {
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
 				attempt: 3,
-				error: "Anthropic asked us to back off briefly before retrying.",
+				error: "Anthropic is rate limiting requests.",
 				kind: "rate_limit",
 				delayMs: 3000,
 			}),
@@ -118,13 +122,17 @@ export const RetryRateLimited: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /rate limited/i }),
 		).toBeVisible();
-		expect(canvas.getByText("rate_limit")).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is rate limiting requests/i),
+		).toBeVisible();
+		expect(canvas.getByText("Rate limit")).toBeVisible();
 		await waitFor(() => {
 			expect(canvasElement.textContent).toMatch(/retrying in \d+s/i);
 		});
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -136,7 +144,7 @@ export const RetryInvalidTimestamp: Story = {
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
 				attempt: 3,
-				error: "Anthropic asked us to back off briefly before retrying.",
+				error: "Anthropic is rate limiting requests.",
 				kind: "rate_limit",
 				delayMs: 3000,
 				retryingAt: "not-a-date",
@@ -149,12 +157,16 @@ export const RetryInvalidTimestamp: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /rate limited/i }),
 		).toBeVisible();
-		expect(canvas.getByText("rate_limit")).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is rate limiting requests/i),
+		).toBeVisible();
+		expect(canvas.getByText("Rate limit")).toBeVisible();
 		expect(canvas.getByText(/attempt 3/i)).toBeVisible();
 		await waitFor(() => {
 			expect(canvas.queryByText(/retrying in nan/i)).not.toBeInTheDocument();
 			expect(canvas.queryByText(/retrying in \d+s/i)).not.toBeInTheDocument();
 		});
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -167,7 +179,7 @@ export const RetryOverloaded: Story = {
 			retryState: buildRetryState({
 				kind: "overloaded",
 				provider: "anthropic",
-				error: "Anthropic is currently overloaded. Retrying your request.",
+				error: "Anthropic is temporarily overloaded.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -177,14 +189,18 @@ export const RetryOverloaded: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
-		expect(canvas.getByText("overloaded")).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is temporarily overloaded/i),
+		).toBeVisible();
+		expect(canvas.getByText("Overloaded")).toBeVisible();
 		const statusLink = screen.getByRole("link", { name: /status/i });
 		expect(statusLink).toBeVisible();
 		expect(statusLink).toHaveAttribute("href", "https://status.anthropic.com");
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 	},
 };
 
-/** Timeout retries render the timeout-specific heading without a status CTA. */
+/** Timeout retries render timeout-specific copy without a status CTA. */
 export const RetryTimeout: Story = {
 	args: {
 		streamState: null,
@@ -192,7 +208,7 @@ export const RetryTimeout: Story = {
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
 				kind: "timeout",
-				error: "The provider took too long to respond. Retrying now.",
+				error: "Anthropic is temporarily unavailable.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -200,9 +216,43 @@ export const RetryTimeout: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("heading", { name: /request time(?:out|d out)/i }),
+			canvas.getByRole("heading", { name: /request timed out/i }),
 		).toBeVisible();
-		expect(canvas.getByText("timeout")).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is temporarily unavailable/i),
+		).toBeVisible();
+		expect(canvas.getByText("Timeout")).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
+	},
+};
+
+/** Startup timeouts explain the first-token delay before retrying. */
+export const RetryStartupTimeout: Story = {
+	args: {
+		streamState: null,
+		streamTools: [],
+		liveStatus: buildLiveStatus({
+			retryState: buildRetryState({
+				kind: "startup_timeout",
+				error: "Anthropic did not start responding in time.",
+			}),
+			isAwaitingFirstStreamChunk: true,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /startup timed out/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic did not start responding in time/i),
+		).toBeVisible();
+		expect(canvas.getByText("Startup timeout")).toBeVisible();
+		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();

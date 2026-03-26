@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -511,6 +512,55 @@ func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	require.Len(t, queued.Content, 1)
 	require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
 	require.Equal(t, "queued text", queued.Content[0].Text)
+}
+
+func TestChat_AllFieldsPopulated(t *testing.T) {
+	t.Parallel()
+
+	// Every field of database.Chat is set to a non-zero value so
+	// that the reflection check below catches any field that
+	// db2sdk.Chat forgets to populate. When someone adds a new
+	// field to codersdk.Chat, this test will fail until the
+	// converter is updated.
+	now := dbtime.Now()
+	input := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		LastModelConfigID: uuid.New(),
+		Title:             "all-fields-test",
+		Status:            database.ChatStatusRunning,
+		LastError:         sql.NullString{String: "boom", Valid: true},
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		Archived:          true,
+		PinOrder:          1,
+		MCPServerIDs:      []uuid.UUID{uuid.New()},
+		Labels:            database.StringMap{"env": "prod"},
+	}
+	// Only ChatID is needed here. This test checks that
+	// Chat.DiffStatus is non-nil, not that every DiffStatus
+	// field is populated — that would be a separate test for
+	// the ChatDiffStatus converter.
+	diffStatus := &database.ChatDiffStatus{
+		ChatID: input.ID,
+	}
+
+	got := db2sdk.Chat(input, diffStatus)
+
+	v := reflect.ValueOf(got)
+	typ := v.Type()
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		require.False(t, v.Field(i).IsZero(),
+			"codersdk.Chat field %q is zero-valued — db2sdk.Chat may not be populating it",
+			field.Name,
+		)
+	}
 }
 
 func TestChatQueuedMessage_MalformedContent(t *testing.T) {

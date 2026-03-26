@@ -123,6 +123,7 @@ const setupChatSpies = (state: {
 				provider: req.provider,
 				model: req.model,
 				display_name: req.display_name || req.model,
+				enabled: req.enabled ?? true,
 				context_limit:
 					typeof req.context_limit === "number" &&
 					Number.isFinite(req.context_limit)
@@ -152,12 +153,29 @@ const setupChatSpies = (state: {
 	spyOn(API.experimental, "deleteChatProviderConfig").mockResolvedValue(
 		undefined,
 	);
-	spyOn(API.experimental, "updateChatModelConfig").mockResolvedValue(
-		createModelConfig({
-			id: "stub",
-			provider: "stub",
-			model: "stub",
-		}),
+	spyOn(API.experimental, "updateChatModelConfig").mockImplementation(
+		async (modelConfigId, req) => {
+			const idx = state.modelConfigs.findIndex((m) => m.id === modelConfigId);
+			if (idx < 0) {
+				throw new Error("Model config not found.");
+			}
+
+			const current = state.modelConfigs[idx];
+			const updated = createModelConfig({
+				...current,
+				...req,
+				id: current.id,
+				provider: current.provider,
+				model: current.model,
+				updated_at: now,
+			});
+
+			state.modelConfigs = state.modelConfigs.map((modelConfig, i) =>
+				i === idx ? updated : modelConfig,
+			);
+
+			return updated;
+		},
 	);
 };
 
@@ -504,6 +522,58 @@ export const SubmitModelConfigExplicitly: Story = {
 				}),
 			}),
 		);
+	},
+};
+
+export const UpdateModelEnabledToggle: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-enabled",
+					provider: "openai",
+					model: "gpt-test-enabled",
+					display_name: "GPT Test Enabled",
+					enabled: true,
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByText("GPT Test Enabled"));
+
+		const enabledSwitch = await body.findByRole("switch", { name: "Enabled" });
+		await expect(enabledSwitch).toBeChecked();
+		await userEvent.click(enabledSwitch);
+		await expect(enabledSwitch).not.toBeChecked();
+
+		await userEvent.click(body.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.updateChatModelConfig).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.updateChatModelConfig).toHaveBeenCalledWith(
+			"model-enabled",
+			expect.objectContaining({ enabled: false }),
+		);
+
+		const modelRow = await body.findByRole("button", {
+			name: /gpt test enabled/i,
+		});
+		await expect(within(modelRow).getByText("disabled")).toBeVisible();
 	},
 };
 

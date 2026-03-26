@@ -2578,6 +2578,18 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return files, nil
 }
 
+func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
+	// The include-default-system-prompt flag is a deployment-wide setting read
+	// during chat creation by every authenticated user, so no RBAC policy
+	// check is needed. We still verify that a valid actor exists in the
+	// context to ensure this is never callable by an unauthenticated or
+	// system-internal path without an explicit actor.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return false, ErrNoActor
+	}
+	return q.db.GetChatIncludeDefaultSystemPrompt(ctx)
+}
+
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	// ChatMessages are authorized through their parent Chat.
 	// We need to fetch the message first to get its chat_id.
@@ -2674,6 +2686,18 @@ func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return q.db.GetChatSystemPrompt(ctx)
 }
 
+func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetChatSystemPromptConfigRow, error) {
+	// The system prompt configuration is a deployment-wide setting read during
+	// chat creation by every authenticated user, so no RBAC policy check is
+	// needed. We still verify that a valid actor exists in the context to
+	// ensure this is never callable by an unauthenticated or system-internal
+	// path without an explicit actor.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return database.GetChatSystemPromptConfigRow{}, ErrNoActor
+	}
+	return q.db.GetChatSystemPromptConfig(ctx)
+}
+
 // GetChatTemplateAllowlist requires deployment-config read permission,
 // unlike the peer getters (GetChatDesktopEnabled, etc.) which only
 // check actor presence. The allowlist is admin-configuration that
@@ -2722,6 +2746,10 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.GetAuthorizedChats(ctx, arg, prep)
+}
+
+func (q *querier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByWorkspaceIDs)(ctx, ids)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -3919,6 +3947,13 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 		return nil, err
 	}
 	return q.db.GetUnexpiredLicenses(ctx)
+}
+
+func (q *querier) GetUserAISeatStates(ctx context.Context, userIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserAISeatStates(ctx, userIDs)
 }
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
@@ -5328,12 +5363,27 @@ func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Contex
 	return q.db.ListAIBridgeInterceptionsTelemetrySummaries(ctx, arg)
 }
 
+func (q *querier) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeModelThought, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeModelThoughtsByInterceptionIDs(ctx, interceptionIDs)
+}
+
 func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams) ([]string, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
+}
+
+func (q *querier) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.ListAuthorizedAIBridgeSessionThreads(ctx, arg, prep)
 }
 
 func (q *querier) ListAIBridgeSessions(ctx context.Context, arg database.ListAIBridgeSessionsParams) ([]database.ListAIBridgeSessionsRow, error) {
@@ -5473,6 +5523,17 @@ func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database
 	return q.db.PaginatedOrganizationMembers(ctx, arg)
 }
 
+func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.PinChatByID(ctx, id)
+}
+
 func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -5598,6 +5659,17 @@ func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.UnfavoriteWorkspace)(ctx, id)
 }
 
+func (q *querier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UnpinChatByID(ctx, id)
+}
+
 func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -5617,6 +5689,18 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+
+	return q.db.UpdateChatBuildAgentBinding(ctx, arg)
 }
 
 func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
@@ -5686,6 +5770,17 @@ func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.Update
 	return q.db.UpdateChatModelConfig(ctx, arg)
 }
 
+func (q *querier) UpdateChatPinOrder(ctx context.Context, arg database.UpdateChatPinOrderParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatPinOrder(ctx, arg)
+}
+
 func (q *querier) UpdateChatProvider(ctx context.Context, arg database.UpdateChatProviderParams) (database.ChatProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatProvider{}, err
@@ -5706,7 +5801,7 @@ func (q *querier) UpdateChatStatus(ctx context.Context, arg database.UpdateChatS
 	return q.db.UpdateChatStatus(ctx, arg)
 }
 
-func (q *querier) UpdateChatWorkspace(ctx context.Context, arg database.UpdateChatWorkspaceParams) (database.Chat, error) {
+func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
 		return database.Chat{}, err
@@ -5715,15 +5810,7 @@ func (q *querier) UpdateChatWorkspace(ctx context.Context, arg database.UpdateCh
 		return database.Chat{}, err
 	}
 
-	// UpdateChatWorkspace is manually implemented for chat tables and may not be
-	// present on every wrapped store interface yet.
-	chatWorkspaceUpdater, ok := q.db.(interface {
-		UpdateChatWorkspace(context.Context, database.UpdateChatWorkspaceParams) (database.Chat, error)
-	})
-	if !ok {
-		return database.Chat{}, xerrors.New("update chat workspace is not implemented by wrapped store")
-	}
-	return chatWorkspaceUpdater.UpdateChatWorkspace(ctx, arg)
+	return q.db.UpdateChatWorkspaceBinding(ctx, arg)
 }
 
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
@@ -6827,6 +6914,13 @@ func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg databas
 	return q.db.UpsertChatDiffStatusReference(ctx, arg)
 }
 
+func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt)
+}
+
 func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -7173,6 +7267,10 @@ func (q *querier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg databa
 
 func (q *querier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	return q.db.CountAuthorizedAIBridgeSessions(ctx, arg, prepared)
+}
+
+func (q *querier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadsRow, error) {
+	return q.db.ListAuthorizedAIBridgeSessionThreads(ctx, arg, prepared)
 }
 
 func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, _ rbac.PreparedAuthorized) ([]database.Chat, error) {

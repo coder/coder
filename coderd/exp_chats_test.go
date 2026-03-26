@@ -5,12 +5,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"mime"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -61,6 +64,35 @@ func newChatClientWithDatabase(t testing.TB) (*codersdk.ExperimentalClient, data
 		DeploymentValues: chatDeploymentValues(t),
 	})
 	return codersdk.NewExperimentalClient(client), db
+}
+
+type failNextChatSystemPromptStore struct {
+	database.Store
+
+	failNextGetChatIncludeDefaultSystemPrompt    atomic.Bool
+	failNextGetChatSystemPromptConfig            atomic.Bool
+	failNextUpsertChatIncludeDefaultSystemPrompt atomic.Bool
+}
+
+func (s *failNextChatSystemPromptStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
+	if s.failNextGetChatIncludeDefaultSystemPrompt.CompareAndSwap(true, false) {
+		return false, stderrors.New("forced include-default read failure")
+	}
+	return s.Store.GetChatIncludeDefaultSystemPrompt(ctx)
+}
+
+func (s *failNextChatSystemPromptStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefault bool) error {
+	if s.failNextUpsertChatIncludeDefaultSystemPrompt.CompareAndSwap(true, false) {
+		return stderrors.New("forced include-default upsert failure")
+	}
+	return s.Store.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefault)
+}
+
+func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Context) (database.GetChatSystemPromptConfigRow, error) {
+	if s.failNextGetChatSystemPromptConfig.CompareAndSwap(true, false) {
+		return database.GetChatSystemPromptConfigRow{}, stderrors.New("forced chat system prompt configuration read failure")
+	}
+	return s.Store.GetChatSystemPromptConfig(ctx)
 }
 
 func requireChatUsageLimitExceededError(
@@ -743,6 +775,79 @@ func TestWatchChats(t *testing.T) {
 		}
 	})
 
+	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
+		t.Parallel()
+
+		// This test verifies that the pubsub "created" event
+		// carries a fully-populated codersdk.Chat. Exhaustive
+		// field-level coverage of the converter is handled by
+		// TestChat_AllFieldsPopulated (db2sdk) and
+		// TestChat_JSONRoundTrip (codersdk). This integration
+		// test only checks that key fields survive the full
+		// API → pubsub → websocket pipeline.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		type watchEvent struct {
+			Type codersdk.ServerSentEventType `json:"type"`
+			Data json.RawMessage              `json:"data,omitempty"`
+		}
+
+		// Skip the initial ping.
+		var event watchEvent
+		err = wsjson.Read(ctx, conn, &event)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServerSentEventTypePing, event.Type)
+		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
+
+		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "watch route fields completeness test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		var got codersdk.Chat
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+			var update watchEvent
+			if readErr := wsjson.Read(ctx, conn, &update); readErr != nil {
+				return false
+			}
+			if update.Type != codersdk.ServerSentEventTypeData {
+				return false
+			}
+			var payload coderdpubsub.ChatEvent
+			if unmarshalErr := json.Unmarshal(update.Data, &payload); unmarshalErr != nil {
+				return false
+			}
+			if payload.Kind == coderdpubsub.ChatEventKindCreated &&
+				payload.Chat.ID == createdChat.ID {
+				got = payload.Chat
+				return true
+			}
+			return false
+		}, testutil.IntervalFast, "expected a created event for chat %s", createdChat.ID)
+
+		require.Equal(t, createdChat.ID, got.ID)
+		require.Equal(t, createdChat.OwnerID, got.OwnerID)
+		require.Equal(t, modelConfig.ID, got.LastModelConfigID)
+		require.Equal(t, createdChat.Title, got.Title)
+		require.Equal(t, codersdk.ChatStatusPending, got.Status)
+		require.NotNil(t, got.RootChatID)
+		require.Equal(t, createdChat.ID, *got.RootChatID)
+		require.NotZero(t, got.CreatedAt)
+		require.NotZero(t, got.UpdatedAt)
+	})
+
 	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
 		t.Parallel()
 
@@ -1194,6 +1299,73 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, found)
 	})
 
+	t.Run("AdminIncludesDisabledModelConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		enabled := false
+		disabledConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-disabled",
+			DisplayName:  "GPT-4o Disabled",
+			Enabled:      &enabled,
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.False(t, disabledConfig.Enabled)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		found := false
+		for _, config := range configs {
+			if config.ID == disabledConfig.ID {
+				found = true
+				require.False(t, config.Enabled)
+				require.Equal(t, disabledConfig.DisplayName, config.DisplayName)
+			}
+		}
+		require.True(t, found)
+	})
+
+	t.Run("NonAdminExcludesDisabledModelConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		enabledConfig := createChatModelConfig(t, adminClient)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		contextLimit := int64(4096)
+		enabled := false
+		_, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-disabled",
+			DisplayName:  "GPT-4o Disabled",
+			Enabled:      &enabled,
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		configs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, enabledConfig.ID, configs[0].ID)
+		require.True(t, configs[0].Enabled)
+	})
+
 	t.Run("DeserializesLegacyPricingJSON", func(t *testing.T) {
 		t.Parallel()
 
@@ -1435,6 +1607,102 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		modelConfig := createChatModelConfig(t, adminClient)
+
+		enabled := false
+		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Enabled: &enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, updated.ID)
+		require.False(t, updated.Enabled)
+
+		adminConfigs, err := adminClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		foundForAdmin := false
+		for _, config := range adminConfigs {
+			if config.ID == modelConfig.ID {
+				foundForAdmin = true
+				require.False(t, config.Enabled)
+			}
+		}
+		require.True(t, foundForAdmin)
+
+		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, config := range memberConfigs {
+			require.NotEqual(t, modelConfig.ID, config.ID)
+		}
+	})
+
+	t.Run("ReEnableRestoresVisibilityForNonAdmins", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		enabled := false
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-reenable",
+			DisplayName:  "GPT-4o Re-enable",
+			Enabled:      &enabled,
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.False(t, modelConfig.Enabled)
+
+		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		foundForMember := false
+		for _, config := range memberConfigs {
+			if config.ID == modelConfig.ID {
+				foundForMember = true
+			}
+		}
+		require.False(t, foundForMember)
+
+		enabled = true
+		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Enabled: &enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, updated.ID)
+		require.True(t, updated.Enabled)
+
+		memberConfigs, err = memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		foundForMember = false
+		for _, config := range memberConfigs {
+			if config.ID == modelConfig.ID {
+				foundForMember = true
+				require.True(t, config.Enabled)
+			}
+		}
+		require.True(t, foundForMember)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
@@ -1891,6 +2159,127 @@ func TestUnarchiveChat(t *testing.T) {
 
 		err := client.UpdateChat(ctx, uuid.New(), codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+}
+
+func TestChatPinOrder(t *testing.T) {
+	t.Parallel()
+
+	createChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, title string) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: title,
+				},
+			},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	getChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) codersdk.Chat {
+		t.Helper()
+
+		chat, err := client.GetChat(ctx, chatID)
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("PinReorderAndUnpin", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		first := createChat(ctx, t, client, "first pinned chat")
+		second := createChat(ctx, t, client, "second pinned chat")
+		third := createChat(ctx, t, client, "third pinned chat")
+
+		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		third = getChat(ctx, t, client, third.ID)
+		require.EqualValues(t, 1, first.PinOrder)
+		require.EqualValues(t, 2, second.PinOrder)
+		require.EqualValues(t, 3, third.PinOrder)
+
+		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		third = getChat(ctx, t, client, third.ID)
+		require.EqualValues(t, 2, first.PinOrder)
+		require.EqualValues(t, 3, second.PinOrder)
+		require.EqualValues(t, 1, third.PinOrder)
+
+		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(0))})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		third = getChat(ctx, t, client, third.ID)
+		require.Zero(t, first.PinOrder)
+		require.EqualValues(t, 2, second.PinOrder)
+		require.EqualValues(t, 1, third.PinOrder)
+	})
+
+	t.Run("ArchiveClearsPinOrder", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		first := createChat(ctx, t, client, "pinned then archived")
+		second := createChat(ctx, t, client, "stays pinned")
+
+		// Pin both.
+		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+
+		// Archive the first — pin_order should be cleared.
+		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		require.Zero(t, first.PinOrder, "archived chat should have pin_order 0")
+		require.True(t, first.Archived)
+		// The remaining pin keeps its original position. The next
+		// pin/unpin/reorder operation compacts via ROW_NUMBER().
+		require.EqualValues(t, 2, second.PinOrder, "remaining pin keeps original position")
+	})
+
+	t.Run("RejectsNegative", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat := createChat(ctx, t, client, "negative pin order")
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(-1))})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Pin order must be non-negative.", sdkErr.Message)
+
+		chat = getChat(ctx, t, client, chat.ID)
+		require.Zero(t, chat.PinOrder)
 	})
 }
 
@@ -4750,52 +5139,398 @@ func createChatModelConfig(t *testing.T, client *codersdk.ExperimentalClient) co
 func TestChatSystemPrompt(t *testing.T) {
 	t.Parallel()
 
-	adminClient := newChatClient(t)
+	adminClient, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	_ = createChatModelConfig(t, adminClient)
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	const workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+
+	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
+		t.Helper()
+
+		err := adminClient.UpdateChatSystemPrompt(ctx, req)
+		require.NoError(t, err)
+	}
+
+	getChatSystemPrompt := func(t *testing.T, ctx context.Context) codersdk.ChatSystemPromptResponse {
+		t.Helper()
+
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		return resp
+	}
+
+	assertInjectedSystemMessages := func(t *testing.T, ctx context.Context, wantResolvedPrompt string) {
+		t.Helper()
+
+		chat, err := adminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: fmt.Sprintf("system prompt composition %s", t.Name()),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		messages, err := db.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		var systemTexts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+			systemTexts = append(systemTexts, parts[0].Text)
+		}
+
+		if wantResolvedPrompt == "" {
+			require.Equal(t, []string{workspaceAwareness}, systemTexts)
+			return
+		}
+
+		require.Equal(t, []string{wantResolvedPrompt, workspaceAwareness}, systemTexts)
+	}
 
 	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp, err := adminClient.GetChatSystemPrompt(ctx)
-		require.NoError(t, err)
+		resp := getChatSystemPrompt(t, ctx)
 		require.Equal(t, "", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt, "should default to true")
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt, "should return the built-in default prompt for preview")
 	})
 
 	t.Run("AdminCanSet", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: "You are a helpful coding assistant.",
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "You are a helpful coding assistant.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
-		require.NoError(t, err)
 
-		resp, err := adminClient.GetChatSystemPrompt(ctx)
-		require.NoError(t, err)
+		resp := getChatSystemPrompt(t, ctx)
 		require.Equal(t, "You are a helpful coding assistant.", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
 	})
 
 	t.Run("AdminCanUnset", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Unset by sending an empty string.
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: "",
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+
+		resp := getChatSystemPrompt(t, ctx)
+		require.Empty(t, resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+	})
+
+	t.Run("ToggleIncludeDefault", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
+		})
+
+		resp := getChatSystemPrompt(t, ctx)
+		require.Empty(t, resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+
+		resp = getChatSystemPrompt(t, ctx)
+		require.Empty(t, resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+	})
+
+	t.Run("PreservesIncludeDefaultWhenOmitted", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := &failNextChatSystemPromptStore{Store: rawDB}
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
 		})
 		require.NoError(t, err)
 
-		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		store.failNextGetChatIncludeDefaultSystemPrompt.Store(true)
+		store.failNextUpsertChatIncludeDefaultSystemPrompt.Store(true)
+
+		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Omitted toggle request",
+		})
 		require.NoError(t, err)
-		require.Equal(t, "", resp.SystemPrompt)
+
+		resp, err := client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Omitted toggle request", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+	})
+
+	t.Run("ExistingCustomPromptDefaultsIncludeDefaultOff", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		legacyClient, legacyDB := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, legacyClient.Client)
+		_ = createChatModelConfig(t, legacyClient)
+
+		require.NoError(t, legacyDB.UpsertChatSystemPrompt(dbauthz.AsSystemRestricted(ctx), "Legacy custom instructions"))
+
+		resp, err := legacyClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Legacy custom instructions", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+
+		chat, err := legacyClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: fmt.Sprintf("legacy custom prompt %s", t.Name()),
+			}},
+		})
+		require.NoError(t, err)
+
+		messages, err := legacyDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		var systemTexts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+			systemTexts = append(systemTexts, parts[0].Text)
+		}
+
+		require.Equal(t, []string{"Legacy custom instructions", workspaceAwareness}, systemTexts)
+	})
+
+	t.Run("DefaultSystemPromptPreview", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := getChatSystemPrompt(t, ctx)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+		require.NotEmpty(t, resp.DefaultSystemPrompt, "built-in default prompt should not be empty")
+	})
+
+	t.Run("SavesBothFieldsTogether", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Custom instructions for all users.",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
+		})
+
+		resp := getChatSystemPrompt(t, ctx)
+		require.Equal(t, "Custom instructions for all users.", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+
+		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Different instructions.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+
+		resp = getChatSystemPrompt(t, ctx)
+		require.Equal(t, "Different instructions.", resp.SystemPrompt)
+		require.True(t, resp.IncludeDefaultSystemPrompt)
+	})
+
+	t.Run("PromptComposition", func(t *testing.T) {
+		t.Run("DefaultOnlyWhenToggleOnAndEmpty", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+				SystemPrompt:               "",
+				IncludeDefaultSystemPrompt: ptr.Ref(true),
+			})
+
+			resp := getChatSystemPrompt(t, ctx)
+			require.Empty(t, resp.SystemPrompt)
+			require.True(t, resp.IncludeDefaultSystemPrompt)
+			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+			assertInjectedSystemMessages(t, ctx, chatd.DefaultSystemPrompt)
+		})
+
+		t.Run("BothWhenToggleOnAndNonEmpty", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+				SystemPrompt:               "Custom instructions",
+				IncludeDefaultSystemPrompt: ptr.Ref(true),
+			})
+
+			resp := getChatSystemPrompt(t, ctx)
+			require.Equal(t, "Custom instructions", resp.SystemPrompt)
+			require.True(t, resp.IncludeDefaultSystemPrompt)
+			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+			assertInjectedSystemMessages(t, ctx, chatd.DefaultSystemPrompt+"\n\nCustom instructions")
+		})
+
+		t.Run("CustomOnlyWhenToggleOff", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+				SystemPrompt:               "Custom only",
+				IncludeDefaultSystemPrompt: ptr.Ref(false),
+			})
+
+			resp := getChatSystemPrompt(t, ctx)
+			require.Equal(t, "Custom only", resp.SystemPrompt)
+			require.False(t, resp.IncludeDefaultSystemPrompt)
+			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+			assertInjectedSystemMessages(t, ctx, "Custom only")
+		})
+
+		t.Run("EmptyWhenToggleOffAndEmpty", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+				SystemPrompt:               "",
+				IncludeDefaultSystemPrompt: ptr.Ref(false),
+			})
+
+			resp := getChatSystemPrompt(t, ctx)
+			require.Empty(t, resp.SystemPrompt)
+			require.False(t, resp.IncludeDefaultSystemPrompt)
+			require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+			assertInjectedSystemMessages(t, ctx, "")
+		})
+	})
+
+	t.Run("CreateChatFallsBackToDefaultWhenSystemPromptConfigReadFailsWithIncludeDefaultEnabled", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := &failNextChatSystemPromptStore{Store: rawDB}
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Keep custom instructions",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		store.failNextGetChatSystemPromptConfig.Store(true)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
+			}},
+		})
+		require.NoError(t, err)
+
+		messages, err := rawDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		var systemTexts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+			systemTexts = append(systemTexts, parts[0].Text)
+		}
+
+		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
+	})
+
+	t.Run("CreateChatFallbackIgnoresDisabledPreferenceWhenConfigReadFails", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := &failNextChatSystemPromptStore{Store: rawDB}
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Do not use the default prompt",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		// A config read failure loses all admin preferences, including
+		// include_default=false, so chat creation falls back to the built-in default.
+		store.failNextGetChatSystemPromptConfig.Store(true)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
+			}},
+		})
+		require.NoError(t, err)
+
+		messages, err := rawDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		var systemTexts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+			systemTexts = append(systemTexts, parts[0].Text)
+		}
+
+		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
 	})
 
 	t.Run("NonAdminFails", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: "This should fail.",
+		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "This should fail.",
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
+		requireSDKError(t, err, http.StatusForbidden)
+
+		_, err = memberClient.GetChatSystemPrompt(ctx)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
@@ -4814,8 +5549,9 @@ func TestChatSystemPrompt(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		tooLong := strings.Repeat("a", 131073)
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.ChatSystemPrompt{
-			SystemPrompt: tooLong,
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               tooLong,
+			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
@@ -5286,6 +6022,137 @@ func TestChatTemplateAllowlist(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, resp.TemplateIDs, 1)
 		require.Equal(t, id, resp.TemplateIDs[0])
+	})
+}
+
+func TestGetChatsByWorkspace(t *testing.T) {
+	t.Parallel()
+
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModelConfig(t, client)
+
+	// Helper to create a workspace owned by the test user.
+	newWorkspace := func() dbfake.WorkspaceBuildBuilder {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent()
+	}
+
+	// Helper to insert a chat linked to a workspace.
+	insertChat := func(ctx context.Context, title string, workspaceID uuid.UUID) database.Chat {
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             title,
+			WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("EmptyRequestReturnsEmptyMap", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{})
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("WorkspaceWithNoChatsOmitted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("ReturnsChatLinkedToWorkspace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+		chat := insertChat(ctx, "workspace chat", ws.Workspace.ID)
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		require.Equal(t, chat.ID, result[ws.Workspace.ID])
+	})
+
+	t.Run("ArchivedChatsExcluded", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+		chat := insertChat(ctx, "soon to be archived", ws.Workspace.ID)
+
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("ReturnsLatestNonArchivedChat", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+
+		// Insert an older chat and archive it.
+		olderChat := insertChat(ctx, "older archived", ws.Workspace.ID)
+		err := client.UpdateChat(ctx, olderChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		// Insert two active chats — the second is newer due to insert
+		// ordering and should win the "latest" selection in Go after
+		// the SQL returns both ordered by updated_at DESC.
+		_ = insertChat(ctx, "older active", ws.Workspace.ID)
+		newerChat := insertChat(ctx, "newer active", ws.Workspace.ID)
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		require.Equal(t, newerChat.ID, result[ws.Workspace.ID])
+	})
+
+	t.Run("MultipleWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		wsA := newWorkspace().Do()
+		wsB := newWorkspace().Do()
+		wsC := newWorkspace().Do()
+
+		chatA := insertChat(ctx, "chat for workspace A", wsA.Workspace.ID)
+		chatB := insertChat(ctx, "chat for workspace B", wsB.Workspace.ID)
+
+		// Query all three workspaces; C has no chats.
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{
+			wsA.Workspace.ID,
+			wsB.Workspace.ID,
+			wsC.Workspace.ID,
+		})
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		require.Equal(t, chatA.ID, result[wsA.Workspace.ID])
+		require.Equal(t, chatB.ID, result[wsB.Workspace.ID])
+		_, hasC := result[wsC.Workspace.ID]
+		require.False(t, hasC, "workspace C should not appear in result")
+	})
+
+	t.Run("RejectsTooManyWorkspaceIDs", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ids := make([]uuid.UUID, 26)
+		for i := range ids {
+			ids[i] = uuid.New()
+		}
+
+		_, err := client.GetChatsByWorkspace(ctx, ids)
+		require.Error(t, err)
+		requireSDKError(t, err, http.StatusBadRequest)
 	})
 }
 

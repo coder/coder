@@ -387,6 +387,84 @@ func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
 }
 
+// TestChat_JSONRoundTrip verifies that every field of codersdk.Chat
+// survives a JSON marshal/unmarshal cycle. This catches omitempty
+// silently eating zero-ish values, struct tag typos, and similar
+// serialization bugs in the pubsub path.
+func TestChat_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	prState := "open"
+	prTitle := "test PR"
+	authorLogin := "testuser"
+	avatarURL := "https://example.com/avatar.png"
+	baseBranch := "main"
+	headBranch := "feature/test"
+	prNumber := int32(42)
+	commits := int32(3)
+	approved := true
+	reviewerCount := int32(2)
+	refreshedAt := now
+	staleAt := now.Add(time.Hour)
+	lastError := "boom"
+	prURL := "https://github.com/coder/coder/pull/42"
+	workspaceID := uuid.New()
+	buildID := uuid.New()
+	agentID := uuid.New()
+	parentChatID := uuid.New()
+	rootChatID := uuid.New()
+
+	original := codersdk.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		WorkspaceID:       &workspaceID,
+		BuildID:           &buildID,
+		AgentID:           &agentID,
+		ParentChatID:      &parentChatID,
+		RootChatID:        &rootChatID,
+		LastModelConfigID: uuid.New(),
+		Title:             "round-trip-test",
+		Status:            codersdk.ChatStatusRunning,
+		LastError:         &lastError,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		Archived:          true,
+		MCPServerIDs:      []uuid.UUID{uuid.New()},
+		Labels:            map[string]string{"env": "prod"},
+		DiffStatus: &codersdk.ChatDiffStatus{
+			ChatID:           uuid.New(),
+			URL:              &prURL,
+			PullRequestState: &prState,
+			PullRequestTitle: prTitle,
+			PullRequestDraft: true,
+			ChangesRequested: true,
+			Additions:        10,
+			Deletions:        5,
+			ChangedFiles:     3,
+			AuthorLogin:      &authorLogin,
+			AuthorAvatarURL:  &avatarURL,
+			BaseBranch:       &baseBranch,
+			HeadBranch:       &headBranch,
+			PRNumber:         &prNumber,
+			Commits:          &commits,
+			Approved:         &approved,
+			ReviewerCount:    &reviewerCount,
+			RefreshedAt:      &refreshedAt,
+			StaleAt:          &staleAt,
+		},
+	}
+
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var decoded codersdk.Chat
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	require.Equal(t, original, decoded)
+}
+
 //nolint:tparallel,paralleltest
 func TestParseChatWorkspaceTTL(t *testing.T) {
 	t.Parallel()

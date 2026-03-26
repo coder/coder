@@ -19,7 +19,11 @@ const initialValues: CreateTokenData = {
 	lifetime: 30,
 };
 
-const CreateTokenPage: FC = () => {
+type CreateTokenPageProps = {
+	now?: Date;
+};
+
+const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
 	const navigate = useNavigate();
 
 	const {
@@ -105,6 +109,7 @@ const CreateTokenPage: FC = () => {
 					setFormError={setFormError}
 					isCreating={isCreating}
 					creationFailed={creationFailed}
+					now={now}
 				/>
 
 				<ConfirmDialog

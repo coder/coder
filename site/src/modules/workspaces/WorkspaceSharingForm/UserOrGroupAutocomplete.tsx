@@ -51,7 +51,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	// This allows regular org members to see other members in their org
 	// for workspace sharing, without needing site-wide user:read permission.
 	const membersQuery = useQuery({
-		...organizationMembers(organizationId),
+		...organizationMembers(organizationId, { limit: 0 }),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});

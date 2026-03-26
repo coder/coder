@@ -19,7 +19,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { API } from "#/api/api";
@@ -96,6 +96,7 @@ interface WorkspacesTableProps {
 	canCreateTemplate: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
+	chatsByWorkspace?: Record<string, string>;
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -107,6 +108,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	canCreateTemplate,
 	onActionSuccess,
 	onActionError,
+	chatsByWorkspace,
 }) => {
 	const dashboard = useDashboard();
 
@@ -209,6 +211,17 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												{workspace.task_id && (
 													<Badge size="xs" variant="default">
 														Task
+													</Badge>
+												)}
+												{chatsByWorkspace?.[workspace.id] && (
+													<Badge size="xs" variant="info" hover asChild>
+														<Link
+															to={`/agents/${chatsByWorkspace[workspace.id]}`}
+															onClick={(e) => e.stopPropagation()}
+															aria-label={`View agent chat for ${workspace.name}`}
+														>
+															Agent
+														</Link>
 													</Badge>
 												)}
 											</Stack>

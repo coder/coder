@@ -4171,6 +4171,9 @@ type Chat struct {
 	Mode              NullChatMode   `db:"mode" json:"mode"`
 	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels            StringMap      `db:"labels" json:"labels"`
+	BuildID           uuid.NullUUID  `db:"build_id" json:"build_id"`
+	AgentID           uuid.NullUUID  `db:"agent_id" json:"agent_id"`
+	PinOrder          int32          `db:"pin_order" json:"pin_order"`
 }
 
 type ChatDiffStatus struct {

@@ -200,10 +200,15 @@ export const deleteGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const addMember = (queryClient: QueryClient, organization: string) => {
+export const addMembers = (queryClient: QueryClient, organization: string) => {
 	return {
-		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
-			API.addMember(groupId, userId),
+		mutationFn: ({
+			groupId,
+			userIds,
+		}: {
+			groupId: string;
+			userIds: string[];
+		}) => API.addMembers(groupId, userIds),
 		onSuccess: async (updatedGroup: Group) =>
 			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};

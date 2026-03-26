@@ -23,6 +23,7 @@ interface UsersPageViewProps {
 	canEditUsers: boolean;
 	oidcRoleSyncEnabled: boolean;
 	canViewActivity?: boolean;
+	showAISeatColumn?: boolean;
 	isLoading: boolean;
 	authMethods?: TypesGen.AuthMethods;
 	onSuspendUser: (user: TypesGen.User) => void;
@@ -60,6 +61,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 	canEditUsers,
 	oidcRoleSyncEnabled,
 	canViewActivity,
+	showAISeatColumn,
 	isLoading,
 	filterProps,
 	isNonInitialPage,
@@ -107,6 +109,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 					canEditUsers={canEditUsers}
 					oidcRoleSyncEnabled={oidcRoleSyncEnabled}
 					canViewActivity={canViewActivity}
+					showAISeatColumn={showAISeatColumn}
 					isLoading={isLoading}
 					isNonInitialPage={isNonInitialPage}
 					actorID={actorID}

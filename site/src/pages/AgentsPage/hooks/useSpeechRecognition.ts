@@ -85,17 +85,13 @@ export function useSpeechRecognition(): {
 	const [error, setError] = useState<string | null>(null);
 	const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
-	// Cache the constructor lookup once per hook instance so we don't hit
-	// the window property on every render.
-	const ctorRef = useRef<SpeechRecognitionConstructor | undefined>(
-		getSpeechRecognitionCtor(),
-	);
-
-	const isSupported = ctorRef.current !== undefined;
+	// Browser API availability is constant for the lifetime of the
+	// page, so a lazy state initializer captures it once.
+	const [ctorSnapshot] = useState(getSpeechRecognitionCtor);
+	const isSupported = ctorSnapshot !== undefined;
 
 	const start = useCallback(() => {
-		const Ctor = ctorRef.current;
-		if (!Ctor) {
+		if (!ctorSnapshot) {
 			return;
 		}
 
@@ -107,7 +103,7 @@ export function useSpeechRecognition(): {
 
 		setError(null);
 
-		const recognition = new Ctor();
+		const recognition = new ctorSnapshot();
 		recognition.lang = navigator.language;
 		recognition.continuous = true;
 		recognition.interimResults = true;
@@ -147,7 +143,7 @@ export function useSpeechRecognition(): {
 		setTranscript("");
 		setIsRecording(true);
 		recognition.start();
-	}, []);
+	}, [ctorSnapshot]);
 
 	const stop = useCallback(() => {
 		// stop() lets the browser deliver any remaining final results

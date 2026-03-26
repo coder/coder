@@ -45,7 +45,10 @@ export const buildStreamRenderState = (
 
 	return {
 		streamState,
-		streamTools: buildStreamTools(streamState),
+		streamTools: buildStreamTools(
+			streamState?.toolCalls,
+			streamState?.toolResults,
+		),
 		liveStatus: buildLiveStatus({ streamState }),
 	};
 };
@@ -73,8 +76,7 @@ export const buildRetryState = (
 	overrides: Partial<RetryState> = {},
 ): RetryState => ({
 	attempt: 1,
-	error:
-		"Anthropic is retrying your request after a transient upstream failure.",
+	error: "Anthropic returned an unexpected error.",
 	kind: "generic",
 	provider: "anthropic",
 	delayMs: 2000,

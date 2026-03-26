@@ -207,3 +207,124 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIBridgeListSessionsResponse](schemas.md#codersdkaibridgelistsessionsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get AI Bridge session threads
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/sessions/{session_id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /aibridge/sessions/{session_id}`
+
+### Parameters
+
+| Name         | In    | Type    | Required | Description                                         |
+|--------------|-------|---------|----------|-----------------------------------------------------|
+| `session_id` | path  | string  | true     | Session ID (client_session_id or interception UUID) |
+| `after_id`   | query | string  | false    | Thread pagination cursor (forward/older)            |
+| `before_id`  | query | string  | false    | Thread pagination cursor (backward/newer)           |
+| `limit`      | query | integer | false    | Number of threads per page (default 50)             |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "client": "string",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "models": [
+    "string"
+  ],
+  "page_ended_at": "2019-08-24T14:15:22Z",
+  "page_started_at": "2019-08-24T14:15:22Z",
+  "providers": [
+    "string"
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "threads": [
+    {
+      "agentic_actions": [
+        {
+          "model": "string",
+          "thinking": [
+            {
+              "text": "string"
+            }
+          ],
+          "token_usage": {
+            "input_tokens": 0,
+            "metadata": {
+              "property1": null,
+              "property2": null
+            },
+            "output_tokens": 0
+          },
+          "tool_calls": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "injected": true,
+              "input": "string",
+              "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+              "metadata": {
+                "property1": null,
+                "property2": null
+              },
+              "provider_response_id": "string",
+              "server_url": "string",
+              "tool": "string"
+            }
+          ]
+        }
+      ],
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "model": "string",
+      "prompt": "string",
+      "provider": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "token_usage": {
+        "input_tokens": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "output_tokens": 0
+      }
+    }
+  ],
+  "token_usage_summary": {
+    "input_tokens": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "output_tokens": 0
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIBridgeSessionThreadsResponse](schemas.md#codersdkaibridgesessionthreadsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

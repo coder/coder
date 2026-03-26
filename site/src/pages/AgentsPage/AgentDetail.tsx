@@ -247,7 +247,7 @@ const getPersistedDetailError = ({
 	chatRecord: TypesGen.Chat | undefined;
 	cachedError: ChatDetailError | undefined;
 }): ChatDetailError | undefined => {
-	if (cachedError?.kind === "usage-limit") {
+	if (cachedError?.kind === "usage_limit") {
 		return cachedError;
 	}
 	if (chatStatus === "error") {
@@ -294,13 +294,14 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
+		onChatReady,
+		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -595,7 +596,7 @@ const AgentDetail: FC = () => {
 			isUsageLimitData(error.response.data)
 		) {
 			const reason: ChatDetailError = {
-				kind: "usage-limit",
+				kind: "usage_limit",
 				message: formatUsageLimitMessage(error.response.data),
 			};
 			store.setStreamError(reason);
@@ -669,12 +670,12 @@ const AgentDetail: FC = () => {
 			if (scrollContainerRef.current) {
 				scrollContainerRef.current.scrollTop = 0;
 			}
-			store.clearStreamState();
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
+				store.clearStreamState();
 				setPendingEditMessageId(null);
 			} catch (error) {
 				setPendingEditMessageId(null);
@@ -698,10 +699,10 @@ const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 
-		// No optimistic rendering — the message will appear in the
-		// timeline when the server confirms via the POST response or
-		// via the SSE stream.
-		store.clearStreamState();
+		// Don't clear stream state before the POST completes.
+		// For queued sends the WebSocket status events handle
+		// clearing; for non-queued sends we clear explicitly
+		// below. Clearing eagerly causes a visible cutoff.
 		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
 		try {
 			response = await sendMutation.mutateAsync(request);
@@ -710,10 +711,14 @@ const AgentDetail: FC = () => {
 			throw error;
 		}
 		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
+		// queued), clear the stream and insert the user's message
+		// so it appears in the timeline without waiting for the
+		// WebSocket stream.
+		if (!response.queued) {
+			store.clearStreamState();
+			if (response.message) {
+				store.upsertDurableMessage(response.message);
+			}
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
@@ -874,6 +879,16 @@ const AgentDetail: FC = () => {
 		}
 		requestUnarchiveAgent(agentId);
 	};
+
+	// Signal the parent layout that messages have loaded.
+	const chatReadyFiredRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
+			return;
+		}
+		chatReadyFiredRef.current = agentId ?? null;
+		onChatReady();
+	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (

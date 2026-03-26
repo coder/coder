@@ -214,6 +214,58 @@ const docTemplate = `{
                 ]
             }
         },
+        "/aibridge/sessions/{session_id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "Get AI Bridge session threads",
+                "operationId": "get-ai-bridge-session-threads",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID (client_session_id or interception UUID)",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Thread pagination cursor (forward/older)",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Thread pagination cursor (backward/newer)",
+                        "name": "before_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of threads per page (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/appearance": {
             "get": {
                 "produces": [
@@ -12675,6 +12727,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeAgenticAction": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "type": "string"
+                },
+                "thinking": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeModelThought"
+                    }
+                },
+                "token_usage": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
+                },
+                "tool_calls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeToolCall"
+                    }
+                }
+            }
+        },
         "codersdk.AIBridgeAnthropicConfig": {
             "type": "object",
             "properties": {
@@ -12843,6 +12918,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeModelThought": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIBridgeOpenAIConfig": {
             "type": "object",
             "properties": {
@@ -12942,6 +13025,76 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeSessionThreadsResponse": {
+            "type": "object",
+            "properties": {
+                "client": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "initiator": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "page_ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "page_started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "threads": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeThread"
+                    }
+                },
+                "token_usage_summary": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionThreadsTokenUsage": {
+            "type": "object",
+            "properties": {
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "output_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIBridgeSessionTokenUsageSummary": {
             "type": "object",
             "properties": {
@@ -12950,6 +13103,41 @@ const docTemplate = `{
                 },
                 "output_tokens": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIBridgeThread": {
+            "type": "object",
+            "properties": {
+                "agentic_actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeAgenticAction"
+                    }
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "token_usage": {
+                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
                 }
             }
         },
@@ -12979,6 +13167,42 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "provider_response_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeToolCall": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "injected": {
+                    "type": "boolean"
+                },
+                "input": {
+                    "type": "string"
+                },
+                "interception_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "provider_response_id": {
+                    "type": "string"
+                },
+                "server_url": {
+                    "type": "string"
+                },
+                "tool": {
                     "type": "string"
                 }
             }
@@ -17426,6 +17650,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
+                },
                 "is_service_account": {
                     "type": "boolean"
                 },
@@ -20222,6 +20450,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "email"
                 },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -21070,6 +21302,10 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "format": "email"
+                },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",

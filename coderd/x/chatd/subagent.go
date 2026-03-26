@@ -72,7 +72,7 @@ func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
 	if p.providerAPIKeys.APIKey("anthropic") != "" {
 		return true
 	}
-	dbProviders, err := p.db.GetEnabledChatProviders(ctx)
+	dbProviders, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
 		return false
 	}
@@ -313,6 +313,8 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				childChat, err := p.CreateChat(ctx, CreateOptions{
 					OwnerID:     parent.OwnerID,
 					WorkspaceID: parent.WorkspaceID,
+					BuildID:     parent.BuildID,
+					AgentID:     parent.AgentID,
 					ParentChatID: uuid.NullUUID{
 						UUID:  parent.ID,
 						Valid: true,
@@ -383,6 +385,8 @@ func (p *Server) createChildSubagentChat(
 	child, err := p.CreateChat(ctx, CreateOptions{
 		OwnerID:     parent.OwnerID,
 		WorkspaceID: parent.WorkspaceID,
+		BuildID:     parent.BuildID,
+		AgentID:     parent.AgentID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,

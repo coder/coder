@@ -104,10 +104,10 @@ describe("isUsageLimitData", () => {
 	it("accepts a fully populated valid payload", () => {
 		const error: ChatDetailError = {
 			message: "Your usage limit has been reached.",
-			kind: "usage-limit",
+			kind: "usage_limit",
 		};
 
-		expect(error.kind).toBe("usage-limit");
+		expect(error.kind).toBe("usage_limit");
 		expect(
 			isUsageLimitData({
 				spent_micros: 900_000,

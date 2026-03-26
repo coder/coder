@@ -25,6 +25,7 @@ export type ModelConfigFormBuildResult = {
 export type ModelFormValues = {
 	model: string;
 	displayName: string;
+	enabled: boolean;
 	contextLimit: string;
 	compressionThreshold: string;
 	isDefault: boolean;
@@ -224,6 +225,7 @@ export const buildInitialModelFormValues = (
 ): ModelFormValues => ({
 	model: editingModel?.model ?? "",
 	displayName: editingModel?.display_name ?? "",
+	enabled: editingModel?.enabled ?? true,
 	contextLimit: editingModel ? String(editingModel.context_limit) : "",
 	compressionThreshold: editingModel
 		? String(editingModel.compression_threshold)

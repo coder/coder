@@ -45,6 +45,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 	...overrides,
 });
@@ -206,13 +207,25 @@ export const WithError: Story = {
 		<StoryAgentDetailView
 			persistedError={{
 				kind: "overloaded",
-				message: "Anthropic is currently overloaded. Please try again shortly.",
+				message: "Anthropic is currently overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
 			}}
 		/>
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /service overloaded/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is currently overloaded\./i),
+		).toBeVisible();
+		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
+		expect(canvas.getByText(/http 529/i)).toBeVisible();
+	},
 };
 
 /** Input area appears disabled when `isInputDisabled` is true. */

@@ -207,6 +207,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 });
 
@@ -1826,6 +1827,92 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("running");
 		});
 		expect(result.current.retryState).toBeNull();
+	});
+
+	it("clears retryState when message_part arrives after retry", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-retry-message-part";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					retryState: useChatSelector(store, selectRetryState),
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "retry",
+				chat_id: chatID,
+				retry: {
+					attempt: 1,
+					error: "rate limited",
+					kind: "rate_limit",
+					provider: "anthropic",
+					delay_ms: 3000,
+					retrying_at: "2025-01-01T00:00:30.000Z",
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.retryState).toEqual({
+				attempt: 1,
+				error: "rate limited",
+				kind: "rate_limit",
+				provider: "anthropic",
+				delayMs: 3000,
+				retryingAt: "2025-01-01T00:00:30.000Z",
+			});
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "retry recovered" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.retryState).toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "retry recovered" },
+			]);
+		});
 	});
 
 	it("routes status events for other chatIDs to subagent overrides", async () => {

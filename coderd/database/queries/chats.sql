@@ -1,9 +1,177 @@
 -- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, updated_at = NOW()
+UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
 WHERE id = @id OR root_chat_id = @id;
 
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
+
+-- name: PinChatByID :exec
+WITH target_chat AS (
+    SELECT
+        id,
+        owner_id
+    FROM
+        chats
+    WHERE
+        id = @id::uuid
+),
+-- Under READ COMMITTED, concurrent pin operations for the same
+-- owner may momentarily produce duplicate pin_order values because
+-- each CTE snapshot does not see the other's writes. The next
+-- pin/unpin/reorder operation's ROW_NUMBER() self-heals the
+-- sequence, so this is acceptable.
+ranked AS (
+    SELECT
+        c.id,
+        ROW_NUMBER() OVER (ORDER BY c.pin_order ASC, c.id ASC) :: integer AS next_pin_order
+    FROM
+        chats c
+    JOIN
+        target_chat ON c.owner_id = target_chat.owner_id
+    WHERE
+        c.pin_order > 0
+        AND c.archived = FALSE
+        AND c.id <> target_chat.id
+),
+updates AS (
+    SELECT
+        ranked.id,
+        ranked.next_pin_order AS pin_order
+    FROM
+        ranked
+    UNION ALL
+    SELECT
+        target_chat.id,
+        COALESCE((
+            SELECT
+                MAX(ranked.next_pin_order)
+            FROM
+                ranked
+        ), 0) + 1 AS pin_order
+    FROM
+        target_chat
+)
+UPDATE
+    chats c
+SET
+    pin_order = updates.pin_order
+FROM
+    updates
+WHERE
+    c.id = updates.id;
+
+-- name: UnpinChatByID :exec
+WITH target_chat AS (
+    SELECT
+        id,
+        owner_id
+    FROM
+        chats
+    WHERE
+        id = @id::uuid
+),
+ranked AS (
+    SELECT
+        c.id,
+        ROW_NUMBER() OVER (ORDER BY c.pin_order ASC, c.id ASC) :: integer AS current_position
+    FROM
+        chats c
+    JOIN
+        target_chat ON c.owner_id = target_chat.owner_id
+    WHERE
+        c.pin_order > 0
+        AND c.archived = FALSE
+),
+target AS (
+    SELECT
+        ranked.id,
+        ranked.current_position
+    FROM
+        ranked
+    WHERE
+        ranked.id = @id::uuid
+),
+updates AS (
+    SELECT
+        ranked.id,
+        CASE
+            WHEN ranked.id = target.id THEN 0
+            WHEN ranked.current_position > target.current_position THEN ranked.current_position - 1
+            ELSE ranked.current_position
+        END AS pin_order
+    FROM
+        ranked
+    CROSS JOIN
+        target
+)
+UPDATE
+    chats c
+SET
+    pin_order = updates.pin_order
+FROM
+    updates
+WHERE
+    c.id = updates.id;
+
+-- name: UpdateChatPinOrder :exec
+WITH target_chat AS (
+    SELECT
+        id,
+        owner_id
+    FROM
+        chats
+    WHERE
+        id = @id::uuid
+),
+ranked AS (
+    SELECT
+        c.id,
+        ROW_NUMBER() OVER (ORDER BY c.pin_order ASC, c.id ASC) :: integer AS current_position,
+        COUNT(*) OVER () :: integer AS pinned_count
+    FROM
+        chats c
+    JOIN
+        target_chat ON c.owner_id = target_chat.owner_id
+    WHERE
+        c.pin_order > 0
+        AND c.archived = FALSE
+),
+target AS (
+    SELECT
+        ranked.id,
+        ranked.current_position,
+        LEAST(GREATEST(@pin_order::integer, 1), ranked.pinned_count) AS desired_position
+    FROM
+        ranked
+    WHERE
+        ranked.id = @id::uuid
+),
+updates AS (
+    SELECT
+        ranked.id,
+        CASE
+            WHEN ranked.id = target.id THEN target.desired_position
+            WHEN target.desired_position < target.current_position
+                AND ranked.current_position >= target.desired_position
+                AND ranked.current_position < target.current_position THEN ranked.current_position + 1
+            WHEN target.desired_position > target.current_position
+                AND ranked.current_position > target.current_position
+                AND ranked.current_position <= target.desired_position THEN ranked.current_position - 1
+            ELSE ranked.current_position
+        END AS pin_order
+    FROM
+        ranked
+    CROSS JOIN
+        target
+)
+UPDATE
+    chats c
+SET
+    pin_order = updates.pin_order
+FROM
+    updates
+WHERE
+    c.id = updates.id;
 
 -- name: SoftDeleteChatMessagesAfterID :exec
 UPDATE
@@ -180,6 +348,8 @@ LIMIT
 INSERT INTO chats (
     owner_id,
     workspace_id,
+    build_id,
+    agent_id,
     parent_chat_id,
     root_chat_id,
     last_model_config_id,
@@ -190,6 +360,8 @@ INSERT INTO chats (
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
+    sqlc.narg('build_id')::uuid,
+    sqlc.narg('agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
@@ -305,16 +477,23 @@ WHERE
 RETURNING
     *;
 
--- name: UpdateChatWorkspace :one
-UPDATE
-    chats
-SET
+-- name: UpdateChatWorkspaceBinding :one
+UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
+    build_id = sqlc.narg('build_id')::uuid,
+    agent_id = sqlc.narg('agent_id')::uuid,
+    updated_at = NOW()
+WHERE id = @id::uuid
+RETURNING *;
+
+-- name: UpdateChatBuildAgentBinding :one
+UPDATE chats SET
+    build_id = sqlc.narg('build_id')::uuid,
+    agent_id = sqlc.narg('agent_id')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *;
 
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
@@ -877,6 +1056,13 @@ FROM groups g
 JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = @user_id::uuid
   AND g.chat_spend_limit_micros IS NOT NULL;
+
+-- name: GetChatsByWorkspaceIDs :many
+SELECT *
+FROM chats
+WHERE archived = false
+  AND workspace_id = ANY(@ids::uuid[])
+ORDER BY workspace_id, updated_at DESC;
 
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:

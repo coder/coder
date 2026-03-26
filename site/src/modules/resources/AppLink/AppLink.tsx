@@ -8,6 +8,7 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
+import { docs } from "utils/docs";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
@@ -98,7 +99,7 @@ export const AppLink: FC<AppLinkProps> = ({
 			<>
 				Port forwarding will not work because hostname is too long, see the{" "}
 				<Link
-					href="https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard"
+					href={docs("/user-guides/workspace-access/port-forwarding#dashboard")}
 					target="_blank"
 					size="sm"
 				>

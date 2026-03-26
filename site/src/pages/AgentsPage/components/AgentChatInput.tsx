@@ -57,10 +57,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useSpeechRecognition } from "#/hooks/useSpeechRecognition";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
+import { useOverflowCount } from "../hooks/useOverflowCount";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
@@ -456,6 +457,67 @@ export const AttachmentPreview: FC<{
 	);
 };
 
+type ToolBadgeData =
+	| { kind: "workspace"; name: string }
+	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
+
+const ToolBadge: FC<{
+	badge: ToolBadgeData;
+	onRemoveWorkspace?: () => void;
+	onRemoveMcp?: (serverId: string) => void;
+	className?: string;
+}> = ({ badge, onRemoveWorkspace, onRemoveMcp, className }) => {
+	const badgeCls = cn(
+		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+		className,
+	);
+
+	if (badge.kind === "workspace") {
+		return (
+			<span className={badgeCls}>
+				<MonitorIcon className="size-3" />
+				{badge.name}
+				{onRemoveWorkspace && (
+					<button
+						type="button"
+						onClick={onRemoveWorkspace}
+						className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+						aria-label={`Remove workspace ${badge.name}`}
+					>
+						<XIcon className="!size-2.5" />
+					</button>
+				)}
+			</span>
+		);
+	}
+
+	const isForceOn = badge.server.availability === "force_on";
+	return (
+		<span className={badgeCls}>
+			{badge.server.icon_url ? (
+				<ExternalImage
+					src={badge.server.icon_url}
+					alt=""
+					className="size-3 rounded-sm"
+				/>
+			) : (
+				<ServerIcon className="size-3" />
+			)}
+			{badge.server.display_name}
+			{!isForceOn && onRemoveMcp && (
+				<button
+					type="button"
+					onClick={() => onRemoveMcp(badge.server.id)}
+					className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+					aria-label={`Remove ${badge.server.display_name}`}
+				>
+					<XIcon className="!size-2.5" />
+				</button>
+			)}
+		</span>
+	);
+};
+
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
@@ -598,8 +660,29 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!(s.auth_type === "oauth2" && !s.auth_connected),
 	);
 
-	const fileInputRef = useRef<HTMLInputElement>(null);
+	const badgeContainerRef = useRef<HTMLDivElement>(null);
 
+	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
+
+	// Ordered list of active tool badge data so we can determine
+	// which ones ended up in the overflow popover.
+	const allBadges: ToolBadgeData[] = [];
+	if (selectedWorkspace && onWorkspaceChange) {
+		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
+	}
+	for (const s of activeMcpServers) {
+		allBadges.push({ kind: "mcp", server: s });
+	}
+
+	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
+	const visibleCount = Math.max(0, allBadges.length - overflowCount);
+	const overflowBadges = allBadges.slice(visibleCount);
+
+	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const handleRemoveMcp = (serverId: string) =>
+		handleMcpToggle(serverId, false);
+
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
 			onAttach(Array.from(e.target.files));
@@ -966,12 +1049,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											className="w-64 p-0"
 										>
 											<Command loop>
-												<CommandInput placeholder="Search workspaces..." />
+												<CommandInput
+													placeholder="Search workspaces..."
+													className="text-xs"
+												/>
 												<CommandList>
-													<CommandEmpty>No workspaces found</CommandEmpty>
+													<CommandEmpty className="text-xs">
+														No workspaces found
+													</CommandEmpty>
 													<CommandGroup>
 														{workspaceOptions.map((workspace) => (
 															<CommandItem
+																className="text-xs font-normal"
 																key={workspace.id}
 																value={workspace.name}
 																onSelect={() => {
@@ -1064,50 +1153,69 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								dropdownAlign="center"
 							/>
 						)}
-						{selectedWorkspace && onWorkspaceChange && (
-							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
-								<MonitorIcon className="size-3" />
-								{selectedWorkspace.name}
-								<button
-									type="button"
-									onClick={() => onWorkspaceChange(null)}
-									className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-									aria-label={`Remove workspace ${selectedWorkspace.name}`}
+						{/* Badge row — all badges and the pill always
+						 * render so the DOM structure never changes.
+						 * Overflow badges use invisible + order-1 to
+						 * hide and reorder via CSS. The pill is invisible
+						 * when there's no overflow but still occupies
+						 * layout space, preventing measurement flicker. */}
+						<div
+							ref={badgeContainerRef}
+							className="flex min-w-0 items-center gap-1 overflow-hidden"
+						>
+							{allBadges.map((badge, i) => {
+								const isOverflow = overflowCount > 0 && i >= visibleCount;
+								return (
+									<ToolBadge
+										key={badge.kind === "workspace" ? "ws" : badge.server.id}
+										badge={badge}
+										onRemoveWorkspace={handleRemoveWorkspace}
+										onRemoveMcp={handleRemoveMcp}
+										className={isOverflow ? "invisible order-1" : undefined}
+									/>
+								);
+							})}
+							{/* Pill — always in the DOM so it permanently
+							 * reserves layout space. Invisible when nothing
+							 * overflows. CSS order keeps it before order-1
+							 * (overflow) badges. */}
+							<Popover
+								open={overflowPopoverOpen && overflowCount > 0}
+								onOpenChange={setOverflowPopoverOpen}
+							>
+								<PopoverTrigger asChild>
+									<button
+										type="button"
+										className={cn(
+											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+											overflowCount === 0 && "invisible",
+										)}
+										aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
+										aria-hidden={overflowCount === 0}
+									>
+										+{overflowCount}
+									</button>
+								</PopoverTrigger>
+								<PopoverContent
+									side="top"
+									align="start"
+									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
 								>
-									<XIcon className="!size-2.5" />
-								</button>
-							</span>
-						)}
-						{activeMcpServers.map((server) => {
-							const isForceOn = server.availability === "force_on";
-							return (
-								<span
-									key={server.id}
-									className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary"
-								>
-									{server.icon_url ? (
-										<ExternalImage
-											src={server.icon_url}
-											alt=""
-											className="size-3 rounded-sm"
+									{overflowBadges.map((badge) => (
+										<ToolBadge
+											key={
+												badge.kind === "workspace"
+													? "ws-overflow"
+													: badge.server.id
+											}
+											badge={badge}
+											onRemoveWorkspace={handleRemoveWorkspace}
+											onRemoveMcp={handleRemoveMcp}
 										/>
-									) : (
-										<ServerIcon className="size-3" />
-									)}
-									{server.display_name}
-									{!isForceOn && (
-										<button
-											type="button"
-											onClick={() => handleMcpToggle(server.id, false)}
-											className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-											aria-label={`Remove ${server.display_name}`}
-										>
-											<XIcon className="!size-2.5" />
-										</button>
-									)}
-								</span>
-							);
-						})}
+									))}
+								</PopoverContent>
+							</Popover>
+						</div>
 					</div>
 					<div className="flex items-center gap-2">
 						{speech.isSupported && !isStreaming && (

@@ -732,7 +732,7 @@ class ApiMethods {
 	 */
 	getOrganizationPaginatedMembers = async (
 		organization: string,
-		options?: TypesGen.Pagination,
+		options?: TypesGen.UsersRequest,
 	) => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/paginated-members`,
@@ -2181,6 +2181,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	addMembers = async (groupId: string, userIds: string[]) => {
+		return this.patchGroup(groupId, {
+			name: "",
+			add_users: userIds,
+			remove_users: [],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
+		});
+	};
+
 	addMember = async (groupId: string, userId: string) => {
 		return this.patchGroup(groupId, {
 			name: "",
@@ -3025,6 +3036,15 @@ export type CreateTaskFeedbackRequest = {
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
+	getChatsByWorkspace = async (
+		workspaceIds: readonly string[],
+	): Promise<Record<string, string>> => {
+		const res = await this.axios.get("/api/experimental/chats/by-workspace", {
+			params: { workspace_ids: workspaceIds.join(",") },
+		});
+		return res.data;
+	};
+
 	uploadChatFile = async (
 		file: File,
 		organizationId: string,
@@ -3180,15 +3200,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getChatSystemPrompt = async (): Promise<TypesGen.ChatSystemPrompt> => {
-		const response = await this.axios.get<TypesGen.ChatSystemPrompt>(
-			"/api/experimental/chats/config/system-prompt",
-		);
-		return response.data;
-	};
+	getChatSystemPrompt =
+		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
+			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
+				"/api/experimental/chats/config/system-prompt",
+			);
+			return response.data;
+		};
 
 	updateChatSystemPrompt = async (
-		req: TypesGen.ChatSystemPrompt,
+		req: TypesGen.UpdateChatSystemPromptRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};

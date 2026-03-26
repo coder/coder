@@ -174,15 +174,12 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
+	const rawUsage = getLatestContextUsage(messages);
+	const latestContextUsage = rawUsage
+		? { ...rawUsage, compressionThreshold }
+		: rawUsage;
 	const { organizations } = useDashboard();
 	const organizationId = organizations[0]?.id;
-	const latestContextUsage = (() => {
-		const usage = getLatestContextUsage(messages);
-		if (!usage) {
-			return usage;
-		}
-		return { ...usage, compressionThreshold };
-	})();
 	const {
 		attachments,
 		textContents,

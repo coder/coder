@@ -487,7 +487,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 						{readyToUpdate.length > 0 && (
 							<WorkspacesListSection
 								headerText="Ready to update"
-								description="These workspaces will have their templates be updated to the latest version."
+								description="These workspaces will be updated to the latest template version."
 							>
 								{readyToUpdate.map((ws) => {
 									const matchedQuery = templateVersionQueries.find(

@@ -1,3 +1,21 @@
+import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	KeyboardSensor,
+	MouseSensor,
+	TouchSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -20,6 +38,8 @@ import {
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
+	PinIcon,
+	PinOffIcon,
 	SettingsIcon,
 	ShieldAlertIcon,
 	ShieldIcon,
@@ -100,6 +120,9 @@ interface AgentsSidebarProps {
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
+	onPinAgent: (chatId: string) => void;
+	onUnpinAgent: (chatId: string) => void;
+	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -351,6 +374,8 @@ interface ChatTreeContextValue {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	readonly onPinAgent: (chatId: string) => void;
+	readonly onUnpinAgent: (chatId: string) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -384,6 +409,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinAgent,
+		onUnpinAgent,
 	} = useChatTree();
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
@@ -540,6 +567,27 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
+									{!chat.archived && !isChildNode && (
+										<DropdownMenuItem
+											onSelect={() =>
+												chat.pin_order > 0
+													? onUnpinAgent(chat.id)
+													: onPinAgent(chat.id)
+											}
+										>
+											{chat.pin_order > 0 ? (
+												<>
+													<PinOffIcon className="h-3.5 w-3.5" />
+													Unpin agent
+												</>
+											) : (
+												<>
+													<PinIcon className="h-3.5 w-3.5" />
+													Pin agent
+												</>
+											)}
+										</DropdownMenuItem>
+									)}
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
@@ -594,6 +642,61 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 };
 
+const SortableChatTreeNode: FC<{
+	chat: Chat;
+	recentDragRef: React.RefObject<boolean>;
+}> = ({ chat, recentDragRef }) => {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({
+		id: chat.id,
+		// Skip the derived-transform measurement after drop.
+		// localPinOrder already repositions items in the DOM,
+		// so the two-frame snap-back dance produces stale deltas
+		// and a visible jitter. This makes items snap directly.
+		animateLayoutChanges: () => false,
+	});
+
+	// Strip scaleX/scaleY that dnd-kit adds by default.
+	const adjustedTransform = transform
+		? { ...transform, scaleX: 1, scaleY: 1 }
+		: null;
+
+	const style = {
+		transform: CSS.Transform.toString(adjustedTransform),
+		transition: isDragging ? "opacity 200ms" : transition,
+	};
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className={cn(isDragging && "opacity-50")}
+			{...attributes}
+			{...listeners}
+			onClickCapture={(e) => {
+				// After a drag, the browser synthesizes a click from
+				// pointerup. dnd-kit's sensor calls stopPropagation
+				// but never preventDefault, so the <a> tag inside
+				// NavLink still fires its default navigation action.
+				// Block it here in React's capture phase instead of
+				// racing with a global document listener + rAF.
+				if (recentDragRef.current) {
+					e.stopPropagation();
+					e.preventDefault();
+				}
+			}}
+		>
+			<ChatTreeNode chat={chat} isChildNode={false} />
+		</div>
+	);
+};
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -604,6 +707,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinAgent,
+		onUnpinAgent,
+		onReorderPinnedAgent,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -642,13 +748,118 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		visibleChatIDs.has(chatID),
 	);
 
-	// Pre-compute the first non-empty time group so the filter
-	// dropdown renders next to it without needing a mutable IIFE.
-	const firstNonEmptyGroup = TIME_GROUPS.find((group) =>
-		visibleRootIDs.some((id) => {
-			const chat = chatById.get(id);
-			return chat !== undefined && getTimeGroup(chat.updated_at) === group;
+	const pinnedChats = visibleRootIDs
+		.map((id) => chatById.get(id))
+		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
+		.sort((a, b) => a.pin_order - b.pin_order);
+
+	// Local override for pinned order during drag — applied
+	// synchronously so there's no flash between the dnd-kit
+	// transform clearing and the server data arriving.
+	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+
+	// Clear the local override when fresh data arrives from
+	// the server (the mutation's onSettled invalidates queries).
+	const chatsRef = useRef(chats);
+	useEffect(() => {
+		if (chats !== chatsRef.current) {
+			chatsRef.current = chats;
+			setLocalPinOrder(null);
+		}
+	}, [chats]);
+
+	const sortedPinnedChats = localPinOrder
+		? localPinOrder
+				.map((id) => pinnedChats.find((c) => c.id === id))
+				.filter((c) => c !== undefined)
+		: pinnedChats;
+
+	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
+
+	// Ref flag set after drag ends. Checked by SortableChatTreeNode's
+	// onClickCapture to block the synthetic click that the browser
+	// fires from the final pointerup. Cleared after 100ms, which
+	// comfortably exceeds dnd-kit's 50ms sensor cleanup window.
+	const recentDragRef = useRef(false);
+
+	const sensors = useSensors(
+		useSensor(MouseSensor, {
+			activationConstraint: { distance: 5 },
 		}),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 200, tolerance: 5 },
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	);
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+
+		recentDragRef.current = true;
+		setTimeout(() => {
+			recentDragRef.current = false;
+		}, 100);
+
+		if (!over || active.id === over.id) return;
+		const activeId = String(active.id);
+		const overId = String(over.id);
+		const oldIndex = pinnedChatIds.indexOf(activeId);
+		const newIndex = pinnedChatIds.indexOf(overId);
+		if (oldIndex === -1 || newIndex === -1) return;
+
+		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
+		setLocalPinOrder(reordered);
+		onReorderPinnedAgent?.(activeId, newIndex + 1);
+	};
+
+	// The filter dropdown attaches to the first visible section
+	// header. When pinned chats exist, that's the Pinned header;
+	// otherwise it falls through to the first non-empty time group.
+	const showFilterOnPinned = pinnedChats.length > 0;
+	const firstNonEmptyGroup = showFilterOnPinned
+		? undefined
+		: TIME_GROUPS.find((group) =>
+				visibleRootIDs.some((id) => {
+					const chat = chatById.get(id);
+					return (
+						chat !== undefined &&
+						getTimeGroup(chat.updated_at) === group &&
+						chat.pin_order === 0
+					);
+				}),
+			);
+	const filterDropdown = (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Filter agents"
+					className={cn(
+						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+						archivedFilter === "archived" && "text-content-primary",
+					)}
+				>
+					<FilterIcon />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
+					Active
+					{archivedFilter === "active" && (
+						<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					)}
+				</DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
+					Archived
+					{archivedFilter === "archived" && (
+						<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					)}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -703,6 +914,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinAgent,
+		onUnpinAgent,
 	};
 
 	const subNavTitle = "Settings";
@@ -824,13 +1037,44 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									<div>
 										{visibleRootIDs.length > 0 && (
 											<div className="pb-2">
+												{/* ── Pinned section ── */}
+												{pinnedChats.length > 0 && (
+													<div className="[&:not(:first-child)]:mt-3">
+														<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+															<span>Pinned</span>
+															{showFilterOnPinned && filterDropdown}
+														</div>
+														<DndContext
+															sensors={sensors}
+															collisionDetection={closestCenter}
+															onDragEnd={handleDragEnd}
+														>
+															<SortableContext
+																items={pinnedChatIds}
+																strategy={verticalListSortingStrategy}
+															>
+																<div className="flex flex-col gap-0.5">
+																	{sortedPinnedChats.map((chat) => (
+																		<SortableChatTreeNode
+																			key={chat.id}
+																			chat={chat}
+																			recentDragRef={recentDragRef}
+																		/>
+																	))}
+																</div>
+															</SortableContext>
+														</DndContext>
+													</div>
+												)}
+												{/* ── Time-grouped sections ── */}
 												{TIME_GROUPS.map((group) => {
 													const groupChats = visibleRootIDs
 														.map((id) => chatById.get(id))
 														.filter(
 															(chat): chat is Chat =>
 																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group,
+																getTimeGroup(chat.updated_at) === group &&
+																chat.pin_order === 0,
 														);
 													if (groupChats.length === 0) return null;
 													return (
@@ -840,46 +1084,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														>
 															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																<span>{group}</span>
-																{group === firstNonEmptyGroup && (
-																	<DropdownMenu>
-																		<DropdownMenuTrigger asChild>
-																			<Button
-																				variant="subtle"
-																				size="icon"
-																				aria-label="Filter agents"
-																				className={cn(
-																					"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-																					archivedFilter === "archived" &&
-																						"text-content-primary",
-																				)}
-																			>
-																				<FilterIcon />
-																			</Button>
-																		</DropdownMenuTrigger>
-																		<DropdownMenuContent align="end">
-																			<DropdownMenuItem
-																				onSelect={() =>
-																					onArchivedFilterChange?.("active")
-																				}
-																			>
-																				Active
-																				{archivedFilter === "active" && (
-																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																				)}
-																			</DropdownMenuItem>
-																			<DropdownMenuItem
-																				onSelect={() =>
-																					onArchivedFilterChange?.("archived")
-																				}
-																			>
-																				Archived
-																				{archivedFilter === "archived" && (
-																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																				)}
-																			</DropdownMenuItem>
-																		</DropdownMenuContent>
-																	</DropdownMenu>
-																)}
+																{group === firstNonEmptyGroup && filterDropdown}
 															</div>
 															<div className="flex flex-col gap-0.5">
 																{groupChats.map((chat) => (
@@ -892,7 +1097,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															</div>
 														</div>
 													);
-												})}{" "}
+												})}
 											</div>
 										)}
 									</div>
@@ -910,7 +1115,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="hidden border-0 border-t border-solid md:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
-							{" "}
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"
@@ -946,7 +1150,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</div>
 			</div>
-			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
@@ -1049,7 +1253,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									to="/agents/settings/insights"
 									state={location.state}
 									adminOnly
-								/>{" "}
+								/>
 							</>
 						)}
 					</nav>
