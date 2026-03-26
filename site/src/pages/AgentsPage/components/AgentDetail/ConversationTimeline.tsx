@@ -347,7 +347,7 @@ const BlockList: FC<{
 								result={tool.result}
 								status={tool.status}
 								isError={tool.isError}
-								subagentTitles={isStreaming ? subagentTitles : undefined}
+								subagentTitles={subagentTitles}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
 								}
@@ -579,28 +579,24 @@ const ChatMessageItem = memo<{
 											)}
 										</div>
 									)}
-									{(() => {
-										if (userFileBlocks.length === 0) return null;
-										return (
-											<div
-												className={cn(
-													hasUserMessageBody && "mt-2",
-													"flex flex-wrap gap-2",
-												)}
-											>
-												{userFileBlocks.map((block, i) => (
-													<FileBlock
-														key={`user-file-${block.file_id ?? i}`}
-														block={block}
-														onImageClick={setPreviewImage}
-														onTextFileClick={setPreviewText}
-													/>
-												))}{" "}
-											</div>
-										);
-									})()}
-									{fadeFromBottom && (
+									{hasFileBlocks && (
 										<div
+											className={cn(
+												hasUserMessageBody && "mt-2",
+												"flex flex-wrap gap-2",
+											)}
+										>
+											{userFileBlocks.map((block, i) => (
+												<FileBlock
+													key={`user-file-${block.file_id ?? i}`}
+													block={block}
+													onImageClick={setPreviewImage}
+													onTextFileClick={setPreviewText}
+												/>
+											))}
+										</div>
+										)}
+										{fadeFromBottom && (										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{
 												background:
@@ -621,7 +617,7 @@ const ChatMessageItem = memo<{
 										keyPrefix={String(message.id)}
 										subagentTitles={subagentTitles}
 										onImageClick={setPreviewImage}
-										onTextFileClick={(content) => setPreviewText(content)}
+										onTextFileClick={setPreviewText}
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
 									/>
