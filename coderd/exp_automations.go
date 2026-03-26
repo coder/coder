@@ -644,62 +644,34 @@ func (api *API) postAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
 
 	// Resolve labels.
 	var resolvedLabels map[string]string
-	var resolvedLabelsJSON pqtype.NullRawMessage
 	if trigger.LabelPaths.Valid {
 		var labelPaths map[string]string
 		if err := json.Unmarshal(trigger.LabelPaths.RawMessage, &labelPaths); err == nil {
 			resolvedLabels = automations.ResolveLabels(payloadStr, labelPaths)
-			if j, err := json.Marshal(resolvedLabels); err == nil {
-				resolvedLabelsJSON = pqtype.NullRawMessage{RawMessage: j, Valid: true}
-			}
 		}
 	}
 
-	// Preview mode: log but don't act.
-	if automation.Status == "preview" {
-		eventArg := database.InsertAutomationEventParams{
-			AutomationID:   automation.ID,
-			TriggerID:      uuid.NullUUID{UUID: trigger.ID, Valid: true},
-			Payload:        safePayload(payload),
-			FilterMatched:  true,
-			ResolvedLabels: resolvedLabelsJSON,
-			Status:         "preview",
-		}
-
-		// Still resolve the chat for the preview log.
-		if len(resolvedLabels) > 0 {
-			labelsJSON, _ := json.Marshal(resolvedLabels)
-			//nolint:gocritic // System context for chat lookup.
-			chats, chatErr := api.Database.GetChats(dbauthz.AsSystemRestricted(ctx), database.GetChatsParams{
-				OwnerID: automation.OwnerID,
-				LabelFilter: pqtype.NullRawMessage{
-					RawMessage: labelsJSON,
-					Valid:      true,
-				},
-				LimitOpt: 1,
-			})
-			if chatErr == nil && len(chats) > 0 {
-				eventArg.MatchedChatID = uuid.NullUUID{UUID: chats[0].ID, Valid: true}
-			}
-		}
-
-		//nolint:gocritic // System context for event logging.
-		_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), eventArg)
-		rw.WriteHeader(http.StatusOK)
-		return
+	// Create or continue a chat (or log preview event).
+	fireOpts := automations.FireOptions{
+		AutomationID:            automation.ID,
+		AutomationName:          automation.Name,
+		AutomationStatus:        automation.Status,
+		AutomationOwnerID:       automation.OwnerID,
+		AutomationInstructions:  automation.Instructions,
+		AutomationModelConfigID: automation.ModelConfigID,
+		AutomationMCPServerIDs:  automation.MCPServerIDs,
+		AutomationAllowedTools:  automation.AllowedTools,
+		MaxChatCreatesPerHour:   automation.MaxChatCreatesPerHour,
+		MaxMessagesPerHour:      automation.MaxMessagesPerHour,
+		TriggerID:               trigger.ID,
+		Payload:                 safePayload(payload),
+		FilterMatched:           true,
+		ResolvedLabels:          resolvedLabels,
 	}
 
-	// Active mode: TODO — implement rate limiting and chat
-	// creation/continuation. For now, log the event.
-	//nolint:gocritic // System context for event logging.
-	_, _ = api.Database.InsertAutomationEvent(dbauthz.AsSystemRestricted(ctx), database.InsertAutomationEventParams{
-		AutomationID:   automation.ID,
-		TriggerID:      uuid.NullUUID{UUID: trigger.ID, Valid: true},
-		Payload:        safePayload(payload),
-		FilterMatched:  true,
-		ResolvedLabels: resolvedLabelsJSON,
-		Status:         "created",
-	})
+	chatAdapter := &automations.ChatdAdapter{Server: api.chatDaemon}
+	//nolint:gocritic // System context for automation execution.
+	automations.Fire(dbauthz.AsSystemRestricted(ctx), api.Logger, api.Database, chatAdapter, fireOpts)
 	rw.WriteHeader(http.StatusOK)
 }
 

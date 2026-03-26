@@ -2965,7 +2965,14 @@ SELECT
     t.updated_at,
     a.status AS automation_status,
     a.owner_id AS automation_owner_id,
-    a.instructions AS automation_instructions
+    a.instructions AS automation_instructions,
+    a.name AS automation_name,
+    a.organization_id AS automation_organization_id,
+    a.model_config_id AS automation_model_config_id,
+    a.mcp_server_ids AS automation_mcp_server_ids,
+    a.allowed_tools AS automation_allowed_tools,
+    a.max_chat_creates_per_hour AS automation_max_chat_creates_per_hour,
+    a.max_messages_per_hour AS automation_max_messages_per_hour
 FROM automation_triggers t
 JOIN automations a ON a.id = t.automation_id
 WHERE t.type = 'cron'
@@ -2974,18 +2981,25 @@ WHERE t.type = 'cron'
 `
 
 type GetActiveCronTriggersRow struct {
-	ID                     uuid.UUID             `db:"id" json:"id"`
-	AutomationID           uuid.UUID             `db:"automation_id" json:"automation_id"`
-	Type                   string                `db:"type" json:"type"`
-	CronSchedule           sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
-	Filter                 pqtype.NullRawMessage `db:"filter" json:"filter"`
-	LabelPaths             pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
-	LastTriggeredAt        sql.NullTime          `db:"last_triggered_at" json:"last_triggered_at"`
-	CreatedAt              time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time             `db:"updated_at" json:"updated_at"`
-	AutomationStatus       string                `db:"automation_status" json:"automation_status"`
-	AutomationOwnerID      uuid.UUID             `db:"automation_owner_id" json:"automation_owner_id"`
-	AutomationInstructions string                `db:"automation_instructions" json:"automation_instructions"`
+	ID                              uuid.UUID             `db:"id" json:"id"`
+	AutomationID                    uuid.UUID             `db:"automation_id" json:"automation_id"`
+	Type                            string                `db:"type" json:"type"`
+	CronSchedule                    sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
+	Filter                          pqtype.NullRawMessage `db:"filter" json:"filter"`
+	LabelPaths                      pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+	LastTriggeredAt                 sql.NullTime          `db:"last_triggered_at" json:"last_triggered_at"`
+	CreatedAt                       time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                       time.Time             `db:"updated_at" json:"updated_at"`
+	AutomationStatus                string                `db:"automation_status" json:"automation_status"`
+	AutomationOwnerID               uuid.UUID             `db:"automation_owner_id" json:"automation_owner_id"`
+	AutomationInstructions          string                `db:"automation_instructions" json:"automation_instructions"`
+	AutomationName                  string                `db:"automation_name" json:"automation_name"`
+	AutomationOrganizationID        uuid.UUID             `db:"automation_organization_id" json:"automation_organization_id"`
+	AutomationModelConfigID         uuid.NullUUID         `db:"automation_model_config_id" json:"automation_model_config_id"`
+	AutomationMcpServerIds          []uuid.UUID           `db:"automation_mcp_server_ids" json:"automation_mcp_server_ids"`
+	AutomationAllowedTools          []string              `db:"automation_allowed_tools" json:"automation_allowed_tools"`
+	AutomationMaxChatCreatesPerHour int32                 `db:"automation_max_chat_creates_per_hour" json:"automation_max_chat_creates_per_hour"`
+	AutomationMaxMessagesPerHour    int32                 `db:"automation_max_messages_per_hour" json:"automation_max_messages_per_hour"`
 }
 
 // Returns all cron triggers whose parent automation is active or in
@@ -3013,6 +3027,13 @@ func (q *sqlQuerier) GetActiveCronTriggers(ctx context.Context) ([]GetActiveCron
 			&i.AutomationStatus,
 			&i.AutomationOwnerID,
 			&i.AutomationInstructions,
+			&i.AutomationName,
+			&i.AutomationOrganizationID,
+			&i.AutomationModelConfigID,
+			pq.Array(&i.AutomationMcpServerIds),
+			pq.Array(&i.AutomationAllowedTools),
+			&i.AutomationMaxChatCreatesPerHour,
+			&i.AutomationMaxMessagesPerHour,
 		); err != nil {
 			return nil, err
 		}

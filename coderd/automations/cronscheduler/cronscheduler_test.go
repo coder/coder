@@ -12,6 +12,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/coderd/automations"
 	"github.com/coder/coder/v2/coderd/automations/cronscheduler"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -43,18 +44,32 @@ func awaitDoTick(ctx context.Context, t *testing.T, clk *quartz.Mock) chan struc
 	return ch
 }
 
+// fakeChatCreator is a stub ChatCreator for tests. CreateChat
+// returns a new UUID; SendMessage is a no-op.
+type fakeChatCreator struct{}
+
+func (fakeChatCreator) CreateChat(_ context.Context, _ automations.CreateChatOptions) (uuid.UUID, error) {
+	return uuid.New(), nil
+}
+
+func (fakeChatCreator) SendMessage(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ string) error {
+	return nil
+}
+
 // makeTrigger builds a GetActiveCronTriggersRow with sensible
 // defaults. Fields can be overridden after creation.
 func makeTrigger(schedule string, status string, createdAt time.Time) database.GetActiveCronTriggersRow {
 	return database.GetActiveCronTriggersRow{
-		ID:                uuid.New(),
-		AutomationID:      uuid.New(),
-		Type:              "cron",
-		CronSchedule:      sql.NullString{String: schedule, Valid: true},
-		CreatedAt:         createdAt,
-		UpdatedAt:         createdAt,
-		AutomationStatus:  status,
-		AutomationOwnerID: uuid.New(),
+		ID:                              uuid.New(),
+		AutomationID:                    uuid.New(),
+		Type:                            "cron",
+		CronSchedule:                    sql.NullString{String: schedule, Valid: true},
+		CreatedAt:                       createdAt,
+		UpdatedAt:                       createdAt,
+		AutomationStatus:                status,
+		AutomationOwnerID:               uuid.New(),
+		AutomationMaxChatCreatesPerHour: 10,
+		AutomationMaxMessagesPerHour:    100,
 	}
 }
 
@@ -79,7 +94,7 @@ func TestScheduler(t *testing.T) {
 		mDB.EXPECT().GetActiveCronTriggers(gomock.Any()).Return(nil, nil)
 
 		done := awaitDoTick(ctx, t, clk)
-		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk)
+		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk, nil)
 		<-done
 		require.NoError(t, scheduler.Close())
 	})
@@ -109,6 +124,10 @@ func TestScheduler(t *testing.T) {
 			[]database.GetActiveCronTriggersRow{trigger}, nil,
 		)
 
+		// Fire() checks rate limits before creating a chat.
+		mDB.EXPECT().CountAutomationChatCreatesInWindow(gomock.Any(), gomock.Any()).Return(int64(0), nil)
+		mDB.EXPECT().CountAutomationMessagesInWindow(gomock.Any(), gomock.Any()).Return(int64(0), nil)
+
 		// Expect the event to be inserted with status "created".
 		mDB.EXPECT().InsertAutomationEvent(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(_ context.Context, arg database.InsertAutomationEventParams) (database.AutomationEvent, error) {
@@ -129,7 +148,7 @@ func TestScheduler(t *testing.T) {
 		)
 
 		done := awaitDoTick(ctx, t, clk)
-		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk)
+		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk, fakeChatCreator{})
 		<-done
 		require.NoError(t, scheduler.Close())
 	})
@@ -162,7 +181,7 @@ func TestScheduler(t *testing.T) {
 		// expected — the trigger is not due.
 
 		done := awaitDoTick(ctx, t, clk)
-		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk)
+		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk, nil)
 		<-done
 		require.NoError(t, scheduler.Close())
 	})
@@ -198,7 +217,7 @@ func TestScheduler(t *testing.T) {
 		mDB.EXPECT().UpdateAutomationTriggerLastTriggeredAt(gomock.Any(), gomock.Any()).Return(nil)
 
 		done := awaitDoTick(ctx, t, clk)
-		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk)
+		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk, nil)
 		<-done
 		require.NoError(t, scheduler.Close())
 	})
@@ -228,7 +247,7 @@ func TestScheduler(t *testing.T) {
 		// No event insert expected — invalid schedule is skipped.
 
 		done := awaitDoTick(ctx, t, clk)
-		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk)
+		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk, nil)
 		<-done
 		require.NoError(t, scheduler.Close())
 	})
@@ -265,7 +284,7 @@ func TestScheduler(t *testing.T) {
 		// in the future.
 
 		done := awaitDoTick(ctx, t, clk)
-		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk)
+		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk, nil)
 		<-done
 		require.NoError(t, scheduler.Close())
 	})
@@ -288,7 +307,7 @@ func TestScheduler(t *testing.T) {
 		// No GetActiveCronTriggers call expected.
 
 		done := awaitDoTick(ctx, t, clk)
-		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk)
+		scheduler := cronscheduler.New(ctx, testutil.Logger(t), mDB, clk, nil)
 		<-done
 		require.NoError(t, scheduler.Close())
 	})

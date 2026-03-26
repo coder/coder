@@ -2142,6 +2142,12 @@ type API struct {
 	ProfileCollecting atomic.Bool
 }
 
+// ChatDaemon returns the chatd server used for automation-initiated
+// chat creation and messaging.
+func (api *API) ChatDaemon() *chatd.Server {
+	return api.chatDaemon
+}
+
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
 	select {

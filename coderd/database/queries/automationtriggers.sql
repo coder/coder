@@ -61,7 +61,14 @@ SELECT
     t.updated_at,
     a.status AS automation_status,
     a.owner_id AS automation_owner_id,
-    a.instructions AS automation_instructions
+    a.instructions AS automation_instructions,
+    a.name AS automation_name,
+    a.organization_id AS automation_organization_id,
+    a.model_config_id AS automation_model_config_id,
+    a.mcp_server_ids AS automation_mcp_server_ids,
+    a.allowed_tools AS automation_allowed_tools,
+    a.max_chat_creates_per_hour AS automation_max_chat_creates_per_hour,
+    a.max_messages_per_hour AS automation_max_messages_per_hour
 FROM automation_triggers t
 JOIN automations a ON a.id = t.automation_id
 WHERE t.type = 'cron'

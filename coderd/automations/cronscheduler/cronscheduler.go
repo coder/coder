@@ -6,9 +6,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
-
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/automations"
 	"github.com/coder/coder/v2/coderd/database"
@@ -24,7 +21,7 @@ const tickInterval = time.Minute
 // New creates a background scheduler that evaluates cron-based
 // automation triggers every minute. Only one replica runs the
 // scheduler at a time via an advisory lock.
-func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.Clock) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.Clock, chat automations.ChatCreator) io.Closer {
 	closed := make(chan struct{})
 	ctx, cancelFunc := context.WithCancel(ctx)
 	//nolint:gocritic // System-level background job needs broad read access.
@@ -36,6 +33,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 		logger: logger,
 		db:     db,
 		clk:    clk,
+		chat:   chat,
 	}
 
 	ticker := clk.NewTicker(tickInterval)
@@ -68,6 +66,7 @@ type instance struct {
 	logger slog.Logger
 	db     database.Store
 	clk    quartz.Clock
+	chat   automations.ChatCreator
 }
 
 func (i *instance) Close() error {
@@ -151,34 +150,33 @@ func (i *instance) processTrigger(ctx context.Context, db database.Store, trigge
 	})
 
 	// Resolve labels against the synthetic payload if configured.
-	var resolvedLabelsJSON pqtype.NullRawMessage
+	var resolvedLabels map[string]string
 	if trigger.LabelPaths.Valid {
 		var labelPaths map[string]string
-		if jsonErr := json.Unmarshal(trigger.LabelPaths.RawMessage, &labelPaths); jsonErr == nil && len(labelPaths) > 0 {
-			resolved := automations.ResolveLabels(string(payload), labelPaths)
-			if j, jErr := json.Marshal(resolved); jErr == nil {
-				resolvedLabelsJSON = pqtype.NullRawMessage{RawMessage: j, Valid: true}
-			}
+		if err := json.Unmarshal(trigger.LabelPaths.RawMessage, &labelPaths); err == nil && len(labelPaths) > 0 {
+			resolvedLabels = automations.ResolveLabels(string(payload), labelPaths)
 		}
 	}
 
-	status := "created"
-	if trigger.AutomationStatus == "preview" {
-		status = "preview"
+	// Build the FireOptions from the trigger row.
+	fireOpts := automations.FireOptions{
+		AutomationID:            trigger.AutomationID,
+		AutomationName:          trigger.AutomationName,
+		AutomationStatus:        trigger.AutomationStatus,
+		AutomationOwnerID:       trigger.AutomationOwnerID,
+		AutomationInstructions:  trigger.AutomationInstructions,
+		AutomationModelConfigID: trigger.AutomationModelConfigID,
+		AutomationMCPServerIDs:  trigger.AutomationMcpServerIds,
+		AutomationAllowedTools:  trigger.AutomationAllowedTools,
+		MaxChatCreatesPerHour:   trigger.AutomationMaxChatCreatesPerHour,
+		MaxMessagesPerHour:      trigger.AutomationMaxMessagesPerHour,
+		TriggerID:               trigger.ID,
+		Payload:                 payload,
+		FilterMatched:           true,
+		ResolvedLabels:          resolvedLabels,
 	}
 
-	_, insertErr := db.InsertAutomationEvent(ctx, database.InsertAutomationEventParams{
-		AutomationID:   trigger.AutomationID,
-		TriggerID:      uuid.NullUUID{UUID: trigger.ID, Valid: true},
-		Payload:        payload,
-		FilterMatched:  true,
-		ResolvedLabels: resolvedLabelsJSON,
-		Status:         status,
-	})
-	if insertErr != nil {
-		logger.Error(ctx, "failed to insert cron automation event", slog.Error(insertErr))
-		return
-	}
+	result := automations.Fire(ctx, logger, db, i.chat, fireOpts)
 
 	// Update last_triggered_at so this trigger is not re-fired
 	// until the next scheduled time.
@@ -191,7 +189,7 @@ func (i *instance) processTrigger(ctx context.Context, db database.Store, trigge
 	}
 
 	logger.Info(ctx, "fired cron automation trigger",
-		slog.F("status", status),
+		slog.F("status", result.Status),
 		slog.F("schedule", trigger.CronSchedule.String),
 		slog.F("next_after_ref", next),
 	)
