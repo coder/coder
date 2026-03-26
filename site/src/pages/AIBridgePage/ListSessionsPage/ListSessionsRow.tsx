@@ -62,48 +62,32 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-1.5 max-w-full">
-									<div className="flex-shrink-0 flex items-center">
-										<AIBridgeProviderIcon
-											provider={getProviderIconName(session.providers[0])}
-											className="size-icon-xs"
-										/>
-									</div>
-									<span className="truncate min-w-0">
-										{getProviderDisplayName(session.providers[0])}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{getProviderDisplayName(session.providers[0])}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Badge className="gap-1.5 max-w-full">
+						<div className="flex-shrink-0 flex items-center">
+							<AIBridgeProviderIcon
+								provider={getProviderIconName(session.providers[0])}
+								className="size-icon-xs"
+							/>
+						</div>
+						<span className="truncate min-w-0">
+							{getProviderDisplayName(session.providers[0])}
+						</span>
+					</Badge>
 				</div>
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-1.5 max-w-full">
-									<div className="flex-shrink-0 flex items-center">
-										<AIBridgeClientIcon
-											client={session.client}
-											className="size-icon-xs"
-										/>
-									</div>
-									<span className="truncate min-w-0">
-										{session.client ?? "Unknown"}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>{session.client}</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Badge className="gap-1.5 max-w-full">
+						<div className="flex-shrink-0 flex items-center">
+							<AIBridgeClientIcon
+								client={session.client}
+								className="size-icon-xs"
+							/>
+						</div>
+						<span className="truncate min-w-0">
+							{session.client ?? "Unknown"}
+						</span>
+					</Badge>
 				</div>
 			</TableCell>
 			<TableCell className="w-32">
