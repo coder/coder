@@ -2135,6 +2135,10 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		if maybeWriteLimitErr(ctx, rw, err) {
 			return
 		}
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to regenerate chat title.",
 			Detail:  err.Error(),

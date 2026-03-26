@@ -38,6 +38,17 @@ const titleGenerationPrompt = "You are a title generator. Your ONLY job is to ou
 	"Output ONLY the title — no quotes, no emoji, no markdown, no code fences, " +
 	"no trailing punctuation, no preamble, no explanation. Sentence case."
 
+const (
+	// maxConversationContextRunes caps the conversation sample in manual
+	// title prompts to avoid exceeding model context windows.
+	maxConversationContextRunes = 6000
+	// maxLatestUserMessageRunes caps the latest user message excerpt.
+	maxLatestUserMessageRunes = 1000
+	// recentTurnWindow is the number of most recent turns included
+	// alongside the first user turn in manual title context.
+	recentTurnWindow = 3
+)
+
 // preferredTitleModels are lightweight models used for title
 // generation, one per provider type. Each entry uses the
 // cheapest/fastest small model for that provider as identified
@@ -339,8 +350,8 @@ func selectManualTitleTurnIndexes(turns []manualTitleTurn) []int {
 		return nil
 	}
 
-	windowStart := max(0, len(turns)-3)
-	selected := make([]int, 0, 4)
+	windowStart := max(0, len(turns)-recentTurnWindow)
+	selected := make([]int, 0, recentTurnWindow+1)
 	if firstUserIndex < windowStart {
 		selected = append(selected, firstUserIndex)
 	}
@@ -364,7 +375,7 @@ func buildManualTitleContext(
 		latestUserMsg = turn.text
 	}
 
-	latestUserMsg = truncateRunes(latestUserMsg, 1000)
+	latestUserMsg = truncateRunes(latestUserMsg, maxLatestUserMessageRunes)
 	if userCount <= 1 || len(selected) == 0 {
 		return "", latestUserMsg
 	}
@@ -380,7 +391,7 @@ func buildManualTitleContext(
 	}
 
 	conversationBlock = strings.Join(lines, "\n")
-	conversationBlock = truncateRunes(conversationBlock, 6000)
+	conversationBlock = truncateRunes(conversationBlock, maxConversationContextRunes)
 	return conversationBlock, latestUserMsg
 }
 
@@ -405,7 +416,7 @@ func renderManualTitlePrompt(
 		write("\n</conversation_sample>")
 	}
 
-	if strings.TrimSpace(latestUserMsg) != strings.TrimSpace(truncateRunes(firstUserText, 1000)) {
+	if strings.TrimSpace(latestUserMsg) != strings.TrimSpace(truncateRunes(firstUserText, maxLatestUserMessageRunes)) {
 		write("\n\nThe user's most recent message:\n<latest_message>\n")
 		write(latestUserMsg)
 		write("\n</latest_message>\n")
@@ -436,7 +447,7 @@ func generateManualTitle(
 	if firstUserIndex == -1 {
 		return "", fantasy.Usage{}, nil
 	}
-	firstUserText := truncateRunes(turns[firstUserIndex].text, 1000)
+	firstUserText := truncateRunes(turns[firstUserIndex].text, maxLatestUserMessageRunes)
 
 	conversationBlock, latestUserMsg := buildManualTitleContext(turns, selected)
 	systemPrompt := renderManualTitlePrompt(
@@ -487,7 +498,7 @@ func generatePushSummary(
 	summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	assistantText = truncateRunes(assistantText, 6000)
+	assistantText = truncateRunes(assistantText, maxConversationContextRunes)
 	input := "Chat title: " + chat.Title + "\n\nAgent's last message:\n" + assistantText
 
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)

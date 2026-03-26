@@ -1573,8 +1573,11 @@ func (p *Server) regenerateChatTitleWithStore(
 		}
 	}
 
+	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer recordCancel()
+
 	updatedChat, recordErr := recordManualTitleUsage(
-		ctx,
+		recordCtx,
 		store,
 		chat,
 		modelConfig,

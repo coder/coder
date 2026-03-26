@@ -154,8 +154,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	)
 
 	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	lockTx.EXPECT().UpdateChatStatus(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusParams{})).DoAndReturn(
-		func(_ context.Context, arg database.UpdateChatStatusParams) (database.Chat, error) {
+	lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
+		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
 			require.Equal(t, chatID, arg.ID)
 			require.Equal(t, chat.Status, arg.Status)
 			require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
@@ -183,8 +183,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	lockedChatWithMarker := updatedChat
 	lockedChatWithMarker.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
 	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChatWithMarker, nil)
-	unlockTx.EXPECT().UpdateChatStatus(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusParams{})).DoAndReturn(
-		func(_ context.Context, arg database.UpdateChatStatusParams) (database.Chat, error) {
+	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
+		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
 			require.Equal(t, chatID, arg.ID)
 			require.False(t, arg.WorkerID.Valid)
 			require.False(t, arg.StartedAt.Valid)
