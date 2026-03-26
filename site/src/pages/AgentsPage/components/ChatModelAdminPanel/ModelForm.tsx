@@ -100,6 +100,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onDeleteModel,
 }) => {
 	const isEditing = Boolean(editingModel);
+	const isDefaultModel = isEditing && editingModel?.is_default === true;
 	const [showPricing, setShowPricing] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -333,19 +334,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 								onCheckedChange={(v) => {
 									form.setFieldValue("enabled", v);
 								}}
-								aria-label={
-									form.values.enabled
-										? "Disable this model"
-										: "Enable this model"
-								}
-								disabled={isSaving}
+								aria-label="Enabled"
+								disabled={isSaving || isDefaultModel}
 							/>
 						</span>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">
-						{form.values.enabled
-							? "Disable this model — it will be hidden from users"
-							: "Enable this model — it will be visible to users"}
+						{isDefaultModel
+							? "Default model cannot be disabled. Remove default status first."
+							: form.values.enabled
+								? "Disable this model — it will be hidden from users"
+								: "Enable this model — it will be visible to users"}
 					</TooltipContent>
 				</Tooltip>
 			</div>
