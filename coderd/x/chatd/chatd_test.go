@@ -24,6 +24,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -2471,7 +2472,7 @@ func seedChatDependenciesWithProvider(
 	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	chatProvider, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:    provider,
 		DisplayName: provider,
 		APIKey:      "test-key",
@@ -2493,7 +2494,70 @@ func seedChatDependenciesWithProvider(
 		Options:              json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
+	_, err = db.InsertModelProviderConfig(ctx, database.InsertModelProviderConfigParams{
+		ModelConfigID:    model.ID,
+		ProviderConfigID: chatProvider.ID,
+		Priority:         0,
+	})
+	require.NoError(t, err)
 	return user, model
+}
+
+func seedChatProvider(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user database.User,
+	provider string,
+	baseURL string,
+	enabled bool,
+) database.ChatProvider {
+	t.Helper()
+	chatProvider, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    provider,
+		DisplayName: provider,
+		APIKey:      "test-key",
+		BaseUrl:     baseURL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:     enabled,
+	})
+	require.NoError(t, err)
+	return chatProvider
+}
+
+func attachProviderToModel(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	modelConfigID uuid.UUID,
+	providerID uuid.UUID,
+	priority int32,
+) {
+	t.Helper()
+	_, err := db.InsertModelProviderConfig(ctx, database.InsertModelProviderConfigParams{
+		ModelConfigID:    modelConfigID,
+		ProviderConfigID: providerID,
+		Priority:         priority,
+	})
+	require.NoError(t, err)
+}
+
+func disableProvider(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	provider database.ChatProvider,
+) {
+	t.Helper()
+	_, err := db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+		DisplayName: provider.DisplayName,
+		APIKey:      provider.APIKey,
+		BaseUrl:     provider.BaseUrl,
+		ApiKeyKeyID: provider.ApiKeyKeyID,
+		Enabled:     false,
+		ID:          provider.ID,
+	})
+	require.NoError(t, err)
 }
 
 // seedWorkspaceWithAgent creates a full workspace chain with a connected
@@ -2560,6 +2624,293 @@ func setOpenAIProviderBaseURL(
 		Enabled:     provider.Enabled,
 	})
 	require.NoError(t, err)
+}
+
+type captureSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+}
+
+func (s *captureSink) LogEntry(_ context.Context, entry slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.entries = append(s.entries, entry)
+}
+
+func (*captureSink) Sync() {}
+
+func (s *captureSink) Contains(substring string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, entry := range s.entries {
+		if strings.Contains(entry.Message, substring) {
+			return true
+		}
+		for _, field := range entry.Fields {
+			if strings.Contains(fmt.Sprint(field.Value), substring) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestResolveChatModel(t *testing.T) {
+	t.Parallel()
+
+	newModelConfig := func(ctx context.Context, t *testing.T, db database.Store, user database.User) database.ChatModelConfig {
+		t.Helper()
+
+		model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             "openai",
+			Model:                "gpt-4o-mini",
+			DisplayName:          "Test Model",
+			CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+			Enabled:              true,
+			IsDefault:            true,
+			ContextLimit:         128000,
+			CompressionThreshold: 70,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		return model
+	}
+
+	waitForChatStatus := func(
+		t *testing.T,
+		snapshot []codersdk.ChatStreamEvent,
+		events <-chan codersdk.ChatStreamEvent,
+		want codersdk.ChatStatus,
+	) {
+		t.Helper()
+
+		matches := func(event codersdk.ChatStreamEvent) bool {
+			return event.Type == codersdk.ChatStreamEventTypeStatus &&
+				event.Status != nil &&
+				event.Status.Status == want
+		}
+		for _, event := range snapshot {
+			if matches(event) {
+				return
+			}
+		}
+
+		var lastStatus codersdk.ChatStatus
+		require.Eventually(t, func() bool {
+			select {
+			case event, ok := <-events:
+				if !ok {
+					return false
+				}
+				if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+					lastStatus = event.Status.Status
+					return event.Status.Status == want
+				}
+				return false
+			default:
+				return false
+			}
+		}, testutil.WaitLong, testutil.IntervalFast,
+			"expected status %s, last status %s", want, lastStatus)
+	}
+
+	waitForChatError := func(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) database.Chat {
+		t.Helper()
+
+		var chatResult database.Chat
+		require.Eventually(t, func() bool {
+			got, err := db.GetChatByID(ctx, chatID)
+			if err != nil {
+				return false
+			}
+			chatResult = got
+			return got.Status == database.ChatStatusError
+		}, testutil.WaitLong, testutil.IntervalFast)
+
+		require.True(t, chatResult.LastError.Valid, "LastError should be set")
+		return chatResult
+	}
+
+	waitForCapturedError := func(t *testing.T, logs *captureSink, want string) {
+		t.Helper()
+
+		require.Eventually(t, func() bool {
+			return logs.Contains(want)
+		}, testutil.WaitLong, testutil.IntervalFast)
+	}
+
+	t.Run("UsesAttachedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+
+		var requests atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			requests.Add(1)
+			if req.Stream {
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAITextChunks("resolved from attached provider")...,
+				)
+			}
+			return chattest.OpenAINonStreamingResponse("resolved from attached provider")
+		})
+
+		provider := seedChatProvider(ctx, t, db, user, "openai", openAIURL, true)
+		model := newModelConfig(ctx, t, db, user)
+		attachProviderToModel(ctx, t, db, model.ID, provider.ID, 0)
+
+		server := newActiveTestServer(t, db, ps)
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			Title:         "uses-attached-provider",
+			ModelConfigID: model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+
+		snapshot, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+		require.True(t, ok)
+		t.Cleanup(cancel)
+
+		waitForChatStatus(t, snapshot, events, codersdk.ChatStatusWaiting)
+		require.Greater(t, requests.Load(), int32(0))
+	})
+
+	t.Run("FallbackToSecondProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+
+		var requestsA atomic.Int32
+		openAIURLA := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			requestsA.Add(1)
+			if req.Stream {
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAITextChunks("provider-a")...,
+				)
+			}
+			return chattest.OpenAINonStreamingResponse("provider-a")
+		})
+		var requestsB atomic.Int32
+		openAIURLB := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			requestsB.Add(1)
+			if req.Stream {
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAITextChunks("provider-b")...,
+				)
+			}
+			return chattest.OpenAINonStreamingResponse("provider-b")
+		})
+
+		providerA := seedChatProvider(ctx, t, db, user, "openai", openAIURLA, true)
+		disableProvider(ctx, t, db, providerA)
+		providerB := seedChatProvider(ctx, t, db, user, "openai", openAIURLB, true)
+		model := newModelConfig(ctx, t, db, user)
+		attachProviderToModel(ctx, t, db, model.ID, providerA.ID, 0)
+		attachProviderToModel(ctx, t, db, model.ID, providerB.ID, 1)
+
+		server := newActiveTestServer(t, db, ps)
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			Title:         "fallback-to-second-provider",
+			ModelConfigID: model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+
+		snapshot, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+		require.True(t, ok)
+		t.Cleanup(cancel)
+
+		waitForChatStatus(t, snapshot, events, codersdk.ChatStatusWaiting)
+		require.Zero(t, requestsA.Load())
+		require.Greater(t, requestsB.Load(), int32(0))
+	})
+
+	t.Run("AllProvidersDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+
+		providerA := seedChatProvider(ctx, t, db, user, "openai", "", true)
+		providerB := seedChatProvider(ctx, t, db, user, "openai", "", true)
+		disableProvider(ctx, t, db, providerA)
+		disableProvider(ctx, t, db, providerB)
+		model := newModelConfig(ctx, t, db, user)
+		attachProviderToModel(ctx, t, db, model.ID, providerA.ID, 0)
+		attachProviderToModel(ctx, t, db, model.ID, providerB.ID, 1)
+
+		logs := &captureSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logs)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.Logger = logger
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			Title:         "all-providers-disabled",
+			ModelConfigID: model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+
+		snapshot, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+		require.True(t, ok)
+		t.Cleanup(cancel)
+
+		waitForChatStatus(t, snapshot, events, codersdk.ChatStatusError)
+		chatResult := waitForChatError(ctx, t, db, chat.ID)
+		require.Contains(t, chatResult.LastError.String, "The chat request failed unexpectedly")
+		waitForCapturedError(t, logs, "no usable provider config")
+	})
+
+	t.Run("NoAttachments", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		model := newModelConfig(ctx, t, db, user)
+
+		logs := &captureSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logs)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.Logger = logger
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			Title:         "no-attachments",
+			ModelConfigID: model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+
+		snapshot, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+		require.True(t, ok)
+		t.Cleanup(cancel)
+
+		waitForChatStatus(t, snapshot, events, codersdk.ChatStatusError)
+		chatResult := waitForChatError(ctx, t, db, chat.ID)
+		require.Contains(t, chatResult.LastError.String, "The chat request failed unexpectedly")
+		waitForCapturedError(t, logs, "no provider configs attached")
+	})
 }
 
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
