@@ -194,6 +194,7 @@ const googleExcludedProviderState: ProviderState = {
 
 export const MultiConfigAddDropdown: Story = {
 	args: {
+		sectionLabel: undefined,
 		providerStates: [
 			openAIMultiConfigProviderState,
 			anthropicEnvPresetProviderState,
@@ -216,14 +217,12 @@ export const MultiConfigAddDropdown: Story = {
 				body.getByRole("menuitem", { name: /OpenAI Production/i }),
 			).toBeInTheDocument();
 			expect(
-				body.getByRole("menuitem", { name: /^OpenAI 2$/i }),
+				body.getByRole("menuitem", { name: /OpenAI 2/i }),
 			).toBeInTheDocument();
 			expect(
 				body.getByRole("menuitem", { name: /Anthropic/i }),
 			).toBeInTheDocument();
+			expect(body.getAllByRole("menuitem")).toHaveLength(3);
 		});
-
-		const items = body.getAllByRole("menuitem");
-		expect(items).toHaveLength(3);
 	},
 };
