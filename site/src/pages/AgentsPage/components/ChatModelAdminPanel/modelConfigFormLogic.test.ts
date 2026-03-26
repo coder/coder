@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	buildInitialModelFormValues,
 	buildModelConfigFromForm,
 	emptyModelConfigFormState,
 	extractModelConfigFormState,
@@ -423,6 +424,87 @@ describe("extractModelConfigFormState", () => {
 		expect(result.openaicompat).not.toBe(empty.openaicompat);
 		expect(result.openrouter).not.toBe(empty.openrouter);
 		expect(result.vercel).not.toBe(empty.vercel);
+	});
+});
+
+describe("providerConfigIds initialization", () => {
+	it("returns provider_config IDs from editingModel sorted by priority", () => {
+		const model: TypesGen.ChatModelConfig = {
+			...baseChatModelConfig,
+			provider_configs: [
+				{
+					provider_config_id: "cfg-b",
+					provider: "openai",
+					display_name: "Config B",
+					enabled: true,
+					has_api_key: true,
+					priority: 2,
+				},
+				{
+					provider_config_id: "cfg-a",
+					provider: "openai",
+					display_name: "Config A",
+					enabled: true,
+					has_api_key: true,
+					priority: 1,
+				},
+				{
+					provider_config_id: "cfg-c",
+					provider: "openai",
+					display_name: "Config C",
+					enabled: true,
+					has_api_key: false,
+					priority: 3,
+				},
+			],
+		};
+		const result = buildInitialModelFormValues({ editingModel: model });
+		expect(result.providerConfigIds).toEqual(["cfg-a", "cfg-b", "cfg-c"]);
+	});
+
+	it("returns empty array when editingModel has no provider_configs", () => {
+		const result = buildInitialModelFormValues({
+			editingModel: baseChatModelConfig,
+		});
+		expect(result.providerConfigIds).toEqual([]);
+	});
+
+	it("returns empty array when editingModel has undefined provider_configs", () => {
+		const model = { ...baseChatModelConfig, provider_configs: undefined };
+		const result = buildInitialModelFormValues({ editingModel: model });
+		expect(result.providerConfigIds).toEqual([]);
+	});
+
+	it("returns all available provider config IDs in create mode", () => {
+		const configs = [
+			{
+				id: "cfg-1",
+				provider: "openai",
+				display_name: "Config 1",
+				enabled: true,
+				has_api_key: true,
+				created_at: "",
+				updated_at: "",
+			},
+			{
+				id: "cfg-2",
+				provider: "openai",
+				display_name: "Config 2",
+				enabled: true,
+				has_api_key: false,
+				created_at: "",
+				updated_at: "",
+			},
+		] as TypesGen.ChatProviderConfig[];
+		const result = buildInitialModelFormValues({
+			availableProviderConfigs: configs,
+		});
+		expect(result.providerConfigIds).toEqual(["cfg-1", "cfg-2"]);
+	});
+
+	it("returns empty array with no options", () => {
+		const result = buildInitialModelFormValues();
+		expect(result.providerConfigIds).toEqual([]);
 	});
 });
 

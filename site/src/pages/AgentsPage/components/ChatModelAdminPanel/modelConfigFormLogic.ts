@@ -29,6 +29,7 @@ export type ModelFormValues = {
 	compressionThreshold: string;
 	isDefault: boolean;
 	config: ModelConfigFormState;
+	providerConfigIds: string[];
 };
 
 // ── Preserved parsing utilities ────────────────────────────────
@@ -219,20 +220,59 @@ export const extractModelConfigFormState = (
 
 // ── Build initial model form values ────────────────────────────
 
-export const buildInitialModelFormValues = (
+type BuildInitialModelFormValuesOptions = {
+	editingModel?: TypesGen.ChatModelConfig;
+	availableProviderConfigs?: readonly TypesGen.ChatProviderConfig[];
+};
+
+const getInitialProviderConfigIds = (
+	opts?: BuildInitialModelFormValuesOptions,
+): string[] => {
+	if (opts?.editingModel) {
+		return [...(opts.editingModel.provider_configs ?? [])]
+			.sort((a, b) => a.priority - b.priority)
+			.map(({ provider_config_id }) => provider_config_id);
+	}
+
+	if (opts?.availableProviderConfigs) {
+		return opts.availableProviderConfigs.map((config) => config.id);
+	}
+
+	return [];
+};
+
+export function buildInitialModelFormValues(): ModelFormValues;
+export function buildInitialModelFormValues(
+	opts: BuildInitialModelFormValuesOptions,
+): ModelFormValues;
+export function buildInitialModelFormValues(
 	editingModel?: TypesGen.ChatModelConfig,
-): ModelFormValues => ({
-	model: editingModel?.model ?? "",
-	displayName: editingModel?.display_name ?? "",
-	contextLimit: editingModel ? String(editingModel.context_limit) : "",
-	compressionThreshold: editingModel
-		? String(editingModel.compression_threshold)
-		: "",
-	isDefault: editingModel?.is_default ?? false,
-	config: editingModel
-		? extractModelConfigFormState(editingModel)
-		: structuredClone(emptyModelConfigFormState),
-});
+): ModelFormValues;
+export function buildInitialModelFormValues(
+	optsOrEditingModel?:
+		| BuildInitialModelFormValuesOptions
+		| TypesGen.ChatModelConfig,
+): ModelFormValues {
+	const opts =
+		optsOrEditingModel && "model" in optsOrEditingModel
+			? { editingModel: optsOrEditingModel }
+			: optsOrEditingModel;
+	const editingModel = opts?.editingModel;
+
+	return {
+		model: editingModel?.model ?? "",
+		displayName: editingModel?.display_name ?? "",
+		contextLimit: editingModel ? String(editingModel.context_limit) : "",
+		compressionThreshold: editingModel
+			? String(editingModel.compression_threshold)
+			: "",
+		isDefault: editingModel?.is_default ?? false,
+		config: editingModel
+			? extractModelConfigFormState(editingModel)
+			: structuredClone(emptyModelConfigFormState),
+		providerConfigIds: getInitialProviderConfigIds(opts),
+	};
+}
 
 function isNonNegativePricingField(field: FieldSchema): boolean {
 	return pricingFieldNames.has(field.json_name);
