@@ -576,6 +576,21 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateChatStatusPreserveUpdatedAt :one
+UPDATE
+    chats
+SET
+    status = @status::chat_status,
+    worker_id = sqlc.narg('worker_id')::uuid,
+    started_at = sqlc.narg('started_at')::timestamptz,
+    heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
+    last_error = sqlc.narg('last_error')::text,
+    updated_at = @updated_at::timestamptz
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: GetStaleChats :many
 -- Find chats that appear stuck (running but heartbeat has expired).
 -- Used for recovery after coderd crashes or long hangs.

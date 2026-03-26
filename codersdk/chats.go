@@ -1879,7 +1879,7 @@ func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uui
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Chat{}, ReadBodyAsError(res)
+		return Chat{}, readBodyAsChatUsageLimitError(res)
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)

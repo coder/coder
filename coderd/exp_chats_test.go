@@ -3561,18 +3561,9 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		res, err := client.Request(
-			ctx,
-			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chat.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusConflict, res.StatusCode)
-
-		var limitErr codersdk.ChatUsageLimitExceededResponse
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&limitErr))
+		_, err = client.RegenerateChatTitle(ctx, chat.ID)
+		limitErr := codersdk.ChatUsageLimitExceededFrom(err)
+		require.NotNil(t, limitErr)
 		require.Equal(t, "Chat usage limit exceeded.", limitErr.Message)
 		require.Equal(t, int64(100), limitErr.SpentMicros)
 		require.Equal(t, int64(100), limitErr.LimitMicros)
@@ -3702,8 +3693,15 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
 		_, err = client.RegenerateChatTitle(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusInternalServerError)
+
+		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt))
 	})
 }
 

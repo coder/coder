@@ -6591,6 +6591,68 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 	return i, err
 }
 
+const updateChatStatusPreserveUpdatedAt = `-- name: UpdateChatStatusPreserveUpdatedAt :one
+UPDATE
+    chats
+SET
+    status = $1::chat_status,
+    worker_id = $2::uuid,
+    started_at = $3::timestamptz,
+    heartbeat_at = $4::timestamptz,
+    last_error = $5::text,
+    updated_at = $6::timestamptz
+WHERE
+    id = $7::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+`
+
+type UpdateChatStatusPreserveUpdatedAtParams struct {
+	Status      ChatStatus     `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   sql.NullString `db:"last_error" json:"last_error"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatStatusPreserveUpdatedAt,
+		arg.Status,
+		arg.WorkerID,
+		arg.StartedAt,
+		arg.HeartbeatAt,
+		arg.LastError,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+	)
+	return i, err
+}
+
 const updateChatWorkspaceBinding = `-- name: UpdateChatWorkspaceBinding :one
 UPDATE chats SET
     workspace_id = $1::uuid,

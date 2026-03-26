@@ -1379,6 +1379,30 @@ func isFreshManualTitleLock(chat database.Chat, now time.Time) bool {
 	return leaseAt.Valid && leaseAt.Time.After(now.Add(-manualTitleLockStaleAfter))
 }
 
+// updateChatStatusPreserveUpdatedAt applies internal lock transitions without
+// changing chat recency, because chat list ordering uses updated_at.
+func updateChatStatusPreserveUpdatedAt(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	workerID uuid.NullUUID,
+	startedAt sql.NullTime,
+	heartbeatAt sql.NullTime,
+) (database.Chat, error) {
+	return store.UpdateChatStatusPreserveUpdatedAt(
+		ctx,
+		database.UpdateChatStatusPreserveUpdatedAtParams{
+			ID:          chat.ID,
+			Status:      chat.Status,
+			WorkerID:    workerID,
+			StartedAt:   startedAt,
+			HeartbeatAt: heartbeatAt,
+			LastError:   chat.LastError,
+			UpdatedAt:   chat.UpdatedAt,
+		},
+	)
+}
+
 func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) error {
 	now := time.Now()
 	return p.db.InTx(func(tx database.Store) error {
@@ -1390,14 +1414,14 @@ func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) e
 			isFreshManualTitleLock(lockedChat, now) {
 			return ErrManualTitleRegenerationInProgress
 		}
-		_, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:          chatID,
-			Status:      lockedChat.Status,
-			WorkerID:    uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
-			StartedAt:   sql.NullTime{Time: now, Valid: true},
-			HeartbeatAt: sql.NullTime{Time: now, Valid: true},
-			LastError:   lockedChat.LastError,
-		})
+		_, err = updateChatStatusPreserveUpdatedAt(
+			ctx,
+			tx,
+			lockedChat,
+			uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
+			sql.NullTime{Time: now, Valid: true},
+			sql.NullTime{Time: now, Valid: true},
+		)
 		if err != nil {
 			return xerrors.Errorf("mark chat for manual title regeneration: %w", err)
 		}
@@ -1417,14 +1441,14 @@ func (p *Server) releaseManualTitleLock(ctx context.Context, chatID uuid.UUID) {
 		if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != manualTitleLockWorkerID {
 			return nil
 		}
-		_, err = tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
-			ID:          chatID,
-			Status:      lockedChat.Status,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   lockedChat.LastError,
-		})
+		_, err = updateChatStatusPreserveUpdatedAt(
+			cleanupCtx,
+			tx,
+			lockedChat,
+			uuid.NullUUID{},
+			sql.NullTime{},
+			sql.NullTime{},
+		)
 		if err != nil {
 			return xerrors.Errorf("clear manual title regeneration marker: %w", err)
 		}
