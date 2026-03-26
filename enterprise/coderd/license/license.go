@@ -595,7 +595,7 @@ func appendAIGovernanceSeatLimitWarning(warnings []string, actual int64, limit i
 			limit,
 			overLimitSeats,
 		))
-	} else if actual*100 >= limit*90 && actual < limit {
+	} else if actual/limit >= 0.9 {
 		usedPercent := (actual * 100) / limit
 		return append(warnings, fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, usedPercent))
 	}

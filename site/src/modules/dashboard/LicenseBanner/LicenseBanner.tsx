@@ -15,13 +15,15 @@ import {
 
 const aiGovernanceOverLimitWarningPrefix =
 	LicenseAIGovernanceOverLimitWarningText.split("%d")[0];
+const aiGovernanceNearLimitWarningPrefix =
+	LicenseAIGovernance90PercentWarningText.split("%d%%")[0];
 
 const isAIGovernanceWarning = (message: string): boolean =>
 	message === LicenseAIGovernance90PercentWarningText ||
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
 const isAIGovernanceNearLimitWarning = (message: string): boolean =>
-	message === LicenseAIGovernance90PercentWarningText;
+	message.startsWith(aiGovernanceNearLimitWarningPrefix);
 
 const aiGovernanceOverLimitMessage = (
 	feature: ReturnType<
