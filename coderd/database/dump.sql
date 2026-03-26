@@ -1401,7 +1401,8 @@ CREATE TABLE chats (
     mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     labels jsonb DEFAULT '{}'::jsonb NOT NULL,
     build_id uuid,
-    agent_id uuid
+    agent_id uuid,
+    file_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL
 );
 
 CREATE TABLE connection_logs (

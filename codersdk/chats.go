@@ -46,23 +46,35 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID         `json:"id" format:"uuid"`
-	OwnerID           uuid.UUID         `json:"owner_id" format:"uuid"`
-	WorkspaceID       *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID           *uuid.UUID        `json:"build_id,omitempty" format:"uuid"`
-	AgentID           *uuid.UUID        `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID        `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID         `json:"last_model_config_id" format:"uuid"`
-	Title             string            `json:"title"`
-	Status            ChatStatus        `json:"status"`
-	LastError         *string           `json:"last_error"`
-	DiffStatus        *ChatDiffStatus   `json:"diff_status,omitempty"`
-	CreatedAt         time.Time         `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time         `json:"updated_at" format:"date-time"`
-	Archived          bool              `json:"archived"`
-	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
-	Labels            map[string]string `json:"labels"`
+	ID                uuid.UUID          `json:"id" format:"uuid"`
+	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
+	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID         `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID         `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID          `json:"last_model_config_id" format:"uuid"`
+	Title             string             `json:"title"`
+	Status            ChatStatus         `json:"status"`
+	LastError         *string            `json:"last_error"`
+	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
+	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
+	Archived          bool               `json:"archived"`
+	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
+	Labels            map[string]string  `json:"labels"`
+	Files             []ChatFileMetadata `json:"files,omitempty"`
+}
+
+// ChatFileMetadata contains lightweight metadata about a file
+// associated with a chat, excluding the file content itself.
+type ChatFileMetadata struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	Name           string    `json:"name"`
+	MimeType       string    `json:"mimetype"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
 // ChatMessage represents a single message in a chat.

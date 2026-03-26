@@ -8,3 +8,9 @@ SELECT * FROM chat_files WHERE id = @id::uuid;
 
 -- name: GetChatFilesByIDs :many
 SELECT * FROM chat_files WHERE id = ANY(@ids::uuid[]);
+
+-- name: GetChatFileMetadataByIDs :many
+SELECT id, owner_id, organization_id, name, mimetype, created_at
+FROM chat_files
+WHERE id = ANY(@ids::uuid[])
+ORDER BY created_at ASC;

@@ -1193,6 +1193,7 @@ export interface Chat {
 	readonly archived: boolean;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
+	readonly files?: readonly ChatFileMetadata[];
 }
 
 // From codersdk/chats.go
@@ -1376,6 +1377,20 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatFileMetadata contains lightweight metadata about a file
+ * associated with a chat, excluding the file content itself.
+ */
+export interface ChatFileMetadata {
+	readonly id: string;
+	readonly owner_id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly mimetype: string;
+	readonly created_at: string;
 }
 
 // From codersdk/chats.go

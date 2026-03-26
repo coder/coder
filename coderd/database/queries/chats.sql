@@ -338,6 +338,16 @@ WHERE
 RETURNING
     *;
 
+-- name: AppendChatFileIDs :exec
+UPDATE chats
+SET
+	file_ids = (
+	    SELECT COALESCE(array_agg(DISTINCT fid), '{}')
+	    FROM unnest(file_ids || COALESCE(@file_ids::uuid[], '{}'::uuid[])) AS fid
+	),
+	updated_at = NOW()
+WHERE id = @chat_id::uuid;
+
 -- name: AcquireChats :many
 -- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
 -- to prevent multiple replicas from acquiring the same chat.

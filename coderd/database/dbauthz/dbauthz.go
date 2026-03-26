@@ -1570,6 +1570,17 @@ func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UU
 	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
+func (q *querier) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.AppendChatFileIDs(ctx, arg)
+}
+
 func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
@@ -2563,6 +2574,10 @@ func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.C
 		return database.ChatFile{}, err
 	}
 	return file, nil
+}
+
+func (q *querier) GetChatFileMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatFileMetadataByIDsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatFileMetadataByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatFile, error) {

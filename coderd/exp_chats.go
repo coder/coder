@@ -499,6 +499,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Link any user-uploaded files referenced in the initial
+	// message to this newly created chat.
+	api.appendChatFileIDs(ctx, chat.ID, req.Content)
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat, nil))
 }
 
@@ -1224,7 +1227,24 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 			slog.Error(err),
 		)
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus))
+
+	chatResponse := db2sdk.Chat(chat, diffStatus)
+
+	// Hydrate file metadata from the chat's file_ids array.
+	if len(chat.FileIds) > 0 {
+		chatFiles, err := api.Database.GetChatFileMetadataByIDs(ctx, chat.FileIds)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to fetch chat file metadata",
+				slog.F("chat_id", chat.ID),
+				slog.F("file_ids", chat.FileIds),
+				slog.Error(err),
+			)
+		} else {
+			chatResponse.Files = db2sdk.ChatFileMetadata(chatFiles...)
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, chatResponse)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1734,6 +1754,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Link any user-uploaded files referenced in this message
+	// to the chat.
+	api.appendChatFileIDs(ctx, chatID, req.Content)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -1815,6 +1838,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Link any user-uploaded files referenced in the edited
+	// message to the chat.
+	api.appendChatFileIDs(ctx, chat.ID, req.Content)
 	message := convertChatMessage(editResult.Message)
 	httpapi.Write(ctx, rw, http.StatusOK, message)
 }
@@ -3694,6 +3720,37 @@ func truncateRunes(value string, maxLen int) string {
 	}
 
 	return string(runes[:maxLen])
+}
+
+// appendChatFileIDs links user-uploaded files to a chat by appending
+// their IDs to the chat's file_ids array. This is best-effort:
+// failures are logged but do not block the request.
+func (api *API) appendChatFileIDs(
+	ctx context.Context,
+	chatID uuid.UUID,
+	parts []codersdk.ChatInputPart,
+) {
+	var fileIDs []uuid.UUID
+	for _, part := range parts {
+		normPart := strings.TrimSpace(string(part.Type))
+		if strings.EqualFold(normPart, string(codersdk.ChatInputPartTypeFile)) && part.FileID != uuid.Nil {
+			fileIDs = append(fileIDs, part.FileID)
+		}
+	}
+	if len(fileIDs) == 0 {
+		return
+	}
+	err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+		ChatID:  chatID,
+		FileIds: fileIDs,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to append file IDs to chat",
+			slog.F("chat_id", chatID),
+			slog.F("file_ids", fileIDs),
+			slog.Error(err),
+		)
+	}
 }
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {

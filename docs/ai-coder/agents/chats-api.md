@@ -162,7 +162,9 @@ Returns all chats owned by the authenticated user.
 
 `GET /api/experimental/chats/{chat}`
 
-Returns the `Chat` object (metadata only, no messages).
+Returns the `Chat` object (metadata only, no messages). The response
+includes a `files` field (`ChatFileMetadata[]`) containing metadata for
+all files associated with the chat.
 
 ### Get chat messages
 
@@ -208,6 +210,10 @@ file, use `GET /api/experimental/chats/files/{file}`.
 
 Supported formats: PNG, JPEG, GIF, WebP (up to 10 MB). The server
 validates actual file content regardless of the declared `Content-Type`.
+
+Files referenced in messages are automatically linked to the chat and
+appear in the `files` field on subsequent
+`GET /api/experimental/chats/{chat}` responses.
 
 ## Chat statuses
 

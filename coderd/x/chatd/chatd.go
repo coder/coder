@@ -3701,6 +3701,18 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
+				// Best-effort: link the file to the chat.
+				if err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:  chatSnapshot.ID,
+					FileIds: []uuid.UUID{row.ID},
+				}); err != nil {
+					p.logger.Error(ctx, "failed to append file ID to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.Error(err),
+					)
+				}
+
 				return row.ID, nil
 			},
 		}))

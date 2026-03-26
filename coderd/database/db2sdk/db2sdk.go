@@ -1677,3 +1677,17 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 
 	return result
 }
+
+// ChatFileMetadata converts a slice of GetChatFileMetadataByIDsRow to a slice of codersdk.ChatFileMetadata.
+func ChatFileMetadata(rows ...database.GetChatFileMetadataByIDsRow) []codersdk.ChatFileMetadata {
+	files := make([]codersdk.ChatFileMetadata, 0, len(rows))
+	for _, row := range rows {
+		files = append(files, codersdk.ChatFileMetadata{
+			ID:        row.ID,
+			Name:      row.Name,
+			MimeType:  row.Mimetype,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return files
+}

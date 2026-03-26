@@ -160,6 +160,14 @@ func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) error {
+	start := time.Now()
+	r0 := m.s.AppendChatFileIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("AppendChatFileIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AppendChatFileIDs").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ArchiveChatByID(ctx, id)
@@ -1109,6 +1117,14 @@ func (m queryMetricsStore) GetChatFileByID(ctx context.Context, id uuid.UUID) (d
 	r0, r1 := m.s.GetChatFileByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatFileByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFileByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatFileMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatFileMetadataByIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatFileMetadataByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatFileMetadataByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFileMetadataByIDs").Inc()
 	return r0, r1
 }
 

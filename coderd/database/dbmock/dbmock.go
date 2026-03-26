@@ -147,6 +147,20 @@ func (mr *MockStoreMockRecorder) AllUserIDs(ctx, includeSystem any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllUserIDs", reflect.TypeOf((*MockStore)(nil).AllUserIDs), ctx, includeSystem)
 }
 
+// AppendChatFileIDs mocks base method.
+func (m *MockStore) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppendChatFileIDs", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AppendChatFileIDs indicates an expected call of AppendChatFileIDs.
+func (mr *MockStoreMockRecorder) AppendChatFileIDs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendChatFileIDs", reflect.TypeOf((*MockStore)(nil).AppendChatFileIDs), ctx, arg)
+}
+
 // ArchiveChatByID mocks base method.
 func (m *MockStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2041,6 +2055,21 @@ func (m *MockStore) GetChatFileByID(ctx context.Context, id uuid.UUID) (database
 func (mr *MockStoreMockRecorder) GetChatFileByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileByID", reflect.TypeOf((*MockStore)(nil).GetChatFileByID), ctx, id)
+}
+
+// GetChatFileMetadataByIDs mocks base method.
+func (m *MockStore) GetChatFileMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatFileMetadataByIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatFileMetadataByIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.GetChatFileMetadataByIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatFileMetadataByIDs indicates an expected call of GetChatFileMetadataByIDs.
+func (mr *MockStoreMockRecorder) GetChatFileMetadataByIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileMetadataByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFileMetadataByIDs), ctx, ids)
 }
 
 // GetChatFilesByIDs mocks base method.
