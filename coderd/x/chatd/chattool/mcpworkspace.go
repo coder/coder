@@ -145,5 +145,7 @@ func convertMCPToolResponse(
 	if binaryResult != nil {
 		return *binaryResult
 	}
-	return fantasy.NewTextResponse("")
+	r := fantasy.NewTextResponse("")
+	r.IsError = resp.IsError
+	return r
 }

@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/agent/agentmcp"
+	"github.com/coder/coder/v2/agent/x/agentmcp"
 )
 
 func TestParseConfig(t *testing.T) {

@@ -41,7 +41,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
-	"github.com/coder/coder/v2/agent/agentmcp"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -51,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
+	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -1335,12 +1335,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 					}
 				}
 
-				// Connect to workspace MCP servers. This is
-				// best-effort and should not affect agent lifecycle.
-				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, manifest.Directory); mcpErr != nil {
-					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
-				}
-
 				dur := time.Since(start).Seconds()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
@@ -1359,6 +1353,14 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
+
+				// Connect to workspace MCP servers after the
+				// lifecycle transition to avoid delaying Ready.
+				// This runs inside the tracked goroutine so it
+				// is properly awaited on shutdown.
+				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, manifest.Directory); mcpErr != nil {
+					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
+				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)

@@ -36,6 +36,8 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
+// handleListTools returns the cached MCP tool definitions,
+// optionally refreshing them first if ?refresh=true is set.
 func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -57,6 +59,8 @@ func (api *API) handleListTools(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleCallTool proxies a tool invocation to the appropriate
+// MCP server based on the tool name prefix.
 func (api *API) handleCallTool(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

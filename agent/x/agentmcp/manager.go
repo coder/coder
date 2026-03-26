@@ -15,6 +15,7 @@ import (
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -50,6 +51,7 @@ var (
 type Manager struct {
 	mu      sync.RWMutex
 	logger  slog.Logger
+	closed  bool
 	servers map[string]*serverEntry // keyed by server name
 	tools   []workspacesdk.MCPToolInfo
 }
@@ -80,32 +82,50 @@ func (m *Manager) Connect(ctx context.Context, dir string) error {
 		return xerrors.Errorf("parse mcp config: %w", err)
 	}
 
-	// Connect to servers without holding the lock, since each
-	// connectServer call may block on network I/O for up to
-	// connectTimeout.
+	// Connect to servers in parallel without holding the
+	// lock, since each connectServer call may block on
+	// network I/O for up to connectTimeout.
 	type connectedServer struct {
 		name   string
 		config ServerConfig
 		client *client.Client
 	}
-	var connected []connectedServer
+	var (
+		mu        sync.Mutex
+		connected []connectedServer
+	)
+	var eg errgroup.Group
 	for _, cfg := range configs {
-		c, err := m.connectServer(ctx, cfg)
-		if err != nil {
-			m.logger.Warn(ctx, "skipping MCP server",
-				slog.F("server", cfg.Name),
-				slog.F("transport", cfg.Transport),
-				slog.Error(err),
-			)
-			continue
-		}
-		connected = append(connected, connectedServer{
-			name: cfg.Name, config: cfg, client: c,
+		eg.Go(func() error {
+			c, err := m.connectServer(ctx, cfg)
+			if err != nil {
+				m.logger.Warn(ctx, "skipping MCP server",
+					slog.F("server", cfg.Name),
+					slog.F("transport", cfg.Transport),
+					slog.Error(err),
+				)
+				return nil // Don't fail the group.
+			}
+			mu.Lock()
+			connected = append(connected, connectedServer{
+				name: cfg.Name, config: cfg, client: c,
+			})
+			mu.Unlock()
+			return nil
 		})
 	}
+	_ = eg.Wait()
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	if m.closed {
+		m.mu.Unlock()
+		// Close the freshly-connected clients since we're
+		// shutting down.
+		for _, cs := range connected {
+			_ = cs.client.Close()
+		}
+		return xerrors.New("manager closed")
+	}
 
 	// Close previous connections to avoid leaking child
 	// processes on agent reconnect.
@@ -120,8 +140,13 @@ func (m *Manager) Connect(ctx context.Context, dir string) error {
 			client: cs.client,
 		}
 	}
+	m.mu.Unlock()
 
-	m.refreshToolsLocked(ctx)
+	// Refresh tools outside the lock to avoid blocking
+	// concurrent reads during network I/O.
+	if err := m.RefreshTools(ctx); err != nil {
+		m.logger.Warn(ctx, "failed to refresh MCP tools after connect", slog.Error(err))
+	}
 	return nil
 }
 
@@ -211,40 +236,6 @@ func buildEnv(explicit map[string]string) []string {
 		}
 	}
 	return env
-}
-
-// refreshToolsLocked fetches tool lists from all connected servers
-// and rebuilds the cached flat list. The caller must hold m.mu for
-// writing.
-func (m *Manager) refreshToolsLocked(ctx context.Context) {
-	var tools []workspacesdk.MCPToolInfo
-
-	for name, entry := range m.servers {
-		result, err := entry.client.ListTools(ctx, mcp.ListToolsRequest{})
-		if err != nil {
-			m.logger.Warn(ctx, "failed to list tools from MCP server",
-				slog.F("server", name),
-				slog.Error(err),
-			)
-			continue
-		}
-
-		for _, tool := range result.Tools {
-			tools = append(tools, workspacesdk.MCPToolInfo{
-				ServerName:  name,
-				Name:        name + ToolNameSep + tool.Name,
-				Description: tool.Description,
-				Schema:      tool.InputSchema.Properties,
-				Required:    tool.InputSchema.Required,
-			})
-		}
-	}
-
-	slices.SortFunc(tools, func(a, b workspacesdk.MCPToolInfo) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-
-	m.tools = tools
 }
 
 // Tools returns the cached tool list. Thread-safe.
@@ -360,14 +351,20 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 	m.mu.RUnlock()
 
 	// Fetch tool lists without holding any lock.
-	var tools []workspacesdk.MCPToolInfo
+	var (
+		tools []workspacesdk.MCPToolInfo
+		errs  []error
+	)
 	for name, entry := range servers {
-		result, err := entry.client.ListTools(ctx, mcp.ListToolsRequest{})
+		listCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+		result, err := entry.client.ListTools(listCtx, mcp.ListToolsRequest{})
+		cancel()
 		if err != nil {
 			m.logger.Warn(ctx, "failed to list tools from MCP server",
 				slog.F("server", name),
 				slog.Error(err),
 			)
+			errs = append(errs, xerrors.Errorf("list tools from %q: %w", name, err))
 			continue
 		}
 		for _, tool := range result.Tools {
@@ -384,12 +381,16 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 		return strings.Compare(a.Name, b.Name)
 	})
 
-	// Swap the cached list under write lock.
-	m.mu.Lock()
-	m.tools = tools
-	m.mu.Unlock()
+	// Only swap the cached list if every server responded
+	// successfully. Partial failures would silently drop
+	// tools from servers that had transient errors.
+	if len(errs) == 0 {
+		m.mu.Lock()
+		m.tools = tools
+		m.mu.Unlock()
+	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // Close terminates all MCP server connections and child
@@ -398,6 +399,7 @@ func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.closed = true
 	var errs []error
 	for _, entry := range m.servers {
 		errs = append(errs, entry.client.Close())

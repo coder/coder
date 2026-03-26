@@ -2032,6 +2032,7 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	if !state.buffering && len(state.subscribers) == 0 {
 		p.chatStreams.Delete(chatID)
+		p.workspaceMCPToolsCache.Delete(chatID)
 	}
 }
 
@@ -3363,12 +3364,18 @@ func (p *Server) runChat(
 				return nil
 			}
 
-			// Cache the result for subsequent turns.
-			if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-				p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
-					agentID: agent.ID,
-					tools:   toolsResp.Tools,
-				})
+			// Cache the result for subsequent turns. Skip
+			// caching when the list is empty because the
+			// agent's MCP Connect may not have finished yet;
+			// caching an empty list would hide tools
+			// permanently.
+			if len(toolsResp.Tools) > 0 {
+				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+					p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
+						agentID: agent.ID,
+						tools:   toolsResp.Tools,
+					})
+				}
 			}
 
 			for _, t := range toolsResp.Tools {
