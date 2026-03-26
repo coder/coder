@@ -1,7 +1,7 @@
-import { getErrorStatus } from "#/api/errors";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
+import { getErrorStatus } from "#/api/errors";
 import {
 	chatModelConfigs,
 	chatModels,
