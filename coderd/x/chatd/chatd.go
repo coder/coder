@@ -3261,6 +3261,7 @@ func (p *Server) runChat(
 		resolvedUserPrompt string
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
+		workspaceMCPTools  []fantasy.AgentTool
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3313,6 +3314,28 @@ func (p *Server) runChat(
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx, logger, mcpConfigs, mcpTokens,
 			)
+			return nil
+		})
+	}
+	if chat.WorkspaceID.Valid {
+		g2.Go(func() error {
+			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
+			if connErr != nil {
+				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
+					slog.Error(connErr))
+				return nil
+			}
+			toolsResp, listErr := conn.ListMCPTools(ctx)
+			if listErr != nil {
+				logger.Warn(ctx, "failed to list workspace MCP tools",
+					slog.Error(listErr))
+				return nil
+			}
+			for _, t := range toolsResp.Tools {
+				workspaceMCPTools = append(workspaceMCPTools,
+					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+				)
+			}
 			return nil
 		})
 	}
@@ -3734,6 +3757,7 @@ func (p *Server) runChat(
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
 	tools = append(tools, mcpTools...)
+	tools = append(tools, workspaceMCPTools...)
 
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.

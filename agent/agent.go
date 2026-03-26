@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentmcp"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -311,6 +312,8 @@ type agent struct {
 	gitAPI     *agentgit.API
 	processAPI *agentproc.API
 	desktopAPI *agentdesktop.API
+	mcpManager *agentmcp.Manager
+	mcpAPI     *agentmcp.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -396,6 +399,8 @@ func (a *agent) init() {
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
+	a.mcpManager = agentmcp.NewManager(a.logger.Named("mcp"))
+	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1330,6 +1335,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 					}
 				}
 
+				// Connect to workspace MCP servers. This is
+				// best-effort and should not affect agent lifecycle.
+				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, manifest.Directory); mcpErr != nil {
+					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
+				}
+
 				dur := time.Since(start).Seconds()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
@@ -2068,6 +2079,10 @@ func (a *agent) Close() error {
 
 	if err := a.desktopAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
+	}
+
+	if err := a.mcpManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {
