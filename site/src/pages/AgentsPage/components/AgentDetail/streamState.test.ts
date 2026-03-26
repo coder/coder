@@ -378,7 +378,7 @@ describe("applyMessagePartToStreamState", () => {
 			result: { error: "permission denied" },
 			isError: true,
 		});
-		const tools = buildStreamTools(state);
+		const tools = buildStreamTools(state!.toolCalls, state!.toolResults);
 		expect(tools).toHaveLength(1);
 		expect(tools[0]).toEqual({
 			id: "tc-1",
@@ -392,8 +392,8 @@ describe("applyMessagePartToStreamState", () => {
 });
 
 describe("buildStreamTools", () => {
-	it("returns empty array for null stream state", () => {
-		expect(buildStreamTools(null)).toEqual([]);
+	it("returns empty array for null toolCalls", () => {
+		expect(buildStreamTools(null, null)).toEqual([]);
 	});
 
 	it("returns running status for calls without results", () => {
@@ -405,7 +405,7 @@ describe("buildStreamTools", () => {
 			toolResults: {},
 			sources: [],
 		};
-		const tools = buildStreamTools(state);
+		const tools = buildStreamTools(state.toolCalls, state.toolResults);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("running");
 	});
@@ -426,7 +426,7 @@ describe("buildStreamTools", () => {
 			},
 			sources: [],
 		};
-		const tools = buildStreamTools(state);
+		const tools = buildStreamTools(state.toolCalls, state.toolResults);
 		expect(tools[0].status).toBe("completed");
 	});
 
@@ -444,8 +444,177 @@ describe("buildStreamTools", () => {
 			},
 			sources: [],
 		};
-		const tools = buildStreamTools(state);
+		const tools = buildStreamTools(state.toolCalls, state.toolResults);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("completed");
+	});
+});
+
+describe("reference stability across text-only streaming", () => {
+	it("preserves toolCalls and toolResults references during text updates", () => {
+		// Set up state with a tool call and result.
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			result: { output: "file.txt" },
+		});
+		const afterTools = state!;
+
+		// Apply several text parts. The overall streamState changes, but
+		// toolCalls and toolResults should keep the same object reference
+		// because text parts only modify blocks.
+		state = applyMessagePartToStreamState(state, {
+			type: "text",
+			text: "Here is ",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "text",
+			text: "the output.",
+		});
+
+		// StreamState itself is a new object (spread in text handler).
+		expect(state).not.toBe(afterTools);
+		// But toolCalls and toolResults retain references.
+		expect(state!.toolCalls).toBe(afterTools.toolCalls);
+		expect(state!.toolResults).toBe(afterTools.toolResults);
+	});
+
+	it("changes toolCalls reference when a new tool arrives", () => {
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
+		const afterFirst = state!;
+
+		state = applyMessagePartToStreamState(state, {
+			type: "text",
+			text: "Some text.",
+		});
+		// Text didn't change toolCalls.
+		expect(state!.toolCalls).toBe(afterFirst.toolCalls);
+
+		// A new tool call DOES change the reference.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "read",
+			tool_call_id: "tc-2",
+			args: { path: "/tmp" },
+		});
+		expect(state!.toolCalls).not.toBe(afterFirst.toolCalls);
+	});
+});
+
+describe("compiler cache guard simulation", () => {
+	// These tests replicate the compiler's $[n] !== dep guard logic
+	// with real applyMessagePartToStreamState output. They prove the
+	// runtime cache hit/miss behavior, not just the structural property.
+
+	it("whole-object guard misses on every text chunk; sub-field guard never misses", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
+
+		// Simulate first render: populate both cache strategies.
+		let prevState = state;
+		let prevToolCalls = state?.toolCalls ?? null;
+		let prevToolResults = state?.toolResults ?? null;
+
+		let wholeObjectMisses = 0;
+		let subFieldMisses = 0;
+
+		// 100 text-only chunks, simulating streaming.
+		for (let i = 0; i < 100; i++) {
+			state = applyMessagePartToStreamState(state, {
+				type: "text",
+				text: `word${i} `,
+			});
+
+			// Before: compiler guard on whole streamState.
+			if (prevState !== state) {
+				wholeObjectMisses++;
+				prevState = state;
+			}
+
+			// After: compiler guard on toolCalls and toolResults.
+			const tc = state?.toolCalls ?? null;
+			const tr = state?.toolResults ?? null;
+			if (prevToolCalls !== tc || prevToolResults !== tr) {
+				subFieldMisses++;
+				prevToolCalls = tc;
+				prevToolResults = tr;
+			}
+		}
+
+		// Before: buildStreamTools called 100 times (every chunk).
+		expect(wholeObjectMisses).toBe(100);
+		// After: buildStreamTools called 0 times (guard passes).
+		expect(subFieldMisses).toBe(0);
+	});
+
+	it("sub-field guard misses only when tool data actually changes", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
+
+		let prevToolCalls = state?.toolCalls ?? null;
+		let prevToolResults = state?.toolResults ?? null;
+		let subFieldMisses = 0;
+
+		const checkGuard = () => {
+			const tc = state?.toolCalls ?? null;
+			const tr = state?.toolResults ?? null;
+			if (prevToolCalls !== tc || prevToolResults !== tr) {
+				subFieldMisses++;
+				prevToolCalls = tc;
+				prevToolResults = tr;
+			}
+		};
+
+		// 10 text chunks: 0 misses.
+		for (let i = 0; i < 10; i++) {
+			state = applyMessagePartToStreamState(state, {
+				type: "text",
+				text: `chunk${i} `,
+			});
+			checkGuard();
+		}
+		expect(subFieldMisses).toBe(0);
+
+		// Tool result arrives: 1 miss.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			result: { output: "file.txt" },
+		});
+		checkGuard();
+		expect(subFieldMisses).toBe(1);
+
+		// 10 more text chunks: still 1 total miss.
+		for (let i = 0; i < 10; i++) {
+			state = applyMessagePartToStreamState(state, {
+				type: "text",
+				text: `more${i} `,
+			});
+			checkGuard();
+		}
+		expect(subFieldMisses).toBe(1);
 	});
 });
