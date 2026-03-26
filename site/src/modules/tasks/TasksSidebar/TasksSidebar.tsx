@@ -1,5 +1,4 @@
 import { useAuthenticated } from "hooks";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import {
 	EditIcon,
 	EllipsisIcon,
@@ -37,6 +36,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
 import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";

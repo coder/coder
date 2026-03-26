@@ -1,4 +1,3 @@
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback } from "react";
 import {
 	keepPreviousData,
@@ -22,6 +21,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 

@@ -1,15 +1,15 @@
-import { chromatic } from "testHelpers/chromatic";
-import * as M from "testHelpers/entities";
-import {
-	withDashboardProvider,
-	withProxyProvider,
-	withWebSocket,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
+import { chromatic } from "#/testHelpers/chromatic";
+import * as M from "#/testHelpers/entities";
+import {
+	withDashboardProvider,
+	withProxyProvider,
+	withWebSocket,
+} from "#/testHelpers/storybook";
 import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [

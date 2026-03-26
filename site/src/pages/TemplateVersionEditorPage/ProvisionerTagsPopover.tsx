@@ -1,6 +1,5 @@
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
-import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
@@ -12,6 +11,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 
 interface ProvisionerTagsPopoverProps {
 	tags: ProvisionerDaemon["tags"];

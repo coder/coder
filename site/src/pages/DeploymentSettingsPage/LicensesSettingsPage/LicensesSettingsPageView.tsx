@@ -1,7 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
-import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
@@ -21,6 +20,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useWindowSize } from "#/hooks/useWindowSize";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";

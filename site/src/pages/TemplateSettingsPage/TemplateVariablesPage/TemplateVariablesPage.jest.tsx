@@ -1,18 +1,18 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
+import { API } from "#/api/api";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersion2,
 	MockTemplateVersionVariable1,
 	MockTemplateVersionVariable2,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
-import { API } from "#/api/api";
+} from "#/testHelpers/renderHelpers";
 import TemplateVariablesPage from "./TemplateVariablesPage";
 
 // The createAndBuildTemplateVersion mutation polls getTemplateVersion behind

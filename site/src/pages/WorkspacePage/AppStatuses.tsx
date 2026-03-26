@@ -1,7 +1,5 @@
 import capitalize from "lodash/capitalize";
 import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
-import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
-import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
 import { timeFrom } from "utils/time";
 import { truncateURI } from "utils/uri";
@@ -20,6 +18,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { AppStatusStateIcon } from "#/modules/apps/AppStatusStateIcon";
+import { useAppLink } from "#/modules/apps/useAppLink";
 
 interface AppStatusesProps {
 	workspace: Workspace;

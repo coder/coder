@@ -1,6 +1,6 @@
 import { useAuthenticated } from "hooks";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
 
 /**

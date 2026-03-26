@@ -1,17 +1,17 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { AuthProvider } from "contexts/auth/AuthProvider";
+import { getPreferredProxy } from "contexts/ProxyContext";
+import { fn, userEvent, within } from "storybook/test";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { permissionChecks } from "#/modules/permissions";
 import {
 	MockAuthMethodsAll,
 	MockPermissions,
 	MockProxyLatencies,
 	MockUserOwner,
 	MockWorkspaceProxies,
-} from "testHelpers/entities";
-import { withDesktopViewport } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AuthProvider } from "contexts/auth/AuthProvider";
-import { getPreferredProxy } from "contexts/ProxyContext";
-import { permissionChecks } from "modules/permissions";
-import { fn, userEvent, within } from "storybook/test";
-import { getAuthorizationKey } from "#/api/queries/authCheck";
+} from "#/testHelpers/entities";
+import { withDesktopViewport } from "#/testHelpers/storybook";
 import { ProxyMenu } from "./ProxyMenu";
 
 const defaultProxyContextValue = {

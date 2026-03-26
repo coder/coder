@@ -1,4 +1,3 @@
-import { useDebouncedFunction, useDebouncedValue } from "hooks/debounce";
 import { type FC, useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { cn } from "utils/cn";
@@ -26,6 +25,7 @@ import {
 } from "#/components/Combobox/Combobox";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 
 // The common properties between users and org members that we need.
 type SelectedUser = {

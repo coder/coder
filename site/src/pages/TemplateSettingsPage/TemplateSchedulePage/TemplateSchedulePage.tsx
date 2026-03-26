@@ -1,5 +1,3 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
@@ -8,6 +6,8 @@ import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import { templateByNameKey } from "#/api/queries/templates";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
 

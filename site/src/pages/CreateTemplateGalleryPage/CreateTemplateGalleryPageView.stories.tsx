@@ -1,11 +1,11 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getTemplatesByTag } from "utils/starterTemplates";
+import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockTemplateExample,
 	MockTemplateExample2,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getTemplatesByTag } from "utils/starterTemplates";
+} from "#/testHelpers/entities";
 import { CreateTemplateGalleryPageView } from "./CreateTemplateGalleryPageView";
 
 const meta: Meta<typeof CreateTemplateGalleryPageView> = {

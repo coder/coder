@@ -1,11 +1,11 @@
 import { useAuthenticated } from "hooks";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { createOrganization } from "#/api/queries/organizations";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const CreateOrganizationPage: FC = () => {

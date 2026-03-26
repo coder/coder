@@ -1,7 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
-import { castNotificationMethod } from "modules/notifications/utils";
 import type { FC } from "react";
 import { useQueries } from "react-query";
 import { deploymentGroupHasParent } from "utils/deployOptions";
@@ -21,6 +18,9 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
+import { castNotificationMethod } from "#/modules/notifications/utils";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
 import { Troubleshooting } from "./Troubleshooting";

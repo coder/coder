@@ -1,10 +1,10 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { daysAgo } from "utils/time";
 import {
 	MockFailedWorkspace,
 	MockTaskWorkspace,
 	MockWorkspace,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { daysAgo } from "utils/time";
+} from "#/testHelpers/entities";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 const meta: Meta<typeof WorkspaceDeleteDialog> = {

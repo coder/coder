@@ -1,9 +1,3 @@
-import {
-	MockWorkspaceAgent,
-	MockWorkspaceAgentDevcontainer,
-} from "testHelpers/entities";
-import { createTestQueryClient } from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
@@ -13,6 +7,12 @@ import { toast } from "sonner";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 import * as API from "#/api/api";
 import type { WorkspaceAgentListContainersResponse } from "#/api/typesGenerated";
+import {
+	MockWorkspaceAgent,
+	MockWorkspaceAgentDevcontainer,
+} from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { useAgentContainers } from "./useAgentContainers";
 
 const createWrapper = (): FC<PropsWithChildren> => {

@@ -1,3 +1,8 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { act } from "react";
+import { API } from "#/api/api";
+import type { DynamicParametersResponse } from "#/api/typesGenerated";
 import {
 	MockDropdownParameter,
 	MockDynamicParametersResponse,
@@ -10,17 +15,12 @@ import {
 	MockUserOwner,
 	MockValidationParameter,
 	MockWorkspace,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { createMockWebSocket } from "testHelpers/websockets";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { act } from "react";
-import { API } from "#/api/api";
-import type { DynamicParametersResponse } from "#/api/typesGenerated";
+} from "#/testHelpers/renderHelpers";
+import { createMockWebSocket } from "#/testHelpers/websockets";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {

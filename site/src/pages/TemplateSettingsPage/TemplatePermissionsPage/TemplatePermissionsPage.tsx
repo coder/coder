@@ -1,4 +1,3 @@
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -11,6 +10,7 @@ import {
 	templateACL,
 } from "#/api/queries/templates";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 

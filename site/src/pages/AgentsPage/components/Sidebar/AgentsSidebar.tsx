@@ -48,8 +48,6 @@ import {
 	UserIcon,
 	WandSparklesIcon,
 } from "lucide-react";
-import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
@@ -88,6 +86,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
 import { UsageIndicator } from "../UsageIndicator";

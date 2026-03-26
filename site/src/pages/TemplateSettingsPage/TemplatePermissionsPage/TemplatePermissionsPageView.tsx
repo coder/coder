@@ -1,5 +1,4 @@
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
 import { type FC, useState } from "react";
 import type {
 	Group,
@@ -41,6 +40,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "#/modules/groups";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,

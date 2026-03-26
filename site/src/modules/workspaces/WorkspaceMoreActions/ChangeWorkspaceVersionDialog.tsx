@@ -3,7 +3,6 @@ import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { InfoIcon } from "lucide-react";
-import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { createDayString } from "utils/createDayString";
@@ -18,6 +17,7 @@ import { FormFields } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
 import { Pill } from "#/components/Pill/Pill";
 import { Stack } from "#/components/Stack/Stack";
+import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
 
 type ChangeWorkspaceVersionDialogProps = DialogProps & {
 	workspace: Workspace;

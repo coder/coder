@@ -1,13 +1,13 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getPreferredProxy } from "contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
-} from "testHelpers/entities";
-import { withProxyProvider, withToaster } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
+} from "#/testHelpers/entities";
+import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import { AppLink } from "./AppLink";
 
 const meta: Meta<typeof AppLink> = {

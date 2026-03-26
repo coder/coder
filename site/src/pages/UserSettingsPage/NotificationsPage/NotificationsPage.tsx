@@ -1,13 +1,4 @@
 import { useAuthenticated } from "hooks";
-import {
-	castNotificationMethod,
-	isTaskNotification,
-	methodIcons,
-	methodLabels,
-	notificationIsDisabled,
-	selectDisabledPreferences,
-} from "modules/notifications/utils";
-import type { Permissions } from "modules/permissions";
 import { type FC, Fragment, useEffect } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
@@ -35,6 +26,15 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	castNotificationMethod,
+	isTaskNotification,
+	methodIcons,
+	methodLabels,
+	notificationIsDisabled,
+	selectDisabledPreferences,
+} from "#/modules/notifications/utils";
+import type { Permissions } from "#/modules/permissions";
 import { Section } from "../Section";
 
 const NotificationsPage: FC = () => {

@@ -1,7 +1,6 @@
 import { Label } from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
 import { TriangleAlert } from "lucide-react";
-import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import {
 	type FC,
 	type ForwardedRef,
@@ -26,6 +25,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,

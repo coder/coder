@@ -1,7 +1,3 @@
-import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { shouldShowAISeatColumn } from "modules/dashboard/entitlements";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -27,6 +23,10 @@ import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { UsersPageView } from "./UsersPageView";
 

@@ -1,14 +1,4 @@
 import {
-	MockAuditLog,
-	MockAuditLog2,
-	MockEntitlementsWithAuditLog,
-} from "testHelpers/entities";
-import {
-	renderWithAuth,
-	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import {
 	createEvent,
 	fireEvent,
 	screen,
@@ -21,6 +11,16 @@ import * as CreateDayString from "utils/createDayString";
 import { API } from "#/api/api";
 import type { AuditLogsRequest } from "#/api/typesGenerated";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
+import {
+	MockAuditLog,
+	MockAuditLog2,
+	MockEntitlementsWithAuditLog,
+} from "#/testHelpers/entities";
+import {
+	renderWithAuth,
+	waitForLoaderToBeRemoved,
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import AuditPage from "./AuditPage";
 
 interface RenderPageOptions {

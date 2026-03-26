@@ -1,4 +1,3 @@
-import type { Permissions } from "modules/permissions";
 import { useMemo, useSyncExternalStore } from "react";
 import type {
 	AppearanceConfig,
@@ -10,6 +9,7 @@ import type {
 	User,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
+import type { Permissions } from "#/modules/permissions";
 export const DEFAULT_METADATA_KEY = "property";
 
 /**

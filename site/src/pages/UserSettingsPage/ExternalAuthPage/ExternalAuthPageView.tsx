@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
@@ -35,6 +34,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 
 type ExternalAuthPageViewProps = {
 	isLoading: boolean;

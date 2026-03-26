@@ -1,5 +1,3 @@
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type Permissions, permissionChecks } from "modules/permissions";
 import {
 	createContext,
 	type FC,
@@ -19,6 +17,8 @@ import {
 	updateProfile as updateProfileOptions,
 } from "#/api/queries/users";
 import type { UpdateUserProfileRequest, User } from "#/api/typesGenerated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { type Permissions, permissionChecks } from "#/modules/permissions";
 
 export type AuthContextValue = {
 	isLoading: boolean;

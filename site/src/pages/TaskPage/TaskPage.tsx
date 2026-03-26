@@ -1,19 +1,10 @@
 import isChromatic from "chromatic/isChromatic";
-import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
 	PauseIcon,
 	RotateCcwIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
-import { useAgentLogs } from "modules/resources/useAgentLogs";
-import { getAllAppsWithAgent } from "modules/tasks/apps";
-import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
-import { isPauseDisabled } from "modules/tasks/taskActions";
-import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -54,6 +45,15 @@ import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
+import { useAgentLogs } from "#/modules/resources/useAgentLogs";
+import { getAllAppsWithAgent } from "#/modules/tasks/apps";
+import { TasksSidebar } from "#/modules/tasks/TasksSidebar/TasksSidebar";
+import { isPauseDisabled } from "#/modules/tasks/taskActions";
+import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,

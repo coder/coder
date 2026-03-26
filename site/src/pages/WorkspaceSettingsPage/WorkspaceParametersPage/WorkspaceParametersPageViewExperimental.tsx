@@ -1,11 +1,4 @@
 import { useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
-import {
-	DynamicParameter,
-	getInitialParameterValues,
-	useValidationSchemaForDynamicParameters,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
@@ -20,6 +13,13 @@ import { Button } from "#/components/Button/Button";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
+import {
+	DynamicParameter,
+	getInitialParameterValues,
+	useValidationSchemaForDynamicParameters,
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 
 type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;

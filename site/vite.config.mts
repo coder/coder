@@ -7,12 +7,9 @@ import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
-// Enable the React profiling build and discoverable source maps for
-// internal deployments (e.g. dogfood). The profiling build swaps
-// react-dom/client for react-dom/profiling, which keeps production
-// optimizations but leaves the <Profiler> onRender callback and
-// React Performance Tracks instrumentation intact. The overhead is
-// ~13% on the react-dom chunk size.
+// We enable profiling and source maps for internal deployments (e.g. dogfood).
+// The profiling build uses react-dom/profiling, which keeps optimizations but
+// preserves performance instrumentation.
 const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
 
 const plugins: PluginOption[] = [
@@ -217,12 +214,8 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			// In profiling builds, swap the production react-dom client
-			// bundle for the profiling variant so that <Profiler>
-			// onRender receives actual timing data.
-			// Note: react-dom/profiling is a superset of react-dom/client
-			// (16 vs 3 exports). If a future React major changes this
-			// relationship, the alias may need updating.
+			// In profiling builds, swap the usual reconciler for the profiling
+			// variant so that <Profiler> receives actual timing data.
 			...(isProfilingBuild
 				? { "react-dom/client": "react-dom/profiling" }
 				: {}),

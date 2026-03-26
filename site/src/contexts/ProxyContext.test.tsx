@@ -1,19 +1,19 @@
 import "testHelpers/localStorage";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import type { Region } from "#/api/typesGenerated";
 import {
 	MockHealthyWildWorkspaceProxy,
 	MockPrimaryWorkspaceProxy,
 	MockUnhealthyWildWorkspaceProxy,
 	MockWorkspaceProxies,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import type { Region } from "#/api/typesGenerated";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import {
 	getPreferredProxy,
 	ProxyProvider,

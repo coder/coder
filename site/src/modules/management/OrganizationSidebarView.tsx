@@ -1,6 +1,4 @@
 import { Check, Plus } from "lucide-react";
-import type { Permissions } from "modules/permissions";
-import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
@@ -22,6 +20,8 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
+import type { Permissions } from "#/modules/permissions";
+import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */

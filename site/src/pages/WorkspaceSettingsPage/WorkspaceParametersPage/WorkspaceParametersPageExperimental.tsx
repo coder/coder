@@ -1,4 +1,3 @@
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +24,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,

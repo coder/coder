@@ -8,13 +8,9 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
-import { useClipboard } from "hooks/useClipboard";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import themes from "theme";
-import { DEFAULT_TERMINAL_FONT, terminalFonts } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
@@ -33,6 +29,10 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "#/api/queries/workspaces";
+import { useClipboard } from "#/hooks/useClipboard";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import themes from "#/theme";
+import { DEFAULT_TERMINAL_FONT, terminalFonts } from "#/theme/constants";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 

@@ -1,4 +1,3 @@
-import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -8,6 +7,7 @@ import {
 	templateFiles,
 } from "#/api/queries/templates";
 import { Loader } from "#/components/Loader/Loader";
+import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {

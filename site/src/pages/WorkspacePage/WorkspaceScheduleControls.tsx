@@ -1,9 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link, { type LinkProps } from "@mui/material/Link";
 import dayjs, { type Dayjs } from "dayjs";
-import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
-import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
@@ -30,6 +28,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useTime } from "#/hooks/useTime";
+import { getWorkspaceActivityStatus } from "#/modules/workspaces/activity";
 
 interface WorkspaceScheduleContainerProps {
 	children?: ReactNode;

@@ -1,9 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { createDayString } from "utils/createDayString";
@@ -48,6 +45,9 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";

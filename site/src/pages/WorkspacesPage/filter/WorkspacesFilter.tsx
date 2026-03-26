@@ -1,8 +1,3 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
-import {
-	type OrganizationsFilterMenu,
-	OrganizationsMenu,
-} from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
@@ -15,6 +10,11 @@ import {
 	type UserFilterMenu,
 	UserMenu,
 } from "#/components/Filter/UserFilter";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	type OrganizationsFilterMenu,
+	OrganizationsMenu,
+} from "#/modules/tableFiltering/options";
 import {
 	type StatusFilterMenu,
 	StatusMenu,

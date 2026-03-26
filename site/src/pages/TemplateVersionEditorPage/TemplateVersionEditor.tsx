@@ -7,17 +7,6 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import {
-	AlertVariant,
-	ProvisionerAlert,
-} from "modules/provisioners/ProvisionerAlert";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { WildcardHostnameWarning } from "modules/resources/WildcardHostnameWarning";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
-import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
-import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -63,6 +52,17 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import {
+	AlertVariant,
+	ProvisionerAlert,
+} from "#/modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
+import { WildcardHostnameWarning } from "#/modules/resources/WildcardHostnameWarning";
+import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
+import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFileTree";
+import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
 	CreateFileDialog,
 	DeleteFileDialog,

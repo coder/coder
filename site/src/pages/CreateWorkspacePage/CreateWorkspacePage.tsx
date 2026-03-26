@@ -1,7 +1,4 @@
 import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
 	useCallback,
@@ -32,6 +29,9 @@ import type {
 	Workspace,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {

@@ -1,19 +1,3 @@
-import {
-	MockDormantOutdatedWorkspace,
-	MockDormantWorkspace,
-	MockOutdatedWorkspace,
-	MockRunningOutdatedWorkspace,
-	MockStoppedWorkspace,
-	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceApp,
-	MockWorkspacesResponse,
-} from "testHelpers/entities";
-import {
-	renderWithAuth,
-	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
@@ -25,6 +9,22 @@ import type {
 	WorkspaceAppHealth,
 	WorkspacesResponse,
 } from "#/api/typesGenerated";
+import {
+	MockDormantOutdatedWorkspace,
+	MockDormantWorkspace,
+	MockOutdatedWorkspace,
+	MockRunningOutdatedWorkspace,
+	MockStoppedWorkspace,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspacesResponse,
+} from "#/testHelpers/entities";
+import {
+	renderWithAuth,
+	waitForLoaderToBeRemoved,
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import WorkspacesPage from "./WorkspacesPage";
 
 describe("WorkspacesPage", () => {

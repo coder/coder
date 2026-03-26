@@ -8,7 +8,6 @@ import {
 	ShieldIcon,
 	UserIcon,
 } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { isDevBuild } from "utils/buildInfo";
 import type { User } from "#/api/typesGenerated";
@@ -19,6 +18,7 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 interface SidebarProps {
 	user: User;

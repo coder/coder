@@ -1,4 +1,3 @@
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { TrashIcon } from "lucide-react";
 import { type ComponentProps, type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -32,6 +31,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 
 export type GroupPageOutletContext = {
 	group: Group;
