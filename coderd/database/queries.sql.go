@@ -17655,6 +17655,10 @@ SELECT
     ) :: boolean AS include_default_system_prompt
 `
 
+// GetChatIncludeDefaultSystemPrompt preserves the legacy default
+// for deployments created before the explicit include-default toggle.
+// When the toggle is unset, a non-empty custom prompt implies false;
+// otherwise the setting defaults to true.
 func (q *sqlQuerier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getChatIncludeDefaultSystemPrompt)
 	var include_default_system_prompt bool
@@ -17672,6 +17676,37 @@ func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	var chat_system_prompt string
 	err := row.Scan(&chat_system_prompt)
 	return chat_system_prompt, err
+}
+
+const getChatSystemPromptConfig = `-- name: GetChatSystemPromptConfig :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt,
+    COALESCE(
+        (SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_include_default_system_prompt'),
+        NOT EXISTS (
+            SELECT 1
+            FROM site_configs
+            WHERE key = 'agents_chat_system_prompt'
+                AND value != ''
+        )
+    ) :: boolean AS include_default_system_prompt
+`
+
+type GetChatSystemPromptConfigRow struct {
+	ChatSystemPrompt           string `db:"chat_system_prompt" json:"chat_system_prompt"`
+	IncludeDefaultSystemPrompt bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+}
+
+// GetChatSystemPromptConfig returns both chat system prompt settings in a
+// single read to avoid torn reads between separate site-config lookups.
+// The include-default fallback preserves the legacy behavior where a
+// non-empty custom prompt implied opting out before the explicit toggle
+// existed.
+func (q *sqlQuerier) GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatSystemPromptConfig)
+	var i GetChatSystemPromptConfigRow
+	err := row.Scan(&i.ChatSystemPrompt, &i.IncludeDefaultSystemPrompt)
+	return i, err
 }
 
 const getChatTemplateAllowlist = `-- name: GetChatTemplateAllowlist :one

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -71,20 +71,28 @@ type failNextChatSystemPromptStore struct {
 
 	failNextGetChatSystemPrompt               atomic.Bool
 	failNextGetChatIncludeDefaultSystemPrompt atomic.Bool
+	failNextGetChatSystemPromptConfig         atomic.Bool
 }
 
 func (s *failNextChatSystemPromptStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	if s.failNextGetChatSystemPrompt.CompareAndSwap(true, false) {
-		return "", xerrors.New("forced chat system prompt read failure")
+		return "", stderrors.New("forced chat system prompt read failure")
 	}
 	return s.Store.GetChatSystemPrompt(ctx)
 }
 
 func (s *failNextChatSystemPromptStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	if s.failNextGetChatIncludeDefaultSystemPrompt.CompareAndSwap(true, false) {
-		return false, xerrors.New("forced include-default read failure")
+		return false, stderrors.New("forced include-default read failure")
 	}
 	return s.Store.GetChatIncludeDefaultSystemPrompt(ctx)
+}
+
+func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Context) (database.GetChatSystemPromptConfigRow, error) {
+	if s.failNextGetChatSystemPromptConfig.CompareAndSwap(true, false) {
+		return database.GetChatSystemPromptConfigRow{}, stderrors.New("forced chat system prompt configuration read failure")
+	}
+	return s.Store.GetChatSystemPromptConfig(ctx)
 }
 
 func requireChatUsageLimitExceededError(
@@ -5046,7 +5054,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		})
 	})
 
-	t.Run("CreateChatFallsBackToDefaultPlusCustomWhenIncludeDefaultReadFails", func(t *testing.T) {
+	t.Run("CreateChatFallsBackToDefaultWhenSystemPromptConfigReadFailsWithIncludeDefaultEnabled", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
@@ -5065,11 +5073,11 @@ func TestChatSystemPrompt(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		store.failNextGetChatIncludeDefaultSystemPrompt.Store(true)
+		store.failNextGetChatSystemPromptConfig.Store(true)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
-				Text: fmt.Sprintf("include-default fallback %s", t.Name()),
+				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
 			}},
 		})
 		require.NoError(t, err)
@@ -5089,13 +5097,10 @@ func TestChatSystemPrompt(t *testing.T) {
 			systemTexts = append(systemTexts, parts[0].Text)
 		}
 
-		require.Equal(t, []string{
-			chatd.DefaultSystemPrompt + "\n\nKeep custom instructions",
-			workspaceAwareness,
-		}, systemTexts)
+		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
 	})
 
-	t.Run("CreateChatFallsBackToDefaultWhenPromptReadFailsWithIncludeDefaultDisabled", func(t *testing.T) {
+	t.Run("CreateChatFallsBackToDefaultWhenSystemPromptConfigReadFailsWithIncludeDefaultDisabled", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
@@ -5114,11 +5119,11 @@ func TestChatSystemPrompt(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		store.failNextGetChatSystemPrompt.Store(true)
+		store.failNextGetChatSystemPromptConfig.Store(true)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
-				Text: fmt.Sprintf("prompt-read fallback %s", t.Name()),
+				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
 			}},
 		})
 		require.NoError(t, err)

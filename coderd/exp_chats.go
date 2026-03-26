@@ -2707,25 +2707,17 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	prompt, err := api.Database.GetChatSystemPrompt(ctx)
+	config, err := api.Database.GetChatSystemPromptConfig(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching chat system prompt.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	includeDefault, err := api.Database.GetChatIncludeDefaultSystemPrompt(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching include-default system prompt setting.",
+			Message: "Internal error fetching chat system prompt configuration.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
-		SystemPrompt:               prompt,
-		IncludeDefaultSystemPrompt: includeDefault,
+		SystemPrompt:               config.ChatSystemPrompt,
+		IncludeDefaultSystemPrompt: config.IncludeDefaultSystemPrompt,
 		DefaultSystemPrompt:        chatd.DefaultSystemPrompt,
 	})
 }
@@ -3277,31 +3269,26 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 }
 
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
-	custom, err := api.Database.GetChatSystemPrompt(ctx)
+	config, err := api.Database.GetChatSystemPromptConfig(ctx)
 	if err != nil {
-		// We intentionally fail open here. When the custom prompt cannot be
-		// read, returning the built-in default keeps the chat grounded
-		// instead of sending no system guidance at all.
-		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
+		// We intentionally fail open here. When the prompt configuration
+		// cannot be read, returning the built-in default keeps the chat
+		// grounded instead of sending no system guidance at all.
+		api.Logger.Error(ctx, "failed to fetch chat system prompt configuration, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}
-	includeDefault, err := api.Database.GetChatIncludeDefaultSystemPrompt(ctx)
-	if err != nil {
-		api.Logger.Error(ctx, "failed to fetch include-default setting, assuming true", slog.Error(err))
-		includeDefault = true
-	}
 
-	sanitized := chatd.SanitizePromptText(custom)
-	if sanitized == "" && strings.TrimSpace(custom) != "" {
+	sanitizedCustom := chatd.SanitizePromptText(config.ChatSystemPrompt)
+	if sanitizedCustom == "" && strings.TrimSpace(config.ChatSystemPrompt) != "" {
 		api.Logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
 	}
 
 	var parts []string
-	if includeDefault {
+	if config.IncludeDefaultSystemPrompt {
 		parts = append(parts, chatd.DefaultSystemPrompt)
 	}
-	if sanitized != "" {
-		parts = append(parts, sanitized)
+	if sanitizedCustom != "" {
+		parts = append(parts, sanitizedCustom)
 	}
 	return strings.Join(parts, "\n\n")
 }

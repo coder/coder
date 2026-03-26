@@ -243,6 +243,10 @@ type sqlcQuerier interface {
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
 	GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
+	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
+	// for deployments created before the explicit include-default toggle.
+	// When the toggle is unset, a non-empty custom prompt implies false;
+	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error)
@@ -255,6 +259,12 @@ type sqlcQuerier interface {
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
+	// GetChatSystemPromptConfig returns both chat system prompt settings in a
+	// single read to avoid torn reads between separate site-config lookups.
+	// The include-default fallback preserves the legacy behavior where a
+	// non-empty custom prompt implied opting out before the explicit toggle
+	// existed.
+	GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error)
 	// GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
