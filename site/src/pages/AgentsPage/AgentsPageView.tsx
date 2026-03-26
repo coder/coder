@@ -23,7 +23,7 @@ export interface AgentsOutletContext {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => void;
+	onRegenerateTitle?: (chatId: string) => void;
 	isRegeneratingTitle: boolean;
 	regeneratingTitleChatId: string | null;
 	isSidebarCollapsed: boolean;

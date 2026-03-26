@@ -234,7 +234,6 @@ const AgentEmbedPage: FC = () => {
 		requestUnpinAgent: () => {},
 		requestArchiveAndDeleteWorkspace,
 		// Title regeneration is not supported in embed mode.
-		onRegenerateTitle: () => {},
 		isRegeneratingTitle: false,
 		regeneratingTitleChatId: null,
 >>>>>>> 75ef33a9b1 (feat(site/src): add regenerate chat title actions)
