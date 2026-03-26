@@ -1673,6 +1673,89 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
+	// Verify that session-level token metadata aggregates tokens from ALL
+	// threads, not just the ones visible in the current page.
+	t.Run("SessionTokenAggregationAcrossPages", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Create 3 threads, each with token usage on both root and child
+		// interceptions to ensure child tokens are counted too.
+		var firstThreadID uuid.UUID
+		for i := range 3 {
+			offset := time.Duration(i) * time.Hour
+			rootEndedAt := now.Add(offset + 30*time.Minute)
+			root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "anthropic",
+				Model:           "claude-4",
+				StartedAt:       now.Add(offset),
+				ClientSessionID: sql.NullString{String: "token-agg-session", Valid: true},
+			}, &rootEndedAt)
+			if i == 0 {
+				firstThreadID = root.ID
+			}
+
+			// Token usage on root: 100 input, 50 output, with cache metadata.
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID:     root.ID,
+				ProviderResponseID: "resp-root",
+				InputTokens:        100,
+				OutputTokens:       50,
+				Metadata:           json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 5}`),
+				CreatedAt:          now.Add(offset),
+			})
+
+			// Add a child interception with its own token usage.
+			childEndedAt := now.Add(offset + 45*time.Minute)
+			child := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:                firstUser.UserID,
+				Provider:                   "anthropic",
+				Model:                      "claude-4",
+				StartedAt:                  now.Add(offset + 15*time.Minute),
+				ClientSessionID:            sql.NullString{String: "token-agg-session", Valid: true},
+				ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+				ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+			}, &childEndedAt)
+
+			// Token usage on child: 200 input, 100 output, with cache metadata.
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID:     child.ID,
+				ProviderResponseID: "resp-child",
+				InputTokens:        200,
+				OutputTokens:       100,
+				Metadata:           json.RawMessage(`{"cache_read_input": 30}`),
+				CreatedAt:          now.Add(offset + 15*time.Minute),
+			})
+		}
+
+		// Request only the first thread (limit=1). The session-level
+		// token summary must still reflect ALL 3 threads.
+		res, err := client.AIBridgeGetSessionThreads(ctx, "token-agg-session", uuid.Nil, uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, firstThreadID, res.Threads[0].ID)
+
+		// Per-thread token usage: root(100) + child(200) = 300 input.
+		require.EqualValues(t, 300, res.Threads[0].TokenUsage.InputTokens)
+		require.EqualValues(t, 150, res.Threads[0].TokenUsage.OutputTokens)
+
+		// Session-level summary must include tokens from all 3 threads
+		// (3 * 300 input, 3 * 150 output), not just the single page.
+		require.EqualValues(t, 900, res.TokenUsageSummary.InputTokens)
+		require.EqualValues(t, 450, res.TokenUsageSummary.OutputTokens)
+
+		// Session-level metadata must aggregate across all 3 threads:
+		// cache_read_input: 3 * (root 20 + child 30) = 150
+		// cache_creation_input: 3 * (root 5) = 15
+		require.NotEmpty(t, res.TokenUsageSummary.Metadata)
+		require.EqualValues(t, int64(150), res.TokenUsageSummary.Metadata["cache_read_input"])
+		require.EqualValues(t, int64(15), res.TokenUsageSummary.Metadata["cache_creation_input"])
+	})
+
 	t.Run("InvalidCursor", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))

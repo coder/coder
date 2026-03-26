@@ -409,6 +409,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 	// Fetch paginated session threads and their sub-resources inside
 	// a repeatable-read transaction so the data is consistent.
 	var (
+		allRows       []database.ListAIBridgeSessionThreadsRow
 		threadRows    []database.ListAIBridgeSessionThreadsRow
 		tokenUsages   []database.AIBridgeTokenUsage
 		toolUsages    []database.AIBridgeToolUsage
@@ -427,6 +428,17 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		}
 
 		var err error
+
+		// Fetch all interceptions (unpaginated) so we can aggregate
+		// session-level token metadata across every thread.
+		//nolint:exhaustruct // Let's be concise.
+		allRows, err = db.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
+			SessionID: sessionIDParam,
+		})
+		if err != nil {
+			return xerrors.Errorf("list all session threads: %w", err)
+		}
+
 		threadRows, err = db.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
 			SessionID: sessionIDParam,
 			AfterID:   afterID,
@@ -437,13 +449,19 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 			return xerrors.Errorf("list session threads: %w", err)
 		}
 
-		// Collect interception IDs for batch sub-resource fetching.
+		// Use all interception IDs for token usage (session-level
+		// metadata aggregation needs every thread). Use only the
+		// page's IDs for other sub-resources.
+		allIDs := make([]uuid.UUID, len(allRows))
+		for i, row := range allRows {
+			allIDs[i] = row.AIBridgeInterception.ID
+		}
 		ids := make([]uuid.UUID, len(threadRows))
 		for i, row := range threadRows {
 			ids[i] = row.AIBridgeInterception.ID
 		}
 
-		tokenUsages, err = db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, ids)
+		tokenUsages, err = db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, allIDs)
 		if err != nil {
 			return xerrors.Errorf("list token usages: %w", err)
 		}
