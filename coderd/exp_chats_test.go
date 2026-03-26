@@ -4988,6 +4988,9 @@ func TestChatSystemPrompt(t *testing.T) {
 			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
 		requireSDKError(t, err, http.StatusNotFound)
+
+		_, err = memberClient.GetChatSystemPrompt(ctx)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("UnauthenticatedFails", func(t *testing.T) {

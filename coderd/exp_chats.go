@@ -2703,6 +2703,10 @@ func detectChatFileType(data []byte) string {
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	prompt, err := api.Database.GetChatSystemPrompt(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
