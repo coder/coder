@@ -743,6 +743,77 @@ func TestWatchChats(t *testing.T) {
 		}
 	})
 
+	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		type watchEvent struct {
+			Type codersdk.ServerSentEventType `json:"type"`
+			Data json.RawMessage              `json:"data,omitempty"`
+		}
+
+		// Skip the initial ping.
+		var event watchEvent
+		err = wsjson.Read(ctx, conn, &event)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServerSentEventTypePing, event.Type)
+		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
+
+		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "watch route fields completeness test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		for {
+			var update watchEvent
+			err = wsjson.Read(ctx, conn, &update)
+			require.NoError(t, err)
+
+			if update.Type == codersdk.ServerSentEventTypePing {
+				continue
+			}
+			require.Equal(t, codersdk.ServerSentEventTypeData, update.Type)
+
+			var payload coderdpubsub.ChatEvent
+			err = json.Unmarshal(update.Data, &payload)
+			require.NoError(t, err)
+			if payload.Kind == coderdpubsub.ChatEventKindCreated &&
+				payload.Chat.ID == createdChat.ID {
+				// The pubsub event must carry all chat fields, not
+				// just the subset used for routing. A partial Chat
+				// causes the frontend sidebar to lose the model name.
+				require.Equal(t, modelConfig.ID, payload.Chat.LastModelConfigID,
+					"LastModelConfigID must match the model config used to create the chat")
+				require.NotNil(t, payload.Chat.MCPServerIDs,
+					"MCPServerIDs must not be nil")
+				require.NotNil(t, payload.Chat.Labels,
+					"Labels must not be nil")
+				require.False(t, payload.Chat.Archived,
+					"Archived must be false for a new chat")
+				require.NotEmpty(t, payload.Chat.Title,
+					"Title must not be empty")
+				require.NotEmpty(t, payload.Chat.Status,
+					"Status must not be empty")
+				require.NotNil(t, payload.Chat.RootChatID,
+					"RootChatID must not be nil for a root chat")
+				break
+			}
+		}
+	})
+
 	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
 		t.Parallel()
 

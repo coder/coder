@@ -411,4 +411,63 @@ describe("AgentsSidebar model display names", () => {
 
 		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
 	});
+
+	it("shows Default model when last_model_config_id is a nil UUID", () => {
+		const { getByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "nil-uuid-chat",
+							title: "Chat from pubsub",
+							last_model_config_id: "00000000-0000-0000-0000-000000000000",
+						}),
+					]}
+					modelOptions={[
+						{
+							id: "config-real",
+							provider: "openai",
+							model: "gpt-4o",
+							displayName: "GPT-4o",
+						},
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		// A nil UUID means the pubsub event omitted LastModelConfigID,
+		// so the sidebar cannot resolve the model and falls back.
+		expect(getByText("Default model")).toBeInTheDocument();
+	});
+
+	it("shows model name when last_model_config_id matches a config", () => {
+		const { getByText, queryByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "matched-chat",
+							title: "Chat with valid model",
+							last_model_config_id: "config-real",
+						}),
+					]}
+					modelOptions={[
+						{
+							id: "config-real",
+							provider: "openai",
+							model: "gpt-4o",
+							displayName: "GPT-4o",
+						},
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		// Regression guard: a valid last_model_config_id must resolve
+		// to the actual model display name, not "Default model".
+		expect(getByText("GPT-4o")).toBeInTheDocument();
+		expect(queryByText("Default model")).not.toBeInTheDocument();
+	});
 });

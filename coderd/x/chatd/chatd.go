@@ -2479,13 +2479,28 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
+	mcpServerIDs := chat.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
+	labels := map[string]string(chat.Labels)
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	sdkChat := codersdk.Chat{
-		ID:        chat.ID,
-		OwnerID:   chat.OwnerID,
-		Title:     chat.Title,
-		Status:    codersdk.ChatStatus(chat.Status),
-		CreatedAt: chat.CreatedAt,
-		UpdatedAt: chat.UpdatedAt,
+		ID:                chat.ID,
+		OwnerID:           chat.OwnerID,
+		LastModelConfigID: chat.LastModelConfigID,
+		Title:             chat.Title,
+		Status:            codersdk.ChatStatus(chat.Status),
+		Archived:          chat.Archived,
+		CreatedAt:         chat.CreatedAt,
+		UpdatedAt:         chat.UpdatedAt,
+		MCPServerIDs:      mcpServerIDs,
+		Labels:            labels,
+	}
+	if chat.LastError.Valid {
+		sdkChat.LastError = &chat.LastError.String
 	}
 	if chat.ParentChatID.Valid {
 		parentChatID := chat.ParentChatID.UUID
@@ -2500,6 +2515,12 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	}
 	if chat.WorkspaceID.Valid {
 		sdkChat.WorkspaceID = &chat.WorkspaceID.UUID
+	}
+	if chat.BuildID.Valid {
+		sdkChat.BuildID = &chat.BuildID.UUID
+	}
+	if chat.AgentID.Valid {
+		sdkChat.AgentID = &chat.AgentID.UUID
 	}
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
