@@ -3868,8 +3868,14 @@ FROM
 WHERE
     provider = $1::text
     AND enabled = TRUE
+ORDER BY
+    created_at ASC
+LIMIT 1
 `
 
+// Returns the oldest enabled provider config for a given provider family.
+// Multiple enabled configs may exist per family; this returns the
+// first-created one.
 func (q *sqlQuerier) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
 	row := q.db.QueryRowContext(ctx, getEnabledChatProviderByProvider, provider)
 	var i ChatProvider
