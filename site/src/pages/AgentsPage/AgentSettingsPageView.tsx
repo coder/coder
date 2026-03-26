@@ -273,6 +273,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 				<DateRangePicker
 					value={displayDateRange}
 					onChange={onDateRangeChange}
+					now={now?.toDate()}
 				/>
 			}
 		/>

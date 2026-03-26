@@ -17,6 +17,7 @@ const defaultArgs: Partial<ComponentProps<typeof TemplateInsightsControls>> = {
 		startDate: new Date("2025-08-05"),
 		endDate: new Date("2025-08-07"),
 	},
+	now: new Date("2025-08-07T12:00:00Z"),
 	setDateRange: () => {},
 	searchParams: new URLSearchParams(),
 	setSearchParams: () => {},

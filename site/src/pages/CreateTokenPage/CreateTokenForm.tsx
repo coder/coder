@@ -33,6 +33,7 @@ interface CreateTokenFormProps {
 	setFormError: (arg0: unknown) => void;
 	isCreating: boolean;
 	creationFailed: boolean;
+	now?: Date;
 }
 
 export const CreateTokenForm: FC<CreateTokenFormProps> = ({
@@ -42,6 +43,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	setFormError,
 	isCreating,
 	creationFailed,
+	now,
 }) => {
 	const navigate = useNavigate();
 
@@ -49,6 +51,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	const [lifetimeDays, setLifetimeDays] = useState<number | string>(
 		determineDefaultLtValue(maxTokenLifetime),
 	);
+	const currentTime = dayjs(now ?? new Date());
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: adding form will cause an infinite loop
 	useEffect(() => {
@@ -86,7 +89,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 						<>
 							The token will expire on{" "}
 							<span data-chromatic="ignore">
-								{dayjs()
+								{currentTime
 									.add(form.values.lifetime, "days")
 									.utc()
 									.format("MMMM DD, YYYY")}
