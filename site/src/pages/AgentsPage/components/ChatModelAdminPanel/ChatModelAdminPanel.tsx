@@ -213,6 +213,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const [requestedProvider, setRequestedProvider] = useState<string | null>(
 		null,
 	);
+	const [selectedModelOptionKey, setSelectedModelOptionKey] = useState<
+		string | null
+	>(null);
 
 	// ── Queries ────────────────────────────────────────────────
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
@@ -320,6 +323,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						selectedProvider={selectedProvider}
 						selectedProviderState={selectedProviderState}
 						onSelectedProviderChange={setRequestedProvider}
+						selectedModelOptionKey={selectedModelOptionKey}
+						onSelectedModelOptionChange={setSelectedModelOptionKey}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}
 						isCreating={createModelMut.isPending}
