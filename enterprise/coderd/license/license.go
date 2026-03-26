@@ -496,11 +496,11 @@ func LicensesEntitlements(
 			case feature.Entitlement == codersdk.EntitlementNotEntitled:
 				// If the limit is not set
 				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Your deployment has %d active AI governance seats but the license is not entitled to this feature.", actual))
+					fmt.Sprintf("Your deployment has %d active AI Governance seats but the license is not entitled to this feature.", actual))
 			case feature.Entitlement == codersdk.EntitlementGracePeriod && feature.Limit != nil:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf(
-						"Your deployment has %d active AI governance seats but the license with the limit %d is expired.",
+						"Your deployment has %d active AI Governance seats but the license with the limit %d is expired.",
 						actual, *feature.Limit))
 				// Also emit seat-capacity warnings during grace period so admins
 				// see both expiry and usage details.
@@ -595,7 +595,7 @@ func appendAIGovernanceSeatLimitWarning(warnings []string, actual int64, limit i
 			limit,
 			overLimitSeats,
 		))
-	} else if actual/limit >= 0.9 {
+	} else if actual*10 >= limit*9 {
 		usedPercent := (actual * 100) / limit
 		return append(warnings, fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, usedPercent))
 	}

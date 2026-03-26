@@ -101,6 +101,28 @@ export const OneError: Story = {
 	},
 };
 
+export const TwoErrors: Story = {
+	args: {
+		messages: [
+			{
+				message:
+					"You have multiple replicas but high availability is an Enterprise feature.",
+				variant: "error",
+			},
+			{
+				message: "Telemetry is required for this deployment.",
+				variant: "error",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("License errors require attention"),
+		).toBeInTheDocument();
+	},
+};
+
 export const TelemetryRequiredError: Story = {
 	args: {
 		messages: [
@@ -210,7 +232,7 @@ export const AIGovernanceNearLimit: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
+		await expect(canvas.getByRole("status")).toHaveTextContent(
 			"You have used 95% of your AI Governance add-on seats.",
 		);
 		await expect(
@@ -227,7 +249,7 @@ export const AIGovernanceOverLimitFromFeature: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
+		await expect(canvas.getByRole("status")).toHaveTextContent(
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		);
 	},
@@ -242,7 +264,7 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("alert")).toHaveTextContent(
+		await expect(canvas.getByRole("status")).toHaveTextContent(
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		);
 	},

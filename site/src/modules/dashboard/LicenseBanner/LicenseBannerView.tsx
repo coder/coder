@@ -52,27 +52,96 @@ interface LicenseBannerViewProps {
 	messages: readonly LicenseBannerMessage[];
 }
 
-export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
-	messages,
-}) => {
-	const [showDetails, setShowDetails] = useState(false);
+const messageLinkClass = "text-xs font-medium !text-content-link";
+const listClass =
+	"m-0 list-disc space-y-1 pl-4 text-xs leading-[18px] text-content-primary";
+
+const getBannerVariant = (
+	messages: readonly LicenseBannerMessage[],
+): LicenseBannerVariant => {
 	const hasError = messages.some((entry) => entry.variant === "error");
+	if (hasError) {
+		return "error";
+	}
+
 	const hasProminentWarning = messages.some(
 		(entry) => entry.variant === "warningProminent",
 	);
+	return hasProminentWarning ? "warningProminent" : "warning";
+};
+
+const bannerTitle = (variant: LicenseBannerVariant): string =>
+	variant === "error"
+		? "License errors require attention"
+		: "Your license limits have been exceeded";
+
+const bannerRole = (variant: LicenseBannerVariant): "alert" | "status" =>
+	variant === "error" ? "alert" : "status";
+
+const LicenseMessageText: React.FC<{
+	entry: LicenseBannerMessage;
+}> = ({ entry }) => (
+	<>
+		{formatMessage(entry.message)}{" "}
+		{entry.link && (
+			<Link
+				className={messageLinkClass}
+				href={entry.link.href}
+				showExternalIcon={entry.link.showExternalIcon}
+				target={entry.link.target}
+			>
+				{entry.link.label}
+			</Link>
+		)}
+	</>
+);
+
+const LicenseMessageList: React.FC<{
+	messages: readonly LicenseBannerMessage[];
+}> = ({ messages }) => (
+	<ul className={listClass}>
+		{messages.map((entry, index) => (
+			<li key={`${entry.message}-${index}`}>
+				<LicenseMessageText entry={entry} />
+			</li>
+		))}
+	</ul>
+);
+
+const ExpandableLicenseMessageList: React.FC<{
+	visibleMessages: readonly LicenseBannerMessage[];
+	hiddenMessages: readonly LicenseBannerMessage[];
+}> = ({ visibleMessages, hiddenMessages }) => {
+	const [showDetails, setShowDetails] = useState(false);
+	const showExpander = hiddenMessages.length > 0;
+
+	return (
+		<div className="flex flex-col gap-1">
+			<LicenseMessageList messages={visibleMessages} />
+			{showExpander && (
+				<Expander expanded={showDetails} setExpanded={setShowDetails}>
+					<LicenseMessageList messages={hiddenMessages} />
+				</Expander>
+			)}
+		</div>
+	);
+};
+
+export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
+	messages,
+}) => {
+	if (messages.length === 0) {
+		return null;
+	}
+
 	const isSingleMessage = messages.length === 1;
-	const bannerVariant: LicenseBannerVariant = hasError
-		? "error"
-		: hasProminentWarning
-			? "warningProminent"
-			: "warning";
-	const showExpander = messages.length > 2;
-	const visibleMessages = showExpander ? messages.slice(0, 2) : messages;
-	const hiddenMessages = showExpander ? messages.slice(2) : [];
+	const bannerVariant = getBannerVariant(messages);
+	const visibleMessages = messages.slice(0, 2);
+	const hiddenMessages = messages.slice(2);
 
 	return (
 		<div
-			role="alert"
+			role={bannerRole(bannerVariant)}
 			className={cn(bannerVariants({ variant: bannerVariant }))}
 		>
 			<div className="flex min-w-0 flex-1 items-start gap-2">
@@ -84,63 +153,17 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 				<div className="flex min-w-0 flex-1 flex-col gap-2">
 					{isSingleMessage ? (
 						<div className="flex min-h-6 items-center text-xs leading-4 text-content-primary">
-							{formatMessage(messages[0].message)}{" "}
-							{messages[0].link && (
-								<Link
-									className="text-xs font-medium !text-content-link"
-									href={messages[0].link.href}
-									showExternalIcon={messages[0].link.showExternalIcon}
-									target={messages[0].link.target}
-								>
-									{messages[0].link.label}
-								</Link>
-							)}
+							<LicenseMessageText entry={messages[0]} />
 						</div>
 					) : (
 						<>
 							<div className="text-sm font-semibold leading-6 text-content-primary">
-								Your license limits have been exceeded
+								{bannerTitle(bannerVariant)}
 							</div>
-							<div className="flex flex-col gap-1">
-								<ul className="m-0 list-disc space-y-1 pl-4 text-xs leading-[18px] text-content-primary">
-									{visibleMessages.map((entry, index) => (
-										<li key={`${entry.message}-${index}`}>
-											{formatMessage(entry.message)}{" "}
-											{entry.link && (
-												<Link
-													className="text-xs font-medium !text-content-link"
-													href={entry.link.href}
-													showExternalIcon={entry.link.showExternalIcon}
-													target={entry.link.target}
-												>
-													{entry.link.label}
-												</Link>
-											)}
-										</li>
-									))}
-								</ul>
-								{showExpander && (
-									<Expander expanded={showDetails} setExpanded={setShowDetails}>
-										<ul className="m-0 list-disc space-y-1 pl-4 text-xs leading-[18px] text-content-primary">
-											{hiddenMessages.map((entry, index) => (
-												<li key={`${entry.message}-${index}`}>
-													{formatMessage(entry.message)}{" "}
-													{entry.link && (
-														<Link
-															className="text-xs font-medium !text-content-link"
-															href={entry.link.href}
-															showExternalIcon={entry.link.showExternalIcon}
-															target={entry.link.target}
-														>
-															{entry.link.label}
-														</Link>
-													)}
-												</li>
-											))}
-										</ul>
-									</Expander>
-								)}
-							</div>
+							<ExpandableLicenseMessageList
+								hiddenMessages={hiddenMessages}
+								visibleMessages={visibleMessages}
+							/>
 						</>
 					)}
 				</div>
