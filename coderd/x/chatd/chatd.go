@@ -1409,10 +1409,7 @@ func (p *Server) RegenerateChatTitle(
 		if newTitle != "" {
 			return database.Chat{}, xerrors.Errorf("record manual title usage and update chat title: %w", recordErr)
 		}
-		p.logger.Warn(ctx, "failed to record manual title usage",
-			slog.F("chat_id", chat.ID),
-			slog.Error(recordErr),
-		)
+		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
 	}
 	if newTitle == "" {
 		return chat, nil
