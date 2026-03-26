@@ -626,12 +626,12 @@ const AgentDetail: FC = () => {
 			if (scrollContainerRef.current) {
 				scrollContainerRef.current.scrollTop = 0;
 			}
-			store.clearStreamState();
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
+				store.clearStreamState();
 				setPendingEditMessageId(null);
 			} catch (error) {
 				setPendingEditMessageId(null);
