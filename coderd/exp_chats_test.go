@@ -1194,6 +1194,74 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, found)
 	})
 
+	t.Run("AdminIncludesDisabledModelConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		enabled := false
+		disabledConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-disabled",
+			DisplayName:  "GPT-4o Disabled",
+			Enabled:      &enabled,
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.False(t, disabledConfig.Enabled)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		found := false
+		for _, config := range configs {
+			if config.ID == disabledConfig.ID {
+				found = true
+				require.False(t, config.Enabled)
+				require.Equal(t, disabledConfig.DisplayName, config.DisplayName)
+			}
+		}
+		require.True(t, found)
+	})
+
+	t.Run("NonAdminExcludesDisabledModelConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		enabledConfig := createChatModelConfig(t, adminClient)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		contextLimit := int64(4096)
+		enabled := false
+		disabledConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-disabled",
+			DisplayName:  "GPT-4o Disabled",
+			Enabled:      &enabled,
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		configs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, enabledConfig.ID, configs[0].ID)
+		require.True(t, configs[0].Enabled)
+		require.NotEqual(t, disabledConfig.ID, configs[0].ID)
+	})
+
 	t.Run("DeserializesLegacyPricingJSON", func(t *testing.T) {
 		t.Parallel()
 
@@ -1435,6 +1503,43 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		modelConfig := createChatModelConfig(t, adminClient)
+
+		enabled := false
+		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Enabled: &enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, updated.ID)
+		require.False(t, updated.Enabled)
+
+		adminConfigs, err := adminClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		foundForAdmin := false
+		for _, config := range adminConfigs {
+			if config.ID == modelConfig.ID {
+				foundForAdmin = true
+				require.False(t, config.Enabled)
+			}
+		}
+		require.True(t, foundForAdmin)
+
+		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, config := range memberConfigs {
+			require.NotEqual(t, modelConfig.ID, config.ID)
+		}
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
