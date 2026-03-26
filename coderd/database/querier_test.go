@@ -10623,6 +10623,44 @@ func TestChatPinOrderQueries(t *testing.T) {
 			third.ID:  2,
 		})
 	})
+
+	t.Run("ArchiveClearsPinAndExcludesFromRanking", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		for _, chat := range []database.Chat{first, second, third} {
+			require.NoError(t, db.PinChatByID(ctx, chat.ID))
+		}
+
+		// Archive the middle pin.
+		require.NoError(t, db.ArchiveChatByID(ctx, second.ID))
+
+		// Archived chat should have pin_order cleared. Remaining
+		// pins keep their original positions; the next mutation
+		// compacts via ROW_NUMBER().
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 0,
+			third.ID:  3,
+		})
+
+		// Reorder among remaining active pins — archived chat
+		// should not interfere with position calculation.
+		require.NoError(t, db.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+			ID:       third.ID,
+			PinOrder: 1,
+		}))
+		// After reorder, ROW_NUMBER() compacts the sequence.
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  2,
+			second.ID: 0,
+			third.ID:  1,
+		})
+	})
 }
 
 func TestChatLabels(t *testing.T) {

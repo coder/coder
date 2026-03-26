@@ -1,5 +1,5 @@
 -- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, updated_at = NOW()
+UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
 WHERE id = @id OR root_chat_id = @id;
 
 -- name: UnarchiveChatByID :exec
@@ -15,6 +15,11 @@ WITH target_chat AS (
     WHERE
         id = @id::uuid
 ),
+-- Under READ COMMITTED, concurrent pin operations for the same
+-- owner may momentarily produce duplicate pin_order values because
+-- each CTE snapshot does not see the other's writes. The next
+-- pin/unpin/reorder operation's ROW_NUMBER() self-heals the
+-- sequence, so this is acceptable.
 ranked AS (
     SELECT
         c.id,
@@ -25,6 +30,7 @@ ranked AS (
         target_chat ON c.owner_id = target_chat.owner_id
     WHERE
         c.pin_order > 0
+        AND c.archived = FALSE
         AND c.id <> target_chat.id
 ),
 updates AS (
@@ -74,6 +80,7 @@ ranked AS (
         target_chat ON c.owner_id = target_chat.owner_id
     WHERE
         c.pin_order > 0
+        AND c.archived = FALSE
 ),
 target AS (
     SELECT
@@ -127,6 +134,7 @@ ranked AS (
         target_chat ON c.owner_id = target_chat.owner_id
     WHERE
         c.pin_order > 0
+        AND c.archived = FALSE
 ),
 target AS (
     SELECT

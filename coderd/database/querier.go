@@ -809,6 +809,11 @@ type sqlcQuerier interface {
 	//  - Use both to get a specific org member row
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error)
+	// Under READ COMMITTED, concurrent pin operations for the same
+	// owner may momentarily produce duplicate pin_order values because
+	// each CTE snapshot does not see the other's writes. The next
+	// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
+	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error

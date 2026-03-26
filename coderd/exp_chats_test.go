@@ -2235,6 +2235,36 @@ func TestChatPinOrder(t *testing.T) {
 		require.EqualValues(t, 1, third.PinOrder)
 	})
 
+	t.Run("ArchiveClearsPinOrder", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		first := createChat(ctx, t, client, "pinned then archived")
+		second := createChat(ctx, t, client, "stays pinned")
+
+		// Pin both.
+		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		require.NoError(t, err)
+
+		// Archive the first — pin_order should be cleared.
+		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		first = getChat(ctx, t, client, first.ID)
+		second = getChat(ctx, t, client, second.ID)
+		require.Zero(t, first.PinOrder, "archived chat should have pin_order 0")
+		require.True(t, first.Archived)
+		// The remaining pin keeps its original position. The next
+		// pin/unpin/reorder operation compacts via ROW_NUMBER().
+		require.EqualValues(t, 2, second.PinOrder, "remaining pin keeps original position")
+	})
+
 	t.Run("RejectsNegative", func(t *testing.T) {
 		t.Parallel()
 
