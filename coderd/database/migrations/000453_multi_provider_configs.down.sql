@@ -1,6 +1,3 @@
--- Drop the partial unique index.
-DROP INDEX IF EXISTS idx_chat_providers_one_enabled_per_family;
-
 -- Restore the original unique constraint.
 -- NOTE: This will fail if duplicate provider rows exist. That is
 -- intentional — the rollback should not silently delete data.
