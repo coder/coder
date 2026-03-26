@@ -252,7 +252,10 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chats, err := api.Database.GetChatsByWorkspaceIDs(ctx, workspaceIDs)
-	if err != nil {
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chats by workspace.",
 			Detail:  err.Error(),
