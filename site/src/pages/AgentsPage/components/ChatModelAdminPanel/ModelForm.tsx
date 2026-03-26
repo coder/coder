@@ -20,6 +20,12 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,
@@ -40,6 +46,7 @@ import { ProviderIcon } from "./ProviderIcon";
 const validationSchema = Yup.object({
 	model: Yup.string().trim().required("Model ID is required."),
 	displayName: Yup.string(),
+	enabled: Yup.boolean(),
 	contextLimit: Yup.string()
 		.required("Context limit is required.")
 		.test(
@@ -135,6 +142,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 					...(trimmedDisplayName !== (editingModel.display_name ?? "") && {
 						display_name: trimmedDisplayName,
 					}),
+					...(values.enabled !== editingModel.enabled && {
+						enabled: values.enabled,
+					}),
 					...(parsedContextLimit !== null &&
 						parsedContextLimit !== editingModel.context_limit && {
 							context_limit: parsedContextLimit,
@@ -158,6 +168,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
 					model: trimmedModel,
+					...(!values.enabled && {
+						enabled: false,
+					}),
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -314,6 +327,23 @@ export const ModelForm: FC<ModelFormProps> = ({
 						}
 					/>
 				</div>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span className="ml-auto inline-flex">
+							<Switch
+								checked={form.values.enabled}
+								onCheckedChange={(v) => {
+									form.setFieldValue("enabled", v);
+								}}
+								aria-label="Enabled"
+								disabled={isSaving}
+							/>
+						</span>
+					</TooltipTrigger>
+					<TooltipContent side="bottom">
+						{form.values.enabled ? "Disable" : "Enable"} this model
+					</TooltipContent>
+				</Tooltip>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 
