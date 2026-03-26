@@ -3986,12 +3986,6 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case database.IsUniqueViolation(err):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Only one enabled provider config per provider family is allowed.",
-				Detail:  err.Error(),
-			})
-			return
 		case database.IsCheckViolation(err):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid provider.",
@@ -4088,20 +4082,11 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		ID:          existing.ID,
 	})
 	if err != nil {
-		switch {
-		case database.IsUniqueViolation(err):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Only one enabled provider config per provider family is allowed.",
-				Detail:  err.Error(),
-			})
-			return
-		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update chat provider.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat provider.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)

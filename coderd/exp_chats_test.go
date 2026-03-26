@@ -1101,18 +1101,20 @@ func TestCreateChatProvider(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		first, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
 			APIKey:   "test-api-key",
 		})
 		require.NoError(t, err)
+		require.True(t, first.Enabled)
 
-		_, err = client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		second, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
 			APIKey:   "other-api-key",
 		})
-		sdkErr := requireSDKError(t, err, http.StatusConflict)
-		require.Equal(t, "Only one enabled provider config per provider family is allowed.", sdkErr.Message)
+		require.NoError(t, err)
+		require.True(t, second.Enabled)
+		require.NotEqual(t, first.ID, second.ID)
 	})
 
 	t.Run("MultipleConfigsSameFamily", func(t *testing.T) {
@@ -1127,20 +1129,16 @@ func TestCreateChatProvider(t *testing.T) {
 			APIKey:      "key-1",
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, uuid.Nil, first.ID)
+		require.True(t, first.Enabled)
 
-		disabled := false
 		second, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI Secondary",
 			APIKey:      "key-2",
-			Enabled:     &disabled,
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, uuid.Nil, second.ID)
+		require.True(t, second.Enabled)
 		require.NotEqual(t, first.ID, second.ID)
-		require.True(t, first.Enabled)
-		require.False(t, second.Enabled)
 	})
 
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
@@ -1197,12 +1195,13 @@ func TestUpdateChatProvider(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		first, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI Primary",
 			APIKey:      "key-1",
 		})
 		require.NoError(t, err)
+		require.True(t, first.Enabled)
 
 		disabled := false
 		second, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
@@ -1212,14 +1211,15 @@ func TestUpdateChatProvider(t *testing.T) {
 			Enabled:     &disabled,
 		})
 		require.NoError(t, err)
+		require.False(t, second.Enabled)
 
 		enabled := true
-		_, err = client.UpdateChatProvider(ctx, second.ID, codersdk.UpdateChatProviderConfigRequest{
+		updated, err := client.UpdateChatProvider(ctx, second.ID, codersdk.UpdateChatProviderConfigRequest{
 			DisplayName: "OpenAI Secondary",
 			Enabled:     &enabled,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusConflict)
-		require.Equal(t, "Only one enabled provider config per provider family is allowed.", sdkErr.Message)
+		require.NoError(t, err)
+		require.True(t, updated.Enabled)
 	})
 
 	t.Run("FlipEnabled", func(t *testing.T) {
