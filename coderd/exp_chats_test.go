@@ -1674,13 +1674,15 @@ func TestCreateChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:     "openai",
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Chat provider is not configured.", sdkErr.Message)
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, modelConfig.ID)
+		require.Equal(t, "openai", modelConfig.Provider)
+		require.Equal(t, "gpt-4o-mini", modelConfig.Model)
 	})
 
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
