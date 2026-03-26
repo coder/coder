@@ -69,9 +69,10 @@ func newChatClientWithDatabase(t testing.TB) (*codersdk.ExperimentalClient, data
 type failNextChatSystemPromptStore struct {
 	database.Store
 
-	failNextGetChatSystemPrompt               atomic.Bool
-	failNextGetChatIncludeDefaultSystemPrompt atomic.Bool
-	failNextGetChatSystemPromptConfig         atomic.Bool
+	failNextGetChatSystemPrompt                  atomic.Bool
+	failNextGetChatIncludeDefaultSystemPrompt    atomic.Bool
+	failNextGetChatSystemPromptConfig            atomic.Bool
+	failNextUpsertChatIncludeDefaultSystemPrompt atomic.Bool
 }
 
 func (s *failNextChatSystemPromptStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
@@ -86,6 +87,13 @@ func (s *failNextChatSystemPromptStore) GetChatIncludeDefaultSystemPrompt(ctx co
 		return false, stderrors.New("forced include-default read failure")
 	}
 	return s.Store.GetChatIncludeDefaultSystemPrompt(ctx)
+}
+
+func (s *failNextChatSystemPromptStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefault bool) error {
+	if s.failNextUpsertChatIncludeDefaultSystemPrompt.CompareAndSwap(true, false) {
+		return stderrors.New("forced include-default upsert failure")
+	}
+	return s.Store.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefault)
 }
 
 func (s *failNextChatSystemPromptStore) GetChatSystemPromptConfig(ctx context.Context) (database.GetChatSystemPromptConfigRow, error) {
@@ -4906,16 +4914,32 @@ func TestChatSystemPrompt(t *testing.T) {
 	t.Run("PreservesIncludeDefaultWhenOmitted", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := &failNextChatSystemPromptStore{Store: rawDB}
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
 			IncludeDefaultSystemPrompt: ptr.Ref(false),
 		})
+		require.NoError(t, err)
 
-		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
+		store.failNextGetChatIncludeDefaultSystemPrompt.Store(true)
+		store.failNextUpsertChatIncludeDefaultSystemPrompt.Store(true)
+
+		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: "Omitted toggle request",
 		})
+		require.NoError(t, err)
 
-		resp := getChatSystemPrompt(t, ctx)
+		resp, err := client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
 		require.Equal(t, "Omitted toggle request", resp.SystemPrompt)
 		require.False(t, resp.IncludeDefaultSystemPrompt)
 		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)

@@ -2746,20 +2746,18 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := api.Database.InTx(func(tx database.Store) error {
-		var includeDefault bool
-		if req.IncludeDefaultSystemPrompt != nil {
-			includeDefault = *req.IncludeDefaultSystemPrompt
-		} else {
-			currentIncludeDefault, err := tx.GetChatIncludeDefaultSystemPrompt(ctx)
-			if err != nil {
-				return err
-			}
-			includeDefault = currentIncludeDefault
-		}
 		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
 			return err
 		}
-		return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefault)
+		// Only update the include-default flag when the caller explicitly
+		// provides it. Omitting the field preserves whatever is currently
+		// stored (or the schema-level default for new deployments),
+		// avoiding a backward-compatibility regression for older clients
+		// that only send system_prompt.
+		if req.IncludeDefaultSystemPrompt != nil {
+			return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
+		}
+		return nil
 	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
