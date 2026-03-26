@@ -3752,7 +3752,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	providersByName := make(map[string]database.ChatProvider, len(providers))
-	configuredFamilies := make(map[string]bool, len(providers))
+	configuredFamilies := make(map[string]struct{}, len(providers))
 	for i := range providers {
 		normalizedProvider := normalizeChatProvider(providers[i].Provider)
 		if normalizedProvider == "" {
@@ -3760,7 +3760,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		}
 		providers[i].Provider = normalizedProvider
 		providersByName[normalizedProvider] = providers[i]
-		configuredFamilies[normalizedProvider] = true
+		configuredFamilies[normalizedProvider] = struct{}{}
 	}
 	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providersByName))
 	for _, provider := range providersByName {
@@ -3826,7 +3826,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		)
 	}
 	for _, provider := range supportedProviders {
-		if configuredFamilies[provider] {
+		if _, ok := configuredFamilies[provider]; ok {
 			continue
 		}
 

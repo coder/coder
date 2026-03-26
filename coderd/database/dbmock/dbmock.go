@@ -2163,21 +2163,6 @@ func (mr *MockStoreMockRecorder) GetChatProviderByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProviderByID", reflect.TypeOf((*MockStore)(nil).GetChatProviderByID), ctx, id)
 }
 
-// GetChatProviderByProvider mocks base method.
-func (m *MockStore) GetChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProviderByProvider", ctx, provider)
-	ret0, _ := ret[0].(database.ChatProvider)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatProviderByProvider indicates an expected call of GetChatProviderByProvider.
-func (mr *MockStoreMockRecorder) GetChatProviderByProvider(ctx, provider any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProviderByProvider", reflect.TypeOf((*MockStore)(nil).GetChatProviderByProvider), ctx, provider)
-}
-
 // GetChatProviders mocks base method.
 func (m *MockStore) GetChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
 	m.ctrl.T.Helper()
@@ -2536,6 +2521,21 @@ func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.
 func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigs), ctx)
+}
+
+// GetEnabledChatProviderByProvider mocks base method.
+func (m *MockStore) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEnabledChatProviderByProvider", ctx, provider)
+	ret0, _ := ret[0].(database.ChatProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEnabledChatProviderByProvider indicates an expected call of GetEnabledChatProviderByProvider.
+func (mr *MockStoreMockRecorder) GetEnabledChatProviderByProvider(ctx, provider any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatProviderByProvider", reflect.TypeOf((*MockStore)(nil).GetEnabledChatProviderByProvider), ctx, provider)
 }
 
 // GetEnabledChatProviders mocks base method.

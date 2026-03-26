@@ -2548,7 +2548,7 @@ func setOpenAIProviderBaseURL(
 ) {
 	t.Helper()
 
-	provider, err := db.GetChatProviderByProvider(ctx, "openai")
+	provider, err := db.GetEnabledChatProviderByProvider(ctx, "openai")
 	require.NoError(t, err)
 
 	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
