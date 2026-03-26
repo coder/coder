@@ -1516,13 +1516,20 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			CreatedAt:          now,
 		})
 
-		// Add a tool usage on root.
+		// Add two tool usages on root (demonstrates multiple tools per action).
 		dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
 			InterceptionID:     root.ID,
 			ProviderResponseID: providerRespID,
 			Tool:               "read_file",
 			Input:              `{"path": "/main.go"}`,
 			CreatedAt:          now.Add(time.Second),
+		})
+		dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID:     root.ID,
+			ProviderResponseID: providerRespID,
+			Tool:               "list_dir",
+			Input:              `{"path": "/"}`,
+			CreatedAt:          now.Add(2 * time.Second),
 		})
 
 		// Add model thought for the root interception.
@@ -1556,6 +1563,12 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "thread-session", res.ID)
 		require.Len(t, res.Threads, 1)
 
+		// PageStartedAt/PageEndedAt bracket the visible threads.
+		require.NotNil(t, res.PageStartedAt)
+		require.NotNil(t, res.PageEndedAt)
+		require.True(t, res.PageStartedAt.Equal(now), "PageStartedAt should equal root started_at")
+		require.True(t, res.PageEndedAt.Equal(childEndedAt), "PageEndedAt should equal child ended_at")
+
 		thread := res.Threads[0]
 		require.Equal(t, root.ID, thread.ID)
 		require.NotNil(t, thread.Prompt)
@@ -1574,8 +1587,10 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Len(t, thread.AgenticActions, 2)
 
 		action1 := thread.AgenticActions[0]
-		require.Len(t, action1.ToolCalls, 1)
+		// Root interception has two tool calls.
+		require.Len(t, action1.ToolCalls, 2)
 		require.Equal(t, "read_file", action1.ToolCalls[0].Tool)
+		require.Equal(t, "list_dir", action1.ToolCalls[1].Tool)
 		require.Len(t, action1.Thinking, 1)
 		require.Equal(t, "Let me read the main file first.", action1.Thinking[0].Text)
 		// Token usage for root interception.
@@ -1601,16 +1616,18 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 		// Create a session with 3 threads. Each thread is a standalone
 		// interception sharing client_session_id.
+		startedAt := func(i int) time.Time { return now.Add(time.Duration(i) * time.Hour) }
+		endedAt := func(i int) time.Time { return now.Add(time.Duration(i)*time.Hour + time.Minute) }
 		threadIDs := make([]uuid.UUID, 3)
 		for i := range 3 {
-			endedAt := now.Add(time.Duration(i)*time.Hour + time.Minute)
+			ea := endedAt(i)
 			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 				InitiatorID:     firstUser.UserID,
 				Provider:        "anthropic",
 				Model:           "claude-4",
-				StartedAt:       now.Add(time.Duration(i) * time.Hour),
+				StartedAt:       startedAt(i),
 				ClientSessionID: sql.NullString{String: "multi-thread-session", Valid: true},
-			}, &endedAt)
+			}, &ea)
 			threadIDs[i] = intc.ID
 		}
 
@@ -1624,28 +1641,48 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, threadIDs[1], res.Threads[1].ID)
 		require.Equal(t, threadIDs[2], res.Threads[2].ID)
 
+		// Page bounds span all 3 threads.
+		require.NotNil(t, res.PageStartedAt)
+		require.NotNil(t, res.PageEndedAt)
+		require.True(t, res.PageStartedAt.Equal(startedAt(0)), "all threads: PageStartedAt = thread 0 started_at")
+		require.True(t, res.PageEndedAt.Equal(endedAt(2)), "all threads: PageEndedAt = thread 2 ended_at")
+
 		// Page with limit 1: should get only the oldest thread.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, threadIDs[0], res.Threads[0].ID)
+		require.NotNil(t, res.PageStartedAt)
+		require.NotNil(t, res.PageEndedAt)
+		require.True(t, res.PageStartedAt.Equal(startedAt(0)), "page 1: PageStartedAt = thread 0 started_at")
+		require.True(t, res.PageEndedAt.Equal(endedAt(0)), "page 1: PageEndedAt = thread 0 ended_at")
 
 		// Page forward using after_id: get next thread.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[0], uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, threadIDs[1], res.Threads[0].ID)
+		require.NotNil(t, res.PageStartedAt)
+		require.NotNil(t, res.PageEndedAt)
+		require.True(t, res.PageStartedAt.Equal(startedAt(1)), "page 2: PageStartedAt = thread 1 started_at")
+		require.True(t, res.PageEndedAt.Equal(endedAt(1)), "page 2: PageEndedAt = thread 1 ended_at")
 
 		// Page forward again.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[1], uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.NotNil(t, res.PageStartedAt)
+		require.NotNil(t, res.PageEndedAt)
+		require.True(t, res.PageStartedAt.Equal(startedAt(2)), "page 3: PageStartedAt = thread 2 started_at")
+		require.True(t, res.PageEndedAt.Equal(endedAt(2)), "page 3: PageEndedAt = thread 2 ended_at")
 
 		// No more threads.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[2], uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Empty(t, res.Threads)
+		require.Nil(t, res.PageStartedAt, "empty page: PageStartedAt is nil")
+		require.Nil(t, res.PageEndedAt, "empty page: PageEndedAt is nil")
 
 		// before_id filters to threads older than the given ID.
 		// before_id=newest → returns both older threads, ASC.
@@ -1654,12 +1691,20 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Len(t, res.Threads, 2)
 		require.Equal(t, threadIDs[0], res.Threads[0].ID)
 		require.Equal(t, threadIDs[1], res.Threads[1].ID)
+		require.NotNil(t, res.PageStartedAt)
+		require.NotNil(t, res.PageEndedAt)
+		require.True(t, res.PageStartedAt.Equal(startedAt(0)), "before_id=newest: PageStartedAt = thread 0 started_at")
+		require.True(t, res.PageEndedAt.Equal(endedAt(1)), "before_id=newest: PageEndedAt = thread 1 ended_at")
 
 		// before_id=middle → returns only the oldest thread.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[1], 0)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, threadIDs[0], res.Threads[0].ID)
+		require.NotNil(t, res.PageStartedAt)
+		require.NotNil(t, res.PageEndedAt)
+		require.True(t, res.PageStartedAt.Equal(startedAt(0)), "before_id=middle: PageStartedAt = thread 0 started_at")
+		require.True(t, res.PageEndedAt.Equal(endedAt(0)), "before_id=middle: PageEndedAt = thread 0 ended_at")
 
 		// before_id=oldest → no older threads exist.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[0], 0)
