@@ -27,40 +27,52 @@ interface DateRangePreset {
 	range: () => { from: Date; to: Date };
 }
 
-const buildDefaultPresets = (now: Date): DateRangePreset[] => {
-	const currentTime = dayjs(now);
+const buildDefaultPresets = (now?: Date): DateRangePreset[] => {
+	const getCurrentTime = () => dayjs(now ?? new Date());
 	return [
 		{
 			label: "Today",
-			range: () => ({ from: currentTime.toDate(), to: currentTime.toDate() }),
+			range: () => {
+				const currentTime = getCurrentTime();
+				return { from: currentTime.toDate(), to: currentTime.toDate() };
+			},
 		},
 		{
 			label: "Yesterday",
 			range: () => {
-				const d = currentTime.subtract(1, "day").toDate();
+				const d = getCurrentTime().subtract(1, "day").toDate();
 				return { from: d, to: d };
 			},
 		},
 		{
 			label: "Last 7 days",
-			range: () => ({
-				from: currentTime.subtract(6, "day").toDate(),
-				to: currentTime.toDate(),
-			}),
+			range: () => {
+				const currentTime = getCurrentTime();
+				return {
+					from: currentTime.subtract(6, "day").toDate(),
+					to: currentTime.toDate(),
+				};
+			},
 		},
 		{
 			label: "Last 14 days",
-			range: () => ({
-				from: currentTime.subtract(13, "day").toDate(),
-				to: currentTime.toDate(),
-			}),
+			range: () => {
+				const currentTime = getCurrentTime();
+				return {
+					from: currentTime.subtract(13, "day").toDate(),
+					to: currentTime.toDate(),
+				};
+			},
 		},
 		{
 			label: "Last 30 days",
-			range: () => ({
-				from: currentTime.subtract(29, "day").toDate(),
-				to: currentTime.toDate(),
-			}),
+			range: () => {
+				const currentTime = getCurrentTime();
+				return {
+					from: currentTime.subtract(29, "day").toDate(),
+					to: currentTime.toDate(),
+				};
+			},
 		},
 	];
 };
@@ -110,7 +122,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
-	const resolvedPresets = presets ?? buildDefaultPresets(currentTime);
+	const resolvedPresets = presets ?? buildDefaultPresets(now);
 
 	// Internal selection state kept separate from the committed value
 	// so the user can freely adjust the range before applying. This
@@ -121,7 +133,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 
 	const commit = () => {
 		if (selection?.from && selection?.to) {
-			onChange(toBoundary(selection.from, selection.to, currentTime));
+			onChange(toBoundary(selection.from, selection.to, now ?? new Date()));
 		}
 		setOpen(false);
 	};
@@ -130,7 +142,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		const { from, to } = preset.range();
 		setSelection({ from, to });
 		// Presets are a complete selection — commit immediately.
-		onChange(toBoundary(from, to, currentTime));
+		onChange(toBoundary(from, to, now ?? new Date()));
 		setOpen(false);
 	};
 
