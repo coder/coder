@@ -15,7 +15,9 @@ vi.mock("api/api", () => ({
 interface MockRFBInstance {
 	scaleViewport: boolean;
 	resizeSession: boolean;
+	clipboardPasteFrom: ReturnType<typeof vi.fn>;
 	disconnect: ReturnType<typeof vi.fn>;
+	sendKey: ReturnType<typeof vi.fn>;
 	addEventListener: ReturnType<typeof vi.fn>;
 	listeners: Map<string, (ev: unknown) => void>;
 	simulateEvent: (type: string, detail?: unknown) => void;
@@ -34,7 +36,9 @@ const { FakeRFB, lastInstance } = vi.hoisted(() => {
 
 		scaleViewport = false;
 		resizeSession = true;
+		clipboardPasteFrom = vi.fn();
 		disconnect = vi.fn();
+		sendKey = vi.fn();
 		addEventListener = vi.fn((type: string, handler: (ev: unknown) => void) => {
 			this.listeners.set(type, handler);
 		});
@@ -66,6 +70,8 @@ vi.mock("@novnc/novnc/lib/rfb", () => ({
 import { watchChatDesktop } from "#/api/api";
 
 const mockWatchChatDesktop = vi.mocked(watchChatDesktop);
+const mockClipboardReadText = vi.fn<() => Promise<string>>();
+const mockClipboardWriteText = vi.fn<(text: string) => Promise<void>>();
 
 // ---- Mock ResizeObserver ----------------------------------------------------
 
@@ -135,6 +141,17 @@ describe("useDesktopConnection", () => {
 		resizeObserverInstances = [];
 		globalThis.ResizeObserver =
 			MockResizeObserver as unknown as typeof ResizeObserver;
+		mockClipboardReadText.mockReset();
+		mockClipboardReadText.mockResolvedValue("");
+		mockClipboardWriteText.mockReset();
+		mockClipboardWriteText.mockResolvedValue();
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				readText: mockClipboardReadText,
+				writeText: mockClipboardWriteText,
+			},
+		});
 	});
 
 	afterEach(() => {
@@ -392,6 +409,21 @@ describe("useDesktopConnection", () => {
 
 		// WebSocket was only opened once (plus the initial auto-connect).
 		expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
+	});
+
+	it("stores remote clipboard text when the server sends it", async () => {
+		const { result } = renderHook(() =>
+			useDesktopConnection({ chatId: "chat-1" }),
+		);
+
+		const rfb = getLastRFBInstance();
+		act(() => rfb.simulateEvent("connect"));
+		act(() => rfb.simulateEvent("clipboard", { text: "from remote" }));
+
+		expect(result.current.remoteClipboardText).toBe("from remote");
+		await vi.waitFor(() => {
+			expect(mockClipboardWriteText).toHaveBeenCalledWith("from remote");
+		});
 	});
 
 	it("does not retry when disconnect fires before connect (desktop unavailable)", () => {
