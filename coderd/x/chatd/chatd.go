@@ -1462,10 +1462,11 @@ func (p *Server) recordManualTitleUsage(
 	}
 	totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
 
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{})
-	if err != nil {
-		return xerrors.Errorf("marshal empty manual title usage content: %w", err)
-	}
+	// Use a valid empty JSON array for the content column.
+	// MarshalParts returns a null NullRawMessage for empty
+	// slices, which becomes an empty string that PostgreSQL
+	// rejects as invalid JSON.
+	content := "[]"
 
 	return p.db.InTx(func(tx database.Store) error {
 		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
@@ -1473,7 +1474,7 @@ func (p *Server) recordManualTitleUsage(
 			CreatedBy:           []uuid.UUID{uuid.Nil},
 			ModelConfigID:       []uuid.UUID{modelConfig.ID},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			Content:             []string{string(content.RawMessage)},
+			Content:             []string{content},
 			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
 			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
 			InputTokens:         []int64{usage.InputTokens},
