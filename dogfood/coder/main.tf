@@ -586,7 +586,7 @@ resource "coder_agent" "dev" {
     if ! gh api user --jq .login >/dev/null 2>&1; then
       echo "Logging into GitHub CLI…"
       if ! coder external-auth access-token github | gh auth login --hostname github.com --with-token; then
-        echo "GitHub CLI auth state is indeterminate; startup will continue."
+        echo "GitHub CLI authentication failed; gh commands may not work."
       fi
     else
       echo "GitHub CLI already has working credentials."
