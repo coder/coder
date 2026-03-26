@@ -2506,10 +2506,14 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 		parentChatID := chat.ParentChatID.UUID
 		sdkChat.ParentChatID = &parentChatID
 	}
-	if chat.RootChatID.Valid {
+	switch {
+	case chat.RootChatID.Valid:
 		rootChatID := chat.RootChatID.UUID
 		sdkChat.RootChatID = &rootChatID
-	} else if !chat.ParentChatID.Valid {
+	case chat.ParentChatID.Valid:
+		rootChatID := chat.ParentChatID.UUID
+		sdkChat.RootChatID = &rootChatID
+	default:
 		rootChatID := chat.ID
 		sdkChat.RootChatID = &rootChatID
 	}
