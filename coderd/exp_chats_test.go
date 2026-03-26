@@ -782,17 +782,17 @@ func TestWatchChats(t *testing.T) {
 			// just the subset used for routing. A partial Chat
 			// causes the frontend sidebar to lose the model name.
 			rootChatID := createdChat.ID
-			want := codersdk.Chat{
-				ID:                createdChat.ID,
-				OwnerID:           createdChat.OwnerID,
-				LastModelConfigID: modelConfig.ID,
-				Title:             createdChat.Title,
-				RootChatID:        &rootChatID,
-				Archived:          false,
-				MCPServerIDs:      []uuid.UUID{},
-				Labels:            map[string]string{},
-			}
-
+				want := codersdk.Chat{
+					ID:                createdChat.ID,
+					OwnerID:           createdChat.OwnerID,
+					LastModelConfigID: modelConfig.ID,
+					Title:             createdChat.Title,
+					Status:            codersdk.ChatStatusPending,
+					RootChatID:        &rootChatID,
+					Archived:          false,
+					MCPServerIDs:      []uuid.UUID{},
+					Labels:            map[string]string{},
+				}
 			var got codersdk.Chat
 			testutil.Eventually(ctx, t, func(_ context.Context) bool {
 				var update watchEvent
@@ -814,17 +814,16 @@ func TestWatchChats(t *testing.T) {
 				return false
 			}, testutil.IntervalFast, "expected a created event for chat %s", createdChat.ID)
 
-			// Compare the fields we care about, ignoring
-			// server-assigned timestamps and status.
-			got.CreatedAt = want.CreatedAt
-			got.UpdatedAt = want.UpdatedAt
-			got.Status = want.Status
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Fatalf("created event chat mismatch (-want +got):\n%s", diff)
-			}
-		})
-	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
-		t.Parallel()
+				// Compare the fields we care about, ignoring
+				// server-assigned timestamps.
+				got.CreatedAt = want.CreatedAt
+				got.UpdatedAt = want.UpdatedAt
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Fatalf("created event chat mismatch (-want +got):\n%s", diff)
+				}
+			})
+
+		t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
