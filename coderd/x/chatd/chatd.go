@@ -3619,11 +3619,29 @@ func (p *Server) runChat(
 	}
 
 	if isComputerUse {
+		// Computer use always targets Anthropic. When the root model is
+		// attached to a different provider config, look up the enabled
+		// Anthropic provider so the subagent can still resolve its model.
+		cuKeys := providerKeys
+		if cuKeys.APIKey(chattool.ComputerUseModelProvider) == "" {
+			cuProvider, cuProviderErr := p.db.GetEnabledChatProviderByProvider(
+				ctx,
+				chattool.ComputerUseModelProvider,
+			)
+			if cuProviderErr == nil {
+				cuKeys = chatprovider.ProviderKeysFromConfig(
+					p.providerAPIKeys,
+					cuProvider.Provider,
+					cuProvider.APIKey,
+					cuProvider.BaseUrl,
+				)
+			}
+		}
 		// Override model for computer use subagent.
 		cuModel, cuErr := chatprovider.ModelFromConfig(
 			chattool.ComputerUseModelProvider,
 			chattool.ComputerUseModelName,
-			providerKeys,
+			cuKeys,
 			chatprovider.UserAgent(),
 			chatprovider.CoderHeaders(chat),
 		)
