@@ -1404,8 +1404,8 @@ func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) e
 	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
 }
 
-func (p *Server) releaseManualTitleLock(chatID uuid.UUID) {
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (p *Server) releaseManualTitleLock(ctx context.Context, chatID uuid.UUID) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 
 	err := p.db.InTx(func(tx database.Store) error {
@@ -1454,7 +1454,7 @@ func (p *Server) RegenerateChatTitle(
 	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
 		return database.Chat{}, err
 	}
-	defer p.releaseManualTitleLock(chat.ID)
+	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
 
 	updatedChat, err := p.regenerateChatTitleWithStore(
 		chatdCtx,
