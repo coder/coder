@@ -78,10 +78,7 @@ const setupChatSpies = (state: {
 				base_url: req.base_url ?? "",
 				source: "database",
 			});
-			state.providerConfigs = [
-				...state.providerConfigs.filter((p) => p.provider !== req.provider),
-				created,
-			];
+			state.providerConfigs = [...state.providerConfigs, created];
 			return created;
 		},
 	);
@@ -107,6 +104,8 @@ const setupChatSpies = (state: {
 						: current.has_api_key,
 				base_url:
 					typeof req.base_url === "string" ? req.base_url : current.base_url,
+				enabled:
+					typeof req.enabled === "boolean" ? req.enabled : current.enabled,
 				updated_at: now,
 			};
 			state.providerConfigs = state.providerConfigs.map((p, i) =>
@@ -149,9 +148,12 @@ const setupChatSpies = (state: {
 		},
 	);
 
-	// Unused but mock to avoid errors.
-	spyOn(API.experimental, "deleteChatProviderConfig").mockResolvedValue(
-		undefined,
+	spyOn(API.experimental, "deleteChatProviderConfig").mockImplementation(
+		async (providerConfigId) => {
+			state.providerConfigs = state.providerConfigs.filter(
+				(p) => p.id !== providerConfigId,
+			);
+		},
 	);
 	spyOn(API.experimental, "updateChatModelConfig").mockImplementation(
 		async (modelConfigId, req) => {
@@ -321,7 +323,7 @@ export const CreateAndUpdateProvider: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to the OpenAI detail view.
+		// Navigate to the OpenAI add view.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 
 		// Fill in form to create a provider config.
@@ -351,9 +353,8 @@ export const CreateAndUpdateProvider: Story = {
 			}),
 		);
 
-		// After creation, queries refetch and the component re-keys
-		// because providerConfig now exists. Navigate back to the list
-		// and re-enter the detail view to interact with the updated form.
+		// After creation, the add view navigates to the newly created
+		// provider config detail view so the edit form is shown.
 		await waitFor(() => {
 			expect(
 				body.getByRole("button", { name: "Save changes" }),
@@ -383,6 +384,114 @@ export const CreateAndUpdateProvider: Story = {
 				base_url: "https://internal-proxy.example.com/v2",
 			}),
 		);
+	},
+};
+
+export const MultipleProviderConfigsSameFamily: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai-1",
+					provider: "openai",
+					display_name: "OpenAI Production",
+					source: "database",
+					has_api_key: true,
+					enabled: true,
+				}),
+				createProviderConfig({
+					id: "provider-openai-2",
+					provider: "openai",
+					display_name: "OpenAI Staging",
+					source: "database",
+					has_api_key: true,
+					enabled: false,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			await body.findByText("OpenAI Production"),
+		).toBeInTheDocument();
+		expect(body.getByText("OpenAI Staging")).toBeInTheDocument();
+	},
+};
+
+export const AddProviderConfigFlow: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(await body.findByText("OpenAI")).toBeInTheDocument();
+
+		const addButton = body.getByRole("button", { name: "Add provider" });
+		await userEvent.click(addButton);
+
+		await waitFor(async () => {
+			const item = body.getByRole("menuitem", { name: /OpenAI/i });
+			await userEvent.click(item);
+		});
+
+		await expect(await body.findByLabelText(/API key/i)).toBeInTheDocument();
+		expect(
+			body.getByRole("button", { name: "Create provider config" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ProviderEnabledToggle: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+					enabled: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+
+		const toggle = await body.findByRole("switch");
+		await expect(toggle).toBeChecked();
+
+		await userEvent.click(toggle);
+
+		await waitFor(() => {
+			expect(API.experimental.updateChatProviderConfig).toHaveBeenCalledWith(
+				"provider-openai",
+				expect.objectContaining({ enabled: false }),
+			);
+		});
 	},
 };
 
