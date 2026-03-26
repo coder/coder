@@ -35,8 +35,8 @@ AI Bridge is best suited for organizations facing these centralized management a
 - [Set up AI Bridge](./setup.md) on your Coder deployment
 - [Configure AI clients](./clients/index.md) to use AI Bridge
 - [Configure MCP servers](./mcp.md) for tool access
+- [Audit AI sessions](./audit.md)
 - [Monitor usage and metrics](./monitoring.md) and [configure data retention](./setup.md#data-retention)
-- [Auditing AI sessions](./audit.md)
 - [Reference documentation](./reference.md)
 
 <children></children>
