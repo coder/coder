@@ -21,9 +21,12 @@ import {
 	chatModels,
 	infiniteChats,
 	invalidateChatListQueries,
+	pinChat,
 	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
+	reorderPinnedChat,
 	unarchiveChat,
+	unpinChat,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -195,6 +198,28 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 		},
 	});
+	const pinChatBase = pinChat(queryClient);
+	const pinAgentMutation = useMutation({
+		...pinChatBase,
+		onError: (error, chatId, context) => {
+			pinChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinChatBase = unpinChat(queryClient);
+	const unpinAgentMutation = useMutation({
+		...unpinChatBase,
+		onError: (error, chatId, context) => {
+			unpinChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+	const reorderPinnedChatMutation = useMutation({
+		...reorderPinnedChat(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
@@ -324,6 +349,15 @@ const AgentsPage: FC = () => {
 	};
 	const requestUnarchiveAgent = (chatId: string) => {
 		unarchiveAgentMutation.mutate(chatId);
+	};
+	const requestPinAgent = (chatId: string) => {
+		pinAgentMutation.mutate(chatId);
+	};
+	const requestUnpinAgent = (chatId: string) => {
+		unpinAgentMutation.mutate(chatId);
+	};
+	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
+		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -572,6 +606,9 @@ const AgentsPage: FC = () => {
 				requestArchiveAgent={requestArchiveAgent}
 				requestUnarchiveAgent={requestUnarchiveAgent}
 				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+				requestPinAgent={requestPinAgent}
+				requestUnpinAgent={requestUnpinAgent}
+				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}

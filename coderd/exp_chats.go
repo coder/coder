@@ -1555,8 +1555,8 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Supports updating labels and
-// toggling the archived state.
+// patchChat updates a chat resource. Supports updating labels,
+// archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1637,6 +1637,54 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Failed to %s chat.", action),
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	if req.PinOrder != nil {
+		pinOrder := *req.PinOrder
+		if pinOrder < 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Pin order must be non-negative.",
+			})
+			return
+		}
+
+		if pinOrder > 0 && chat.Archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin an archived chat.",
+			})
+			return
+		}
+
+		// The behavior depends on current pin state:
+		// - pinOrder == 0: unpin.
+		// - pinOrder > 0 && already pinned: reorder (shift
+		//   neighbors, clamp to [1, count]).
+		// - pinOrder > 0 && not pinned: append to end. The
+		//   requested value is intentionally ignored because
+		//   PinChatByID also bumps updated_at to keep the
+		//   chat visible in the paginated sidebar.
+		var err error
+		errMsg := "Failed to pin chat."
+		switch {
+		case pinOrder == 0:
+			errMsg = "Failed to unpin chat."
+			err = api.Database.UnpinChatByID(ctx, chat.ID)
+		case chat.PinOrder > 0:
+			errMsg = "Failed to reorder pinned chat."
+			err = api.Database.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+				ID:       chat.ID,
+				PinOrder: pinOrder,
+			})
+		default:
+			err = api.Database.PinChatByID(ctx, chat.ID)
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: errMsg,
 				Detail:  err.Error(),
 			})
 			return

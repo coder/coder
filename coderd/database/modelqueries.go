@@ -793,6 +793,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Labels,
 			&i.BuildID,
 			&i.AgentID,
+			&i.PinOrder,
 		); err != nil {
 			return nil, err
 		}

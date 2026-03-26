@@ -538,6 +538,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,
+		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
 	}

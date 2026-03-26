@@ -20,8 +20,11 @@ import {
 	infiniteChats,
 	interruptChat,
 	invalidateChatListQueries,
+	pinChat,
 	promoteChatQueuedMessage,
+	reorderPinnedChat,
 	unarchiveChat,
+	unpinChat,
 	updateInfiniteChatsCache,
 } from "./chats";
 
@@ -84,6 +87,7 @@ const makeChat = (
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 	...overrides,
 });
@@ -402,6 +406,146 @@ describe("unarchiveChat optimistic update", () => {
 		const mutation = unarchiveChat(queryClient);
 		await mutation.onSettled(undefined, undefined, chatId);
 
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	});
+});
+
+describe("pinChat optimistic update", () => {
+	it("optimistically appends a newly pinned chat after the highest cached pin order", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-new";
+		seedInfiniteChats(queryClient, [
+			makeChat("chat-pinned-1", { pin_order: 1 }),
+			makeChat(chatId),
+			makeChat("chat-pinned-2", { pin_order: 2 }),
+		]);
+		queryClient.setQueryData([...chatsKey, { archived: true }], {
+			pages: [[makeChat("chat-pinned-archived", { pin_order: 4 })]],
+			pageParams: [0],
+		});
+		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+
+		const mutation = pinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(
+			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
+				?.pin_order,
+		).toBe(5);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(5);
+	});
+});
+
+describe("unpinChat optimistic update", () => {
+	it("optimistically sets pin_order to 0 in the chats list", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 2 })]);
+
+		const mutation = unpinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(0);
+	});
+
+	it("optimistically sets pin_order to 0 in the individual chat cache", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 2 })]);
+		queryClient.setQueryData(
+			chatKey(chatId),
+			makeChat(chatId, { pin_order: 2 }),
+		);
+
+		const mutation = unpinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(0);
+	});
+
+	it("rolls back both caches on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 3 })]);
+		queryClient.setQueryData(
+			chatKey(chatId),
+			makeChat(chatId, { pin_order: 3 }),
+		);
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+		const mutation = unpinChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+
+		// Verify optimistic update.
+		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(0);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(0);
+
+		// Roll back.
+		mutation.onError(new Error("server error"), chatId, context);
+
+		// The chats list is rolled back via invalidation.
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		// The individual chat cache is restored directly.
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.pin_order,
+		).toBe(3);
+	});
+
+	it("invalidates queries on settled", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+		const mutation = unpinChat(queryClient);
+		await mutation.onSettled(undefined, undefined, chatId);
+
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	});
+});
+
+describe("reorderPinnedChat", () => {
+	it("updates a single chat via updateChat and invalidates list and detail queries", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+
+		const mutation = reorderPinnedChat(queryClient);
+		await mutation.onMutate?.({ chatId, pinOrder: 2 });
+		await mutation.mutationFn({ chatId, pinOrder: 2 });
+		await mutation.onSettled?.(undefined, undefined, { chatId, pinOrder: 2 });
+
+		expect(cancelSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		expect(cancelSpy).toHaveBeenCalledWith({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		expect(API.experimental.updateChat).toHaveBeenCalledWith(chatId, {
+			pin_order: 2,
+		});
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ queryKey: chatsKey }),
 		);
