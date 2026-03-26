@@ -204,6 +204,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const hasFieldErrors =
 		Object.keys(modelConfigFormBuildResult.fieldErrors).length > 0;
+	const defaultModelDisableGuard = isDefaultModel && form.values.enabled;
 
 	// ── Provider select (shared across all form states) ───────
 
@@ -336,12 +337,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 										form.setFieldValue("enabled", v);
 									}}
 									aria-label="Enabled"
-									disabled={isSaving || isDefaultModel}
+									disabled={isSaving || defaultModelDisableGuard}
 								/>
 							</span>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
-							{isDefaultModel
+							{defaultModelDisableGuard
 								? "Default model cannot be disabled. Remove default status first."
 								: form.values.enabled
 									? "Disable this model. It will be hidden from users."
