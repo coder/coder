@@ -388,10 +388,19 @@ type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 }
 
-// ChatSystemPrompt is the request and response body for the chat
-// system prompt configuration endpoint.
-type ChatSystemPrompt struct {
-	SystemPrompt string `json:"system_prompt"`
+// ChatSystemPromptResponse is the response body for the chat system prompt
+// configuration endpoint.
+type ChatSystemPromptResponse struct {
+	SystemPrompt               string `json:"system_prompt"`
+	IncludeDefaultSystemPrompt bool   `json:"include_default_system_prompt"`
+	DefaultSystemPrompt        string `json:"default_system_prompt"`
+}
+
+// UpdateChatSystemPromptRequest is the request body for updating the chat
+// system prompt configuration.
+type UpdateChatSystemPromptRequest struct {
+	SystemPrompt               string `json:"system_prompt"`
+	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
 }
 
 // UserChatCustomPrompt is the request and response body for the
@@ -1407,21 +1416,21 @@ func (c *ExperimentalClient) GetChatCostUsers(ctx context.Context, opts ChatCost
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
-func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, error) {
+func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
 	if err != nil {
-		return ChatSystemPrompt{}, err
+		return ChatSystemPromptResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatSystemPrompt{}, ReadBodyAsError(res)
+		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
 	}
-	var resp ChatSystemPrompt
+	var resp ChatSystemPromptResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
-func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPrompt) error {
+func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
 	if err != nil {
 		return err
