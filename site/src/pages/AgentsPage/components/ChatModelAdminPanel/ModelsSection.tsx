@@ -262,6 +262,15 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						const showPricingWarning = !hasCustomPricing(
 							modelConfig.model_config,
 						);
+						const providerConfigs = modelConfig.provider_configs
+							? [...modelConfig.provider_configs].sort(
+									(a, b) => a.priority - b.priority,
+								)
+							: [];
+						const primaryProviderConfig = providerConfigs[0];
+						const primaryProviderIsActive =
+							primaryProviderConfig?.enabled &&
+							primaryProviderConfig.has_api_key;
 
 						return (
 							<div
@@ -304,11 +313,30 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											</span>
 										)}
 									</div>
-									{modelConfig.enabled === false && (
-										<Badge size="xs" variant="warning">
-											disabled
-										</Badge>
-									)}
+									<div className="flex shrink-0 items-center gap-2">
+										{primaryProviderConfig && (
+											<span className="flex items-center gap-1 text-xs text-content-secondary">
+												<span
+													aria-hidden="true"
+													className={cn(
+														"inline-block h-1.5 w-1.5 rounded-full bg-current",
+														primaryProviderIsActive
+															? "text-content-success"
+															: "text-content-warning",
+													)}
+												/>
+												{providerConfigs.length}{" "}
+												{providerConfigs.length === 1
+													? "provider"
+													: "providers"}
+											</span>
+										)}
+										{modelConfig.enabled === false && (
+											<Badge size="xs" variant="warning">
+												disabled
+											</Badge>
+										)}
+									</div>
 								</button>
 								{/* Pin for default */}
 								<Tooltip>
