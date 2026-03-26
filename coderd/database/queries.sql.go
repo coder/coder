@@ -3823,7 +3823,9 @@ SELECT
 FROM
     chat_providers
 ORDER BY
-    provider ASC
+    provider ASC,
+    created_at ASC,
+    id ASC
 `
 
 func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, error) {
@@ -3869,7 +3871,8 @@ WHERE
     provider = $1::text
     AND enabled = TRUE
 ORDER BY
-    created_at ASC
+    created_at ASC,
+    id ASC
 LIMIT 1
 `
 

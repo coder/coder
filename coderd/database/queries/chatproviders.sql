@@ -18,7 +18,8 @@ WHERE
     provider = @provider::text
     AND enabled = TRUE
 ORDER BY
-    created_at ASC
+    created_at ASC,
+    id ASC
 LIMIT 1;
 
 -- name: GetChatProviders :many
@@ -27,7 +28,9 @@ SELECT
 FROM
     chat_providers
 ORDER BY
-    provider ASC;
+    provider ASC,
+    created_at ASC,
+    id ASC;
 
 -- name: GetEnabledChatProviders :many
 SELECT
