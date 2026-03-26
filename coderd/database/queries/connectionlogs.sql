@@ -303,3 +303,44 @@ DO UPDATE SET
 		ELSE connection_logs.code
 	END
 RETURNING *;
+
+-- name: BatchUpsertConnectionLogs :exec
+INSERT INTO connection_logs (
+    id, connect_time, organization_id, workspace_owner_id, workspace_id,
+    workspace_name, agent_name, type, code, ip, user_agent, user_id,
+    slug_or_port, connection_id, disconnect_reason, disconnect_time
+)
+SELECT
+    unnest(sqlc.arg('id')::uuid[]),
+    unnest(sqlc.arg('connect_time')::timestamptz[]),
+    unnest(sqlc.arg('organization_id')::uuid[]),
+    unnest(sqlc.arg('workspace_owner_id')::uuid[]),
+    unnest(sqlc.arg('workspace_id')::uuid[]),
+    unnest(sqlc.arg('workspace_name')::text[]),
+    unnest(sqlc.arg('agent_name')::text[]),
+    unnest(sqlc.arg('type')::connection_type[]),
+    unnest(sqlc.arg('code')::int4[]),
+    unnest(sqlc.arg('ip')::inet[]),
+    unnest(sqlc.arg('user_agent')::text[]),
+    unnest(sqlc.arg('user_id')::uuid[]),
+    unnest(sqlc.arg('slug_or_port')::text[]),
+    unnest(sqlc.arg('connection_id')::uuid[]),
+    unnest(sqlc.arg('disconnect_reason')::text[]),
+    unnest(sqlc.arg('disconnect_time')::timestamptz[])
+ON CONFLICT (connection_id, workspace_id, agent_name)
+DO UPDATE SET
+    disconnect_time = CASE
+        WHEN connection_logs.disconnect_time IS NULL
+        THEN EXCLUDED.disconnect_time
+        ELSE connection_logs.disconnect_time
+    END,
+    disconnect_reason = CASE
+        WHEN connection_logs.disconnect_reason IS NULL
+        THEN EXCLUDED.disconnect_reason
+        ELSE connection_logs.disconnect_reason
+    END,
+    code = CASE
+        WHEN connection_logs.code IS NULL
+        THEN EXCLUDED.code
+        ELSE connection_logs.code
+    END;
