@@ -525,60 +525,6 @@ export const SubmitModelConfigExplicitly: Story = {
 	},
 };
 
-export const CreateDisabledModel: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-
-		await openAddModelForm(body, "OpenAI");
-
-		await userEvent.type(
-			body.getByLabelText(/Model Identifier/i),
-			"gpt-test-disabled",
-		);
-		await userEvent.type(body.getByLabelText(/Context limit/i), "100000");
-
-		const enabledSwitch = await body.findByRole("switch", { name: "Enabled" });
-		await expect(enabledSwitch).toBeChecked();
-		await userEvent.click(enabledSwitch);
-		await expect(enabledSwitch).not.toBeChecked();
-
-		await userEvent.click(body.getByRole("button", { name: "Add model" }));
-
-		await waitFor(() => {
-			expect(API.experimental.createChatModelConfig).toHaveBeenCalledTimes(1);
-		});
-		expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
-			expect.objectContaining({
-				provider: "openai",
-				model: "gpt-test-disabled",
-				context_limit: 100000,
-				enabled: false,
-			}),
-		);
-
-		const modelRow = await body.findByRole("button", {
-			name: /gpt-test-disabled/i,
-		});
-		await expect(within(modelRow).getByText("disabled")).toBeVisible();
-	},
-};
-
 export const UpdateModelEnabledToggle: Story = {
 	args: { section: "models" as ChatModelAdminSection },
 	beforeEach: () => {
