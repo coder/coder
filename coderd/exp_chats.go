@@ -2142,7 +2142,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(updatedChat, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
