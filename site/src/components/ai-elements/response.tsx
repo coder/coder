@@ -3,14 +3,7 @@ import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
-import {
-	type ComponentPropsWithRef,
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 import {
 	type AnimateOptions,
 	type Components,
@@ -26,77 +19,16 @@ interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	isAnimating?: boolean;
 }
 
-// Word-level animation — each new word fades in with a stagger
-// delay. Word granularity produces fewer DOM elements than char
-// and the higher stagger fills the gap between SSE chunks so the
-// reveal feels continuous rather than bursty.
+// Character-level animation so new tokens fade in individually,
+// giving a smooth streaming feel. The stagger is tuned to fill
+// the typical gap between SSE chunk arrivals (~100-200ms) so the
+// reveal reads as continuous rather than bursty.
 const streamAnimationOptions: AnimateOptions = {
 	animation: "fadeIn",
-	sep: "word",
-	duration: 80,
-	stagger: 28,
+	sep: "char",
+	duration: 60,
+	stagger: 12,
 };
-
-/**
- * Keeps isAnimating true until all in-flight CSS animations on
- * `[data-sd-animate]` spans have finished, then flips to false.
- * This prevents the visual snap that occurs when streamdown
- * re-renders without stagger delays on the isAnimating transition.
- *
- * Attaches a single delegated `animationend` listener on the
- * container. After each event a short debounce timer resets; when
- * no more events fire within 60ms all animations have drained.
- * A 2s safety cap guarantees we never get stuck.
- */
-function useAnimationDrain(
-	isAnimating: boolean | undefined,
-	containerRef: React.RefObject<HTMLDivElement | null>,
-): boolean {
-	const [effective, setEffective] = useState(!!isAnimating);
-	const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-	useEffect(() => {
-		if (isAnimating) {
-			clearTimeout(timerRef.current);
-			setEffective(true);
-			return;
-		}
-
-		const el = containerRef.current;
-		const finish = () => {
-			clearTimeout(timerRef.current);
-			setEffective(false);
-		};
-
-		// No container or nothing animated — finish immediately.
-		if (!el || !el.querySelector("[data-sd-animate]")) {
-			finish();
-			return;
-		}
-
-		// Reset a short debounce after each animationend event.
-		// When no more fire within 60ms, all animations are done.
-		const onEnd = () => {
-			clearTimeout(timerRef.current);
-			timerRef.current = setTimeout(finish, 60);
-		};
-
-		el.addEventListener("animationend", onEnd);
-		// Kick off the first check — if nothing is mid-animation
-		// the 60ms debounce fires and we finish quickly.
-		onEnd();
-		// Safety cap so we never get stuck.
-		const cap = setTimeout(finish, 2000);
-
-		return () => {
-			el.removeEventListener("animationend", onEnd);
-			clearTimeout(timerRef.current);
-			clearTimeout(cap);
-		};
-	}, [isAnimating, containerRef]);
-
-	return effective;
-}
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
 // escaped text instead of being parsed by the HTML5 engine. Without
@@ -321,24 +253,9 @@ export const Response = ({
 	const viewerTheme = fileViewerTheme[fileViewerThemeType];
 	const components = createComponents(fileViewerThemeType, viewerTheme);
 
-	const containerRef = useRef<HTMLDivElement>(null);
-	const effectiveAnimating = useAnimationDrain(isAnimating, containerRef);
-
-	// Merge the internal ref with the forwarded one so callers
-	// can still attach their own ref to the outer div.
-	const mergedRef = useCallback(
-		(node: HTMLDivElement | null) => {
-			containerRef.current = node;
-			if (typeof ref === "function") ref(node);
-			else if (ref)
-				(ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
-		},
-		[ref],
-	);
-
 	return (
 		<div
-			ref={mergedRef}
+			ref={ref}
 			className={cn(
 				"text-[13px] leading-relaxed text-content-primary",
 				className,
@@ -348,7 +265,7 @@ export const Response = ({
 			<Streamdown
 				controls={false}
 				animated={streamAnimationOptions}
-				isAnimating={effectiveAnimating}
+				isAnimating={isAnimating}
 				components={components}
 				urlTransform={urlTransform}
 				rehypePlugins={chatRehypePlugins}

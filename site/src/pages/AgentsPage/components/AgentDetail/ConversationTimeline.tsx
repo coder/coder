@@ -631,6 +631,68 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "retrying" ||
 	liveStatus.phase === "reconnecting";
 
+/**
+ * Returns true while in-flight CSS animations are still running
+ * after the stream phase leaves "streaming". Listens for
+ * animationend events on the container; when no more fire within
+ * 60ms, all animations have drained. A 2s safety cap prevents
+ * getting stuck.
+ */
+function useStreamDrain(
+	phase: LiveStatusModel["phase"],
+	containerRef: React.RefObject<HTMLDivElement | null>,
+): boolean {
+	const [draining, setDraining] = useState(false);
+	const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+	// Detect the streaming → non-streaming transition inside an
+	// effect so we never read refs during render.
+	const prevPhaseRef = useRef(phase);
+	useEffect(() => {
+		const wasStreaming = prevPhaseRef.current === "streaming";
+		prevPhaseRef.current = phase;
+		if (wasStreaming && phase !== "streaming") {
+			setDraining(true);
+		}
+	}, [phase]);
+
+	useEffect(() => {
+		if (!draining) {
+			return;
+		}
+
+		const el = containerRef.current;
+		const finish = () => {
+			clearTimeout(timerRef.current);
+			setDraining(false);
+		};
+
+		if (!el) {
+			finish();
+			return;
+		}
+
+		// After each animationend, reset a short debounce. When
+		// no more fire within 60ms, all animations are done.
+		const onEnd = () => {
+			clearTimeout(timerRef.current);
+			timerRef.current = setTimeout(finish, 60);
+		};
+
+		el.addEventListener("animationend", onEnd);
+		onEnd();
+		const cap = setTimeout(finish, 2000);
+
+		return () => {
+			el.removeEventListener("animationend", onEnd);
+			clearTimeout(timerRef.current);
+			clearTimeout(cap);
+		};
+	}, [draining, containerRef]);
+
+	return draining;
+}
+
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
@@ -650,7 +712,15 @@ export const StreamingOutput: FC<{
 	urlTransform,
 	mcpServers,
 }) => {
-	if (liveStatus.phase === "idle") {
+	// Keep the streaming output mounted briefly after the stream
+	// ends so in-flight CSS animations can finish. Without this,
+	// the component unmounts instantly when liveStatus goes idle
+	// and the message re-renders as a static historical entry,
+	// causing a visible snap.
+	const containerRef = useRef<HTMLDivElement>(null);
+	const draining = useStreamDrain(liveStatus.phase, containerRef);
+
+	if (liveStatus.phase === "idle" && !draining) {
 		return null;
 	}
 
@@ -683,7 +753,7 @@ export const StreamingOutput: FC<{
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-3">
+					<div ref={containerRef} className="space-y-3">
 						{shouldShowBlocks && (
 							<>
 								{orderedBlocks}
