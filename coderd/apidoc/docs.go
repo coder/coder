@@ -628,44 +628,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/{chat}/title/regenerate": {
-            "post": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Regenerate chat title",
-                "operationId": "regenerate-chat-title",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/connectionlog": {
             "get": {
                 "produces": [
@@ -14379,71 +14341,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.Chat": {
-            "type": "object",
-            "properties": {
-                "archived": {
-                    "type": "boolean"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "diff_status": {
-                    "$ref": "#/definitions/codersdk.ChatDiffStatus"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "labels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "last_error": {
-                    "type": "string"
-                },
-                "last_model_config_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "mcp_server_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
-                "owner_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "parent_chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "root_chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "status": {
-                    "$ref": "#/definitions/codersdk.ChatStatus"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
         "codersdk.ChatConfig": {
             "type": "object",
             "properties": {
@@ -14451,90 +14348,6 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
-        },
-        "codersdk.ChatDiffStatus": {
-            "type": "object",
-            "properties": {
-                "additions": {
-                    "type": "integer"
-                },
-                "approved": {
-                    "type": "boolean"
-                },
-                "author_avatar_url": {
-                    "type": "string"
-                },
-                "author_login": {
-                    "type": "string"
-                },
-                "base_branch": {
-                    "type": "string"
-                },
-                "changed_files": {
-                    "type": "integer"
-                },
-                "changes_requested": {
-                    "type": "boolean"
-                },
-                "chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "commits": {
-                    "type": "integer"
-                },
-                "deletions": {
-                    "type": "integer"
-                },
-                "head_branch": {
-                    "type": "string"
-                },
-                "pr_number": {
-                    "type": "integer"
-                },
-                "pull_request_draft": {
-                    "type": "boolean"
-                },
-                "pull_request_state": {
-                    "type": "string"
-                },
-                "pull_request_title": {
-                    "type": "string"
-                },
-                "refreshed_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "reviewer_count": {
-                    "type": "integer"
-                },
-                "stale_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.ChatStatus": {
-            "type": "string",
-            "enum": [
-                "waiting",
-                "pending",
-                "running",
-                "paused",
-                "completed",
-                "error"
-            ],
-            "x-enum-varnames": [
-                "ChatStatusWaiting",
-                "ChatStatusPending",
-                "ChatStatusRunning",
-                "ChatStatusPaused",
-                "ChatStatusCompleted",
-                "ChatStatusError"
-            ]
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
