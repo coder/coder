@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -307,13 +308,9 @@ func extractManualTitleTurns(messages []database.ChatMessage) []manualTitleTurn 
 }
 
 func selectManualTitleTurnIndexes(turns []manualTitleTurn) []int {
-	firstUserIndex := -1
-	for i, turn := range turns {
-		if turn.role == string(database.ChatMessageRoleUser) {
-			firstUserIndex = i
-			break
-		}
-	}
+	firstUserIndex := slices.IndexFunc(turns, func(turn manualTitleTurn) bool {
+		return turn.role == string(database.ChatMessageRoleUser)
+	})
 	if firstUserIndex == -1 {
 		return nil
 	}
@@ -392,7 +389,7 @@ func renderManualTitlePrompt(
 	}
 
 	write("\n\nRequirements:\n")
-	write("- Output a short title of 2-5 words.\n")
+	write("- Output a short title of 2-8 words.\n")
 	write("- Use verb-noun format in sentence case.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
 	write("- No trailing punctuation, quotes, emoji, or markdown.\n")
@@ -409,17 +406,13 @@ func generateManualTitle(
 	turns := extractManualTitleTurns(messages)
 	selected := selectManualTitleTurnIndexes(turns)
 
-	firstUserText := ""
-	for _, turn := range turns {
-		if turn.role == string(database.ChatMessageRoleUser) {
-			firstUserText = turn.text
-			break
-		}
-	}
-	if firstUserText == "" {
+	firstUserIndex := slices.IndexFunc(turns, func(turn manualTitleTurn) bool {
+		return turn.role == string(database.ChatMessageRoleUser)
+	})
+	if firstUserIndex == -1 {
 		return "", fantasy.Usage{}, nil
 	}
-	firstUserText = truncateRunes(firstUserText, 1000)
+	firstUserText := truncateRunes(turns[firstUserIndex].text, 1000)
 
 	conversationBlock, latestUserMsg := buildManualTitleContext(turns, selected)
 	systemPrompt := renderManualTitlePrompt(
@@ -435,7 +428,7 @@ func generateManualTitle(
 		titleCtx,
 		fallbackModel,
 		systemPrompt,
-		firstUserText,
+		"Generate the title.",
 	)
 	if err != nil {
 		return "", fantasy.Usage{}, err

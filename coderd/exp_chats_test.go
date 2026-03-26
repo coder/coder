@@ -3479,7 +3479,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("NoDaemon", func(t *testing.T) {
+	t.Run("RegenerationFailure", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)

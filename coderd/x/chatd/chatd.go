@@ -1368,6 +1368,9 @@ func (p *Server) RegenerateChatTitle(
 		return database.Chat{}, xerrors.Errorf("get tail chat messages: %w", err)
 	}
 	messages := mergeManualTitleMessages(headMessages, tailMessages)
+	if len(messages) == 0 {
+		return chat, nil
+	}
 
 	// Reuse chatd's scoped auth context for deployment-config lookups while
 	// keeping chat ownership authorization at the HTTP layer.
@@ -1380,12 +1383,18 @@ func (p *Server) RegenerateChatTitle(
 	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
 		if recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); recordErr != nil {
-			return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
+			return database.Chat{}, errors.Join(
+				xerrors.Errorf("generate manual title: %w", err),
+				xerrors.Errorf("record manual title usage: %w", recordErr),
+			)
 		}
 		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
 	}
-	if err := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); err != nil {
-		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", err)
+	if recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage); recordErr != nil {
+		p.logger.Warn(ctx, "failed to record manual title usage",
+			slog.F("chat_id", chat.ID),
+			slog.Error(recordErr),
+		)
 	}
 	if title == "" || title == chat.Title {
 		return chat, nil
@@ -1431,9 +1440,7 @@ func (p *Server) recordManualTitleUsage(
 	modelConfig database.ChatModelConfig,
 	usage fantasy.Usage,
 ) error {
-	if usage.InputTokens == 0 && usage.OutputTokens == 0 &&
-		usage.TotalTokens == 0 && usage.ReasoningTokens == 0 &&
-		usage.CacheCreationTokens == 0 && usage.CacheReadTokens == 0 {
+	if usage == (fantasy.Usage{}) {
 		return nil
 	}
 

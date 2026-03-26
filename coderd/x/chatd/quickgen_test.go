@@ -115,7 +115,7 @@ func Test_selectManualTitleTurnIndexes(t *testing.T) {
 			want: []int{0, 1},
 		},
 		{
-			name: "dedupes and sorts when first user is in the trailing window",
+			name: "prepends first user when before trailing window",
 			turns: []manualTitleTurn{
 				{role: "assistant", text: "intro"},
 				{role: "assistant", text: "setup"},
@@ -331,7 +331,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			require.Contains(t, prompt, "The user's primary objective was:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Output a short title of 2-5 words.")
+			require.Contains(t, prompt, "- Output a short title of 2-8 words.")
 			require.Contains(t, prompt, "- Output ONLY the title - nothing else.")
 
 			if tt.wantConversationSample {
@@ -365,7 +365,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		),
 	}
 
-	model := &deadlineCapturingModel{
+	model := &stubModel{
 		generateFn: func(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
 			deadline, ok := ctx.Deadline()
 			require.True(t, ok, "manual title generation should set a deadline")
@@ -406,12 +406,16 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		),
 	}
 
-	model := &deadlineCapturingModel{
+	model := &stubModel{
 		generateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			require.Len(t, call.Prompt, 2)
+			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
+			require.True(t, ok)
+			require.Contains(t, systemText.Text, truncateRunes(longFirstUserText, 1000))
+
 			userText, ok := call.Prompt[1].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
-			require.Len(t, []rune(userText.Text), 1000)
-			require.Equal(t, truncateRunes(longFirstUserText, 1000), userText.Text)
+			require.Equal(t, "Generate the title.", userText.Text)
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
 					fantasy.TextContent{Text: "Refresh title"},
@@ -440,7 +444,7 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 		),
 	}
 
-	model := &deadlineCapturingModel{
+	model := &stubModel{
 		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
@@ -466,43 +470,43 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 	require.Equal(t, int64(18), usage.TotalTokens)
 }
 
-type deadlineCapturingModel struct {
+type stubModel struct {
 	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
 }
 
-func (m *deadlineCapturingModel) Generate(
+func (m *stubModel) Generate(
 	ctx context.Context,
 	call fantasy.Call,
 ) (*fantasy.Response, error) {
 	return m.generateFn(ctx, call)
 }
 
-func (*deadlineCapturingModel) Stream(
+func (*stubModel) Stream(
 	context.Context,
 	fantasy.Call,
 ) (fantasy.StreamResponse, error) {
 	return nil, xerrors.New("stream not implemented")
 }
 
-func (*deadlineCapturingModel) GenerateObject(
+func (*stubModel) GenerateObject(
 	context.Context,
 	fantasy.ObjectCall,
 ) (*fantasy.ObjectResponse, error) {
 	return nil, xerrors.New("generate object not implemented")
 }
 
-func (*deadlineCapturingModel) StreamObject(
+func (*stubModel) StreamObject(
 	context.Context,
 	fantasy.ObjectCall,
 ) (fantasy.ObjectStreamResponse, error) {
 	return nil, xerrors.New("stream object not implemented")
 }
 
-func (*deadlineCapturingModel) Provider() string {
+func (*stubModel) Provider() string {
 	return "test"
 }
 
-func (*deadlineCapturingModel) Model() string {
+func (*stubModel) Model() string {
 	return "test"
 }
 

@@ -485,6 +485,7 @@ RETURNING
 UPDATE
     chats
 SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
     last_model_config_id = @last_model_config_id::uuid
 WHERE
     id = @id::uuid

@@ -6325,6 +6325,7 @@ const updateChatLastModelConfigByID = `-- name: UpdateChatLastModelConfigByID :o
 UPDATE
     chats
 SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
     last_model_config_id = $1::uuid
 WHERE
     id = $2::uuid

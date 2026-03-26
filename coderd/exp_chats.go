@@ -111,6 +111,8 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
+var regeneratingChats sync.Map
+
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
 	payload, err := json.Marshal(pubsub.ChatConfigEvent{
 		Kind:     kind,
@@ -2112,15 +2114,22 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if _, loaded := regeneratingChats.LoadOrStore(chat.ID, struct{}{}); loaded {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Title regeneration already in progress for this chat.",
+		})
+		return
+	}
+	defer regeneratingChats.Delete(chat.ID)
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",
 			Detail:  "Chat processor is not configured.",
 		})
-		return
-	}
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
