@@ -86,6 +86,29 @@ func Daily(raw string) (*Schedule, error) {
 //
 // Unlike standard cron, this function interprets the input as a continuous active period
 // rather than discrete scheduled times.
+// Standard parses a Schedule from a full 5-field cron spec without
+// additional constraints on which fields may use wildcards. All five
+// fields (minute, hour, day-of-month, month, day-of-week) accept any
+// valid cron expression including ranges, steps, and lists.
+//
+// Example Usage:
+//
+//	sched, _ := cron.Standard("*/5 * * * *")        // every 5 minutes
+//	sched, _ := cron.Standard("0 9 * * 1-5")         // 9 AM weekdays
+//	sched, _ := cron.Standard("CRON_TZ=US/Central 30 8 1 * *") // 8:30 AM Central on the 1st
+func Standard(raw string) (*Schedule, error) {
+	// Validate that the spec has the right number of fields.
+	parts := strings.Fields(raw)
+	expected := 5
+	if len(parts) > 0 && strings.HasPrefix(parts[0], "CRON_TZ=") {
+		expected = 6
+	}
+	if len(parts) != expected {
+		return nil, xerrors.Errorf("expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix")
+	}
+	return parse(raw)
+}
+
 func TimeRange(raw string) (*Schedule, error) {
 	if err := validateTimeRangeSpec(raw); err != nil {
 		return nil, xerrors.Errorf("validate time range schedule: %w", err)

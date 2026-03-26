@@ -4180,6 +4180,8 @@ type AutomationTrigger struct {
 	LabelPaths pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
 	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time             `db:"updated_at" json:"updated_at"`
+	// The last time this cron trigger was evaluated and fired. Used by the cron scheduler to determine which triggers are due.
+	LastTriggeredAt sql.NullTime `db:"last_triggered_at" json:"last_triggered_at"`
 }
 
 // Per-replica boundary usage statistics for telemetry aggregation.

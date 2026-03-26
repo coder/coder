@@ -967,6 +967,14 @@ func (m queryMetricsStore) GetActiveAISeatCount(ctx context.Context) (int64, err
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetActiveCronTriggers(ctx context.Context) ([]database.GetActiveCronTriggersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveCronTriggers(ctx)
+	m.queryLatencies.WithLabelValues("GetActiveCronTriggers").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveCronTriggers").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetActivePresetPrebuildSchedules(ctx)
@@ -4117,6 +4125,14 @@ func (m queryMetricsStore) UpdateAutomationTrigger(ctx context.Context, arg data
 	m.queryLatencies.WithLabelValues("UpdateAutomationTrigger").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAutomationTrigger").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAutomationTriggerLastTriggeredAt(ctx context.Context, arg database.UpdateAutomationTriggerLastTriggeredAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateAutomationTriggerLastTriggeredAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAutomationTriggerLastTriggeredAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAutomationTriggerLastTriggeredAt").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg database.UpdateAutomationTriggerWebhookSecretParams) (database.AutomationTrigger, error) {

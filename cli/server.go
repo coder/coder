@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/automations/cronscheduler"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -1157,8 +1158,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			jobReaper.Start()
 			defer jobReaper.Close()
 
-			waitForProvisionerJobs := false
-			// Currently there is no way to ask the server to shut
+			// Evaluates cron-based automation triggers every minute.
+			automationCron := cronscheduler.New(ctx, logger.Named("automation_cron"), options.Database, quartz.NewReal())
+			defer automationCron.Close()
+
+			waitForProvisionerJobs := false // Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error

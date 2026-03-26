@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -388,6 +389,21 @@ func (api *API) postAutomationTrigger(rw http.ResponseWriter, r *http.Request) {
 		arg.WebhookSecret = sql.NullString{String: secret, Valid: true}
 	}
 
+	if req.Type == codersdk.AutomationTriggerTypeCron {
+		if req.CronSchedule == nil || *req.CronSchedule == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cron schedule is required for cron triggers.",
+			})
+			return
+		}
+		if _, err := cron.Standard(*req.CronSchedule); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid cron schedule.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
 	if req.CronSchedule != nil {
 		arg.CronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
 	}

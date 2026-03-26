@@ -44,3 +44,31 @@ RETURNING *;
 
 -- name: DeleteAutomationTriggerByID :exec
 DELETE FROM automation_triggers WHERE id = @id::uuid;
+
+-- name: GetActiveCronTriggers :many
+-- Returns all cron triggers whose parent automation is active or in
+-- preview mode. The scheduler uses this to evaluate which triggers
+-- are due.
+SELECT
+    t.id,
+    t.automation_id,
+    t.type,
+    t.cron_schedule,
+    t.filter,
+    t.label_paths,
+    t.last_triggered_at,
+    t.created_at,
+    t.updated_at,
+    a.status AS automation_status,
+    a.owner_id AS automation_owner_id,
+    a.instructions AS automation_instructions
+FROM automation_triggers t
+JOIN automations a ON a.id = t.automation_id
+WHERE t.type = 'cron'
+  AND t.cron_schedule IS NOT NULL
+  AND a.status IN ('active', 'preview');
+
+-- name: UpdateAutomationTriggerLastTriggeredAt :exec
+UPDATE automation_triggers
+SET last_triggered_at = @last_triggered_at::timestamptz
+WHERE id = @id::uuid;

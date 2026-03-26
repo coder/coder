@@ -2429,6 +2429,13 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveAISeatCount(ctx)
 }
 
+func (q *querier) GetActiveCronTriggers(ctx context.Context) ([]database.GetActiveCronTriggersRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAutomation.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetActiveCronTriggers(ctx)
+}
+
 func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
@@ -5768,6 +5775,21 @@ func (q *querier) UpdateAutomationTrigger(ctx context.Context, arg database.Upda
 		return database.AutomationTrigger{}, err
 	}
 	return q.db.UpdateAutomationTrigger(ctx, arg)
+}
+
+func (q *querier) UpdateAutomationTriggerLastTriggeredAt(ctx context.Context, arg database.UpdateAutomationTriggerLastTriggeredAtParams) error {
+	trigger, err := q.db.GetAutomationTriggerByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	automation, err := q.db.GetAutomationByID(ctx, trigger.AutomationID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return err
+	}
+	return q.db.UpdateAutomationTriggerLastTriggeredAt(ctx, arg)
 }
 
 func (q *querier) UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg database.UpdateAutomationTriggerWebhookSecretParams) (database.AutomationTrigger, error) {

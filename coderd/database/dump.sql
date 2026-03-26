@@ -1238,6 +1238,7 @@ CREATE TABLE automation_triggers (
     label_paths jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_triggered_at timestamp with time zone,
     CONSTRAINT automation_triggers_type_check CHECK ((type = ANY (ARRAY['webhook'::text, 'cron'::text])))
 );
 
@@ -1246,6 +1247,8 @@ COMMENT ON COLUMN automation_triggers.webhook_secret_key_id IS 'The ID of the ke
 COMMENT ON COLUMN automation_triggers.filter IS 'gjson filter conditions for webhook triggers. NULL means match everything.';
 
 COMMENT ON COLUMN automation_triggers.label_paths IS 'Map of chat label keys to gjson paths for extracting values from webhook payloads.';
+
+COMMENT ON COLUMN automation_triggers.last_triggered_at IS 'The last time this cron trigger was evaluated and fired. Used by the cron scheduler to determine which triggers are due.';
 
 CREATE TABLE automations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

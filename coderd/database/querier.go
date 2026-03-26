@@ -201,6 +201,10 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
+	// Returns all cron triggers whose parent automation is active or in
+	// preview mode. The scheduler uses this to evaluate which triggers
+	// are due.
+	GetActiveCronTriggers(ctx context.Context) ([]GetActiveCronTriggersRow, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
@@ -834,6 +838,7 @@ type sqlcQuerier interface {
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateAutomation(ctx context.Context, arg UpdateAutomationParams) (Automation, error)
 	UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomationTriggerParams) (AutomationTrigger, error)
+	UpdateAutomationTriggerLastTriggeredAt(ctx context.Context, arg UpdateAutomationTriggerLastTriggeredAtParams) error
 	UpdateAutomationTriggerWebhookSecret(ctx context.Context, arg UpdateAutomationTriggerWebhookSecretParams) (AutomationTrigger, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Bumps the heartbeat timestamp for a running chat so that other

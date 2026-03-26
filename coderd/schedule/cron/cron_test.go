@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -280,4 +281,140 @@ func mustLocation(t *testing.T, s string) *time.Location {
 	loc, err := time.LoadLocation(s)
 	require.NoError(t, err)
 	return loc
+}
+
+func TestStandard(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid specs", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name             string
+			spec             string
+			expectedCron     string
+			expectedLocation *time.Location
+			expectedString   string
+		}{
+			{
+				name:             "every minute",
+				spec:             "* * * * *",
+				expectedCron:     "* * * * *",
+				expectedLocation: time.UTC,
+				expectedString:   "CRON_TZ=UTC * * * * *",
+			},
+			{
+				name:             "every 5 minutes",
+				spec:             "*/5 * * * *",
+				expectedCron:     "*/5 * * * *",
+				expectedLocation: time.UTC,
+				expectedString:   "CRON_TZ=UTC */5 * * * *",
+			},
+			{
+				name:             "9 AM weekdays",
+				spec:             "0 9 * * 1-5",
+				expectedCron:     "0 9 * * 1-5",
+				expectedLocation: time.UTC,
+				expectedString:   "CRON_TZ=UTC 0 9 * * 1-5",
+			},
+			{
+				name:             "8:30 AM on the 1st of every month",
+				spec:             "30 8 1 * *",
+				expectedCron:     "30 8 1 * *",
+				expectedLocation: time.UTC,
+				expectedString:   "CRON_TZ=UTC 30 8 1 * *",
+			},
+			{
+				name:             "midnight every Sunday",
+				spec:             "0 0 * * 0",
+				expectedCron:     "0 0 * * 0",
+				expectedLocation: time.UTC,
+				expectedString:   "CRON_TZ=UTC 0 0 * * 0",
+			},
+			{
+				name:             "with timezone",
+				spec:             "CRON_TZ=US/Central 30 9 * * 1-5",
+				expectedCron:     "30 9 * * 1-5",
+				expectedLocation: mustLocation(t, "US/Central"),
+				expectedString:   "CRON_TZ=US/Central 30 9 * * 1-5",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				sched, err := cron.Standard(tc.spec)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedCron, sched.Cron())
+				assert.Equal(t, tc.expectedLocation, sched.Location())
+				assert.Equal(t, tc.expectedString, sched.String())
+			})
+		}
+	})
+
+	t.Run("invalid specs", func(t *testing.T) {
+		t.Parallel()
+		testCases := []struct {
+			name          string
+			spec          string
+			expectedError string
+		}{
+			{
+				name:          "empty string",
+				spec:          "",
+				expectedError: "expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
+			},
+			{
+				name:          "garbage",
+				spec:          "not a cron",
+				expectedError: "expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
+			},
+			{
+				name:          "too few fields",
+				spec:          "* * *",
+				expectedError: "expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
+			},
+			{
+				name:          "too many fields",
+				spec:          "* * * * * *",
+				expectedError: "expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix",
+			},
+			{
+				name:          "invalid timezone",
+				spec:          "CRON_TZ=Invalid/Zone 0 0 * * *",
+				expectedError: "parse schedule: provided bad location Invalid/Zone: unknown time zone Invalid/Zone",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				sched, err := cron.Standard(tc.spec)
+				require.Error(t, err)
+				assert.Nil(t, sched)
+				assert.Equal(t, tc.expectedError, err.Error())
+			})
+		}
+	})
+
+	t.Run("Next", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("before noon returns noon same day", func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Standard("0 12 * * *")
+			require.NoError(t, err)
+			at := time.Date(2022, 4, 1, 10, 0, 0, 0, time.UTC)
+			expectedNext := time.Date(2022, 4, 1, 12, 0, 0, 0, time.UTC)
+			assert.Equal(t, expectedNext, sched.Next(at))
+		})
+
+		t.Run("after noon returns noon next day", func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Standard("0 12 * * *")
+			require.NoError(t, err)
+			at := time.Date(2022, 4, 1, 13, 0, 0, 0, time.UTC)
+			expectedNext := time.Date(2022, 4, 2, 12, 0, 0, 0, time.UTC)
+			assert.Equal(t, expectedNext, sched.Next(at))
+		})
+	})
 }

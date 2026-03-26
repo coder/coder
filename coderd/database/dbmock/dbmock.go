@@ -1666,6 +1666,21 @@ func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveAISeatCount", reflect.TypeOf((*MockStore)(nil).GetActiveAISeatCount), ctx)
 }
 
+// GetActiveCronTriggers mocks base method.
+func (m *MockStore) GetActiveCronTriggers(ctx context.Context) ([]database.GetActiveCronTriggersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveCronTriggers", ctx)
+	ret0, _ := ret[0].([]database.GetActiveCronTriggersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveCronTriggers indicates an expected call of GetActiveCronTriggers.
+func (mr *MockStoreMockRecorder) GetActiveCronTriggers(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveCronTriggers", reflect.TypeOf((*MockStore)(nil).GetActiveCronTriggers), ctx)
+}
+
 // GetActivePresetPrebuildSchedules mocks base method.
 func (m *MockStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	m.ctrl.T.Helper()
@@ -7787,6 +7802,20 @@ func (m *MockStore) UpdateAutomationTrigger(ctx context.Context, arg database.Up
 func (mr *MockStoreMockRecorder) UpdateAutomationTrigger(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomationTrigger", reflect.TypeOf((*MockStore)(nil).UpdateAutomationTrigger), ctx, arg)
+}
+
+// UpdateAutomationTriggerLastTriggeredAt mocks base method.
+func (m *MockStore) UpdateAutomationTriggerLastTriggeredAt(ctx context.Context, arg database.UpdateAutomationTriggerLastTriggeredAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAutomationTriggerLastTriggeredAt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAutomationTriggerLastTriggeredAt indicates an expected call of UpdateAutomationTriggerLastTriggeredAt.
+func (mr *MockStoreMockRecorder) UpdateAutomationTriggerLastTriggeredAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAutomationTriggerLastTriggeredAt", reflect.TypeOf((*MockStore)(nil).UpdateAutomationTriggerLastTriggeredAt), ctx, arg)
 }
 
 // UpdateAutomationTriggerWebhookSecret mocks base method.

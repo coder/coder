@@ -2952,8 +2952,83 @@ func (q *sqlQuerier) DeleteAutomationTriggerByID(ctx context.Context, id uuid.UU
 	return err
 }
 
+const getActiveCronTriggers = `-- name: GetActiveCronTriggers :many
+SELECT
+    t.id,
+    t.automation_id,
+    t.type,
+    t.cron_schedule,
+    t.filter,
+    t.label_paths,
+    t.last_triggered_at,
+    t.created_at,
+    t.updated_at,
+    a.status AS automation_status,
+    a.owner_id AS automation_owner_id,
+    a.instructions AS automation_instructions
+FROM automation_triggers t
+JOIN automations a ON a.id = t.automation_id
+WHERE t.type = 'cron'
+  AND t.cron_schedule IS NOT NULL
+  AND a.status IN ('active', 'preview')
+`
+
+type GetActiveCronTriggersRow struct {
+	ID                     uuid.UUID             `db:"id" json:"id"`
+	AutomationID           uuid.UUID             `db:"automation_id" json:"automation_id"`
+	Type                   string                `db:"type" json:"type"`
+	CronSchedule           sql.NullString        `db:"cron_schedule" json:"cron_schedule"`
+	Filter                 pqtype.NullRawMessage `db:"filter" json:"filter"`
+	LabelPaths             pqtype.NullRawMessage `db:"label_paths" json:"label_paths"`
+	LastTriggeredAt        sql.NullTime          `db:"last_triggered_at" json:"last_triggered_at"`
+	CreatedAt              time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time             `db:"updated_at" json:"updated_at"`
+	AutomationStatus       string                `db:"automation_status" json:"automation_status"`
+	AutomationOwnerID      uuid.UUID             `db:"automation_owner_id" json:"automation_owner_id"`
+	AutomationInstructions string                `db:"automation_instructions" json:"automation_instructions"`
+}
+
+// Returns all cron triggers whose parent automation is active or in
+// preview mode. The scheduler uses this to evaluate which triggers
+// are due.
+func (q *sqlQuerier) GetActiveCronTriggers(ctx context.Context) ([]GetActiveCronTriggersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveCronTriggers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveCronTriggersRow
+	for rows.Next() {
+		var i GetActiveCronTriggersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AutomationID,
+			&i.Type,
+			&i.CronSchedule,
+			&i.Filter,
+			&i.LabelPaths,
+			&i.LastTriggeredAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AutomationStatus,
+			&i.AutomationOwnerID,
+			&i.AutomationInstructions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAutomationTriggerByID = `-- name: GetAutomationTriggerByID :one
-SELECT id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at FROM automation_triggers WHERE id = $1::uuid
+SELECT id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at, last_triggered_at FROM automation_triggers WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID) (AutomationTrigger, error) {
@@ -2970,12 +3045,13 @@ func (q *sqlQuerier) GetAutomationTriggerByID(ctx context.Context, id uuid.UUID)
 		&i.LabelPaths,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastTriggeredAt,
 	)
 	return i, err
 }
 
 const getAutomationTriggersByAutomationID = `-- name: GetAutomationTriggersByAutomationID :many
-SELECT id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at FROM automation_triggers
+SELECT id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at, last_triggered_at FROM automation_triggers
 WHERE automation_id = $1::uuid
 ORDER BY created_at ASC
 `
@@ -3000,6 +3076,7 @@ func (q *sqlQuerier) GetAutomationTriggersByAutomationID(ctx context.Context, au
 			&i.LabelPaths,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LastTriggeredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3031,7 +3108,7 @@ INSERT INTO automation_triggers (
     $5::text,
     $6::jsonb,
     $7::jsonb
-) RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
+) RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at, last_triggered_at
 `
 
 type InsertAutomationTriggerParams struct {
@@ -3066,6 +3143,7 @@ func (q *sqlQuerier) InsertAutomationTrigger(ctx context.Context, arg InsertAuto
 		&i.LabelPaths,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastTriggeredAt,
 	)
 	return i, err
 }
@@ -3077,7 +3155,7 @@ UPDATE automation_triggers SET
     label_paths = $3::jsonb,
     updated_at = NOW()
 WHERE id = $4::uuid
-RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
+RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at, last_triggered_at
 `
 
 type UpdateAutomationTriggerParams struct {
@@ -3106,8 +3184,25 @@ func (q *sqlQuerier) UpdateAutomationTrigger(ctx context.Context, arg UpdateAuto
 		&i.LabelPaths,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastTriggeredAt,
 	)
 	return i, err
+}
+
+const updateAutomationTriggerLastTriggeredAt = `-- name: UpdateAutomationTriggerLastTriggeredAt :exec
+UPDATE automation_triggers
+SET last_triggered_at = $1::timestamptz
+WHERE id = $2::uuid
+`
+
+type UpdateAutomationTriggerLastTriggeredAtParams struct {
+	LastTriggeredAt time.Time `db:"last_triggered_at" json:"last_triggered_at"`
+	ID              uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAutomationTriggerLastTriggeredAt(ctx context.Context, arg UpdateAutomationTriggerLastTriggeredAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateAutomationTriggerLastTriggeredAt, arg.LastTriggeredAt, arg.ID)
+	return err
 }
 
 const updateAutomationTriggerWebhookSecret = `-- name: UpdateAutomationTriggerWebhookSecret :one
@@ -3116,7 +3211,7 @@ UPDATE automation_triggers SET
     webhook_secret_key_id = $2::text,
     updated_at = NOW()
 WHERE id = $3::uuid
-RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at
+RETURNING id, automation_id, type, webhook_secret, webhook_secret_key_id, cron_schedule, filter, label_paths, created_at, updated_at, last_triggered_at
 `
 
 type UpdateAutomationTriggerWebhookSecretParams struct {
@@ -3139,6 +3234,7 @@ func (q *sqlQuerier) UpdateAutomationTriggerWebhookSecret(ctx context.Context, a
 		&i.LabelPaths,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastTriggeredAt,
 	)
 	return i, err
 }
