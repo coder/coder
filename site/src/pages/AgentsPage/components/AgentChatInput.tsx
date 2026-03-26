@@ -966,12 +966,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											className="w-64 p-0"
 										>
 											<Command loop>
-												<CommandInput placeholder="Search workspaces..." />
+												<CommandInput
+													placeholder="Search workspaces..."
+													className="text-xs"
+												/>
 												<CommandList>
-													<CommandEmpty>No workspaces found</CommandEmpty>
+													<CommandEmpty className="text-xs">
+														No workspaces found
+													</CommandEmpty>
 													<CommandGroup>
 														{workspaceOptions.map((workspace) => (
 															<CommandItem
+																className="text-xs font-normal"
 																key={workspace.id}
 																value={workspace.name}
 																onSelect={() => {

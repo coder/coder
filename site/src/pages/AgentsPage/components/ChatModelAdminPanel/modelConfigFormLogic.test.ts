@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	buildInitialModelFormValues,
 	buildModelConfigFromForm,
 	emptyModelConfigFormState,
 	extractModelConfigFormState,
@@ -89,6 +90,35 @@ const baseChatModelConfig: TypesGen.ChatModelConfig = {
 	created_at: "2025-01-01T00:00:00Z",
 	updated_at: "2025-01-01T00:00:00Z",
 };
+
+// ── buildInitialModelFormValues ────────────────────────────────
+
+describe("buildInitialModelFormValues", () => {
+	it("returns create mode defaults including enabled=true", () => {
+		expect(buildInitialModelFormValues()).toEqual({
+			model: "",
+			displayName: "",
+			enabled: true,
+			contextLimit: "",
+			compressionThreshold: "",
+			isDefault: false,
+			config: emptyModelConfigFormState,
+		});
+	});
+
+	it("preserves enabled=true when editing an enabled model", () => {
+		expect(buildInitialModelFormValues(baseChatModelConfig).enabled).toBe(true);
+	});
+
+	it("preserves enabled=false when editing a disabled model", () => {
+		expect(
+			buildInitialModelFormValues({
+				...baseChatModelConfig,
+				enabled: false,
+			}).enabled,
+		).toBe(false);
+	});
+});
 
 // ── parsePositiveInteger ───────────────────────────────────────
 
