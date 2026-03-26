@@ -884,15 +884,28 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent(agentId);
 	};
 
-	// Signal the parent layout that messages have loaded.
+	// Signal ready only after the store has synced fetched messages,
+	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
+	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
+	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
-		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
+		if (
+			chatReadyFiredRef.current === agentId ||
+			!chatMessagesQuery.isSuccess ||
+			(fetchedMessageCount > 0 && storeMessageCount === 0)
+		) {
 			return;
 		}
 		chatReadyFiredRef.current = agentId ?? null;
 		onChatReady();
-	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
+	}, [
+		onChatReady,
+		storeMessageCount,
+		fetchedMessageCount,
+		chatMessagesQuery.isSuccess,
+		agentId,
+	]);
 
 	const handleRegenerateTitle = () => {
 		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {
