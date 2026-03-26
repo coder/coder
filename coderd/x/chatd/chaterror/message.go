@@ -12,30 +12,30 @@ func userFacingMessage(classified ClassifiedError) string {
 		return optionalStatusMessage(
 			subject,
 			classified.StatusCode,
-			"%s is temporarily overloaded (HTTP %d). Please try again later.",
-			"%s is temporarily overloaded. Please try again later.",
+			"%s is temporarily overloaded (HTTP %d).",
+			"%s is temporarily overloaded.",
 		)
 	case KindRateLimit:
 		return optionalStatusMessage(
 			subject,
 			classified.StatusCode,
-			"%s is rate limiting requests (HTTP %d). Please try again later.",
-			"%s is rate limiting requests. Please try again later.",
+			"%s is rate limiting requests (HTTP %d).",
+			"%s is rate limiting requests.",
 		)
 	case KindTimeout:
 		if classified.StatusCode > 0 {
 			return fmt.Sprintf(
-				"%s is temporarily unavailable (HTTP %d). Please try again later.",
+				"%s is temporarily unavailable (HTTP %d).",
 				subject,
 				classified.StatusCode,
 			)
 		}
 		if classified.Retryable {
-			return fmt.Sprintf("%s is temporarily unavailable. Please try again later.", subject)
+			return fmt.Sprintf("%s is temporarily unavailable.", subject)
 		}
-		return "The request timed out before it completed. Please try again."
+		return "The request timed out before it completed."
 	case KindStartupTimeout:
-		return fmt.Sprintf("%s did not start responding in time. Please try again.", subject)
+		return fmt.Sprintf("%s did not start responding in time.", subject)
 	case KindAuth:
 		if displayName := providerDisplayName(classified.Provider); displayName != "" {
 			return fmt.Sprintf(
@@ -51,24 +51,19 @@ func userFacingMessage(classified ClassifiedError) string {
 		)
 	default:
 		if classified.StatusCode > 0 {
-			suffix := " Please try again."
-			if classified.Retryable {
-				suffix = " Please try again later."
-			}
 			return fmt.Sprintf(
-				"%s returned an unexpected error (HTTP %d).%s",
+				"%s returned an unexpected error (HTTP %d).",
 				subject,
 				classified.StatusCode,
-				suffix,
 			)
 		}
 		if classified.Retryable {
 			return fmt.Sprintf(
-				"%s returned an unexpected error. Please try again later.",
+				"%s returned an unexpected error.",
 				subject,
 			)
 		}
-		return "The chat request failed unexpectedly. Please try again."
+		return "The chat request failed unexpectedly."
 	}
 }
 

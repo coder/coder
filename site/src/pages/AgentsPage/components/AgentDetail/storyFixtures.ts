@@ -73,7 +73,7 @@ export const buildRetryState = (
 	overrides: Partial<RetryState> = {},
 ): RetryState => ({
 	attempt: 1,
-	error: "Anthropic returned an unexpected error. Please try again later.",
+	error: "Anthropic returned an unexpected error.",
 	kind: "generic",
 	provider: "anthropic",
 	delayMs: 2000,

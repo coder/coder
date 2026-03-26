@@ -15,7 +15,7 @@ const makeStreamState = (
 
 const makeRetryState = (overrides: Partial<RetryState> = {}): RetryState => ({
 	attempt: 2,
-	error: "Anthropic returned an unexpected error. Please try again later.",
+	error: "Anthropic returned an unexpected error.",
 	kind: "generic",
 	provider: "anthropic",
 	delayMs: 2000,

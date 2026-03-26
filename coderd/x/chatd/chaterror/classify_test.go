@@ -22,7 +22,7 @@ func TestClassify(t *testing.T) {
 			name: "AmbiguousOverloadKeepsProviderUnknown",
 			err:  xerrors.New("status 529 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is temporarily overloaded (HTTP 529). Please try again later.",
+				Message:    "The AI provider is temporarily overloaded (HTTP 529).",
 				Kind:       chaterror.KindOverloaded,
 				Provider:   "",
 				Retryable:  true,
@@ -33,7 +33,7 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitAnthropicOverload",
 			err:  xerrors.New("anthropic overloaded_error"),
 			want: chaterror.ClassifiedError{
-				Message:    "Anthropic is temporarily overloaded. Please try again later.",
+				Message:    "Anthropic is temporarily overloaded.",
 				Kind:       chaterror.KindOverloaded,
 				Provider:   "anthropic",
 				Retryable:  true,
@@ -110,7 +110,7 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitStatus429ClassifiesAsRateLimit",
 			err:  xerrors.New("status 429 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is rate limiting requests (HTTP 429). Please try again later.",
+				Message:    "The AI provider is rate limiting requests (HTTP 429).",
 				Kind:       chaterror.KindRateLimit,
 				Provider:   "",
 				Retryable:  true,
@@ -132,7 +132,7 @@ func TestClassify(t *testing.T) {
 			name: "ServiceUnavailableClassifiesAsRetryableTimeout",
 			err:  xerrors.New("service unavailable"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is temporarily unavailable. Please try again later.",
+				Message:    "The AI provider is temporarily unavailable.",
 				Kind:       chaterror.KindTimeout,
 				Provider:   "",
 				Retryable:  true,
@@ -176,7 +176,7 @@ func TestClassify(t *testing.T) {
 			name: "DeadlineExceededStaysNonRetryableTimeout",
 			err:  context.DeadlineExceeded,
 			want: chaterror.ClassifiedError{
-				Message:    "The request timed out before it completed. Please try again.",
+				Message:    "The request timed out before it completed.",
 				Kind:       chaterror.KindTimeout,
 				Provider:   "",
 				Retryable:  false,
@@ -279,7 +279,7 @@ func TestClassify_TransportFailuresUseBroaderRetryMessage(t *testing.T) {
 			require.True(t, classified.Retryable)
 			require.Equal(
 				t,
-				"The AI provider is temporarily unavailable. Please try again later.",
+				"The AI provider is temporarily unavailable.",
 				classified.Message,
 			)
 		})
@@ -299,7 +299,7 @@ func TestClassify_StartupTimeoutWrappedClassificationWins(t *testing.T) {
 	)
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI did not start responding in time. Please try again.",
+		Message:    "OpenAI did not start responding in time.",
 		Kind:       chaterror.KindStartupTimeout,
 		Provider:   "openai",
 		Retryable:  true,
@@ -315,7 +315,7 @@ func TestWithProviderUsesExplicitHint(t *testing.T) {
 
 	enriched := classified.WithProvider("azure openai")
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "Azure OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Message:    "Azure OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -331,7 +331,7 @@ func TestWithProviderAddsProviderWhenUnknown(t *testing.T) {
 
 	enriched := classified.WithProvider("openai")
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Message:    "OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,

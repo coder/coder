@@ -206,7 +206,7 @@ export const WithError: Story = {
 		<StoryAgentDetailView
 			persistedError={{
 				kind: "overloaded",
-				message: "Anthropic is currently overloaded. Please try again shortly.",
+				message: "Anthropic is currently overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,

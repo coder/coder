@@ -112,7 +112,7 @@ export const RetryRateLimited: Story = {
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
 				attempt: 3,
-				error: "Anthropic is rate limiting requests. Please try again later.",
+				error: "Anthropic is rate limiting requests.",
 				kind: "rate_limit",
 				delayMs: 3000,
 			}),
@@ -146,7 +146,7 @@ export const RetryInvalidTimestamp: Story = {
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
 				attempt: 3,
-				error: "Anthropic is rate limiting requests. Please try again later.",
+				error: "Anthropic is rate limiting requests.",
 				kind: "rate_limit",
 				delayMs: 3000,
 				retryingAt: "not-a-date",
@@ -181,7 +181,7 @@ export const RetryOverloaded: Story = {
 			retryState: buildRetryState({
 				kind: "overloaded",
 				provider: "anthropic",
-				error: "Anthropic is temporarily overloaded. Please try again later.",
+				error: "Anthropic is temporarily overloaded.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -210,7 +210,7 @@ export const RetryTimeout: Story = {
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
 				kind: "timeout",
-				error: "Anthropic is temporarily unavailable. Please try again later.",
+				error: "Anthropic is temporarily unavailable.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -241,7 +241,7 @@ export const RetryStartupTimeout: Story = {
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
 				kind: "startup_timeout",
-				error: "Anthropic did not start responding in time. Please try again.",
+				error: "Anthropic did not start responding in time.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),

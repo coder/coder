@@ -20,7 +20,7 @@ func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	payload := chaterror.StreamErrorPayload(classified)
 
 	require.Equal(t, &codersdk.ChatStreamError{
-		Message:    "Azure OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Message:    "Azure OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,

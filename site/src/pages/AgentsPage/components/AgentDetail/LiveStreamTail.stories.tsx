@@ -80,7 +80,7 @@ export const TerminalOverloadedError: Story = {
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "overloaded",
-				message: "Anthropic is currently overloaded. Please try again shortly.",
+				message: "Anthropic is currently overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -111,8 +111,7 @@ export const TerminalStartupTimeoutError: Story = {
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "startup_timeout",
-				message:
-					"Anthropic did not start responding in time. Please try again.",
+				message: "Anthropic did not start responding in time.",
 				provider: "anthropic",
 				retryable: true,
 			},
