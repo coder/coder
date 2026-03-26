@@ -168,9 +168,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
 					model: trimmedModel,
-					...(!values.enabled && {
-						enabled: false,
-					}),
+					enabled: values.enabled,
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -335,13 +333,19 @@ export const ModelForm: FC<ModelFormProps> = ({
 								onCheckedChange={(v) => {
 									form.setFieldValue("enabled", v);
 								}}
-								aria-label="Enabled"
+								aria-label={
+									form.values.enabled
+										? "Disable this model"
+										: "Enable this model"
+								}
 								disabled={isSaving}
 							/>
 						</span>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">
-						{form.values.enabled ? "Disable" : "Enable"} this model
+						{form.values.enabled
+							? "Disable this model — it will be hidden from users"
+							: "Enable this model — it will be visible to users"}
 					</TooltipContent>
 				</Tooltip>
 			</div>
