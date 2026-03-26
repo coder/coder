@@ -595,8 +595,9 @@ const ChatMessageItem = memo<{
 												/>
 											))}
 										</div>
-										)}
-										{fadeFromBottom && (										<div
+									)}
+									{fadeFromBottom && (
+										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{
 												background:
