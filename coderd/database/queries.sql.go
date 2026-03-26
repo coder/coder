@@ -4251,6 +4251,9 @@ type AppendChatFileIDsParams struct {
 	ChatID  uuid.UUID   `db:"chat_id" json:"chat_id"`
 }
 
+// AppendChatFileIDs appends file IDs to the chat's file_ids array, ensuring no duplicate (DISTINCT).
+// updated_at is always set to NOW() when this is called, even if no new file IDs are added.
+// A null argument for file_ids is treated as an empty array.
 func (q *sqlQuerier) AppendChatFileIDs(ctx context.Context, arg AppendChatFileIDsParams) error {
 	_, err := q.db.ExecContext(ctx, appendChatFileIDs, pq.Array(arg.FileIds), arg.ChatID)
 	return err

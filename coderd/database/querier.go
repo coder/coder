@@ -54,6 +54,9 @@ type sqlcQuerier interface {
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
+	// AppendChatFileIDs appends file IDs to the chat's file_ids array, ensuring no duplicate (DISTINCT).
+	// updated_at is always set to NOW() when this is called, even if no new file IDs are added.
+	// A null argument for file_ids is treated as an empty array.
 	AppendChatFileIDs(ctx context.Context, arg AppendChatFileIDsParams) error
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) error
 	// Archiving templates is a soft delete action, so is reversible.
