@@ -732,7 +732,7 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 	expected := &codersdk.ChatStreamRetry{
 		Attempt:    1,
 		DelayMs:    (1500 * time.Millisecond).Milliseconds(),
-		Error:      "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Error:      "OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
 		StatusCode: 429,
@@ -773,7 +773,7 @@ func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
 	defer cancel()
 
 	classified := chaterror.ClassifiedError{
-		Message:    "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Message:    "OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,

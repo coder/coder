@@ -4,7 +4,7 @@ import { Button } from "components/Button/Button";
 import { Pill } from "components/Pill/Pill";
 import { ExternalLinkIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
-import { getProviderStatusURL } from "./chatStatusHelpers";
+import { getKindLabel, getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
 const RESPONSE_STARTUP_GRACE_MS = 15_000;
@@ -130,9 +130,7 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 				: "warning";
 	const hasMetadata =
 		status.phase === "retrying" ||
-		status.provider !== undefined ||
-		(status.phase === "failed" && status.statusCode !== undefined) ||
-		(status.phase === "failed" && status.retryable !== undefined);
+		(status.phase === "failed" && status.statusCode !== undefined);
 
 	return (
 		<Alert
@@ -156,7 +154,7 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 						className="h-5 px-2.5 text-[10px] font-semibold"
 						type={pillType}
 					>
-						{status.kind}
+						{getKindLabel(status.kind)}
 					</Pill>
 				</div>
 				<AlertDescription>{status.message}</AlertDescription>
@@ -171,12 +169,9 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 						{status.phase === "retrying" && (
 							<span>Attempt {status.attempt}</span>
 						)}
-						{status.provider && <span>Provider {status.provider}</span>}
+
 						{status.phase === "failed" && status.statusCode !== undefined && (
 							<span>HTTP {status.statusCode}</span>
-						)}
-						{status.phase === "failed" && status.retryable !== undefined && (
-							<span>{status.retryable ? "Retryable" : "Not retryable"}</span>
 						)}
 					</div>
 				)}
