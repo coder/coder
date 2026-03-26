@@ -1634,6 +1634,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, modelConfig.ID)
 		require.Equal(t, "openai", modelConfig.Provider)
 		require.Equal(t, "gpt-4o-mini", modelConfig.Model)
+		require.Empty(t, modelConfig.ProviderConfigs)
 	})
 
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
