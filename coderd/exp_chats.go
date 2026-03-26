@@ -3583,7 +3583,6 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
 	displayName := strings.TrimSpace(model.DisplayName)
 	if displayName == "" {

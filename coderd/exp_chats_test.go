@@ -744,86 +744,87 @@ func TestWatchChats(t *testing.T) {
 		}
 	})
 
-		t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
-			t.Parallel()
+	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
+		t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
-			_ = coderdtest.CreateFirstUser(t, client.Client)
-			modelConfig := createChatModelConfig(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
 
-			conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
-			require.NoError(t, err)
-			defer conn.Close(websocket.StatusNormalClosure, "done")
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-			type watchEvent struct {
-				Type codersdk.ServerSentEventType `json:"type"`
-				Data json.RawMessage              `json:"data,omitempty"`
-			}
+		type watchEvent struct {
+			Type codersdk.ServerSentEventType `json:"type"`
+			Data json.RawMessage              `json:"data,omitempty"`
+		}
 
-			// Skip the initial ping.
-			var event watchEvent
-			err = wsjson.Read(ctx, conn, &event)
-			require.NoError(t, err)
-			require.Equal(t, codersdk.ServerSentEventTypePing, event.Type)
-			require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
+		// Skip the initial ping.
+		var event watchEvent
+		err = wsjson.Read(ctx, conn, &event)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServerSentEventTypePing, event.Type)
+		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
 
-			createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				Content: []codersdk.ChatInputPart{
-					{
-						Type: codersdk.ChatInputPartTypeText,
-						Text: "watch route fields completeness test",
-					},
+		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "watch route fields completeness test",
 				},
-			})
-			require.NoError(t, err)
+			},
+		})
+		require.NoError(t, err)
 
-			// The pubsub event must carry all chat fields, not
-			// just the subset used for routing. A partial Chat
-			// causes the frontend sidebar to lose the model name.
-			rootChatID := createdChat.ID
-				want := codersdk.Chat{
-					ID:                createdChat.ID,
-					OwnerID:           createdChat.OwnerID,
-					LastModelConfigID: modelConfig.ID,
-					Title:             createdChat.Title,
-					Status:            codersdk.ChatStatusPending,
-					RootChatID:        &rootChatID,
-					Archived:          false,
-					MCPServerIDs:      []uuid.UUID{},
-					Labels:            map[string]string{},
-				}
-			var got codersdk.Chat
-			testutil.Eventually(ctx, t, func(_ context.Context) bool {
-				var update watchEvent
-				if readErr := wsjson.Read(ctx, conn, &update); readErr != nil {
-					return false
-				}
-				if update.Type != codersdk.ServerSentEventTypeData {
-					return false
-				}
-				var payload coderdpubsub.ChatEvent
-				if unmarshalErr := json.Unmarshal(update.Data, &payload); unmarshalErr != nil {
-					return false
-				}
-				if payload.Kind == coderdpubsub.ChatEventKindCreated &&
-					payload.Chat.ID == createdChat.ID {
-					got = payload.Chat
-					return true
-				}
+		// The pubsub event must carry all chat fields, not
+		// just the subset used for routing. A partial Chat
+		// causes the frontend sidebar to lose the model name.
+		rootChatID := createdChat.ID
+		want := codersdk.Chat{
+			ID:                createdChat.ID,
+			OwnerID:           createdChat.OwnerID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             createdChat.Title,
+			Status:            codersdk.ChatStatusPending,
+			RootChatID:        &rootChatID,
+			Archived:          false,
+			MCPServerIDs:      []uuid.UUID{},
+			Labels:            map[string]string{},
+		}
+		var got codersdk.Chat
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+			var update watchEvent
+			if readErr := wsjson.Read(ctx, conn, &update); readErr != nil {
 				return false
-			}, testutil.IntervalFast, "expected a created event for chat %s", createdChat.ID)
+			}
+			if update.Type != codersdk.ServerSentEventTypeData {
+				return false
+			}
+			var payload coderdpubsub.ChatEvent
+			if unmarshalErr := json.Unmarshal(update.Data, &payload); unmarshalErr != nil {
+				return false
+			}
+			if payload.Kind == coderdpubsub.ChatEventKindCreated &&
+				payload.Chat.ID == createdChat.ID {
+				got = payload.Chat
+				return true
+			}
+			return false
+		}, testutil.IntervalFast, "expected a created event for chat %s", createdChat.ID)
 
-				// Compare the fields we care about, ignoring
-				// server-assigned timestamps.
-				got.CreatedAt = want.CreatedAt
-				got.UpdatedAt = want.UpdatedAt
-				if diff := cmp.Diff(want, got); diff != "" {
-					t.Fatalf("created event chat mismatch (-want +got):\n%s", diff)
-				}
-			})
+		// Compare the fields we care about, ignoring
+		// server-assigned timestamps.
+		got.CreatedAt = want.CreatedAt
+		got.UpdatedAt = want.UpdatedAt
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Fatalf("created event chat mismatch (-want +got):\n%s", diff)
+		}
+	})
 
-		t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {		t.Parallel()
+	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
+		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
