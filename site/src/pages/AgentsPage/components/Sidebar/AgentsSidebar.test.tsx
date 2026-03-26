@@ -53,7 +53,7 @@ vi.mock("hooks", async () => {
 // ---- Helpers ----
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-const todayTimestamp = new Date().toISOString();
+const recentTimestamp = new Date().toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
@@ -495,7 +495,7 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-pinned",
 							title: "My Pinned Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 							pin_order: 1,
 						}),
 					]}
@@ -516,13 +516,13 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-pinned",
 							title: "Pinned Today Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 							pin_order: 1,
 						}),
 						buildChat({
 							id: "chat-unpinned",
 							title: "Regular Today Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 						}),
 					]}
 				/>
@@ -551,7 +551,7 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-1",
 							title: "Unpinned Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 						}),
 					]}
 				/>
@@ -579,7 +579,7 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-pinned",
 							title: "Pinned Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 							pin_order: 1,
 						}),
 					]}
@@ -610,7 +610,7 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-to-pin",
 							title: "Chat To Pin",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 						}),
 					]}
 				/>
@@ -641,7 +641,7 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-to-unpin",
 							title: "Chat To Unpin",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 							pin_order: 1,
 						}),
 					]}
@@ -669,13 +669,13 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-pinned",
 							title: "Pinned Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 							pin_order: 1,
 						}),
 						buildChat({
 							id: "chat-unpinned",
 							title: "Unpinned Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 						}),
 					]}
 				/>
@@ -695,7 +695,7 @@ describe("Pinned chats", () => {
 						buildChat({
 							id: "chat-today",
 							title: "Today Chat",
-							updated_at: todayTimestamp,
+							updated_at: recentTimestamp,
 						}),
 					]}
 				/>

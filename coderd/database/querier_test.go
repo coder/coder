@@ -10497,10 +10497,12 @@ func TestChatPinOrderQueries(t *testing.T) {
 		t.Helper()
 
 		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
 		owner := dbgen.User(t, db, database.User{})
 
-		_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		// Use background context for fixture setup so the
+		// timed test context doesn't tick during DB init.
+		bg := context.Background()
+		_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
 			Provider:    "openai",
 			DisplayName: "OpenAI",
 			APIKey:      "test-key",
@@ -10508,7 +10510,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		modelCfg, err := db.InsertChatModelConfig(bg, database.InsertChatModelConfigParams{
 			Provider:             "openai",
 			Model:                "test-model",
 			DisplayName:          "Test Model",
@@ -10522,6 +10524,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		return ctx, db, owner.ID, modelCfg.ID
 	}
 
