@@ -1359,9 +1359,9 @@ var manualTitleLockWorkerID = uuid.MustParse(
 
 const manualTitleLockStaleAfter = time.Minute
 
-func isActiveChatStatus(status database.ChatStatus) bool {
+func isPendingOrRunningChatStatus(status database.ChatStatus) bool {
 	switch status {
-	case database.ChatStatusWaiting, database.ChatStatusPending, database.ChatStatusRunning:
+	case database.ChatStatusPending, database.ChatStatusRunning:
 		return true
 	default:
 		return false
@@ -1386,7 +1386,8 @@ func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) e
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
 		}
-		if (isActiveChatStatus(lockedChat.Status) && lockedChat.WorkerID.Valid) || isFreshManualTitleLock(lockedChat, now) {
+		if isPendingOrRunningChatStatus(lockedChat.Status) ||
+			isFreshManualTitleLock(lockedChat, now) {
 			return ErrManualTitleRegenerationInProgress
 		}
 		_, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{

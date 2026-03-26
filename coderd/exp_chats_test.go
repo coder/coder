@@ -3615,6 +3615,55 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
 	})
 
+	t.Run("PendingWithoutWorker", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "pending chat without worker",
+		})
+		require.NoError(t, err)
+
+		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		require.NoError(t, err)
+
+		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
+
+		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusPending, persisted.Status)
+		require.False(t, persisted.WorkerID.Valid)
+		require.True(t, persisted.UpdatedAt.Equal(before.UpdatedAt))
+	})
+
 	t.Run("RegenerationFailure", func(t *testing.T) {
 		t.Parallel()
 
