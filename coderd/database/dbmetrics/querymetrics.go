@@ -1184,14 +1184,6 @@ func (m queryMetricsStore) GetChatProviderByID(ctx context.Context, id uuid.UUID
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatProviderByProvider(ctx, provider)
-	m.queryLatencies.WithLabelValues("GetChatProviderByProvider").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviderByProvider").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProviders(ctx)
@@ -1397,6 +1389,14 @@ func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context) ([]da
 	r0, r1 := m.s.GetEnabledChatModelConfigs(ctx)
 	m.queryLatencies.WithLabelValues("GetEnabledChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledChatModelConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (database.ChatProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledChatProviderByProvider(ctx, provider)
+	m.queryLatencies.WithLabelValues("GetEnabledChatProviderByProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledChatProviderByProvider").Inc()
 	return r0, r1
 }
 

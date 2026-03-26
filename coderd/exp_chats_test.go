@@ -1222,6 +1222,58 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.Equal(t, "Only one enabled provider config per provider family is allowed.", sdkErr.Message)
 	})
 
+	t.Run("FlipEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		first, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Primary",
+			APIKey:      "key-1",
+		})
+		require.NoError(t, err)
+
+		disabled := false
+		second, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Secondary",
+			APIKey:      "key-2",
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+
+		firstDisabled, err := client.UpdateChatProvider(ctx, first.ID, codersdk.UpdateChatProviderConfigRequest{
+			DisplayName: first.DisplayName,
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+		require.False(t, firstDisabled.Enabled)
+
+		enabled := true
+		secondEnabled, err := client.UpdateChatProvider(ctx, second.ID, codersdk.UpdateChatProviderConfigRequest{
+			DisplayName: second.DisplayName,
+			Enabled:     &enabled,
+		})
+		require.NoError(t, err)
+		require.True(t, secondEnabled.Enabled)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+
+		providerByID := make(map[uuid.UUID]codersdk.ChatProviderConfig, len(providers))
+		for _, provider := range providers {
+			providerByID[provider.ID] = provider
+		}
+
+		require.Contains(t, providerByID, first.ID)
+		require.Contains(t, providerByID, second.ID)
+		require.False(t, providerByID[first.ID].Enabled)
+		require.True(t, providerByID[second.ID].Enabled)
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 

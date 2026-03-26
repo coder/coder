@@ -3765,34 +3765,6 @@ func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (Cha
 	return i, err
 }
 
-const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
-FROM
-    chat_providers
-WHERE
-    provider = $1::text
-    AND enabled = TRUE
-`
-
-func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, getChatProviderByProvider, provider)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-	)
-	return i, err
-}
-
 const getChatProviders = `-- name: GetChatProviders :many
 SELECT
     id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
@@ -3834,6 +3806,34 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const getEnabledChatProviderByProvider = `-- name: GetEnabledChatProviderByProvider :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+FROM
+    chat_providers
+WHERE
+    provider = $1::text
+    AND enabled = TRUE
+`
+
+func (q *sqlQuerier) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getEnabledChatProviderByProvider, provider)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+	)
+	return i, err
 }
 
 const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many

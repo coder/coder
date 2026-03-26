@@ -6,7 +6,7 @@ FROM
 WHERE
     id = @id::uuid;
 
--- name: GetChatProviderByProvider :one
+-- name: GetEnabledChatProviderByProvider :one
 SELECT
     *
 FROM
