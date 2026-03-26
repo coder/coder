@@ -564,7 +564,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
-									{!chat.archived && (
+									{!chat.archived && !isChildNode && (
 										<DropdownMenuItem
 											onSelect={() =>
 												chat.pin_order > 0
@@ -572,6 +572,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													: onPinChat(chat.id)
 											}
 										>
+											{" "}
 											{chat.pin_order > 0 ? (
 												<>
 													<PinOffIcon className="h-3.5 w-3.5" />
