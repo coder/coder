@@ -69,6 +69,21 @@ func (mr *MockAgentConnMockRecorder) AwaitReachable(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AwaitReachable", reflect.TypeOf((*MockAgentConn)(nil).AwaitReachable), ctx)
 }
 
+// CallMCPTool mocks base method.
+func (m *MockAgentConn) CallMCPTool(ctx context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CallMCPTool", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.CallMCPToolResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CallMCPTool indicates an expected call of CallMCPTool.
+func (mr *MockAgentConnMockRecorder) CallMCPTool(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallMCPTool", reflect.TypeOf((*MockAgentConn)(nil).CallMCPTool), ctx, req)
+}
+
 // Close mocks base method.
 func (m *MockAgentConn) Close() error {
 	m.ctrl.T.Helper()
@@ -243,6 +258,21 @@ func (m *MockAgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceA
 func (mr *MockAgentConnMockRecorder) ListContainers(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListContainers", reflect.TypeOf((*MockAgentConn)(nil).ListContainers), ctx)
+}
+
+// ListMCPTools mocks base method.
+func (m *MockAgentConn) ListMCPTools(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListMCPTools", ctx)
+	ret0, _ := ret[0].(workspacesdk.ListMCPToolsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListMCPTools indicates an expected call of ListMCPTools.
+func (mr *MockAgentConnMockRecorder) ListMCPTools(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPTools", reflect.TypeOf((*MockAgentConn)(nil).ListMCPTools), ctx)
 }
 
 // ListProcesses mocks base method.

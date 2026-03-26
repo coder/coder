@@ -116,6 +116,11 @@ type Server struct {
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
+	// workspaceMCPToolsCache caches workspace MCP tool definitions
+	// per chat to avoid re-fetching on every turn. The cache is
+	// keyed by chat ID and invalidated when the agent changes.
+	workspaceMCPToolsCache sync.Map // uuid.UUID -> *cachedWorkspaceMCPTools
+
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
 
@@ -154,6 +159,13 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 		m[id] = true
 	}
 	return m
+}
+
+// cachedWorkspaceMCPTools stores workspace MCP tools discovered
+// from a workspace agent, keyed by the agent ID that provided them.
+type cachedWorkspaceMCPTools struct {
+	agentID uuid.UUID
+	tools   []workspacesdk.MCPToolInfo
 }
 
 type turnWorkspaceContext struct {
@@ -2020,6 +2032,7 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	if !state.buffering && len(state.subscribers) == 0 {
 		p.chatStreams.Delete(chatID)
+		p.workspaceMCPToolsCache.Delete(chatID)
 	}
 }
 
@@ -3240,6 +3253,7 @@ func (p *Server) runChat(
 		resolvedUserPrompt string
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
+		workspaceMCPTools  []fantasy.AgentTool
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3292,6 +3306,62 @@ func (p *Server) runChat(
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx, logger, mcpConfigs, mcpTokens,
 			)
+			return nil
+		})
+	}
+	if chat.WorkspaceID.Valid {
+		g2.Go(func() error {
+			// Check cache first. On subsequent turns with the same
+			// agent, reuse cached tools to avoid a round-trip.
+			if cached, ok := p.workspaceMCPToolsCache.Load(chat.ID); ok {
+				entry, ok2 := cached.(*cachedWorkspaceMCPTools)
+				if !ok2 {
+					return nil
+				}
+				// Verify the agent hasn't changed.
+				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID == entry.agentID {
+					for _, t := range entry.tools {
+						workspaceMCPTools = append(workspaceMCPTools,
+							chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+						)
+					}
+					return nil
+				}
+			}
+
+			// Cache miss or agent changed — fetch fresh tools.
+			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
+			if connErr != nil {
+				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
+					slog.Error(connErr))
+				return nil
+			}
+			toolsResp, listErr := conn.ListMCPTools(ctx)
+			if listErr != nil {
+				logger.Warn(ctx, "failed to list workspace MCP tools",
+					slog.Error(listErr))
+				return nil
+			}
+
+			// Cache the result for subsequent turns. Skip
+			// caching when the list is empty because the
+			// agent's MCP Connect may not have finished yet;
+			// caching an empty list would hide tools
+			// permanently.
+			if len(toolsResp.Tools) > 0 {
+				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+					p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
+						agentID: agent.ID,
+						tools:   toolsResp.Tools,
+					})
+				}
+			}
+
+			for _, t := range toolsResp.Tools {
+				workspaceMCPTools = append(workspaceMCPTools,
+					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+				)
+			}
 			return nil
 		})
 	}
@@ -3713,6 +3783,7 @@ func (p *Server) runChat(
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
 	tools = append(tools, mcpTools...)
+	tools = append(tools, workspaceMCPTools...)
 
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
