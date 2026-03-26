@@ -506,14 +506,11 @@ const openAddModelForm = async (
 	body: ReturnType<typeof within>,
 	providerLabel: string,
 ) => {
-	// Click the dropdown trigger to open the provider menu.
 	const trigger = await body.findByRole("button", { name: "Add model" });
 	await userEvent.click(trigger);
-	// Radix portals dropdown content into the document body.
-	// Wait for the menu to appear and click the provider item.
 	await waitFor(async () => {
 		const item = body.getByRole("menuitem", {
-			name: new RegExp(providerLabel, "i"),
+			name: new RegExp(`^${providerLabel}$`, "i"),
 		});
 		await userEvent.click(item);
 	});
@@ -683,6 +680,71 @@ export const UpdateModelEnabledToggle: Story = {
 			name: /gpt test enabled/i,
 		});
 		await expect(within(modelRow).getByText("disabled")).toBeVisible();
+	},
+};
+
+export const CreateModelMultiConfig: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai-prod",
+					provider: "openai",
+					display_name: "OpenAI Production",
+					source: "database",
+					has_api_key: true,
+				}),
+				createProviderConfig({
+					id: "provider-openai-dev",
+					provider: "openai",
+					display_name: "",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		const trigger = await body.findByRole("button", { name: "Add model" });
+		await userEvent.click(trigger);
+
+		await waitFor(() => {
+			expect(
+				body.getByRole("menuitem", { name: /^OpenAI Production$/i }),
+			).toBeInTheDocument();
+			expect(
+				body.getByRole("menuitem", { name: /^OpenAI 2$/i }),
+			).toBeInTheDocument();
+		});
+
+		await userEvent.click(body.getByRole("menuitem", { name: /^OpenAI 2$/i }));
+
+		await waitFor(() => {
+			expect(body.getByLabelText(/Model Identifier/i)).toBeInTheDocument();
+		});
+
+		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
+
+		const submitButton = body.getByRole("button", { name: "Add model" });
+		await userEvent.click(submitButton);
+
+		await waitFor(() => {
+			expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
+				expect.objectContaining({ provider: "openai" }),
+			);
+		});
+
+		const call = (
+			API.experimental.createChatModelConfig as unknown as ReturnType<
+				typeof spyOn
+			>
+		).mock.calls[0][0] as Record<string, unknown>;
+		expect(call).not.toHaveProperty("provider_config_id");
 	},
 };
 
@@ -880,6 +942,11 @@ export const ModelDeleteConfirmation: Story = {
 
 		// Click the model row to open the edit form.
 		await userEvent.click(await body.findByText("GPT-4o"));
+
+		const providerSelect = await body.findByRole("combobox", {
+			name: /provider/i,
+		});
+		await expect(providerSelect).toBeDisabled();
 
 		// The Delete button should be visible in the footer.
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
