@@ -137,8 +137,25 @@ func TestParseConfig(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "EmptyTransport",
+			name: "ServerNameTrailingUnderscore",
 			content: mustJSON(t, map[string]any{
+				"mcpServers": map[string]any{
+					"server_": map[string]any{"command": "run"},
+				},
+			}),
+			expectError: true,
+		},
+		{
+			name: "ServerNameLeadingUnderscore",
+			content: mustJSON(t, map[string]any{
+				"mcpServers": map[string]any{
+					"_server": map[string]any{"command": "run"},
+				},
+			}),
+			expectError: true,
+		},
+		{
+			name: "EmptyTransport", content: mustJSON(t, map[string]any{
 				"mcpServers": map[string]any{
 					"empty": map[string]any{},
 				},

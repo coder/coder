@@ -60,8 +60,8 @@ func ParseConfig(path string) ([]ServerConfig, error) {
 			return nil, xerrors.Errorf("parse server %q in %q: %w", name, path, err)
 		}
 
-		if strings.Contains(name, ToolNameSep) {
-			return nil, xerrors.Errorf("server name %q in %q contains reserved separator %q", name, path, ToolNameSep)
+		if strings.Contains(name, ToolNameSep) || strings.HasPrefix(name, "_") || strings.HasSuffix(name, "_") {
+			return nil, xerrors.Errorf("server name %q in %q contains reserved separator %q or leading/trailing underscore", name, path, ToolNameSep)
 		}
 
 		transport := inferTransport(entry)
