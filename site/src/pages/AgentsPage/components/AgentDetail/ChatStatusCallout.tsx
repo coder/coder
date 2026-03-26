@@ -130,8 +130,7 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 				: "warning";
 	const hasMetadata =
 		status.phase === "retrying" ||
-		(status.phase === "failed" && status.statusCode !== undefined) ||
-		(status.phase === "failed" && status.retryable !== undefined);
+		(status.phase === "failed" && status.statusCode !== undefined);
 
 	return (
 		<Alert
@@ -173,9 +172,6 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 
 						{status.phase === "failed" && status.statusCode !== undefined && (
 							<span>HTTP {status.statusCode}</span>
-						)}
-						{status.phase === "failed" && status.retryable !== undefined && (
-							<span>{status.retryable ? "Retryable" : "Not retryable"}</span>
 						)}
 					</div>
 				)}

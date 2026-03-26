@@ -213,6 +213,18 @@ export const WithError: Story = {
 			}}
 		/>
 	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /service overloaded/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is currently overloaded\./i),
+		).toBeVisible();
+		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
+		expect(canvas.getByText(/http 529/i)).toBeVisible();
+	},
 };
 
 /** Input area appears disabled when `isInputDisabled` is true. */

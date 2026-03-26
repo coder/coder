@@ -93,6 +93,11 @@ export const TerminalOverloadedError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(canvas.getByText("Overloaded")).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is currently overloaded./i),
+		).toBeVisible();
+		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 		expect(canvas.getByText(/http 529/i)).toBeVisible();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
@@ -120,9 +125,10 @@ export const TerminalStartupTimeoutError: Story = {
 		).toBeVisible();
 		expect(canvas.getByText("Startup timeout")).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic did not start responding in time/i),
+			canvas.getByText(/anthropic did not start responding in time./i),
 		).toBeVisible();
-		expect(canvas.getByText(/retryable/i)).toBeVisible();
+		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();

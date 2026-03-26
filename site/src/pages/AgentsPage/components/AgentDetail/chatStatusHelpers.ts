@@ -52,8 +52,20 @@ const getProviderDisplayName = (provider?: string): string | undefined => {
 	return normalized ? PROVIDER_DISPLAY_NAMES[normalized] : undefined;
 };
 
+const TERMINAL_RETRY_CTA_SUFFIX =
+	/\s+Please try again(?: (?:later|shortly))?\.\s*$/i;
+
 const getRetryProviderSubject = (provider?: string): string =>
 	getProviderDisplayName(provider) ?? "the AI provider";
+
+export const getFailedMessage = (message: string): string => {
+	const trimmed = message.trim();
+	if (!trimmed) {
+		return "Chat processing failed.";
+	}
+
+	return trimmed.replace(TERMINAL_RETRY_CTA_SUFFIX, ".");
+};
 
 export const getErrorTitle = (
 	kind: ChatProviderFailureKind | (string & {}),

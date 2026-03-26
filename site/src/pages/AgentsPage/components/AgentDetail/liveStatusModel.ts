@@ -1,5 +1,9 @@
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
-import { getErrorTitle, getRetryMessage } from "./chatStatusHelpers";
+import {
+	getErrorTitle,
+	getFailedMessage,
+	getRetryMessage,
+} from "./chatStatusHelpers";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
 type LiveStatusBase = {
@@ -37,7 +41,6 @@ export type LiveStatusModel =
 			kind: string;
 			message: string;
 			provider?: string;
-			retryable?: boolean;
 			statusCode?: number;
 	  } & LiveStatusBase);
 
@@ -87,9 +90,8 @@ const toFailedLiveStatus = (
 	hasAccumulatedOutput: options.hasAccumulatedOutput ?? false,
 	title: getErrorTitle(error.kind, "error"),
 	kind: error.kind,
-	message: error.message,
+	message: getFailedMessage(error.message),
 	provider: error.provider,
-	retryable: error.retryable,
 	statusCode: error.statusCode,
 });
 

@@ -84,7 +84,6 @@ describe("deriveLiveStatus", () => {
 		kind: "generic",
 		message: "Chat processing failed.",
 		provider: "anthropic",
-		retryable: false,
 		statusCode: 500,
 	};
 
