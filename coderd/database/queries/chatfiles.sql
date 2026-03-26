@@ -10,6 +10,7 @@ SELECT * FROM chat_files WHERE id = @id::uuid;
 SELECT * FROM chat_files WHERE id = ANY(@ids::uuid[]);
 
 -- name: GetChatFileMetadataByIDs :many
+-- GetChatFileMetadataByIDs selects only metadata fields for the given list of IDs. The data field is explicitly excluded.
 SELECT id, owner_id, organization_id, name, mimetype, created_at
 FROM chat_files
 WHERE id = ANY(@ids::uuid[])

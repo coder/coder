@@ -2841,6 +2841,7 @@ type GetChatFileMetadataByIDsRow struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
+// GetChatFileMetadataByIDs selects only metadata fields for the given list of IDs. The data field is explicitly excluded.
 func (q *sqlQuerier) GetChatFileMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]GetChatFileMetadataByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatFileMetadataByIDs, pq.Array(ids))
 	if err != nil {
@@ -5373,7 +5374,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 }
 
 const getChatsByWorkspaceIDs = `-- name: GetChatsByWorkspaceIDs :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, file_ids
 FROM chats
 WHERE archived = false
   AND workspace_id = ANY($1::uuid[])
@@ -5410,6 +5411,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 			&i.Labels,
 			&i.BuildID,
 			&i.AgentID,
+			pq.Array(&i.FileIds),
 		); err != nil {
 			return nil, err
 		}
