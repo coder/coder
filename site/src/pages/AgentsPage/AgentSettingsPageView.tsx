@@ -11,7 +11,6 @@ import {
 } from "react-query";
 import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
-import { formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
 import { countInvisibleCharacters } from "utils/invisibleUnicode";
@@ -61,7 +60,11 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import {
+	ChatCostSummaryView,
+	InputTokensCell,
+	OutputTokensCell,
+} from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 import {
 	DateRangePicker,
@@ -137,7 +140,7 @@ const UserRow: FC<{
 			{...clickableRowProps}
 			aria-label={`View details for ${user.name || user.username}`}
 		>
-			<TableCell className="min-w-[220px] px-4 py-3">
+			<TableCell>
 				<AvatarData
 					title={user.name || user.username}
 					subtitle={`@${user.username}`}
@@ -145,26 +148,20 @@ const UserRow: FC<{
 					imgFallbackText={user.username}
 				/>
 			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatCostMicros(user.total_cost_micros)}
+			<TableCell>{formatCostMicros(user.total_cost_micros)}</TableCell>
+			<TableCell>{user.message_count.toLocaleString()}</TableCell>
+			<TableCell>{user.chat_count.toLocaleString()}</TableCell>
+			<TableCell>
+				<InputTokensCell
+					inputTokens={user.total_input_tokens}
+					cacheReadTokens={user.total_cache_read_tokens}
+				/>
 			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{user.message_count.toLocaleString()}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{user.chat_count.toLocaleString()}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_input_tokens)}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_output_tokens)}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_cache_read_tokens)}
-			</TableCell>
-			<TableCell className="px-4 py-3 text-right">
-				{formatTokenCount(user.total_cache_creation_tokens)}
+			<TableCell>
+				<OutputTokensCell
+					outputTokens={user.total_output_tokens}
+					cacheWriteTokens={user.total_cache_creation_tokens}
+				/>
 			</TableCell>
 		</TableRow>
 	);
@@ -438,33 +435,17 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 							No usage data for this period.
 						</p>
 					) : (
-						<>
+						<div className="flex flex-col gap-4">
 							<div className="overflow-hidden rounded-lg border border-border-default">
 								<Table>
 									<TableHeader>
-										<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
-											<TableHead className="px-4 py-3">User</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Total Cost
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Messages
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Chats
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Input Tokens
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Output Tokens
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Cache Read
-											</TableHead>
-											<TableHead className="px-4 py-3 text-right">
-												Cache Write
-											</TableHead>
+										<TableRow>
+											<TableHead>User</TableHead>
+											<TableHead>Cost</TableHead>
+											<TableHead>Messages</TableHead>
+											<TableHead>Chats</TableHead>
+											<TableHead>Input</TableHead>
+											<TableHead>Output</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -492,7 +473,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 								hasPreviousPage={hasPreviousPage}
 								hasNextPage={hasNextPage}
 							/>
-						</>
+						</div>
 					)}
 				</div>
 			)}

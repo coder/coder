@@ -15,6 +15,62 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+
+export const InputTokensCell: FC<{
+	inputTokens: number;
+	cacheReadTokens: number;
+}> = ({ inputTokens, cacheReadTokens }) => (
+	<TooltipProvider delayDuration={0}>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span>{formatTokenCount(inputTokens)}</span>
+			</TooltipTrigger>
+			<TooltipContent side="top">
+				<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
+					<span className="text-content-secondary">Input</span>
+					<span className="text-right tabular-nums">
+						{inputTokens.toLocaleString()}
+					</span>
+					<span className="text-content-secondary">Cache read</span>
+					<span className="text-right tabular-nums">
+						{cacheReadTokens.toLocaleString()}
+					</span>
+				</div>
+			</TooltipContent>
+		</Tooltip>
+	</TooltipProvider>
+);
+
+export const OutputTokensCell: FC<{
+	outputTokens: number;
+	cacheWriteTokens: number;
+}> = ({ outputTokens, cacheWriteTokens }) => (
+	<TooltipProvider delayDuration={0}>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span>{formatTokenCount(outputTokens)}</span>
+			</TooltipTrigger>
+			<TooltipContent side="top">
+				<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
+					<span className="text-content-secondary">Output</span>
+					<span className="text-right tabular-nums">
+						{outputTokens.toLocaleString()}
+					</span>
+					<span className="text-content-secondary">Cache write</span>
+					<span className="text-right tabular-nums">
+						{cacheWriteTokens.toLocaleString()}
+					</span>
+				</div>
+			</TooltipContent>
+		</Tooltip>
+	</TooltipProvider>
+);
 
 interface ChatCostSummaryViewProps {
 	summary: TypesGen.ChatCostSummary | undefined;
@@ -120,7 +176,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		<div className="space-y-6">
 			<div className="grid grid-cols-2 gap-4 md:grid-cols-3">
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Total Cost
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -128,7 +184,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Input Tokens
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -136,7 +192,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Output Tokens
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -144,7 +200,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Cache Read
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -152,7 +208,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Cache Write
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -160,7 +216,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+					<p className="text-xs font-medium tracking-wide text-content-secondary">
 						Messages
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
@@ -176,7 +232,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					<div className="flex flex-col gap-4">
 						<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
 							<div>
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+								<p className="text-xs font-medium tracking-wide text-content-secondary">
 									{usageLimitPeriodLabel} Spend Limit
 								</p>
 								{usageLimitCurrentPeriod && (
@@ -240,25 +296,17 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					{emptyMessage}
 				</p>
 			) : (
-				<>
+				<div className="flex flex-col gap-6">
 					<div className="overflow-x-auto rounded-lg border border-border-default">
 						<Table className="text-sm" aria-label="Cost breakdown by model">
 							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Model</TableHead>
-									<TableHead className="px-4 py-3">Provider</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
+								<TableRow>
+									<TableHead>Model</TableHead>
+									<TableHead>Provider</TableHead>
+									<TableHead>Cost</TableHead>
+									<TableHead>Messages</TableHead>
+									<TableHead>Input</TableHead>
+									<TableHead>Output</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -267,53 +315,42 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										key={model.model_config_id}
 										className="border-t border-border-default"
 									>
-										<TableCell className="px-4 py-3">
-											{model.display_name || model.model}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-content-secondary">
+										<TableCell>{model.display_name || model.model}</TableCell>
+										<TableCell className="text-content-secondary">
 											{model.provider}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatCostMicros(model.total_cost_micros)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{model.message_count.toLocaleString()}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_input_tokens)}
+										<TableCell>
+											<InputTokensCell
+												inputTokens={model.total_input_tokens}
+												cacheReadTokens={model.total_cache_read_tokens}
+											/>
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_output_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_cache_read_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_cache_creation_tokens)}
+										<TableCell>
+											<OutputTokensCell
+												outputTokens={model.total_output_tokens}
+												cacheWriteTokens={model.total_cache_creation_tokens}
+											/>
 										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
 						</Table>
 					</div>
-
 					<div className="overflow-x-auto rounded-lg border border-border-default">
 						<Table className="text-sm" aria-label="Cost breakdown by chat">
 							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Chat</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
+								<TableRow>
+									<TableHead>Chat</TableHead>
+									<TableHead>Cost</TableHead>
+									<TableHead>Messages</TableHead>
+									<TableHead>Input</TableHead>
+									<TableHead>Output</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -322,37 +359,35 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										key={chat.root_chat_id}
 										className="border-t border-border-default"
 									>
-										<TableCell className="px-4 py-3">
+										<TableCell>
 											{chat.chat_title || (
 												<span className="italic text-content-secondary">
 													Untitled chat
 												</span>
 											)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
+										<TableCell>
 											{formatCostMicros(chat.total_cost_micros)}
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{chat.message_count.toLocaleString()}
+										<TableCell>{chat.message_count.toLocaleString()}</TableCell>
+										<TableCell>
+											<InputTokensCell
+												inputTokens={chat.total_input_tokens}
+												cacheReadTokens={chat.total_cache_read_tokens}
+											/>
 										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_input_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_output_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_cache_read_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_cache_creation_tokens)}
+										<TableCell>
+											<OutputTokensCell
+												outputTokens={chat.total_output_tokens}
+												cacheWriteTokens={chat.total_cache_creation_tokens}
+											/>
 										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
 						</Table>
 					</div>
-				</>
+				</div>
 			)}
 		</div>
 	);
