@@ -7,13 +7,19 @@ WHERE
     id = @id::uuid;
 
 -- name: GetEnabledChatProviderByProvider :one
+-- Returns the oldest enabled provider config for a given provider family.
+-- Multiple enabled configs may exist per family; this returns the
+-- first-created one.
 SELECT
     *
 FROM
     chat_providers
 WHERE
     provider = @provider::text
-    AND enabled = TRUE;
+    AND enabled = TRUE
+ORDER BY
+    created_at ASC
+LIMIT 1;
 
 -- name: GetChatProviders :many
 SELECT

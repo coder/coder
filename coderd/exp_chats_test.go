@@ -1094,7 +1094,7 @@ func TestCreateChatProvider(t *testing.T) {
 		require.Equal(t, "Invalid provider.", sdkErr.Message)
 	})
 
-	t.Run("Conflict", func(t *testing.T) {
+	t.Run("CreateSecondEnabledConfig", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)

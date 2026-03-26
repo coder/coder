@@ -290,6 +290,9 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
+	// Returns the oldest enabled provider config for a given provider family.
+	// Multiple enabled configs may exist per family; this returns the
+	// first-created one.
 	GetEnabledChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
 	GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
