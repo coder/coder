@@ -15,6 +15,8 @@ import (
 	"github.com/dave/dst/decorator"
 	"github.com/dave/dst/decorator/resolver/goast"
 	"github.com/dave/dst/decorator/resolver/guess"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/tools/imports"
 	"golang.org/x/xerrors"
 
@@ -428,7 +430,7 @@ func nameFromSnakeCase(s string) string {
 		case "fkey":
 			// ignore
 		default:
-			ret += strings.Title(ss)
+			ret += cases.Title(language.English).String(ss)
 		}
 	}
 	return ret

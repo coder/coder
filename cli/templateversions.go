@@ -2,10 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -173,7 +174,7 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			Name:            templateVersion.Name,
 			CreatedAt:       templateVersion.CreatedAt,
 			CreatedBy:       templateVersion.CreatedBy.Username,
-			Status:          strings.Title(string(templateVersion.Job.Status)),
+			Status:          cases.Title(language.English).String(string(templateVersion.Job.Status)),
 			Active:          activeStatus,
 			Archived:        archivedStatus,
 		}
