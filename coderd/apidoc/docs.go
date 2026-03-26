@@ -17426,6 +17426,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
+                },
                 "is_service_account": {
                     "type": "boolean"
                 },
@@ -20222,6 +20226,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "email"
                 },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -21070,6 +21078,10 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "format": "email"
+                },
+                "has_ai_seat": {
+                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",

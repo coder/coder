@@ -2173,6 +2173,14 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetQuotaConsumedForUser(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionRead).Returns(int64(0))
 	}))
+	s.Run("GetUserAISeatStates", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.User{})
+		b := testutil.Fake(s.T(), faker, database.User{})
+		ids := []uuid.UUID{a.ID, b.ID}
+		seatStates := []uuid.UUID{a.ID}
+		dbm.EXPECT().GetUserAISeatStates(gomock.Any(), ids).Return(seatStates, nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceUser, policy.ActionRead).Returns(seatStates)
+	}))
 	s.Run("GetUserByEmailOrUsername", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.GetUserByEmailOrUsernameParams{Email: u.Email}

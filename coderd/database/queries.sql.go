@@ -1600,6 +1600,48 @@ func (q *sqlQuerier) UpsertAISeatState(ctx context.Context, arg UpsertAISeatStat
 	return is_new, err
 }
 
+const getUserAISeatStates = `-- name: GetUserAISeatStates :many
+SELECT
+	ais.user_id
+FROM
+	ai_seat_state ais
+JOIN
+	users u
+ON
+	ais.user_id = u.id
+WHERE
+	ais.user_id = ANY($1::uuid[])
+	AND u.status = 'active'::user_status
+	AND u.deleted = false
+	AND u.is_system = false
+`
+
+// Returns user IDs from the provided list that are consuming an AI seat.
+// Filters to active, non-deleted, non-system users to match the canonical
+// seat count query (GetActiveAISeatCount).
+func (q *sqlQuerier) GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getUserAISeatStates, pq.Array(userIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys
