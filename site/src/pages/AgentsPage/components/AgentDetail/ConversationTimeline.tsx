@@ -69,6 +69,7 @@ const ReasoningDisclosure: FC<{
 				<Response
 					className="text-[11px] text-content-secondary"
 					urlTransform={urlTransform}
+					streaming={isStreaming}
 				>
 					{displayText}
 				</Response>
@@ -117,7 +118,11 @@ const SmoothedResponse: FC<{
 		bypassSmoothing: false,
 		streamKey,
 	});
-	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
+	return (
+		<Response streaming urlTransform={urlTransform}>
+			{visibleText}
+		</Response>
+	);
 };
 
 const InlineTextAttachmentButton: FC<{
