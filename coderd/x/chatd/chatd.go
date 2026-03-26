@@ -1472,9 +1472,9 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	model, modelConfig, keys, err := p.resolveChatModel(chatdCtx, chat)
+	keys, err := p.resolveProviderAPIKeys(chatdCtx)
 	if err != nil {
-		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
+		return database.Chat{}, xerrors.Errorf("resolve chat providers: %w", err)
 	}
 	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
 		return database.Chat{}, err
@@ -1485,15 +1485,21 @@ func (p *Server) RegenerateChatTitle(
 		chatdCtx,
 		p.db,
 		chat,
-		model,
-		modelConfig,
 		keys,
 	)
 	if err != nil {
 		var generationErr *manualTitleGenerationError
 		if errors.As(err, &generationErr) {
+			// Reuse chatd's scoped auth context for failure accounting while
+			// detaching from request cancellation so usage is still recorded.
+			//nolint:gocritic // Failure accounting still needs chatd-scoped config reads.
+			recordCtx, recordCancel := context.WithTimeout(
+				dbauthz.AsChatd(context.WithoutCancel(ctx)),
+				5*time.Second,
+			)
+			defer recordCancel()
 			if _, recordErr := recordManualTitleUsage(
-				ctx,
+				recordCtx,
 				p.db,
 				chat,
 				generationErr.modelConfig,
@@ -1516,8 +1522,6 @@ func (p *Server) regenerateChatTitleWithStore(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	fallbackModel fantasy.LanguageModel,
-	fallbackConfig database.ChatModelConfig,
 	keys chatprovider.ProviderAPIKeys,
 ) (database.Chat, error) {
 	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID); limitErr != nil {
@@ -1551,14 +1555,10 @@ func (p *Server) regenerateChatTitleWithStore(
 		return chat, nil
 	}
 
-	model, modelConfig := p.resolveManualTitleModel(
-		ctx,
-		store,
-		chat,
-		fallbackModel,
-		fallbackConfig,
-		keys,
-	)
+	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, keys)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
@@ -1599,22 +1599,20 @@ func (p *Server) resolveManualTitleModel(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	fallbackModel fantasy.LanguageModel,
-	fallbackConfig database.ChatModelConfig,
 	keys chatprovider.ProviderAPIKeys,
-) (fantasy.LanguageModel, database.ChatModelConfig) {
+) (fantasy.LanguageModel, database.ChatModelConfig, error) {
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
-		return fallbackModel, fallbackConfig
+		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
 	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 	if !ok {
-		return fallbackModel, fallbackConfig
+		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
 	model, err := chatprovider.ModelFromConfig(
@@ -1631,10 +1629,38 @@ func (p *Server) resolveManualTitleModel(
 			slog.F("model", config.Model),
 			slog.Error(err),
 		)
-		return fallbackModel, fallbackConfig
+		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
-	return model, config
+	return model, config, nil
+}
+
+func (p *Server) resolveFallbackManualTitleModel(
+	ctx context.Context,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+	config, err := p.resolveModelConfig(ctx, chat)
+	if err != nil {
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+			"resolve fallback manual title model config: %w",
+			err,
+		)
+	}
+	model, err := chatprovider.ModelFromConfig(
+		config.Provider,
+		config.Model,
+		keys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+	)
+	if err != nil {
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+			"create fallback manual title model: %w",
+			err,
+		)
+	}
+	return model, config, nil
 }
 
 func mergeManualTitleMessages(
@@ -4503,10 +4529,8 @@ func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
 ) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
-	var (
-		dbConfig  database.ChatModelConfig
-		providers []database.ChatProvider
-	)
+	var dbConfig database.ChatModelConfig
+	var keys chatprovider.ProviderAPIKeys
 
 	var g errgroup.Group
 	g.Go(func() error {
@@ -4519,28 +4543,15 @@ func (p *Server) resolveChatModel(
 	})
 	g.Go(func() error {
 		var err error
-		providers, err = p.configCache.EnabledProviders(ctx)
+		keys, err = p.resolveProviderAPIKeys(ctx)
 		if err != nil {
-			return xerrors.Errorf("get enabled chat providers: %w", err)
+			return xerrors.Errorf("resolve provider API keys: %w", err)
 		}
 		return nil
 	})
 	if err := g.Wait(); err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
-	dbProviders := make(
-		[]chatprovider.ConfiguredProvider, 0, len(providers),
-	)
-	for _, provider := range providers {
-		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
-		})
-	}
-	keys := chatprovider.MergeProviderAPIKeys(
-		p.providerAPIKeys, dbProviders,
-	)
 
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
@@ -4552,6 +4563,29 @@ func (p *Server) resolveChatModel(
 		)
 	}
 	return model, dbConfig, keys, nil
+}
+
+func (p *Server) resolveProviderAPIKeys(
+	ctx context.Context,
+) (chatprovider.ProviderAPIKeys, error) {
+	providers, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+			"get enabled chat providers: %w",
+			err,
+		)
+	}
+	dbProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(providers),
+	)
+	for _, provider := range providers {
+		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
+		})
+	}
+	return chatprovider.MergeProviderAPIKeys(p.providerAPIKeys, dbProviders), nil
 }
 
 // resolveModelConfig looks up the chat's model config by its
