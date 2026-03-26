@@ -125,20 +125,20 @@ export const StreamingInlineMarkdown: Story = {
 
 // Verifies that an incomplete fenced code block in streaming mode
 // renders inside a code element rather than showing raw backticks.
-// The FileViewer renders a <diffs-container> web component whose
-// content lives in Shadow DOM, so we assert on DOM structure rather
-// than text content inside the web component.
 export const StreamingCodeFence: Story = {
 	args: {
 		children: "```ts\nconst x = 1",
 		streaming: true,
 	},
 	play: async ({ canvasElement }) => {
-		// The code fence should be parsed into a FileViewer (web component),
-		// not rendered as raw backtick text.
+		const canvas = within(canvasElement);
+		const codeBlock = await canvas.findByTestId("fenced-code-block");
+		expect(codeBlock).toBeInTheDocument();
+		const fileViewer = codeBlock.querySelector("diffs-container");
+		expect(fileViewer).toBeInTheDocument();
 		await waitFor(() => {
-			const viewer = canvasElement.querySelector("diffs-container");
-			expect(viewer).toBeInTheDocument();
+			const codeText = fileViewer?.shadowRoot?.textContent ?? "";
+			expect(codeText).toMatch(/const\s*x\s*=\s*1/);
 		});
 		// The raw triple-backtick should not appear as visible text.
 		const bodyText = canvasElement.textContent ?? "";

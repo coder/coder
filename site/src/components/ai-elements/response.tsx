@@ -204,7 +204,10 @@ const createComponents = (
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
 					return (
-						<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs">
+						<div
+							className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs"
+							data-testid="fenced-code-block"
+						>
 							<FileViewer
 								file={{
 									name: `block.${lang}`,
