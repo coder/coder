@@ -325,12 +325,14 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					ExtraEnvs: []*proto.Env{
 						{
-							Name:  "ENV_1",
-							Value: "Env 1",
+							Name:          "ENV_1",
+							Value:         "Env 1",
+							MergeStrategy: "replace",
 						},
 						{
-							Name:  "ENV_2",
-							Value: "Env 2",
+							Name:          "ENV_2",
+							Value:         "Env 2",
+							MergeStrategy: "replace",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -348,8 +350,9 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					ExtraEnvs: []*proto.Env{
 						{
-							Name:  "ENV_3",
-							Value: "Env 3",
+							Name:          "ENV_3",
+							Value:         "Env 3",
+							MergeStrategy: "replace",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -1012,8 +1015,9 @@ func TestConvertResources(t *testing.T) {
 								},
 								Envs: []*proto.Env{
 									{
-										Name:  "DEVCONTAINER_ENV",
-										Value: "devcontainer-value",
+										Name:          "DEVCONTAINER_ENV",
+										Value:         "devcontainer-value",
+										MergeStrategy: "replace",
 									},
 								},
 							},
