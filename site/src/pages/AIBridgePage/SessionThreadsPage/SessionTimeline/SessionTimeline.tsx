@@ -30,8 +30,8 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
+import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { TokenBadges } from "../../TokenBadges";
-import { prettyFormatJSON } from "../../utils";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
@@ -213,7 +213,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
 					<pre className="bg-surface-secondary rounded-md m-4 p-4 text-xs font-mono text-content-primary overflow-x-auto m-0">
-						{tool} {prettyFormatJSON(input)}
+						{tool} <JsonPrettyPrinter input={input} />
 					</pre>
 				</>
 			)}

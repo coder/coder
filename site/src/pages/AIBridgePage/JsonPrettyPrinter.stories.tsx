@@ -1,15 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { prettyFormatJSON } from "./utils";
+import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
 
-const PreviewBlock: FC<{ input: string }> = ({ input }) => (
+const PreviewBlock: FC<{ input: string; tool?: string }> = ({
+	input,
+	tool,
+}) => (
 	<pre className="p-4 bg-surface-secondary rounded text-xs overflow-x-auto">
-		{prettyFormatJSON(input)}
+		{tool} <JsonPrettyPrinter input={input} />
 	</pre>
 );
 
 const meta: Meta<typeof PreviewBlock> = {
-	title: "pages/AIBridgePage/prettyFormatJSON",
+	title: "pages/AIBridgePage/JsonPrettyPrinter",
 	component: PreviewBlock,
 };
 
@@ -97,5 +100,16 @@ export const DeepNesting: Story = {
 				},
 			},
 		}),
+	},
+};
+
+export const WithToolName: Story = {
+	args: {
+		input: JSON.stringify({
+			pattern: "UTC_OFFSET|timeZoneName|DateTimeFormat",
+			path: "/home/coder/coder/site/src/utils/time.ts",
+			output_mode: "content",
+		}),
+		tool: "Grep",
 	},
 };

@@ -1,43 +1,4 @@
-export const roundTokenDisplay = (tokens: number) => {
-	if (tokens >= 1000) {
-		return `${(tokens / 1000).toFixed(1)}k`;
-	}
-	return tokens.toString();
-};
-
-export const roundDurationDisplay = (duration: number) => {
-	if (duration >= 1000) {
-		return `${(duration / 1000).toFixed(1)}s`;
-	}
-	return `${duration.toFixed(0)}ms`;
-};
-
-export const getProviderDisplayName = (provider: string) => {
-	switch (provider) {
-		case "anthropic":
-			return "Anthropic";
-		case "openai":
-			return "OpenAI";
-		case "copilot":
-			return "Github";
-		default:
-			return "Unknown";
-	}
-};
-
-// FIXME the current AIBridgeProviderIcon uses the claude icon for the
-// anthropic provider. while it's still in use in the RequestLogsPage, we need
-// to hack around it here, but when we delete that page, we can just swap the
-// icon
-export const getProviderIconName = (provider: string) => {
-	if (provider === "anthropic") {
-		return "anthropic-neue";
-	}
-	return provider;
-};
-
-import type { ReactNode } from "react";
-import { Fragment } from "react";
+import { type FC, Fragment, type ReactNode } from "react";
 
 const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 	switch (typeof value) {
@@ -91,7 +52,9 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 	);
 };
 
-export const prettyFormatJSON = (input: string): ReactNode => {
+// input is not guaranteed to be valid JSON, so we need to catch any errors
+// and return the original string if it is not valid
+export const JsonPrettyPrinter: FC<{ input: string }> = ({ input }) => {
 	try {
 		return formatJSONValue(JSON.parse(input), 0);
 	} catch {
