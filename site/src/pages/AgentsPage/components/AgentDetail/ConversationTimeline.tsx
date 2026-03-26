@@ -48,12 +48,12 @@ import type {
 	StreamState,
 } from "./types";
 
-const ReasoningDisclosure: FC<{
+const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}> = ({ id, text, isStreaming = false, urlTransform }) => {
+}>(({ id, text, isStreaming = false, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -86,7 +86,7 @@ const ReasoningDisclosure: FC<{
 			</div>
 		</div>
 	);
-};
+});
 
 // Shared block renderer used by both ChatMessageItem (historical
 // messages) and StreamingOutput (live stream). Encapsulates the
@@ -107,11 +107,11 @@ type RenderBlockListParams = {
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
 // messages render through <Response> directly.
-const SmoothedResponse: FC<{
+const SmoothedResponse = memo<{
 	text: string;
 	streamKey: string;
 	urlTransform?: UrlTransform;
-}> = ({ text, streamKey, urlTransform }) => {
+}>(({ text, streamKey, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming: true,
@@ -123,7 +123,7 @@ const SmoothedResponse: FC<{
 			{visibleText}
 		</Response>
 	);
-};
+});
 
 const InlineTextAttachmentButton: FC<{
 	content: string;
