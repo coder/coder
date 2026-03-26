@@ -12,8 +12,8 @@ export const paginatedInterceptions = (
 	return {
 		searchParams,
 		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
-		queryKey: ({ payload, pageNumber }) => {
-			return ["aiBridgeInterceptions", payload, pageNumber] as const;
+		queryKey: ({ limit, offset, payload }) => {
+			return ["aiBridgeInterceptions", limit, offset, payload] as const;
 		},
 		queryFn: ({ limit, offset, payload }) =>
 			API.getAIBridgeInterceptions({
@@ -30,10 +30,10 @@ export const paginatedSessions = (
 	return {
 		searchParams,
 		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
-		queryKey: ({ payload, pageNumber }) => {
-			return ["aiBridgeSessions", payload, pageNumber] as const;
+		queryKey: ({ limit, offset, payload }) => {
+			return ["aiBridgeSessions", limit, offset, payload] as const;
 		},
-		queryFn: ({ offset, limit, payload }) =>
+		queryFn: ({ limit, offset, payload }) =>
 			API.getAIBridgeSessionList({
 				offset,
 				limit,
