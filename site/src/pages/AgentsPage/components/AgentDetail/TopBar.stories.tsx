@@ -37,6 +37,13 @@ type Story = StoryObj<typeof AgentDetailTopBar>;
 
 export const Default: Story = {};
 
+export const RegeneratingTitle: Story = {
+	args: {
+		...Default.args,
+		isRegeneratingTitle: true,
+	},
+};
+
 export const WithPanelOpen: Story = {
 	args: {
 		panel: {

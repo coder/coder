@@ -24,8 +24,8 @@ export interface AgentsOutletContext {
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRegenerateTitle: (chatId: string) => void;
-	isRegeneratingTitle?: boolean;
-	regeneratingTitleChatId?: string | null;
+	isRegeneratingTitle: boolean;
+	regeneratingTitleChatId: string | null;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
@@ -63,8 +63,8 @@ interface AgentsPageViewProps {
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRegenerateTitle: (chatId: string) => void;
-	isRegeneratingTitle?: boolean;
-	regeneratingTitleChatId?: string | null;
+	isRegeneratingTitle: boolean;
+	regeneratingTitleChatId: string | null;
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;

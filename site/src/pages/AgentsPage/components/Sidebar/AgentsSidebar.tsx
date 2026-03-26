@@ -524,6 +524,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											isActive && "font-medium",
+											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
 											isRegeneratingThisChat && "animate-pulse",
 										)}
 									>
@@ -612,7 +613,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									) : (
 										<>
 											<DropdownMenuItem
-												disabled={isRegeneratingTitle}
+												disabled={isRegeneratingThisChat}
 												onSelect={() => onRegenerateTitle(chat.id)}
 											>
 												<WandSparklesIcon className="h-3.5 w-3.5" />
