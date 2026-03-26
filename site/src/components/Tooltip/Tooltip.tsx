@@ -3,6 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/tooltip}
  */
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { cloneElement, isValidElement, type ReactElement } from "react";
 import { cn } from "utils/cn";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
@@ -11,7 +12,34 @@ export type TooltipProps = TooltipPrimitive.TooltipProps;
 
 export const Tooltip = TooltipPrimitive.Root;
 
-export const TooltipTrigger = TooltipPrimitive.Trigger;
+// When asChild is used with non-focusable elements (div, span, Pill,
+// Badge, SVG icons), they need tabIndex to be reachable via keyboard.
+// Radix's TooltipTrigger uses Primitive.button internally which is
+// natively focusable, but Slot (used with asChild) doesn't add tabIndex
+// to non-focusable elements. We inject tabIndex={0} unless the child
+// already specifies one.
+export const TooltipTrigger: React.FC<
+	React.ComponentPropsWithRef<typeof TooltipPrimitive.Trigger>
+> = ({ children, asChild, ref, ...props }) => {
+	if (asChild && isValidElement(children)) {
+		const childProps = children.props as Record<string, unknown>;
+		if (childProps.tabIndex === undefined) {
+			return (
+				<TooltipPrimitive.Trigger asChild ref={ref} {...props}>
+					{cloneElement(children as ReactElement<{ tabIndex?: number }>, {
+						tabIndex: 0,
+					})}
+				</TooltipPrimitive.Trigger>
+			);
+		}
+	}
+
+	return (
+		<TooltipPrimitive.Trigger asChild={asChild} ref={ref} {...props}>
+			{children}
+		</TooltipPrimitive.Trigger>
+	);
+};
 
 export const TooltipArrow = TooltipPrimitive.Arrow;
 
