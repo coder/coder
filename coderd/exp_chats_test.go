@@ -3590,37 +3590,15 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		lockHeld := make(chan error, 1)
-		releaseLock := make(chan struct{})
-		lockErr := make(chan error, 1)
-		go func() {
-			lockErr <- db.InTx(func(tx database.Store) error {
-				ok, err := tx.TryAcquireLock(
-					ctx,
-					database.GenLockID(
-						fmt.Sprintf("chat-title-regenerate:%s", chat.ID),
-					),
-				)
-				if err != nil {
-					lockHeld <- err
-					return err
-				}
-				if !ok {
-					err = xerrors.New("expected to acquire test title lock")
-					lockHeld <- err
-					return err
-				}
-				lockHeld <- nil
-				<-releaseLock
-				return nil
-			}, database.DefaultTXOptions().WithID("test_chat_title_regenerate_lock"))
-		}()
-		defer func() {
-			close(releaseLock)
-			require.NoError(t, <-lockErr)
-		}()
-
-		require.NoError(t, <-lockHeld)
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusCompleted,
+			WorkerID:    uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+			LastError:   sql.NullString{},
+		})
+		require.NoError(t, err)
 
 		res, err := client.Request(
 			ctx,

@@ -1353,8 +1353,88 @@ func (e *manualTitleGenerationError) Unwrap() error {
 	return e.cause
 }
 
-func manualTitleRegenerationLockID(chatID uuid.UUID) int64 {
-	return database.GenLockID(fmt.Sprintf("chat-title-regenerate:%s", chatID))
+var manualTitleLockWorkerID = uuid.MustParse(
+	"00000000-0000-0000-0000-000000000001",
+)
+
+const manualTitleLockStaleAfter = time.Minute
+
+func isActiveChatStatus(status database.ChatStatus) bool {
+	switch status {
+	case database.ChatStatusWaiting, database.ChatStatusPending, database.ChatStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+func isFreshManualTitleLock(chat database.Chat, now time.Time) bool {
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != manualTitleLockWorkerID {
+		return false
+	}
+	leaseAt := chat.HeartbeatAt
+	if !leaseAt.Valid {
+		leaseAt = chat.StartedAt
+	}
+	return leaseAt.Valid && leaseAt.Time.After(now.Add(-manualTitleLockStaleAfter))
+}
+
+func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) error {
+	now := time.Now()
+	return p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
+		}
+		if (isActiveChatStatus(lockedChat.Status) && lockedChat.WorkerID.Valid) || isFreshManualTitleLock(lockedChat, now) {
+			return ErrManualTitleRegenerationInProgress
+		}
+		_, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      lockedChat.Status,
+			WorkerID:    uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
+			StartedAt:   sql.NullTime{Time: now, Valid: true},
+			HeartbeatAt: sql.NullTime{Time: now, Valid: true},
+			LastError:   lockedChat.LastError,
+		})
+		if err != nil {
+			return xerrors.Errorf("mark chat for manual title regeneration: %w", err)
+		}
+		return nil
+	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
+}
+
+func (p *Server) releaseManualTitleLock(chatID uuid.UUID) {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(cleanupCtx, chatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat to release manual title regeneration: %w", err)
+		}
+		if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != manualTitleLockWorkerID {
+			return nil
+		}
+		_, err = tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      lockedChat.Status,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   lockedChat.LastError,
+		})
+		if err != nil {
+			return xerrors.Errorf("clear manual title regeneration marker: %w", err)
+		}
+		return nil
+	}, database.DefaultTXOptions().WithID("chat_title_regenerate_unlock"))
+	if err != nil {
+		p.logger.Warn(cleanupCtx, "failed to release manual title regeneration marker",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
 }
 
 // RegenerateChatTitle regenerates a chat title from the chat's visible
@@ -1371,30 +1451,19 @@ func (p *Server) RegenerateChatTitle(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
 	}
+	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+		return database.Chat{}, err
+	}
+	defer p.releaseManualTitleLock(chat.ID)
 
-	var updatedChat database.Chat
-	err = p.db.InTx(func(tx database.Store) error {
-		ok, err := tx.TryAcquireLock(ctx, manualTitleRegenerationLockID(chat.ID))
-		if err != nil {
-			return xerrors.Errorf(
-				"acquire chat title regeneration lock: %w",
-				err,
-			)
-		}
-		if !ok {
-			return ErrManualTitleRegenerationInProgress
-		}
-
-		updatedChat, err = p.regenerateChatTitleWithStore(
-			chatdCtx,
-			tx,
-			chat,
-			model,
-			modelConfig,
-			keys,
-		)
-		return err
-	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
+	updatedChat, err := p.regenerateChatTitleWithStore(
+		chatdCtx,
+		p.db,
+		chat,
+		model,
+		modelConfig,
+		keys,
+	)
 	if err != nil {
 		var generationErr *manualTitleGenerationError
 		if errors.As(err, &generationErr) {
