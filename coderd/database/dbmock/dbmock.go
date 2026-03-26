@@ -841,6 +841,20 @@ func (mr *MockStoreMockRecorder) DeleteMCPServerUserToken(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerUserToken", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerUserToken), ctx, arg)
 }
 
+// DeleteModelProviderConfigsByModelID mocks base method.
+func (m *MockStore) DeleteModelProviderConfigsByModelID(ctx context.Context, modelConfigID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteModelProviderConfigsByModelID", ctx, modelConfigID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteModelProviderConfigsByModelID indicates an expected call of DeleteModelProviderConfigsByModelID.
+func (mr *MockStoreMockRecorder) DeleteModelProviderConfigsByModelID(ctx, modelConfigID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteModelProviderConfigsByModelID", reflect.TypeOf((*MockStore)(nil).DeleteModelProviderConfigsByModelID), ctx, modelConfigID)
+}
+
 // DeleteOAuth2ProviderAppByClientID mocks base method.
 func (m *MockStore) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -3091,6 +3105,36 @@ func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID u
 func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, userID)
+}
+
+// GetModelProviderConfigs mocks base method.
+func (m *MockStore) GetModelProviderConfigs(ctx context.Context, modelConfigID uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetModelProviderConfigs", ctx, modelConfigID)
+	ret0, _ := ret[0].([]database.GetModelProviderConfigsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetModelProviderConfigs indicates an expected call of GetModelProviderConfigs.
+func (mr *MockStoreMockRecorder) GetModelProviderConfigs(ctx, modelConfigID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetModelProviderConfigs", reflect.TypeOf((*MockStore)(nil).GetModelProviderConfigs), ctx, modelConfigID)
+}
+
+// GetModelProviderConfigsByModelIDs mocks base method.
+func (m *MockStore) GetModelProviderConfigsByModelIDs(ctx context.Context, modelConfigIds []uuid.UUID) ([]database.GetModelProviderConfigsByModelIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetModelProviderConfigsByModelIDs", ctx, modelConfigIds)
+	ret0, _ := ret[0].([]database.GetModelProviderConfigsByModelIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetModelProviderConfigsByModelIDs indicates an expected call of GetModelProviderConfigsByModelIDs.
+func (mr *MockStoreMockRecorder) GetModelProviderConfigsByModelIDs(ctx, modelConfigIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetModelProviderConfigsByModelIDs", reflect.TypeOf((*MockStore)(nil).GetModelProviderConfigsByModelIDs), ctx, modelConfigIds)
 }
 
 // GetNotificationMessagesByStatus mocks base method.
@@ -6266,6 +6310,21 @@ func (m *MockStore) InsertMissingGroups(ctx context.Context, arg database.Insert
 func (mr *MockStoreMockRecorder) InsertMissingGroups(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMissingGroups", reflect.TypeOf((*MockStore)(nil).InsertMissingGroups), ctx, arg)
+}
+
+// InsertModelProviderConfig mocks base method.
+func (m *MockStore) InsertModelProviderConfig(ctx context.Context, arg database.InsertModelProviderConfigParams) (database.ChatModelProviderConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertModelProviderConfig", ctx, arg)
+	ret0, _ := ret[0].(database.ChatModelProviderConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertModelProviderConfig indicates an expected call of InsertModelProviderConfig.
+func (mr *MockStoreMockRecorder) InsertModelProviderConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertModelProviderConfig", reflect.TypeOf((*MockStore)(nil).InsertModelProviderConfig), ctx, arg)
 }
 
 // InsertOAuth2ProviderApp mocks base method.

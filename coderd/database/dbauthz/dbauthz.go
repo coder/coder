@@ -1952,6 +1952,13 @@ func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.Del
 	return q.db.DeleteMCPServerUserToken(ctx, arg)
 }
 
+func (q *querier) DeleteModelProviderConfigsByModelID(ctx context.Context, modelConfigID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.DeleteModelProviderConfigsByModelID(ctx, modelConfigID)
+}
+
 func (q *querier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2App); err != nil {
 		return err
@@ -3083,6 +3090,20 @@ func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uui
 		return nil, err
 	}
 	return q.db.GetMCPServerUserTokensByUserID(ctx, userID)
+}
+
+func (q *querier) GetModelProviderConfigs(ctx context.Context, modelConfigID uuid.UUID) ([]database.GetModelProviderConfigsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetModelProviderConfigs(ctx, modelConfigID)
+}
+
+func (q *querier) GetModelProviderConfigsByModelIDs(ctx context.Context, modelConfigIDs []uuid.UUID) ([]database.GetModelProviderConfigsByModelIDsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetModelProviderConfigsByModelIDs(ctx, modelConfigIDs)
 }
 
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
@@ -4882,6 +4903,13 @@ func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMi
 		return nil, err
 	}
 	return q.db.InsertMissingGroups(ctx, arg)
+}
+
+func (q *querier) InsertModelProviderConfig(ctx context.Context, arg database.InsertModelProviderConfigParams) (database.ChatModelProviderConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatModelProviderConfig{}, err
+	}
+	return q.db.InsertModelProviderConfig(ctx, arg)
 }
 
 func (q *querier) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
