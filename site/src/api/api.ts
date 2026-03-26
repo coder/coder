@@ -732,7 +732,7 @@ class ApiMethods {
 	 */
 	getOrganizationPaginatedMembers = async (
 		organization: string,
-		options?: TypesGen.Pagination,
+		options?: TypesGen.UsersRequest,
 	) => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/paginated-members`,
@@ -2179,6 +2179,17 @@ class ApiMethods {
 	): Promise<TypesGen.Group> => {
 		const response = await this.axios.patch(`/api/v2/groups/${groupId}`, data);
 		return response.data;
+	};
+
+	addMembers = async (groupId: string, userIds: string[]) => {
+		return this.patchGroup(groupId, {
+			name: "",
+			add_users: userIds,
+			remove_users: [],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
+		});
 	};
 
 	addMember = async (groupId: string, userId: string) => {
