@@ -39,6 +39,11 @@ import {
 	parsePositiveInteger,
 	parseThresholdInteger,
 } from "./modelConfigFormLogic";
+import {
+	buildModelProviderOptions,
+	type ModelProviderOption,
+	resolveDefaultOption,
+} from "./modelProviderOptions";
 import { ProviderIcon } from "./ProviderIcon";
 
 // ── Validation ──────────────────────────────────────────────────
@@ -71,6 +76,8 @@ interface ModelFormProps {
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
 	onSelectedProviderChange: (provider: string) => void;
+	selectedModelOptionKey: string | null;
+	onSelectedModelOptionChange: (key: string | null) => void;
 	modelConfigsUnavailable: boolean;
 	isSaving: boolean;
 	isDeleting: boolean;
@@ -91,6 +98,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 	selectedProvider,
 	selectedProviderState,
 	onSelectedProviderChange,
+	selectedModelOptionKey,
+	onSelectedModelOptionChange,
 	modelConfigsUnavailable,
 	isSaving,
 	isDeleting,
@@ -107,9 +116,24 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const selectedProviderConfigCount =
 		selectedProviderState?.providerConfigs.length;
-	const canManageModels = Boolean(
-		selectedProviderConfigCount && selectedProviderState?.hasEffectiveAPIKey,
-	);
+	const providerOptions: readonly ModelProviderOption[] = isEditing
+		? []
+		: buildModelProviderOptions(providerStates);
+	const resolvedProviderOption = isEditing
+		? undefined
+		: (providerOptions.find(
+				(option) => option.key === selectedModelOptionKey,
+			) ??
+			resolveDefaultOption(
+				providerOptions,
+				selectedProvider ?? selectedProviderState?.provider ?? null,
+			));
+	const canManageModels = isEditing
+		? Boolean(
+				selectedProviderConfigCount &&
+					selectedProviderState?.hasEffectiveAPIKey,
+			)
+		: Boolean(resolvedProviderOption);
 
 	const form = useFormik<ModelFormValues>({
 		initialValues: buildInitialModelFormValues(editingModel),
@@ -165,7 +189,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfigs.length) return;
+				if (!selectedProviderState?.provider) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
@@ -217,28 +241,62 @@ export const ModelForm: FC<ModelFormProps> = ({
 			>
 				Provider
 			</Label>
-			<Select
-				value={selectedProvider ?? ""}
-				onValueChange={onSelectedProviderChange}
-				disabled={isEditing || providerStates.length === 0}
-			>
-				<SelectTrigger
-					id="providerSelect"
-					className="h-10 max-w-[240px] text-[13px]"
+			{isEditing ? (
+				<Select
+					value={selectedProvider ?? ""}
+					onValueChange={onSelectedProviderChange}
+					disabled
 				>
-					<SelectValue placeholder="Select provider" />
-				</SelectTrigger>
-				<SelectContent>
-					{providerStates.map((ps) => (
-						<SelectItem key={ps.provider} value={ps.provider}>
-							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
-								{ps.label}
-							</span>
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+					<SelectTrigger
+						id="providerSelect"
+						className="h-10 max-w-[240px] text-[13px]"
+					>
+						<SelectValue placeholder="Select provider" />
+					</SelectTrigger>
+					<SelectContent>
+						{providerStates.map((ps) => (
+							<SelectItem key={ps.provider} value={ps.provider}>
+								<span className="flex items-center gap-2">
+									<ProviderIcon provider={ps.provider} className="h-4 w-4" />
+									{ps.label}
+								</span>
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			) : (
+				<Select
+					value={resolvedProviderOption?.key ?? ""}
+					onValueChange={(key) => {
+						const option = providerOptions.find((option) => option.key === key);
+						if (option) {
+							onSelectedProviderChange(option.provider);
+							onSelectedModelOptionChange(option.key);
+						}
+					}}
+					disabled={providerOptions.length === 0}
+				>
+					<SelectTrigger
+						id="providerSelect"
+						className="h-10 max-w-[240px] text-[13px]"
+					>
+						<SelectValue placeholder="Select provider" />
+					</SelectTrigger>
+					<SelectContent>
+						{providerOptions.map((option) => (
+							<SelectItem key={option.key} value={option.key}>
+								<span className="flex items-center gap-2">
+									<ProviderIcon
+										provider={option.iconProvider}
+										className="h-4 w-4"
+									/>
+									{option.label}
+								</span>
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			)}
 		</div>
 	);
 
