@@ -1235,7 +1235,9 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	return &value
 }
 
-// Chat converts a database.Chat to a codersdk.Chat.
+// Chat converts a database.Chat to a codersdk.Chat. It coalesces
+// nil slices and maps to empty values for JSON serialization and
+// derives RootChatID from the parent chain when not explicitly set.
 func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
@@ -1292,7 +1294,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 }
 
 // Chats converts a slice of database.Chat to codersdk.Chat, looking
-// up diff statuses from the provided map.
+// up diff statuses from the provided map. When diffStatusesByChatID
+// is non-nil, chats without an entry receive an empty DiffStatus.
 func Chats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(chats))
 	for i, c := range chats {

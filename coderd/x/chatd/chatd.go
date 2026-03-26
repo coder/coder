@@ -2479,7 +2479,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := db2sdk.Chat(chat, nil)
+	sdkChat := db2sdk.Chat(chat, nil) // we have diffStatus already converted
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}

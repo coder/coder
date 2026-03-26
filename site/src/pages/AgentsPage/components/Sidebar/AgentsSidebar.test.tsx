@@ -436,7 +436,7 @@ describe("AgentsSidebar model display names", () => {
 			</Wrapper>,
 		);
 
-		// A nil UUID means the pubsub event omitted LastModelConfigID,
+		// A nil UUID means LastModelConfigID was left at its zero value,
 		// so the sidebar cannot resolve the model and falls back.
 		expect(getByText("Default model")).toBeInTheDocument();
 	});
