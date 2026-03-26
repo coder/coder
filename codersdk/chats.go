@@ -511,19 +511,30 @@ type UpdateChatProviderConfigRequest struct {
 	Enabled     *bool   `json:"enabled,omitempty"`
 }
 
+// ChatModelProviderAttachment describes a provider config attached to a model.
+type ChatModelProviderAttachment struct {
+	ProviderConfigID uuid.UUID `json:"provider_config_id" format:"uuid"`
+	Provider         string    `json:"provider"`
+	DisplayName      string    `json:"display_name"`
+	Enabled          bool      `json:"enabled"`
+	HasAPIKey        bool      `json:"has_api_key"`
+	Priority         int32     `json:"priority"`
+}
+
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
-	ID                   uuid.UUID            `json:"id" format:"uuid"`
-	Provider             string               `json:"provider"`
-	Model                string               `json:"model"`
-	DisplayName          string               `json:"display_name"`
-	Enabled              bool                 `json:"enabled"`
-	IsDefault            bool                 `json:"is_default"`
-	ContextLimit         int64                `json:"context_limit"`
-	CompressionThreshold int32                `json:"compression_threshold"`
-	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
-	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
+	ID                   uuid.UUID                     `json:"id" format:"uuid"`
+	Provider             string                        `json:"provider"`
+	Model                string                        `json:"model"`
+	DisplayName          string                        `json:"display_name"`
+	Enabled              bool                          `json:"enabled"`
+	IsDefault            bool                          `json:"is_default"`
+	ContextLimit         int64                         `json:"context_limit"`
+	CompressionThreshold int32                         `json:"compression_threshold"`
+	ModelConfig          *ChatModelCallConfig          `json:"model_config,omitempty"`
+	ProviderConfigs      []ChatModelProviderAttachment `json:"provider_configs,omitempty"`
+	CreatedAt            time.Time                     `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time                     `json:"updated_at" format:"date-time"`
 }
 
 // ChatModelProviderOptions contains typed provider-specific options.
@@ -732,6 +743,7 @@ type CreateChatModelConfigRequest struct {
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+	ProviderConfigIDs    []uuid.UUID          `json:"provider_config_ids,omitempty"`
 }
 
 // UpdateChatModelConfigRequest updates a chat model config.
@@ -744,6 +756,7 @@ type UpdateChatModelConfigRequest struct {
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+	ProviderConfigIDs    *[]uuid.UUID         `json:"provider_config_ids,omitempty"`
 }
 
 // ChatGitChange represents a git file change detected during a chat session.
