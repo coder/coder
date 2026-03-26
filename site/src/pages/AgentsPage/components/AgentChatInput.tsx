@@ -57,11 +57,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useSpeechRecognition } from "#/hooks/useSpeechRecognition";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
 import { useOverflowCount } from "../hooks/useOverflowCount";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
