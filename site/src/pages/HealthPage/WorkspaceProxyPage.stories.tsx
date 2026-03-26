@@ -1,7 +1,7 @@
 import { MockHealth } from "testHelpers/entities";
 import type { StoryObj } from "@storybook/react-vite";
-import { HEALTH_QUERY_KEY } from "api/queries/debug";
-import type { HealthcheckReport } from "api/typesGenerated";
+import { HEALTH_QUERY_KEY } from "#/api/queries/debug";
+import type { HealthcheckReport } from "#/api/typesGenerated";
 import { generateMeta } from "./storybook";
 import WorkspaceProxyPage from "./WorkspaceProxyPage";
 

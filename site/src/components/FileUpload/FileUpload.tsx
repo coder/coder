@@ -1,10 +1,10 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
-import { Stack } from "components/Stack/Stack";
 import { useClickable } from "hooks/useClickable";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
+import { Stack } from "#/components/Stack/Stack";
 
 interface FileUploadProps {
 	isUploading: boolean;
@@ -137,18 +137,18 @@ const useFileDrop = (
 
 const styles = {
 	root: (theme) => css`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    border: 2px dashed ${theme.palette.divider};
-    padding: 48px;
-    cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 8px;
+		border: 2px dashed ${theme.palette.divider};
+		padding: 48px;
+		cursor: pointer;
 
-    &:hover {
-      background-color: ${theme.palette.background.paper};
-    }
-  `,
+		&:hover {
+			background-color: ${theme.palette.background.paper};
+		}
+	`,
 
 	disabled: {
 		pointerEvents: "none",

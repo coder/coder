@@ -1,27 +1,5 @@
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { provisionerDaemons } from "api/queries/organizations";
-import type {
-	CreateTemplateVersionRequest,
-	Organization,
-	ProvisionerJobLog,
-	ProvisionerType,
-	Template,
-	TemplateExample,
-	TemplateVersionVariable,
-	VariableValue,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
@@ -43,6 +21,29 @@ import {
 	type TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
 import * as Yup from "yup";
+import { provisionerDaemons } from "#/api/queries/organizations";
+import type {
+	CreateTemplateVersionRequest,
+	Organization,
+	ProvisionerJobLog,
+	ProvisionerType,
+	Template,
+	TemplateExample,
+	TemplateVersionVariable,
+	VariableValue,
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { Label } from "#/components/Label/Label";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 
@@ -258,20 +259,26 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					{showOrganizationPicker && (
 						<>
 							{showProvisionerWarning && <ProvisionerWarning />}
-							<OrganizationAutocomplete
-								{...getFieldHelpers("organization")}
-								required
-								label="Belongs to"
-								onChange={(newValue) => {
-									setSelectedOrg(newValue);
-									void form.setFieldValue("organization", newValue?.name || "");
-								}}
-								size="medium"
-								check={{
-									object: { resource_type: "template" },
-									action: "create",
-								}}
-							/>
+
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="organization">Organization</Label>
+								<OrganizationAutocomplete
+									{...getFieldHelpers("organization")}
+									id="organization"
+									required
+									onChange={(newValue) => {
+										setSelectedOrg(newValue);
+										void form.setFieldValue(
+											"organization",
+											newValue?.name || "",
+										);
+									}}
+									check={{
+										object: { resource_type: "template" },
+										action: "create",
+									}}
+								/>
+							</div>
 						</>
 					)}
 

@@ -1,19 +1,20 @@
 import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import type React from "react";
+import { cn } from "utils/cn";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
-import type React from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
+	stripNoNewline,
 	type ToolStatus,
 } from "./utils";
 
@@ -42,18 +43,13 @@ export const WriteFileTool: React.FC<{
 			hasContent={hasDiff}
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							isError ? "text-content-destructive" : "text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						{label}
 					</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to write file"}
@@ -73,7 +69,7 @@ export const WriteFileTool: React.FC<{
 					scrollBarClassName="w-1.5"
 				>
 					<FileDiff
-						fileDiff={diff}
+						fileDiff={stripNoNewline(diff)}
 						options={getDiffViewerOptions(isDark)}
 						style={DIFFS_FONT_STYLE}
 					/>

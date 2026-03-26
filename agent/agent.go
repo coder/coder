@@ -16,7 +16,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,7 +38,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
-	"github.com/coder/coder/v2/agent/agentdesktop"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -51,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -385,11 +384,16 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore, func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	})
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
-		a.logger.Named("desktop"), a.execer, a.scriptDataDir,
+		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
@@ -1872,7 +1876,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		}()
 	}
 	wg.Wait()
-	sort.Float64s(durations)
+	slices.Sort(durations)
 	durationsLength := len(durations)
 	switch {
 	case durationsLength == 0:

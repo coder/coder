@@ -1,13 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
-import { DropdownMenuItem } from "components/DropdownMenu/DropdownMenu";
-import { Link } from "components/Link/Link";
-import { Markdown } from "components/Markdown/Markdown";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	Building2Icon,
@@ -20,6 +10,16 @@ import {
 import { isExternalApp, needsSessionToken } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, type ReactNode, useState } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
+import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
+import { Link } from "#/components/Link/Link";
+import { Markdown } from "#/components/Markdown/Markdown";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 
@@ -135,7 +135,12 @@ export const AppLink: FC<AppLinkProps> = ({
 
 	const button = grouped ? (
 		<DropdownMenuItem asChild>
-			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
+			<a
+				href={canClick ? link.href : undefined}
+				onClick={link.onClick}
+				target={app.open_in === "tab" ? "_blank" : undefined}
+				rel={app.open_in === "tab" ? "noreferrer" : undefined}
+			>
 				{icon}
 				{link.label}
 				{ShareIcon && <ShareIcon />}
@@ -143,7 +148,12 @@ export const AppLink: FC<AppLinkProps> = ({
 		</DropdownMenuItem>
 	) : (
 		<AgentButton asChild>
-			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
+			<a
+				href={canClick ? link.href : undefined}
+				onClick={link.onClick}
+				target={app.open_in === "tab" ? "_blank" : undefined}
+				rel={app.open_in === "tab" ? "noreferrer" : undefined}
+			>
 				{icon}
 				{link.label}
 				{ShareIcon && <ShareIcon />}

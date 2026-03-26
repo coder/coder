@@ -1,4 +1,16 @@
-import { API } from "api/api";
+import {
+	defaultMetadataManager,
+	type MetadataState,
+} from "hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import type {
+	MutationOptions,
+	QueryClient,
+	UseMutationOptions,
+	UseQueryOptions,
+} from "react-query";
+import { prepareQuery } from "utils/filters";
+import { API } from "#/api/api";
 import type {
 	AuthorizationRequest,
 	GenerateAPIKeyResponse,
@@ -13,19 +25,7 @@ import type {
 	UserAppearanceSettings,
 	UserPreferenceSettings,
 	UsersRequest,
-} from "api/typesGenerated";
-import {
-	defaultMetadataManager,
-	type MetadataState,
-} from "hooks/useEmbeddedMetadata";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
-import type {
-	MutationOptions,
-	QueryClient,
-	UseMutationOptions,
-	UseQueryOptions,
-} from "react-query";
-import { prepareQuery } from "utils/filters";
+} from "#/api/typesGenerated";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 
@@ -152,6 +152,15 @@ export const me = (metadata: MetadataState<User>) => {
 		queryKey: meKey,
 		queryFn: API.getAuthenticatedUser,
 	});
+};
+
+export const userKey = (usernameOrId: string) => ["user", usernameOrId];
+
+export const user = (usernameOrId: string) => {
+	return {
+		queryKey: userKey(usernameOrId),
+		queryFn: () => API.getUser(usernameOrId),
+	};
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {

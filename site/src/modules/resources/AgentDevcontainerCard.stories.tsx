@@ -18,9 +18,9 @@ import {
 	withProxyProvider,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const meta: Meta<typeof AgentDevcontainerCard> = {

@@ -1,12 +1,12 @@
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import type React from "react";
+import { cn } from "utils/cn";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
-import type React from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 import { Response } from "../response";
 import { ToolCollapsible } from "./ToolCollapsible";
 import type { ToolStatus } from "./utils";
@@ -30,18 +30,13 @@ export const ChatSummarizedTool: React.FC<{
 			hasContent={hasSummary}
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							isError ? "text-content-destructive" : "text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						{isRunning ? "Summarizing…" : "Summarized"}
 					</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to summarize chat"}

@@ -342,7 +342,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.0"
+  version  = "1.4.1"
   agent_id = coder_agent.dev.id
 }
 
@@ -471,6 +471,12 @@ module "devcontainers-cli" {
   agent_id = coder_agent.dev.id
 }
 
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.dev.id
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -527,7 +533,7 @@ resource "coder_agent" "dev" {
     display_name = "/var/lib/docker Usage"
     key          = "var_lib_docker_usage"
     order        = 3
-    script       = "sudo du -sh /var/lib/docker | awk '{print $1}'"
+    script       = "sudo du -sh /var/lib/docker 2>/dev/null | awk '{print $1}'"
     interval     = 3600 # 1h to avoid thrashing disk
     timeout      = 60   # Longer than this is likely problematic
   }
@@ -573,12 +579,17 @@ resource "coder_agent" "dev" {
     trap cleanup EXIT
     coder exp sync start agent-startup
 
-    # Authenticate GitHub CLI
-    if ! gh auth status >/dev/null 2>&1; then
+    # Authenticate GitHub CLI. `gh api user` is used instead of `gh auth
+    # status` because the latter exits non-zero when a stale token exists
+    # in ~/.config/gh/hosts.yml, even when a valid GITHUB_TOKEN is already
+    # present in the environment and gh commands work fine.
+    if ! gh api user --jq .login >/dev/null 2>&1; then
       echo "Logging into GitHub CLI…"
-      coder external-auth access-token github | gh auth login --hostname github.com --with-token
+      if ! coder external-auth access-token github | gh auth login --hostname github.com --with-token; then
+        echo "GitHub CLI authentication failed; gh commands may not work."
+      fi
     else
-      echo "Already logged into GitHub CLI."
+      echo "GitHub CLI already has working credentials."
     fi
     # Configure Mux GitHub owner login for browser access (skip if
     # already set). See: https://mux.coder.com/config/server-access

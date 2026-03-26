@@ -1,16 +1,23 @@
-import { Button } from "components/Button/Button";
-import { CopyButton } from "components/CopyButton/CopyButton";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	CheckIcon,
 	ChevronDownIcon,
 	CircleAlertIcon,
 	ExternalLinkIcon,
+	LayersIcon,
 	LoaderIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
 import { cn } from "utils/cn";
+import { Button } from "#/components/Button/Button";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import {
 	BORDER_BG_STYLE,
 	COLLAPSED_OUTPUT_HEIGHT,
@@ -27,11 +34,31 @@ export const ExecuteTool: React.FC<{
 	output: string;
 	status: ToolStatus;
 	isError: boolean;
-}> = ({ command, output, status, isError }) => {
+	isBackgrounded?: boolean;
+}> = ({ command, output, status, isBackgrounded = false }) => {
 	const [expanded, setExpanded] = useState(false);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
+
+	// Track whether the command text is truncated so we can offer
+	// a click-to-expand interaction. The ResizeObserver may clear
+	// commandOverflows while the text is wrapped, but
+	// canToggleCommand stays true via commandExpanded so the
+	// collapse affordance remains visible.
+	const [commandExpanded, setCommandExpanded] = useState(false);
+	const [commandOverflows, setCommandOverflows] = useState(false);
+	const canToggleCommand = commandOverflows || commandExpanded;
+	const commandRef = (node: HTMLElement | null) => {
+		if (!node) return;
+		const measure = () => {
+			setCommandOverflows(node.scrollWidth > node.clientWidth);
+		};
+		measure();
+		const ro = new ResizeObserver(measure);
+		ro.observe(node);
+		return () => ro.disconnect();
+	};
 
 	// Check whether the output overflows the collapsed height so we
 	// know if we need to show the expand toggle at all.
@@ -46,25 +73,76 @@ export const ExecuteTool: React.FC<{
 	return (
 		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			{/* Header: $ command + copy button */}
-			<div className="flex w-full items-center justify-between gap-2 px-2.5 py-0.5">
-				<div className="flex min-w-0 flex-1 items-center gap-2">
-					<span className="shrink-0 font-mono text-xs text-content-secondary">
+			<div
+				className={cn(
+					"flex w-full justify-between gap-2 px-2.5 py-0.5",
+					commandExpanded ? "items-start" : "items-center",
+				)}
+			>
+				{/* biome-ignore lint/a11y/useKeyWithClickEvents: Click toggles for mouse users; keyboard users use the chevron button. */}
+				<div
+					className={cn(
+						"flex min-w-0 flex-1 gap-2",
+						commandExpanded ? "items-start" : "items-center",
+						canToggleCommand && "cursor-pointer",
+					)}
+					onClick={
+						canToggleCommand ? () => setCommandExpanded((v) => !v) : undefined
+					}
+				>
+					<span className="shrink-0 font-mono text-xs leading-5 text-content-secondary">
 						$
 					</span>
-					<code className="min-w-0 flex-1 truncate font-mono text-xs text-content-primary">
+					<code
+						ref={commandRef}
+						className={cn(
+							"min-w-0 flex-1 font-mono text-xs leading-5 text-content-primary",
+							commandExpanded ? "whitespace-pre-wrap break-all" : "truncate",
+						)}
+					>
 						{command}
 					</code>
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
+					{canToggleCommand && (
+						<button
+							type="button"
+							onClick={() => setCommandExpanded((v) => !v)}
+							className={cn(
+								"border-0 bg-transparent p-0 m-0 cursor-pointer flex items-center text-content-secondary hover:text-content-primary transition-colors transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+								commandExpanded
+									? "opacity-100"
+									: "opacity-0 group-hover/exec:opacity-100",
+							)}
+							aria-expanded={commandExpanded}
+							aria-label={
+								commandExpanded ? "Collapse command" : "Expand command"
+							}
+						>
+							<ChevronDownIcon
+								className={cn(
+									"h-3.5 w-3.5 transition-transform",
+									commandExpanded && "rotate-180",
+								)}
+							/>
+						</button>
+					)}
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
+					{isBackgrounded && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<LayersIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>Running in background</TooltipContent>
+						</Tooltip>
 					)}
 					<span className="opacity-0 transition-opacity group-hover/exec:opacity-100">
 						<CopyButton text={command} label="Copy command" />
 					</span>
 				</div>
 			</div>
-
 			{/* Output preview / expanded */}
 			{hasOutput && (
 				<>
@@ -83,7 +161,7 @@ export const ExecuteTool: React.FC<{
 							}
 							className={cn(
 								"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-2.5 py-2 font-mono text-xs",
-								isError ? "text-content-destructive" : "text-content-secondary",
+								"text-content-secondary",
 							)}
 						>
 							{output}
@@ -199,7 +277,7 @@ export const WaitForExternalAuthTool: React.FC<{
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
 		icon = (
-			<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+			<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;

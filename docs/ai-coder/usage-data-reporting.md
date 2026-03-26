@@ -3,7 +3,7 @@
 The [AI Governance Add-On](./ai-governance.md) requires reporting usage data to Tallyman, a Coder-managed server for billing and reporting purposes. Coder only captures and sends the following information, related to your deployment ID:
 
 - number of agent workspace builds consumed
-- number of AI governance seats consumed
+- number of AI Governance seats consumed
 
 No user-identifiable information or additional metrics are sent to Tallyman. This information is also shared with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based and reporting.
 

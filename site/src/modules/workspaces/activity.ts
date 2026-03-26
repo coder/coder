@@ -1,5 +1,5 @@
-import type { Workspace } from "api/typesGenerated";
 import dayjs from "dayjs";
+import type { Workspace } from "#/api/typesGenerated";
 
 export type WorkspaceActivityStatus =
 	| "ready"

@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	getDefaultFilterProps,
 	MockMenu,
-} from "components/Filter/storyHelpers";
+} from "#/components/Filter/storyHelpers";
 import type { WorkspaceFilterState } from "./WorkspacesFilter";
 import { WorkspacesFilter } from "./WorkspacesFilter";
 

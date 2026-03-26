@@ -4,7 +4,7 @@ import {
 	MockWorkspace,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { templateVersionsQueryKey } from "api/queries/templates";
+import { templateVersionsQueryKey } from "#/api/queries/templates";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 
 const noMessage = {

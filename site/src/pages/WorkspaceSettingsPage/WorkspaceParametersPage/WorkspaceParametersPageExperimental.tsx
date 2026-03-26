@@ -1,21 +1,3 @@
-import { API } from "api/api";
-import { DetailedError } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
-import type {
-	DynamicParametersRequest,
-	DynamicParametersResponse,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
@@ -25,11 +7,29 @@ import { useNavigate, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
+import { API } from "#/api/api";
+import { DetailedError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import type {
+	DynamicParametersRequest,
+	DynamicParametersResponse,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceParametersPageViewExperimental } from "./WorkspaceParametersPageViewExperimental";
 
 const WorkspaceParametersPageExperimental: FC = () => {

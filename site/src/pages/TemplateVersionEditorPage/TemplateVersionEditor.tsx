@@ -1,30 +1,4 @@
 import IconButton from "@mui/material/IconButton";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import type {
-	ProvisionerJobLog,
-	Template,
-	TemplateVersion,
-	TemplateVersionVariable,
-	VariableValue,
-	WorkspaceResource,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { Sidebar } from "components/FullPageLayout/Sidebar";
-import {
-	Topbar,
-	TopbarAvatar,
-	TopbarButton,
-	TopbarData,
-	TopbarDivider,
-	TopbarIconButton,
-} from "components/FullPageLayout/Topbar";
-import { Loader } from "components/Loader/Loader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -63,6 +37,32 @@ import {
 	removeFile,
 	updateFile,
 } from "utils/filetree";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import type {
+	ProvisionerJobLog,
+	Template,
+	TemplateVersion,
+	TemplateVersionVariable,
+	VariableValue,
+	WorkspaceResource,
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Sidebar } from "#/components/FullPageLayout/Sidebar";
+import {
+	Topbar,
+	TopbarAvatar,
+	TopbarButton,
+	TopbarData,
+	TopbarDivider,
+	TopbarIconButton,
+} from "#/components/FullPageLayout/Topbar";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import {
 	CreateFileDialog,
 	DeleteFileDialog,

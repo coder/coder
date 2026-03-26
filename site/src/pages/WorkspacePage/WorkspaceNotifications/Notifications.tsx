@@ -1,15 +1,15 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { AlertProps } from "components/Alert/Alert";
-import { Button, type ButtonProps } from "components/Button/Button";
-import { Pill } from "components/Pill/Pill";
+import { type FC, type ReactNode, useState } from "react";
+import type { ThemeRole } from "theme/roles";
+import type { AlertProps } from "#/components/Alert/Alert";
+import { Button, type ButtonProps } from "#/components/Button/Button";
+import { Pill } from "#/components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { type FC, type ReactNode, useState } from "react";
-import type { ThemeRole } from "theme/roles";
+} from "#/components/Tooltip/Tooltip";
 
 export type NotificationItem = {
 	title: string;

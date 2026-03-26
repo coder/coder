@@ -66,6 +66,7 @@ const withQuery: Decorator = (Story, { parameters }) => {
 		defaultOptions: {
 			queries: {
 				staleTime: Number.POSITIVE_INFINITY,
+				refetchInterval: false,
 				retry: false,
 			},
 		},

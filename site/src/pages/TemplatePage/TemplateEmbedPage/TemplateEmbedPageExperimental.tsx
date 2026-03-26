@@ -1,18 +1,3 @@
-import { API } from "api/api";
-import { DetailedError } from "api/errors";
-import type {
-	DynamicParametersRequest,
-	DynamicParametersResponse,
-	FriendlyDiagnostic,
-	PreviewParameter,
-	Template,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Label } from "components/Label/Label";
-import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import { Separator } from "components/Separator/Separator";
-import { Skeleton } from "components/Skeleton/Skeleton";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useClipboard } from "hooks/useClipboard";
@@ -24,6 +9,21 @@ import {
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import { DetailedError } from "#/api/errors";
+import type {
+	DynamicParametersRequest,
+	DynamicParametersResponse,
+	FriendlyDiagnostic,
+	PreviewParameter,
+	Template,
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Label } from "#/components/Label/Label";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import { Separator } from "#/components/Separator/Separator";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 
 type ButtonValues = Record<string, string>;
 

@@ -80,7 +80,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
@@ -155,7 +155,7 @@ jobs:
           cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -163,6 +163,8 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          use-cache: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -358,7 +360,7 @@ jobs:
         id: attest_base
         if: ${{ !inputs.dry_run && steps.image-base-tag.outputs.tag != '' }}
         continue-on-error: true
-        uses: actions/attest@e59cbc1ad1ac2d59339667419eb8cdde6eb61e3d # v3.2.0
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ steps.image-base-tag.outputs.tag }}
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -474,7 +476,7 @@ jobs:
         id: attest_main
         if: ${{ !inputs.dry_run }}
         continue-on-error: true
-        uses: actions/attest@e59cbc1ad1ac2d59339667419eb8cdde6eb61e3d # v3.2.0
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ steps.build_docker.outputs.multiarch_image }}
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -518,7 +520,7 @@ jobs:
         id: attest_latest
         if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
         continue-on-error: true
-        uses: actions/attest@e59cbc1ad1ac2d59339667419eb8cdde6eb61e3d # v3.2.0
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ steps.latest_tag.outputs.tag }}
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -665,7 +667,7 @@ jobs:
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: release-artifacts
           path: |
@@ -681,7 +683,7 @@ jobs:
 
       - name: Upload latest sbom artifact to actions (if dry-run)
         if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: latest-sbom-artifact
           path: ./coder_latest_sbom.spdx.json
@@ -700,13 +702,11 @@ jobs:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
     needs: release
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
 
     steps:
-      # TODO: skip this if it's not a new release (i.e. a backport). This is
-      #       fine right now because it just makes a PR that we can close.
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
@@ -782,7 +782,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 

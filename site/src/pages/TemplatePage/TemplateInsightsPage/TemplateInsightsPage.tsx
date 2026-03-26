@@ -1,46 +1,14 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	insightsTemplate,
-	insightsUserActivity,
-	insightsUserLatency,
-} from "api/queries/insights";
-import type {
-	Template,
-	TemplateAppUsage,
-	TemplateInsightsResponse,
-	TemplateParameterUsage,
-	TemplateParameterValue,
-	UserActivityInsightsResponse,
-	UserLatencyInsightsResponse,
-} from "api/typesGenerated";
 import chroma from "chroma-js";
-import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "components/ActiveUserChart/ActiveUserChart";
-import { Avatar } from "components/Avatar/Avatar";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipArrow,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	CircleCheck as CircleCheckIcon,
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import { RequirePermission } from "modules/permissions/RequirePermission";
+import {
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -61,8 +29,43 @@ import {
 	startOfHour,
 	subtractTime,
 } from "utils/time";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	insightsTemplate,
+	insightsUserActivity,
+	insightsUserLatency,
+} from "#/api/queries/insights";
+import type {
+	Template,
+	TemplateAppUsage,
+	TemplateInsightsResponse,
+	TemplateParameterUsage,
+	TemplateParameterValue,
+	UserActivityInsightsResponse,
+	UserLatencyInsightsResponse,
+} from "#/api/typesGenerated";
+import {
+	ActiveUserChart,
+	ActiveUsersTitle,
+} from "#/components/ActiveUserChart/ActiveUserChart";
+import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "#/components/HelpTooltip/HelpTooltip";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipArrow,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getTemplatePageTitle } from "../utils";
-import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";

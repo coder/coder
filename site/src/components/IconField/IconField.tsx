@@ -1,16 +1,16 @@
 import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Loader } from "components/Loader/Loader";
+import { type FC, lazy, Suspense, useState } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { type FC, lazy, Suspense, useState } from "react";
+} from "#/components/Popover/Popover";
 
 type IconFieldProps = TextFieldProps & {
 	onPickEmoji: (value: string) => void;

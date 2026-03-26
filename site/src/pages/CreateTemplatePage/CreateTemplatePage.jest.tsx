@@ -10,7 +10,7 @@ import {
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import CreateTemplatePage from "./CreateTemplatePage";
 
 const renderPage = async (searchParams: URLSearchParams) => {

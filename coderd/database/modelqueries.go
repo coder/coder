@@ -52,6 +52,7 @@ type customQuerier interface {
 	auditLogQuerier
 	connectionLogQuerier
 	aibridgeQuerier
+	chatQuerier
 }
 
 type templateQuerier interface {
@@ -421,6 +422,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		arg.IncludeSystem,
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
+		arg.IsServiceAccount,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -738,10 +740,79 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 	return count, nil
 }
 
+type chatQuerier interface {
+	GetAuthorizedChats(ctx context.Context, arg GetChatsParams, prepared rbac.PreparedAuthorized) ([]Chat, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams, prepared rbac.PreparedAuthorized) ([]Chat, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChats())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getChats, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedChats :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.OwnerID,
+		arg.Archived,
+		arg.AfterID,
+		arg.LabelFilter,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type aibridgeQuerier interface {
 	ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error)
 	CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) (int64, error)
 	ListAuthorizedAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error)
+	ListAuthorizedAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionsRow, error)
+	CountAuthorizedAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error)
 }
 
 func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error) {
@@ -788,6 +859,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 			&i.AIBridgeInterception.ThreadParentID,
 			&i.AIBridgeInterception.ThreadRootID,
 			&i.AIBridgeInterception.ClientSessionID,
+			&i.AIBridgeInterception.SessionID,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -873,6 +945,109 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeModels(ctx context.Context, arg ListA
 		items = append(items, model)
 	}
 	return items, nil
+}
+
+func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionsRow, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.AIBridgeInterceptionConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+	filtered, err := insertAuthorizedFilter(listAIBridgeSessions, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: ListAuthorizedAIBridgeSessions :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.AfterSessionID,
+		arg.Offset,
+		arg.Limit,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+		arg.Client,
+		arg.SessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeSessionsRow
+	for rows.Next() {
+		var i ListAIBridgeSessionsRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.UserID,
+			&i.UserUsername,
+			&i.UserName,
+			&i.UserAvatarUrl,
+			pq.Array(&i.Providers),
+			pq.Array(&i.Models),
+			&i.Client,
+			&i.Metadata,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Threads,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.LastPrompt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (q *sqlQuerier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.AIBridgeInterceptionConverter(),
+	})
+	if err != nil {
+		return 0, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+	filtered, err := insertAuthorizedFilter(countAIBridgeSessions, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return 0, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: CountAuthorizedAIBridgeSessions :one\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+		arg.Client,
+		arg.SessionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var count int64
+	for rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			return 0, err
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func insertAuthorizedFilter(query string, replaceWith string) (string, error) {

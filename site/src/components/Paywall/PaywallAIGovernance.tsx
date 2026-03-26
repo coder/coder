@@ -1,5 +1,5 @@
-import { PremiumBadge } from "components/Badges/Badges";
 import { docs } from "utils/docs";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import {
 	Paywall,
 	PaywallContent,
@@ -54,7 +54,9 @@ const PaywallAIGovernance = () => {
 						</span>
 					</PaywallFeature>
 				</PaywallFeatures>
-				<PaywallCTA href="https://coder.com/contact">Contact Sales</PaywallCTA>
+				<PaywallCTA href="https://coder.com/contact/sales">
+					Contact Sales
+				</PaywallCTA>
 			</PaywallStack>
 		</Paywall>
 	);

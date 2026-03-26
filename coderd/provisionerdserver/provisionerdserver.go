@@ -2834,12 +2834,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		env := make(map[string]string)
-		// For now, we only support adding extra envs, not overriding
-		// existing ones or performing other manipulations. In future
-		// we may write these to a separate table so we can perform
-		// conditional logic on the agent.
-		for _, e := range prAgent.ExtraEnvs {
-			env[e.Name] = e.Value
+		// Apply extra envs with merge strategy support.
+		// When multiple coder_env resources define the same name,
+		// the merge_strategy controls how values are combined.
+		if err := MergeExtraEnvs(env, prAgent.ExtraEnvs); err != nil {
+			return err
 		}
 		// Allow the agent defined envs to override extra envs.
 		for k, v := range prAgent.Env {
@@ -3435,14 +3434,54 @@ func insertDevcontainerSubagent(
 	return subAgentID, nil
 }
 
+// MergeExtraEnvs applies extra environment variables to the given map,
+// respecting the merge_strategy field on each env. When merge_strategy
+// is empty or "replace", the value overwrites any existing entry.
+// "append" and "prepend" join values with a ":" separator (PATH-style).
+// "error" causes a failure if the key already exists.
+func MergeExtraEnvs(env map[string]string, extraEnvs []*sdkproto.Env) error {
+	for _, e := range extraEnvs {
+		strategy := e.GetMergeStrategy()
+		if strategy == "" {
+			strategy = "replace"
+		}
+		existing, exists := env[e.GetName()]
+		switch strategy {
+		case "error":
+			if exists {
+				return xerrors.Errorf(
+					"duplicate env var %q: merge_strategy is %q but variable is already defined",
+					e.GetName(), strategy,
+				)
+			}
+			env[e.GetName()] = e.GetValue()
+		case "append":
+			if exists && existing != "" {
+				env[e.GetName()] = existing + ":" + e.GetValue()
+			} else {
+				env[e.GetName()] = e.GetValue()
+			}
+		case "prepend":
+			if exists && existing != "" {
+				env[e.GetName()] = e.GetValue() + ":" + existing
+			} else {
+				env[e.GetName()] = e.GetValue()
+			}
+		default: // "replace"
+			env[e.GetName()] = e.GetValue()
+		}
+	}
+	return nil
+}
+
 func encodeSubagentEnvs(envs []*sdkproto.Env) (pqtype.NullRawMessage, error) {
 	if len(envs) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
 
 	subAgentEnvs := make(map[string]string, len(envs))
-	for _, env := range envs {
-		subAgentEnvs[env.GetName()] = env.GetValue()
+	if err := MergeExtraEnvs(subAgentEnvs, envs); err != nil {
+		return pqtype.NullRawMessage{}, err
 	}
 
 	data, err := json.Marshal(subAgentEnvs)

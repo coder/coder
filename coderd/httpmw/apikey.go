@@ -248,12 +248,9 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 //
 // Returns (result, nil) on success or (nil, error) on failure.
 func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
-	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
-	if !ok {
-		return nil, &ValidateAPIKeyError{
-			Code:     http.StatusUnauthorized,
-			Response: resp,
-		}
+	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.SessionTokenFunc, r)
+	if valErr != nil {
+		return nil, valErr
 	}
 
 	// Log the API key ID for all requests that have a valid key
@@ -475,7 +472,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
 	if err != nil {
 		return nil, &ValidateAPIKeyError{
-			Code: http.StatusUnauthorized,
+			Code: http.StatusInternalServerError,
 			Response: codersdk.Response{
 				Message: internalErrorMessage,
 				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
@@ -492,6 +489,15 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 }
 
 func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
+	key, valErr := apiKeyFromRequestValidate(ctx, db, sessionTokenFunc, r)
+	if valErr != nil {
+		return nil, valErr.Response, false
+	}
+
+	return key, codersdk.Response{}, true
+}
+
+func apiKeyFromRequestValidate(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, *ValidateAPIKeyError) {
 	tokenFunc := APITokenFromRequest
 	if sessionTokenFunc != nil {
 		tokenFunc = sessionTokenFunc
@@ -499,45 +505,61 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 
 	token := tokenFunc(r)
 	if token == "" {
-		return nil, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
+			},
+		}
 	}
 
 	keyID, keySecret, err := SplitAPIToken(token)
 	if err != nil {
-		return nil, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  "Invalid API key format: " + err.Error(),
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "Invalid API key format: " + err.Error(),
+			},
+		}
 	}
 
 	//nolint:gocritic // System needs to fetch API key to check if it's valid.
 	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, codersdk.Response{
-				Message: SignedOutErrorMessage,
-				Detail:  "API key is invalid.",
-			}, false
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  "API key is invalid.",
+				},
+			}
 		}
 
-		return nil, codersdk.Response{
-			Message: internalErrorMessage,
-			Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
+			},
+			Hard: true,
+		}
 	}
 
 	// Checking to see if the secret is valid.
 	if !apikey.ValidateHash(key.HashedSecret, keySecret) {
-		return nil, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  "API key secret is invalid.",
-		}, false
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusUnauthorized,
+			Response: codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "API key secret is invalid.",
+			},
+		}
 	}
 
-	return &key, codersdk.Response{}, true
+	return &key, nil
 }
 
 // ExtractAPIKey requires authentication using a valid API key. It handles

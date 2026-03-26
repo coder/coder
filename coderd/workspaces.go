@@ -1502,7 +1502,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: This is a strange error since it occurs after the mutatation.
+	// TODO: This is a strange error since it occurs after the mutation.
 	// An example of why we should join in fields to prevent this forbidden error
 	// from being sent, when the action did succeed.
 	if len(data.templates) == 0 {
@@ -1753,7 +1753,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
-	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent, stat, true)
+	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent.ID, agent.Name, stat, true)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -2487,7 +2487,11 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+		} else {
+			httpapi.InternalServerError(rw, err)
+		}
 		return
 	}
 
@@ -2566,7 +2570,7 @@ func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWrite
 		httpapi.InternalServerError(rw, err)
 		return false
 	}
-	if org.WorkspaceSharingDisabled {
+	if org.ShareableWorkspaceOwners == database.ShareableWorkspaceOwnersNone {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Workspace sharing is disabled for this organization.",
 		})

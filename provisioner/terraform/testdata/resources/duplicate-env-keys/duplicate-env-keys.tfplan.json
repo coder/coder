@@ -44,7 +44,8 @@
           "schema_version": 1,
           "values": {
             "name": "PATH",
-            "value": "/a/bin"
+            "value": "/a/bin",
+            "merge_strategy": "append"
           },
           "sensitive_values": {}
         },
@@ -57,7 +58,8 @@
           "schema_version": 1,
           "values": {
             "name": "PATH",
-            "value": "/b/bin"
+            "value": "/b/bin",
+            "merge_strategy": "append"
           },
           "sensitive_values": {}
         },

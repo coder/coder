@@ -1,12 +1,12 @@
 import IconButton from "@mui/material/IconButton";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 const Language = {
 	showLabel: "Show value",

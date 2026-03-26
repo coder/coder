@@ -5,16 +5,16 @@ import {
 	withToaster,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { deploymentConfigQueryKey } from "api/queries/deployment";
-import { groupsQueryKey } from "api/queries/groups";
-import { rolesQueryKey } from "api/queries/roles";
-import { authMethodsQueryKey, usersKey } from "api/queries/users";
-import type { User } from "api/typesGenerated";
 import { MockGroups } from "pages/UsersPage/storybookData/groups";
 import { MockRoles } from "pages/UsersPage/storybookData/roles";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { deploymentConfigQueryKey } from "#/api/queries/deployment";
+import { groupsQueryKey } from "#/api/queries/groups";
+import { rolesQueryKey } from "#/api/queries/roles";
+import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
+import type { User } from "#/api/typesGenerated";
 import UsersPage from "./UsersPage";
 
 const parameters = {

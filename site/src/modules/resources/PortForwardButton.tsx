@@ -5,40 +5,6 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import { API } from "api/api";
-import {
-	deleteWorkspacePortShare,
-	upsertWorkspacePortShare,
-	workspacePortShares,
-} from "api/queries/workspaceportsharing";
-import {
-	type Template,
-	type Workspace,
-	type WorkspaceAgent,
-	type WorkspaceAgentListeningPort,
-	type WorkspaceAgentPortShare,
-	type WorkspaceAgentPortShareLevel,
-	type WorkspaceAgentPortShareProtocol,
-	WorkspaceAppSharingLevels,
-} from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Button } from "components/Button/Button";
-import {
-	HelpTooltipLink,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import {
 	BuildingIcon,
@@ -60,6 +26,40 @@ import {
 	saveWorkspaceListeningPortsProtocol,
 } from "utils/portForward";
 import * as Yup from "yup";
+import { API } from "#/api/api";
+import {
+	deleteWorkspacePortShare,
+	upsertWorkspacePortShare,
+	workspacePortShares,
+} from "#/api/queries/workspaceportsharing";
+import {
+	type Template,
+	type Workspace,
+	type WorkspaceAgent,
+	type WorkspaceAgentListeningPort,
+	type WorkspaceAgentPortShare,
+	type WorkspaceAgentPortShareLevel,
+	type WorkspaceAgentPortShareProtocol,
+	WorkspaceAppSharingLevels,
+} from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import {
+	HelpTooltipLink,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "#/components/HelpTooltip/HelpTooltip";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 interface PortForwardButtonProps {
 	host: string;

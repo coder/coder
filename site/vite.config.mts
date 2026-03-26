@@ -1,12 +1,32 @@
 import * as path from "node:path";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
+import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
+// Enable the React profiling build and discoverable source maps for
+// internal deployments (e.g. dogfood). The profiling build swaps
+// react-dom/client for react-dom/profiling, which keeps production
+// optimizations but leaves the <Profiler> onRender callback and
+// React Performance Tracks instrumentation intact. The overhead is
+// ~13% on the react-dom chunk size.
+const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
+
 const plugins: PluginOption[] = [
-	react(),
+	react({
+		babel: {
+			plugins: [],
+			overrides: [
+				{
+					test: /src\/(pages\/AgentsPage|components\/ai-elements)\//,
+					plugins: ["babel-plugin-react-compiler"],
+				},
+			],
+		},
+	}),
 	checker({
 		typescript: true,
 	}),
@@ -30,7 +50,7 @@ export default defineConfig({
 	build: {
 		outDir: path.resolve(__dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
-		sourcemap: "hidden",
+		sourcemap: isProfilingBuild ? true : "hidden",
 		rollupOptions: {
 			input: {
 				index: path.resolve(__dirname, "./index.html"),
@@ -197,6 +217,15 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			// In profiling builds, swap the production react-dom client
+			// bundle for the profiling variant so that <Profiler>
+			// onRender receives actual timing data.
+			// Note: react-dom/profiling is a superset of react-dom/client
+			// (16 vs 3 exports). If a future React major changes this
+			// relationship, the alias may need updating.
+			...(isProfilingBuild
+				? { "react-dom/client": "react-dom/profiling" }
+				: {}),
 			App: path.resolve(__dirname, "./src/App"),
 			api: path.resolve(__dirname, "./src/api"),
 			components: path.resolve(__dirname, "./src/components"),
@@ -210,10 +239,42 @@ export default defineConfig({
 		},
 	},
 	test: {
-		include: ["src/**/*.test.?(m)ts?(x)"],
-		globals: true,
-		environment: "jsdom",
-		setupFiles: ["@testing-library/jest-dom/vitest", "./test/vitestSetup.ts"],
 		silent: "passed-only",
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					include: ["src/**/*.test.?(m)ts?(x)"],
+					globals: true,
+					environment: "jsdom",
+					setupFiles: [
+						"@testing-library/jest-dom/vitest",
+						"./test/vitestSetup.ts",
+					],
+				},
+			},
+			// Storybook story tests via Playwright browser mode.
+			// Discovery handled by the storybookTest plugin via
+			// .storybook/main.ts `stories` config.
+			{
+				extends: true,
+				plugins: [
+					storybookTest({
+						configDir: path.join(__dirname, ".storybook"),
+					}),
+				],
+				test: {
+					name: "storybook",
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright(),
+						instances: [{ browser: "chromium" }],
+					},
+					setupFiles: [".storybook/vitest.setup.ts"],
+				},
+			},
+		],
 	},
 });

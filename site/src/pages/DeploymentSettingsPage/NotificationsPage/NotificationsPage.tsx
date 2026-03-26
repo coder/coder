@@ -1,18 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import {
-	customNotificationTemplates,
-	notificationDispatchMethods,
-	selectTemplatesByGroup,
-	systemNotificationTemplates,
-} from "api/queries/notifications";
-import { Loader } from "components/Loader/Loader";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderDocsLink,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
@@ -21,6 +7,20 @@ import { useQueries } from "react-query";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import {
+	customNotificationTemplates,
+	notificationDispatchMethods,
+	selectTemplatesByGroup,
+	systemNotificationTemplates,
+} from "#/api/queries/notifications";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
 import { Troubleshooting } from "./Troubleshooting";

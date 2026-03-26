@@ -88,7 +88,7 @@ var (
 func (a Addon) Features() []FeatureName {
 	switch a {
 	case AddonAIGovernance:
-		// Return all AI governance features.
+		// Return all AI Governance features.
 		var features []FeatureName
 		for _, featureName := range FeatureNames {
 			if featureName.IsAIGovernanceAddon() {
@@ -306,7 +306,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
-// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+// IsAIGovernanceAddon returns true if the feature is an AI Governance addon feature.
 func (n FeatureName) IsAIGovernanceAddon() bool {
 	return n == FeatureAIBridge || n == FeatureBoundary
 }
@@ -1436,6 +1436,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Inbox",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
+		}
+		deploymentGroupChat = serpent.Group{
+			Name:        "Chat",
+			YAML:        "chat",
+			Description: "Configure the background chat processing daemon.",
 		}
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge",
@@ -3600,6 +3605,18 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
+		// Chat Options
+		{
+			Name:        "Chat: Acquire Batch Size",
+			Description: "How many pending chats a worker should acquire per polling cycle.",
+			Flag:        "chat-acquire-batch-size",
+			Env:         "CODER_CHAT_ACQUIRE_BATCH_SIZE",
+			Value:       &c.AI.Chat.AcquireBatchSize,
+			Default:     "10",
+			Group:       &deploymentGroupChat,
+			YAML:        "acquireBatchSize",
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -3936,6 +3953,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "upstream_proxy_ca",
 		},
+		{
+			Name:        "AI Bridge Proxy Allowed Private CIDRs",
+			Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
+			Flag:        "aibridge-proxy-allowed-private-cidrs",
+			Env:         "CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS",
+			Value:       &c.AI.BridgeProxyConfig.AllowedPrivateCIDRs,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "allowed_private_cidrs",
+		},
 
 		// Retention settings
 		{
@@ -4041,20 +4068,26 @@ type AIBridgeBedrockConfig struct {
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
-	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
-	TLSCertFile     serpent.String      `json:"tls_cert_file" typescript:",notnull"`
-	TLSKeyFile      serpent.String      `json:"tls_key_file" typescript:",notnull"`
-	MITMCertFile    serpent.String      `json:"cert_file" typescript:",notnull"`
-	MITMKeyFile     serpent.String      `json:"key_file" typescript:",notnull"`
-	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
-	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
-	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
+	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
+	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	MITMKeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist     serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
+}
+
+type ChatConfig struct {
+	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
 }
 
 type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
+	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
 }
 
 type SupportConfig struct {

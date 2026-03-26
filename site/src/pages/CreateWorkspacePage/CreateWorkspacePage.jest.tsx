@@ -18,9 +18,9 @@ import {
 import { createMockWebSocket } from "testHelpers/websockets";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type { DynamicParametersResponse } from "api/typesGenerated";
 import { act } from "react";
+import { API } from "#/api/api";
+import type { DynamicParametersResponse } from "#/api/typesGenerated";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {

@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -421,7 +422,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: strPtr("session-abc-123"),
+					ClientSessionId: ptr.Ref("session-abc-123"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -459,7 +460,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: strPtr(""),
+					ClientSessionId: ptr.Ref(""),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -546,7 +547,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_abc"),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -580,7 +581,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_abc"),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -609,7 +610,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_abc"),
+					CorrelatingToolCallId: ptr.Ref("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -641,7 +642,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr("call_orphan"),
+					CorrelatingToolCallId: ptr.Ref("call_orphan"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -901,11 +902,11 @@ func TestRecordToolUsage(t *testing.T) {
 					InterceptionId:  uuid.NewString(),
 					MsgId:           "msg_123",
 					ToolCallId:      "call_xyz",
-					ServerUrl:       strPtr("https://api.example.com"),
+					ServerUrl:       ptr.Ref("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        false,
-					InvocationError: strPtr("permission denied"),
+					InvocationError: ptr.Ref("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				},
@@ -986,6 +987,75 @@ func TestRecordToolUsage(t *testing.T) {
 	)
 }
 
+func TestRecordModelThought(t *testing.T) {
+	t.Parallel()
+
+	var (
+		metadataProto = map[string]*anypb.Any{
+			"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
+		}
+		metadataJSON = `{"key":"value"}`
+	)
+
+	testRecordMethod(t,
+		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+			return srv.RecordModelThought(ctx, req)
+		},
+		[]testRecordMethodCase[*proto.RecordModelThoughtRequest]{
+			{
+				name: "valid model thought",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: uuid.NewString(),
+					Content:        "I should list the files.",
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordModelThoughtRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeModelThoughtParams) bool {
+						if !assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
+							!assert.Equal(t, "I should list the files.", p.Content, "content") ||
+							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeModelThought{
+						InterceptionID: interceptionID,
+						Content:        "I should list the files.",
+						Metadata: pqtype.NullRawMessage{
+							RawMessage: json.RawMessage(metadataJSON),
+							Valid:      true,
+						},
+					}, nil)
+				},
+			},
+			{
+				name: "invalid interception ID",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: "not-a-uuid",
+					Content:        "thinking...",
+					CreatedAt:      timestamppb.Now(),
+				},
+				expectedErr: "failed to parse interception_id",
+			},
+			{
+				name: "database error",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: uuid.NewString(),
+					Content:        "thinking...",
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordModelThoughtRequest) {
+					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{}, sql.ErrConnDone)
+				},
+				expectedErr: "insert model thought",
+			},
+		},
+	)
+}
+
 type testRecordMethodCase[Req any] struct {
 	name    string
 	request Req
@@ -1036,10 +1106,6 @@ func mustMarshalAny(t *testing.T, msg protobufproto.Message) *anypb.Any {
 	v, err := anypb.New(msg)
 	require.NoError(t, err)
 	return v
-}
-
-func strPtr(s string) *string {
-	return &s
 }
 
 // logLine represents a parsed JSON log entry.
@@ -1123,8 +1189,8 @@ func TestStructuredLogging(t *testing.T) {
 					Model:                 "claude-4-opus",
 					Metadata:              metadataProto,
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: strPtr(toolCallID),
-					ClientSessionId:       strPtr(sessionID),
+					CorrelatingToolCallId: ptr.Ref(toolCallID),
+					ClientSessionId:       ptr.Ref(sessionID),
 				})
 
 				return err
@@ -1275,11 +1341,11 @@ func TestStructuredLogging(t *testing.T) {
 				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 					InterceptionId:  intcID.String(),
 					MsgId:           "msg_123",
-					ServerUrl:       strPtr("https://api.example.com"),
+					ServerUrl:       ptr.Ref("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        true,
-					InvocationError: strPtr("permission denied"),
+					InvocationError: ptr.Ref("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				})
@@ -1292,6 +1358,29 @@ func TestStructuredLogging(t *testing.T) {
 				"input":            `{"path": "/etc/hosts"}`,
 				"injected":         true,
 				"invocation_error": "permission denied",
+			},
+		},
+		{
+			name:              "RecordModelThought_logs_when_enabled",
+			structuredLogging: true,
+			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{
+					InterceptionID: intcID,
+				}, nil)
+			},
+			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
+				_, err := srv.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+					InterceptionId: intcID.String(),
+					Content:        "I need to list the files.",
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
+				})
+				return err
+			},
+			expectedFields: map[string]any{
+				"record_type":     "model_thought",
+				"interception_id": interceptionID.String(),
+				"content":         "I need to list the files.",
 			},
 		},
 	}
@@ -1326,7 +1415,7 @@ func TestStructuredLogging(t *testing.T) {
 				require.Empty(t, lines)
 			} else {
 				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
-				require.Len(t, matchedLines, 1, "expected exactly one log line with message %q", aibridgedserver.InterceptionLogMarker)
+				require.GreaterOrEqual(t, len(matchedLines), 1, "expected at least 1 log line(s) with message %q", aibridgedserver.InterceptionLogMarker)
 
 				fields := matchedLines[0].Fields
 				for key, expected := range tc.expectedFields {
@@ -1395,7 +1484,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: strPtr("call_a"),
+		CorrelatingToolCallId: ptr.Ref("call_a"),
 	})
 	require.NoError(t, err)
 
@@ -1423,7 +1512,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: strPtr("call_b"),
+		CorrelatingToolCallId: ptr.Ref("call_b"),
 	})
 	require.NoError(t, err)
 

@@ -11,15 +11,15 @@ import {
 	withToaster,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import {
 	customNotificationTemplatesKey,
 	notificationDispatchMethodsKey,
 	systemNotificationTemplatesKey,
 	userNotificationPreferencesKey,
-} from "api/queries/notifications";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+} from "#/api/queries/notifications";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {

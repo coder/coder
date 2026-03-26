@@ -1,4 +1,3 @@
-import { Spinner } from "components/Spinner/Spinner";
 import {
 	CheckIcon,
 	InfoIcon,
@@ -8,6 +7,7 @@ import {
 } from "lucide-react";
 import { Toaster as Sonner, type ToasterProps as SonnerProps } from "sonner";
 import { cn } from "utils/cn";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 export const Toaster = ({ ...props }: SonnerProps) => {
 	return (

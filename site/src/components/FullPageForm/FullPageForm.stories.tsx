@@ -1,8 +1,8 @@
 import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "components/Button/Button";
-import { FormFooter } from "components/Form/Form";
 import type { FC } from "react";
+import { Button } from "#/components/Button/Button";
+import { FormFooter } from "#/components/Form/Form";
 import { Stack } from "../Stack/Stack";
 import { FullPageForm, type FullPageFormProps } from "./FullPageForm";
 

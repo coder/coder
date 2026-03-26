@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 type parameterValueSource int
@@ -109,6 +110,7 @@ func ResolveParameters(
 	for _, parameter := range output.Parameters {
 		parameterNames[parameter.Name] = struct{}{}
 
+		// Validate mutability constraints.
 		if !firstBuild && !parameter.Mutable {
 			// previousValuesMap should be used over the first render output
 			// for the previous state of parameters. The previous build
@@ -139,6 +141,40 @@ func ResolveParameters(
 						Subject:  src,
 					},
 				})
+			}
+		}
+
+		// Validate monotonic constraints. Monotonic parameters
+		// require the value to only increase or only decrease
+		// relative to the previous build.
+		if !firstBuild {
+			prevStr, hasPrev := previousValuesMap[parameter.Name]
+			// Only validate on currently valid parameters. Do not load extra diagnostics if
+			// the parameter is already invalid.
+			if hasPrev && parameter.Value.Valid() {
+			MonotonicValidationLoop:
+				for _, v := range parameter.Validations {
+					if v.Monotonic == nil || *v.Monotonic == "" {
+						continue
+					}
+
+					validation := &provider.Validation{
+						Monotonic:   *v.Monotonic,
+						MinDisabled: true,
+						MaxDisabled: true,
+					}
+					prev := prevStr
+					if err := validation.Valid(provider.OptionType(parameter.Type), parameter.Value.AsString(), &prev); err != nil {
+						parameterError.Extend(parameter.Name, hcl.Diagnostics{
+							&hcl.Diagnostic{
+								Severity: hcl.DiagError,
+								Summary:  fmt.Sprintf("Parameter %q monotonicity", parameter.Name),
+								Detail:   err.Error(),
+							},
+						})
+						break MonotonicValidationLoop
+					}
+				}
 			}
 		}
 

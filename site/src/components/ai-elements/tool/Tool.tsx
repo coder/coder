@@ -1,9 +1,15 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import type { ComponentPropsWithRef, FC } from "react";
-import { memo } from "react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -15,9 +21,11 @@ import {
 } from "./ExecuteTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
+import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
+import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
 import {
@@ -36,6 +44,7 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
@@ -51,6 +60,10 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	subagentTitles?: Map<string, string>;
 	/** Maps sub-agent chat IDs to real-time status updates from stream events. */
 	subagentStatusOverrides?: Map<string, string>;
+	/** MCP server config ID associated with this tool call. */
+	mcpServerConfigId?: string;
+	/** Available MCP server configs for icon/name lookup. */
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -63,6 +76,8 @@ type ToolRendererProps = {
 	isError: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, string>;
+	mcpServerConfigId?: string;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 };
 
 // ---------------------------------------------------------------------------
@@ -288,6 +303,16 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		subagentToolStatus === "error" ||
 		((status === "error" || isError) && !subagentCompleted);
 
+	// Detect timeout from the result. A timed-out wait_agent
+	// typically returns an error string or an object with an
+	// error field containing "timed out".
+	const resultStr = typeof result === "string" ? result : "";
+	const errorStr = rec ? asString(rec.error) : "";
+	const isTimeout =
+		subagentIsError &&
+		(resultStr.toLowerCase().includes("timed out") ||
+			errorStr.toLowerCase().includes("timed out"));
+
 	return (
 		<SubagentTool
 			toolName={name}
@@ -300,6 +325,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
+			isTimeout={isTimeout}
 		/>
 	);
 };
@@ -367,6 +393,34 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ProposePlanRenderer: FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const path = parsedArgs ? asString(parsedArgs.path) || "PLAN.md" : "PLAN.md";
+	const rec = asRecord(result);
+	const content = rec && "content" in rec ? asString(rec.content) : undefined;
+	const fileID = rec && "file_id" in rec ? asString(rec.file_id) : undefined;
+	const errorMessage = isError
+		? (rec ? asString(rec.error || rec.message) : undefined) ||
+			(typeof result === "string" ? result : undefined)
+		: undefined;
+
+	return (
+		<ProposePlanTool
+			content={content}
+			fileID={fileID}
+			path={path}
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage}
+		/>
+	);
+};
+
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -422,6 +476,8 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	mcpServerConfigId,
+	mcpServers,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -437,26 +493,65 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			}
 		: fileViewerOpts;
 
+	// Look up MCP server config for icon and slug.
+	const mcpServer = mcpServerConfigId
+		? mcpServers?.find((s) => s.id === mcpServerConfigId)
+		: undefined;
+
+	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
+	const isRunning = status === "running";
+	const rec = asRecord(result);
+	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+
 	return (
-		<>
-			<div className="flex items-center gap-2">
-				<ToolIcon name={name} isError={status === "error" || isError} />
-				<ToolLabel name={name} args={args} result={result} />
-			</div>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={
+				<>
+					<ToolIcon
+						name={name}
+						isError={status === "error" || isError}
+						iconUrl={mcpServer?.icon_url}
+						isRunning={isRunning}
+						serverName={mcpServer?.display_name}
+					/>
+					<ToolLabel
+						name={name}
+						args={args}
+						result={result}
+						mcpSlug={mcpServer?.slug}
+					/>
+					{isError && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{errorMessage || "Tool call failed"}
+							</TooltipContent>
+						</Tooltip>
+					)}
+					{isRunning && (
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
+				</>
+			}
+		>
 			{writeFileDiff ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
 					<FileDiff
-						fileDiff={writeFileDiff}
+						fileDiff={stripNoNewline(writeFileDiff)}
 						options={getDiffViewerOptions(isDark)}
+						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
 			) : fileContent ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
@@ -471,7 +566,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			) : (
 				resultOutput && (
 					<ScrollArea
-						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 						viewportClassName="max-h-64"
 						scrollBarClassName="w-1.5"
 					>
@@ -486,7 +581,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					</ScrollArea>
 				)
 			)}
-		</>
+		</ToolCollapsible>
 	);
 };
 
@@ -509,6 +604,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	propose_plan: ProposePlanRenderer,
 	computer: ComputerRenderer,
 };
 
@@ -526,6 +622,8 @@ export const Tool = memo(
 		isError = false,
 		subagentTitles,
 		subagentStatusOverrides,
+		mcpServerConfigId,
+		mcpServers,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -535,7 +633,9 @@ export const Tool = memo(
 			<div
 				ref={ref}
 				className={cn(
-					name === "execute" || name === "process_output"
+					name === "execute" ||
+						name === "process_output" ||
+						name === "propose_plan"
 						? "w-full py-0.5"
 						: "py-0.5",
 					className,
@@ -550,10 +650,10 @@ export const Tool = memo(
 					isError={isError}
 					subagentTitles={subagentTitles}
 					subagentStatusOverrides={subagentStatusOverrides}
+					mcpServerConfigId={mcpServerConfigId}
+					mcpServers={mcpServers}
 				/>
 			</div>
 		);
 	},
 );
-
-Tool.displayName = "Tool";

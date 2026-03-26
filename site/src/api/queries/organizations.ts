@@ -1,17 +1,3 @@
-import {
-	API,
-	type GetProvisionerDaemonsParams,
-	type GetProvisionerJobsParams,
-} from "api/api";
-import type {
-	CreateOrganizationRequest,
-	GroupSyncSettings,
-	Organization,
-	PaginatedMembersRequest,
-	PaginatedMembersResponse,
-	RoleSyncSettings,
-	UpdateOrganizationRequest,
-} from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import {
@@ -25,6 +11,21 @@ import {
 	workspacePermissionChecks,
 } from "modules/permissions/workspaces";
 import type { QueryClient, UseQueryOptions } from "react-query";
+import {
+	API,
+	type GetProvisionerDaemonsParams,
+	type GetProvisionerJobsParams,
+} from "#/api/api";
+import type {
+	CreateOrganizationRequest,
+	GroupSyncSettings,
+	Organization,
+	PaginatedMembersRequest,
+	PaginatedMembersResponse,
+	RoleSyncSettings,
+	UpdateOrganizationRequest,
+	UpdateWorkspaceSharingSettingsRequest,
+} from "#/api/typesGenerated";
 import { meKey } from "./users";
 import { cachedQuery } from "./util";
 
@@ -272,7 +273,7 @@ export const patchWorkspaceSharingSettings = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (request: { sharing_disabled: boolean }) =>
+		mutationFn: (request: UpdateWorkspaceSharingSettingsRequest) =>
 			API.patchWorkspaceSharingSettings(organization, request),
 		onSuccess: async () =>
 			await queryClient.invalidateQueries({

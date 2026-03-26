@@ -1,8 +1,8 @@
 import TextField from "@mui/material/TextField";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Stack } from "components/Stack/Stack";
 import { type ChangeEvent, type FC, useState } from "react";
 import { type FileTree, isFolder, validatePath } from "utils/filetree";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Stack } from "#/components/Stack/Stack";
 
 interface CreateFileDialogProps {
 	onClose: () => void;

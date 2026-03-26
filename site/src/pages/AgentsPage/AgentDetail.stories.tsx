@@ -10,16 +10,6 @@ import {
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import {
-	chatDiffContentsKey,
-	chatKey,
-	chatMessagesKey,
-	chatModelsKey,
-	chatsKey,
-} from "api/queries/chats";
-import { workspaceByIdKey } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
 import type { FC } from "react";
 import { Outlet } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -27,6 +17,18 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import {
+	chatDiffContentsKey,
+	chatKey,
+	chatMessagesKey,
+	chatModelConfigs,
+	chatModelsKey,
+	chatsKey,
+	mcpServerConfigsKey,
+} from "#/api/queries/chats";
+import { workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import AgentDetail, { RIGHT_PANEL_OPEN_KEY } from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 
@@ -44,10 +46,14 @@ const AgentDetailLayout: FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: () => {},
+							requestArchiveAndDeleteWorkspace: (
+								_chatId: string,
+								_workspaceId: string,
+							) => {},
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
+							onExpandSidebar: () => {},
 						} satisfies AgentsOutletContext
 					}
 				/>
@@ -60,6 +66,7 @@ const AgentDetailLayout: FC = () => {
 // Shared mock data
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
+const MODEL_CONFIG_ID = "model-config-1";
 
 const mockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
@@ -102,10 +109,27 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 	],
 };
 
+const mockModelConfigs: TypesGen.ChatModelConfig[] = [
+	{
+		id: MODEL_CONFIG_ID,
+		provider: "openai",
+		model: "gpt-4o",
+		display_name: "GPT-4o",
+		enabled: true,
+		is_default: true,
+		context_limit: 200000,
+		compression_threshold: 70,
+		created_at: "2026-02-18T00:00:00.000Z",
+		updated_at: "2026-02-18T00:00:00.000Z",
+	},
+];
+
 const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
-	last_model_config_id: "model-config-1",
+	last_model_config_id: MODEL_CONFIG_ID,
+	mcp_server_ids: [],
+	labels: {},
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -171,6 +195,8 @@ const buildQueries = (
 			data: mockWorkspace,
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
+		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
+		{ key: mcpServerConfigsKey, data: [] },
 	];
 };
 
@@ -207,7 +233,10 @@ const meta: Meta<typeof AgentDetailLayout> = {
 		}),
 	},
 	beforeEach: () => {
+		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };
 
@@ -584,22 +613,6 @@ export const CompletedWithDiffPanel: Story = {
 	},
 };
 
-/** Right panel stays closed when no diff-status URL exists. */
-export const NoDiffUrl: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "No diff yet",
-				status: "completed",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
-	},
-};
-
 /** Subagent tool-call/result messages render subagent cards. */
 export const WithSubagentCards: Story = {
 	parameters: {
@@ -653,8 +666,8 @@ export const WithSubagentCards: Story = {
 	},
 };
 
-/** Reasoning part renders collapsed and can be expanded on click. */
-export const WithReasoningCollapsed: Story = {
+/** Completed reasoning part renders inline. */
+export const WithReasoningInline: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -673,7 +686,6 @@ export const WithReasoningCollapsed: Story = {
 						content: [
 							{
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Reasoning body",
 							},
 						],
@@ -687,17 +699,10 @@ export const WithReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
+		// Reasoning text renders inline.
 		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
+		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 	},
 };
 
@@ -772,7 +777,7 @@ export const SidebarWithPRAndRepos: Story = {
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -953,7 +958,7 @@ export const SidebarWithSingleRepo: Story = {
 			{ diffUrl: undefined },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -999,10 +1004,9 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders collapsed and
- * can be expanded on click.
+ * Streaming reasoning part via WebSocket — renders inline text.
  */
-export const StreamedReasoningCollapsed: Story = {
+export const StreamedReasoning: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -1023,7 +1027,6 @@ export const StreamedReasoningCollapsed: Story = {
 						message_part: {
 							part: {
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Streaming reasoning body",
 							},
 						},
@@ -1034,16 +1037,7 @@ export const StreamedReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
 		await expect(
 			canvas.findByText("Streaming reasoning body"),
 		).resolves.toBeInTheDocument();

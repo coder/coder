@@ -1,6 +1,6 @@
-import { Button, type ButtonProps } from "components/Button/Button";
 import { BellIcon } from "lucide-react";
 import { cn } from "utils/cn";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import { UnreadBadge } from "./UnreadBadge";
 
 type InboxButtonProps = ButtonProps & {

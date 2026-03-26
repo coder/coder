@@ -4,7 +4,6 @@ import {
 	render as testingLibraryRender,
 	waitFor,
 } from "@testing-library/react";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import type { ProxyProvider } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
@@ -21,6 +20,7 @@ import {
 	RouterProvider,
 } from "react-router";
 import themes, { DEFAULT_THEME } from "theme";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { MockUserOwner } from "./entities";
 
 // Creates one query client for each test case, to make sure that tests are

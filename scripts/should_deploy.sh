@@ -58,6 +58,10 @@ else
 fi
 log "Deploy branch: $deploy_branch"
 
+# TODO: remove this temporary override
+log "OVERRIDE: forcing main as deploy branch"
+deploy_branch=main
+
 # Finally, check if the current branch is the deploy branch.
 log
 if [[ "$branch_name" != "$deploy_branch" ]]; then
