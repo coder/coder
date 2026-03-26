@@ -1,7 +1,6 @@
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import {
 	type ApiError,
@@ -33,6 +32,7 @@ import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "#/modules/workspaces/WorkspaceUpdateDialogs";
+import { pageTitle } from "#/utils/page";
 import { Workspace } from "./Workspace";
 
 interface WorkspaceReadyPageProps {

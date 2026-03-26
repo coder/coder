@@ -7,7 +7,6 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import * as CreateDayString from "utils/createDayString";
 import { API } from "#/api/api";
 import type { AuditLogsRequest } from "#/api/typesGenerated";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
@@ -21,6 +20,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import * as CreateDayString from "#/utils/createDayString";
 import AuditPage from "./AuditPage";
 
 interface RenderPageOptions {

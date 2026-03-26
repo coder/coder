@@ -2,10 +2,10 @@ import dayjs from "dayjs";
 import type { FC } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { useParams } from "react-router";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import { workspaceBuildByNumber } from "#/api/queries/workspaceBuilds";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { pageTitle } from "#/utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
 const WorkspaceBuildPage: FC = () => {

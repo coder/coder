@@ -1,11 +1,11 @@
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
-import { cn } from "utils/cn";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import type { ToolStatus } from "./utils";
 
 /**

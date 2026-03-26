@@ -8,7 +8,6 @@ import {
 } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -32,6 +31,7 @@ import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { maybePlayChime } from "./components/AgentDetail/useAgentChime";

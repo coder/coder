@@ -11,8 +11,8 @@ import { ChevronRightIcon } from "lucide-react";
 import { AIBridgeClientIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
 import type { FC } from "react";
-import { DATE_FORMAT, formatDateTime } from "utils/time";
 import type { AIBridgeSession } from "#/api/typesGenerated";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName, getProviderIconName } from "../utils";
 

@@ -4,11 +4,6 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
 import type { FC } from "react";
-import {
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
 import {
 	type AutomaticUpdates,
@@ -23,6 +18,11 @@ import {
 	HorizontalForm,
 } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 export type WorkspaceSettingsFormValues = {
 	name: string;

@@ -2,8 +2,8 @@ import FormHelperText, {
 	type FormHelperTextProps,
 } from "@mui/material/FormHelperText";
 import type { ComponentProps, FC } from "react";
-import { cn } from "utils/cn";
 import { Stack } from "#/components/Stack/Stack";
+import { cn } from "#/utils/cn";
 
 /**
  * Use these components as the label in FormControlLabel when implementing radio

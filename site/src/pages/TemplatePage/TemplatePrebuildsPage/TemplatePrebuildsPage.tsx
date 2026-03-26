@@ -3,11 +3,11 @@ import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import type { InvalidatePresetsResponse } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { pageTitle } from "#/utils/page";
 
 const TemplatePrebuildsPage: FC = () => {
 	const { template } = useTemplateLayoutContext();

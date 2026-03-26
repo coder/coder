@@ -4,7 +4,6 @@ import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClientProvider } from "react-query";
 import { toast } from "sonner";
-import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 import * as API from "#/api/api";
 import type { WorkspaceAgentListContainersResponse } from "#/api/typesGenerated";
 import {
@@ -13,6 +12,7 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { useAgentContainers } from "./useAgentContainers";
 
 const createWrapper = (): FC<PropsWithChildren> => {

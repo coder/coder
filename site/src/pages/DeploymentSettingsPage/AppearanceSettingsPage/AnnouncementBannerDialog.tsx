@@ -4,12 +4,12 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
-import { getFormHelpers } from "utils/formUtils";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Dialog, DialogActionButtons } from "#/components/Dialogs/Dialog";
 import { Stack } from "#/components/Stack/Stack";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
+import { getFormHelpers } from "#/utils/formUtils";
 
 interface AnnouncementBannerDialogProps {
 	banner: BannerConfig;

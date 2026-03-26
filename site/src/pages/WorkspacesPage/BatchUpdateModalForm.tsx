@@ -10,7 +10,6 @@ import {
 	useState,
 } from "react";
 import { useQueries } from "react-query";
-import { cn } from "utils/cn";
 import { templateVersion } from "#/api/queries/templates";
 import type { Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -26,6 +25,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
+import { cn } from "#/utils/cn";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,

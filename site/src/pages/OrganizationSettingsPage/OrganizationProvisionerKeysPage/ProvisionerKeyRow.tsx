@@ -1,8 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
 import type { ProvisionerDaemon, ProvisionerKey } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -12,6 +10,8 @@ import {
 	ProvisionerTags,
 	ProvisionerTruncateTags,
 } from "#/modules/provisioners/ProvisionerTags";
+import { cn } from "#/utils/cn";
+import { relativeTime } from "#/utils/time";
 
 type ProvisionerKeyRowProps = {
 	readonly provisionerKey: ProvisionerKey;

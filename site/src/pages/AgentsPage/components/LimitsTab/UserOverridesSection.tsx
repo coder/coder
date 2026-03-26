@@ -1,5 +1,4 @@
 import { type FC, useId } from "react";
-import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
 import { getErrorMessage } from "#/api/errors";
 import type { User } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -16,6 +15,10 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import {
+	formatCostMicros,
+	isPositiveFiniteDollarAmount,
+} from "#/utils/currency";
 import { SectionHeader } from "../SectionHeader";
 
 interface UserOverridesSectionProps {

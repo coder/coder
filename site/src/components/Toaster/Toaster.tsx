@@ -6,8 +6,8 @@ import {
 	XIcon,
 } from "lucide-react";
 import { Toaster as Sonner, type ToasterProps as SonnerProps } from "sonner";
-import { cn } from "utils/cn";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 
 export const Toaster = ({ ...props }: SonnerProps) => {
 	return (

@@ -20,8 +20,8 @@ import { useDebouncedFunction } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { type FC, type ReactNode, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
-import { cn } from "utils/cn";
-import { prepareQuery } from "utils/filters";
+import { cn } from "#/utils/cn";
+import { prepareQuery } from "#/utils/filters";
 
 const DEBOUNCE_MS = 750;
 

@@ -1,7 +1,7 @@
 import { CopyButton } from "components/CopyButton/CopyButton";
 import type { FC } from "react";
-import { cn } from "utils/cn";
-import { formatDate } from "utils/time";
+import { cn } from "#/utils/cn";
+import { formatDate } from "#/utils/time";
 import { TokenBadges } from "../../TokenBadges";
 
 interface ToolCallTableProps {

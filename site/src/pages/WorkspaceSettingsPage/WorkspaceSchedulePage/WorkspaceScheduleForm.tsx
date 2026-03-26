@@ -6,9 +6,6 @@ import {
 	emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
-import { humanDuration } from "utils/time";
-import { timeZones } from "utils/timeZones";
 import * as Yup from "yup";
 import type { Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -30,6 +27,9 @@ import {
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { getFormHelpers } from "#/utils/formUtils";
+import { humanDuration } from "#/utils/time";
+import { timeZones } from "#/utils/timeZones";
 
 // Need dayjs.tz functions for timezone validation
 dayjs.extend(timezone);

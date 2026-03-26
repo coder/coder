@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { pageTitle } from "utils/page";
 import { deploymentDAUs } from "#/api/queries/deployment";
 import {
 	availableExperiments,
@@ -9,6 +8,7 @@ import {
 } from "#/api/queries/experiments";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
+import { pageTitle } from "#/utils/page";
 import { OverviewPageView } from "./OverviewPageView";
 
 const OverviewPage: FC = () => {

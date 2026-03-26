@@ -1,9 +1,4 @@
 import type { FC } from "react";
-import {
-	DATE_FORMAT,
-	formatDateTime,
-	relativeTimeWithoutSuffix,
-} from "utils/time";
 import type { Workspace } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import {
@@ -11,6 +6,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	DATE_FORMAT,
+	formatDateTime,
+	relativeTimeWithoutSuffix,
+} from "#/utils/time";
 
 type WorkspaceDormantBadgeProps = {
 	workspace: Workspace;

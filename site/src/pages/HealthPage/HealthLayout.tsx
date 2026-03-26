@@ -5,9 +5,6 @@ import { BellOffIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet } from "react-router";
-import { cn } from "utils/cn";
-import { createDayString } from "utils/createDayString";
-import { pageTitle } from "utils/page";
 import { health, refreshHealth } from "#/api/queries/debug";
 import type { HealthSeverity } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -18,6 +15,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
+import { cn } from "#/utils/cn";
+import { createDayString } from "#/utils/createDayString";
+import { pageTitle } from "#/utils/page";
 import { HealthIcon } from "./Content";
 
 const linkStyles = {

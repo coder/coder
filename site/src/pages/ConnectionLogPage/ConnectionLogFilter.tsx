@@ -1,7 +1,5 @@
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
-import { connectionTypeToFriendlyName } from "utils/connection";
-import { docs } from "utils/docs";
 import {
 	type ConnectionLogStatus,
 	ConnectionLogStatuses,
@@ -30,6 +28,8 @@ import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
 } from "#/modules/tableFiltering/options";
+import { connectionTypeToFriendlyName } from "#/utils/connection";
+import { docs } from "#/utils/docs";
 
 type ConnectionLogFilterValues = {
 	status?: ConnectionLogStatus;

@@ -18,7 +18,7 @@ import { getAgentHealthIssue } from "#/modules/workspaces/health";
 dayjs.extend(relativeTime);
 
 import { useQuery } from "react-query";
-import { formatDate } from "utils/time";
+import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	NotificationActionButton,

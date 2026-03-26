@@ -1,7 +1,7 @@
 import type { ElementType, FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router";
-import { cn } from "utils/cn";
 import { Stack } from "#/components/Stack/Stack";
+import { cn } from "#/utils/cn";
 
 interface SidebarProps {
 	children?: ReactNode;

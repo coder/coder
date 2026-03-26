@@ -6,7 +6,6 @@ import TextField from "@mui/material/TextField";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import uFuzzy from "ufuzzy";
-import { pageTitle } from "utils/page";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
@@ -26,6 +25,7 @@ import {
 	parseImageParameters,
 } from "#/theme/externalImages";
 import icons from "#/theme/icons.json";
+import { pageTitle } from "#/utils/page";
 
 const filteredIcons = icons.filter((icon) => !DEPRECATED_ICONS.includes(icon));
 const iconsWithoutSuffix = filteredIcons.map((icon) => {

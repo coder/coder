@@ -15,17 +15,6 @@ import {
 	unstable_usePrompt as usePrompt,
 } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
-import {
-	createFile,
-	existsFile,
-	type FileTree,
-	getFileText,
-	isFolder,
-	moveFile,
-	removeFile,
-	updateFile,
-} from "utils/filetree";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	ProvisionerJobLog,
@@ -63,6 +52,17 @@ import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { cn } from "#/utils/cn";
+import {
+	createFile,
+	existsFile,
+	type FileTree,
+	getFileText,
+	isFolder,
+	moveFile,
+	removeFile,
+	updateFile,
+} from "#/utils/filetree";
 import {
 	CreateFileDialog,
 	DeleteFileDialog,

@@ -9,7 +9,6 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteGroup,
@@ -32,6 +31,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { pageTitle } from "#/utils/page";
 
 export type GroupPageOutletContext = {
 	group: Group;

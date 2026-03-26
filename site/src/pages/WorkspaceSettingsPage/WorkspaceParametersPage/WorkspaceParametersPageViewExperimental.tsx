@@ -1,8 +1,5 @@
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import type {
 	PreviewParameter,
 	Workspace,
@@ -20,6 +17,9 @@ import {
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 
 type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;

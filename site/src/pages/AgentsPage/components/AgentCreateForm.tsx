@@ -2,7 +2,6 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
 import { isApiError } from "#/api/errors";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -11,6 +10,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelSelectorPlaceholder,

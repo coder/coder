@@ -18,7 +18,6 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { getDisplayWorkspaceStatus } from "utils/workspace";
 import type {
 	DeploymentStats,
 	HealthcheckReport,
@@ -37,6 +36,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;

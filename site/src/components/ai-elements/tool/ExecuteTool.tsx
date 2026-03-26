@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
-import { cn } from "utils/cn";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -18,6 +17,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import {
 	BORDER_BG_STYLE,
 	COLLAPSED_OUTPUT_HEIGHT,

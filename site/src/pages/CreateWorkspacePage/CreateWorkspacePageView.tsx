@@ -9,9 +9,6 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
-import { nameValidator } from "utils/formUtils";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
@@ -51,6 +48,9 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { docs } from "#/utils/docs";
+import { nameValidator } from "#/utils/formUtils";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";

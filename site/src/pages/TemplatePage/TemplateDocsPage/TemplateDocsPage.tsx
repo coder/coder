@@ -1,8 +1,8 @@
 import { useTheme } from "@emotion/react";
 import frontMatter from "front-matter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { pageTitle } from "utils/page";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import { pageTitle } from "#/utils/page";
 
 export default function TemplateDocsPage() {
 	const { template, activeVersion } = useTemplateLayoutContext();

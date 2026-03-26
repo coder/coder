@@ -4,8 +4,6 @@ import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { displayDormantDeletion } from "utils/dormant";
-import { formatDate } from "utils/time";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -32,6 +30,8 @@ import {
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
+import { displayDormantDeletion } from "#/utils/dormant";
+import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";

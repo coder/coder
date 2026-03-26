@@ -6,7 +6,6 @@ import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import type { FileTree } from "utils/filetree";
 import * as apiModule from "#/api/api";
 import { templateVersionVariablesKey } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
@@ -23,6 +22,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import type { FileTree } from "#/utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage, {

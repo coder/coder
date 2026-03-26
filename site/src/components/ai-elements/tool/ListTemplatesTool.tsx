@@ -1,12 +1,12 @@
 import { ExternalLinkIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
-import { cn } from "utils/cn";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import { asRecord, asString, type ToolStatus } from "./utils";
 

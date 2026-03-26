@@ -15,7 +15,6 @@ import {
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import { cn } from "utils/cn";
 import type {
 	Template,
 	Workspace,
@@ -25,6 +24,7 @@ import type {
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { cn } from "#/utils/cn";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentExternal } from "./AgentExternal";

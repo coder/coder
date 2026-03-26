@@ -10,8 +10,8 @@ import {
 } from "lexical";
 import { XIcon } from "lucide-react";
 import { type FC, memo, type ReactNode } from "react";
-import { cn } from "utils/cn";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
+import { cn } from "#/utils/cn";
 
 type SerializedFileReferenceNode = Spread<
 	{

@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { docs } from "utils/docs";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -16,6 +15,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Stack } from "#/components/Stack/Stack";
+import { docs } from "#/utils/docs";
 
 interface AgentSSHButtonProps {
 	workspaceName: string;

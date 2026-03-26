@@ -1,7 +1,5 @@
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { docs } from "utils/docs";
-import { getFormHelpers } from "utils/formUtils";
 import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
 import {
 	Badges,
@@ -26,6 +24,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 

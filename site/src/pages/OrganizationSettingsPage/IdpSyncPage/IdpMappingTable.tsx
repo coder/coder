@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
@@ -10,6 +9,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { docs } from "#/utils/docs";
 
 interface IdpMappingTableProps {
 	type: "Role" | "Group";

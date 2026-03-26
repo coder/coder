@@ -1,6 +1,5 @@
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import { AuditActions, ResourceTypes } from "#/api/typesGenerated";
 import {
 	Filter,
@@ -24,6 +23,7 @@ import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
 } from "#/modules/tableFiltering/options";
+import { docs } from "#/utils/docs";
 
 const PRESET_FILTERS = [
 	{

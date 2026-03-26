@@ -1,5 +1,5 @@
 import type { ComponentPropsWithRef } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 type MessageProps = ComponentPropsWithRef<"div">;
 

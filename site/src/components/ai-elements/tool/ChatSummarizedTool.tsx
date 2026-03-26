@@ -1,12 +1,12 @@
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
-import { cn } from "utils/cn";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { Response } from "../response";
 import { ToolCollapsible } from "./ToolCollapsible";
 import type { ToolStatus } from "./utils";

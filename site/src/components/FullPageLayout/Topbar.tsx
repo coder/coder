@@ -7,9 +7,9 @@ import {
 	type ReactElement,
 	type Ref,
 } from "react";
-import { cn } from "utils/cn";
 import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
 import { Button, type ButtonProps } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
 	className,

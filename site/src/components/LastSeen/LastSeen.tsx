@@ -1,8 +1,8 @@
 import { useTheme } from "@emotion/react";
 import dayjs from "dayjs";
 import type { FC, HTMLAttributes } from "react";
-import { cn } from "utils/cn";
-import { isAfter, relativeTime, subtractTime } from "utils/time";
+import { cn } from "#/utils/cn";
+import { isAfter, relativeTime, subtractTime } from "#/utils/time";
 
 interface LastSeenProps
 	extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {

@@ -2,9 +2,6 @@ import { useFormik } from "formik";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useSearchParams } from "react-router";
-import { getApplicationName } from "utils/appearance";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
-import { pageTitle } from "utils/page";
 import * as Yup from "yup";
 import { requestOneTimePassword } from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -13,6 +10,9 @@ import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { getApplicationName } from "#/utils/appearance";
+import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
+import { pageTitle } from "#/utils/page";
 
 const RequestOTPPage: FC = () => {
 	const applicationName = getApplicationName();

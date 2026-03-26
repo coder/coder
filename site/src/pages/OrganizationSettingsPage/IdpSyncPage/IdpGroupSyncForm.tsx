@@ -1,8 +1,6 @@
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import type {
 	Group,
@@ -42,6 +40,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { isEveryoneGroup } from "#/modules/groups";
+import { docs } from "#/utils/docs";
+import { isUUID } from "#/utils/uuid";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
