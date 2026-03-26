@@ -1092,10 +1092,6 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.ThreadRootID,
 			&i.AIBridgeInterception.ClientSessionID,
 			&i.AIBridgeInterception.SessionID,
-			&i.VisibleUser.ID,
-			&i.VisibleUser.Username,
-			&i.VisibleUser.Name,
-			&i.VisibleUser.AvatarURL,
 		); err != nil {
 			return nil, err
 		}
@@ -1114,7 +1110,7 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 	if !strings.Contains(query, authorizedQueryPlaceholder) {
 		return "", xerrors.Errorf("query does not contain authorized replace string, this is not an authorized query")
 	}
-	filtered := strings.Replace(query, authorizedQueryPlaceholder, replaceWith, 1)
+	filtered := strings.ReplaceAll(query, authorizedQueryPlaceholder, replaceWith)
 	return filtered, nil
 }
 
