@@ -15,8 +15,8 @@ const (
 	LicenseExpiryClaim                          = "license_expires"
 	LicenseTelemetryRequiredErrorText           = "License requires telemetry but telemetry is disabled"
 	LicenseManagedAgentLimitExceededWarningText = "You have built more workspaces with managed agents than your license allows."
-	LicenseAIGovernance90PercentWarningText     = "You have used 90% of your AI governance add-on seats."
-	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d / %d AI Governance user seats (%d%% over the limit)."
+	LicenseAIGovernance90PercentWarningText     = "You have used %d%% of your AI Governance add-on seats."
+	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
 )
 
 type AddLicenseRequest struct {

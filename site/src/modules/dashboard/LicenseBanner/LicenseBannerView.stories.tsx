@@ -1,12 +1,21 @@
 import { chromatic } from "testHelpers/chromatic";
+import {
+	MockAppearanceConfig,
+	MockBuildInfo,
+	MockDefaultOrganization,
+	MockEntitlements,
+	MockExperiments,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
 import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
-} from "#/api/typesGenerated";
-import { docs } from "#/utils/docs";
+} from "api/typesGenerated";
+import { expect, within } from "storybook/test";
+import { docs } from "utils/docs";
+import { DashboardContext, type DashboardValue } from "../DashboardProvider";
+import { LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
@@ -151,24 +160,58 @@ export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
 	},
 };
 
-export const AIGovernanceNearLimit: Story = {
-	args: {
-		messages: [
-			{
-				message: LicenseAIGovernance90PercentWarningText,
-				variant: "warning",
-				link: {
-					href: "mailto:sales@coder.com",
-					label: "Contact sales@coder.com.",
-					showExternalIcon: false,
+const renderLicenseBannerWithAIGovernance = ({
+	actual,
+	entitlement = "entitled",
+	limit,
+	warnings = [],
+}: {
+	actual: number;
+	entitlement?: "entitled" | "grace_period" | "not_entitled";
+	limit?: number;
+	warnings?: string[];
+}) => {
+	const mockDashboardValue: DashboardValue = {
+		entitlements: {
+			...MockEntitlements,
+			has_license: true,
+			warnings,
+			features: {
+				...MockEntitlements.features,
+				ai_governance_user_limit: {
+					enabled: true,
+					entitlement,
+					actual,
+					...(limit !== undefined ? { limit } : {}),
 				},
 			},
-		],
-	},
+		},
+		experiments: MockExperiments,
+		appearance: MockAppearanceConfig,
+		buildInfo: MockBuildInfo,
+		organizations: [MockDefaultOrganization],
+		showOrganizations: false,
+		canViewOrganizationSettings: false,
+	};
+
+	return (
+		<DashboardContext.Provider value={mockDashboardValue}>
+			<LicenseBanner />
+		</DashboardContext.Provider>
+	);
+};
+
+export const AIGovernanceNearLimit: Story = {
+	render: () =>
+		renderLicenseBannerWithAIGovernance({
+			actual: 95,
+			limit: 100,
+			warnings: [LicenseAIGovernance90PercentWarningText],
+		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			LicenseAIGovernance90PercentWarningText,
+			"You have used 95% of your AI Governance add-on seats.",
 		);
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
@@ -176,28 +219,31 @@ export const AIGovernanceNearLimit: Story = {
 	},
 };
 
-export const AIGovernanceOverLimit: Story = {
-	args: {
-		messages: [
-			{
-				message:
-					"Your organization is using 110 / 100 AI Governance user seats (10% over the limit).",
-				variant: "warningProminent",
-				link: {
-					href: "mailto:sales@coder.com",
-					label: "Contact sales@coder.com.",
-					showExternalIcon: false,
-				},
-			},
-		],
-	},
+export const AIGovernanceOverLimitFromFeature: Story = {
+	render: () =>
+		renderLicenseBannerWithAIGovernance({
+			actual: 110,
+			limit: 100,
+		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("alert")).toHaveTextContent(
-			/110 \/ 100 AI Governance user seats \(10% over the limit\)/,
+			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		);
-		await expect(
-			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
-		).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
+export const AIGovernanceOverLimitGracePeriod: Story = {
+	render: () =>
+		renderLicenseBannerWithAIGovernance({
+			actual: 110,
+			entitlement: "grace_period",
+			limit: 100,
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
+		);
 	},
 };

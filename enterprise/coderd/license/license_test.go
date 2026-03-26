@@ -913,7 +913,7 @@ func TestEntitlements(t *testing.T) {
 				name:            "At90Percent",
 				limit:           100,
 				activeSeatCount: 90,
-				expectedWarning: codersdk.LicenseAIGovernance90PercentWarningText,
+				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, 90),
 			},
 			{
 				name:            "Below90Percent",
@@ -935,7 +935,7 @@ func TestEntitlements(t *testing.T) {
 				name:            "OverLimitRoundingDown",
 				limit:           101,
 				activeSeatCount: 106,
-				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernanceOverLimitWarningText, 106, 101, 4),
+				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernanceOverLimitWarningText, 106, 101, 5),
 			},
 			{
 				name:            "TinyOverage",
@@ -1139,7 +1139,8 @@ func TestEntitlements(t *testing.T) {
 				limit,
 			)
 			require.Contains(t, entitlements.Warnings, expiryWarning)
-			require.Contains(t, entitlements.Warnings, codersdk.LicenseAIGovernance90PercentWarningText)
+			require.Contains(t, entitlements.Warnings,
+				fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, 95))
 			for _, warning := range entitlements.Warnings {
 				require.NotContains(t, warning, "over the limit")
 			}

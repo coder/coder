@@ -43,8 +43,53 @@ const aiGovernanceOverLimitMessage = (
 		return null;
 	}
 
-	const overPercent = Math.max(1, Math.floor(((actual - limit) / limit) * 100));
-	return `Your organization is using ${actual} / ${limit} AI Governance user seats (${overPercent}% over the limit)`;
+	const overLimitSeats = actual - limit;
+	return LicenseAIGovernanceOverLimitWarningText.replace("%d", `${actual}`)
+		.replace("%d", `${limit}`)
+		.replace("%d", `${overLimitSeats}`);
+};
+
+const aiGovernanceNearLimitMessage = (
+	feature: ReturnType<
+		typeof useDashboard
+	>["entitlements"]["features"]["ai_governance_user_limit"],
+): string | null => {
+	if (!feature) {
+		return null;
+	}
+
+	const { actual, entitlement, limit } = feature;
+	if (
+		(entitlement !== "entitled" && entitlement !== "grace_period") ||
+		actual === undefined ||
+		limit === undefined ||
+		limit <= 0
+	) {
+		return null;
+	}
+
+	const usedPercent = Math.floor((actual * 100) / limit);
+	if (usedPercent < 90) {
+		return null;
+	}
+
+	return LicenseAIGovernance90PercentWarningText.replace(
+		"%d%%",
+		`${usedPercent}%`,
+	);
+};
+
+const normalizeAIGovernanceWarning = (
+	message: string,
+	feature: ReturnType<
+		typeof useDashboard
+	>["entitlements"]["features"]["ai_governance_user_limit"],
+): string => {
+	if (message !== LicenseAIGovernance90PercentWarningText) {
+		return message;
+	}
+
+	return aiGovernanceNearLimitMessage(feature) ?? message;
 };
 
 const messageLink = (message: string): LicenseBannerLink => {
@@ -74,8 +119,10 @@ export const LicenseBanner: FC = () => {
 	const { entitlements } = useDashboard();
 	const { errors } = entitlements;
 	const warnings = [...entitlements.warnings];
+	const aiGovernanceUserLimitFeature =
+		entitlements.features.ai_governance_user_limit;
 	const overLimitWarning = aiGovernanceOverLimitMessage(
-		entitlements.features.ai_governance_user_limit,
+		aiGovernanceUserLimitFeature,
 	);
 
 	if (
@@ -85,13 +132,17 @@ export const LicenseBanner: FC = () => {
 		warnings.push(overLimitWarning);
 	}
 
+	const normalizedWarnings = warnings.map((warning) =>
+		normalizeAIGovernanceWarning(warning, aiGovernanceUserLimitFeature),
+	);
+
 	const messages: LicenseBannerMessage[] = [
 		...errors.map((message) => ({
 			message,
 			variant: "error" as const,
 			link: messageLink(message),
 		})),
-		...warnings.map((message) => ({
+		...normalizedWarnings.map((message) => ({
 			message,
 			variant: isAIGovernanceNearLimitWarning(message)
 				? ("warning" as const)

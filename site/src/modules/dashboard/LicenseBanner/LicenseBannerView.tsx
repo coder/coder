@@ -99,7 +99,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 					) : (
 						<>
 							<div className="text-sm font-semibold leading-6 text-content-primary">
-								It looks like you've exceeded some limits of your license.
+								Your license limits have been exceeded
 							</div>
 							<div className="flex flex-col gap-1">
 								<ul className="m-0 list-disc space-y-1 pl-4 text-xs leading-[18px] text-content-primary">

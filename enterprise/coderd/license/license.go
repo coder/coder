@@ -502,41 +502,19 @@ func LicensesEntitlements(
 					fmt.Sprintf(
 						"Your deployment has %d active AI governance seats but the license with the limit %d is expired.",
 						actual, *feature.Limit))
-				// Also emit the over-limit warning when usage exceeds the limit,
-				// so admins see both the expiry and overage details.
-				if *feature.Limit > 0 && actual > *feature.Limit {
-					overPct := ((actual - *feature.Limit) * 100) / *feature.Limit
-					if overPct < 1 {
-						overPct = 1
-					}
-					entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-						codersdk.LicenseAIGovernanceOverLimitWarningText,
-						actual,
-						*feature.Limit,
-						overPct,
-					))
-					// Emit the 90% capacity warning when usage is near, but below
-					// the limit.
-				} else if *feature.Limit > 0 && actual*100 >= (*feature.Limit)*90 && actual < *feature.Limit {
-					entitlements.Warnings = append(entitlements.Warnings,
-						codersdk.LicenseAIGovernance90PercentWarningText)
-				}
-
-			case feature.Limit != nil && *feature.Limit > 0 &&
-				actual*100 >= (*feature.Limit)*90 && actual < *feature.Limit:
-				entitlements.Warnings = append(entitlements.Warnings,
-					codersdk.LicenseAIGovernance90PercentWarningText)
-			case feature.Limit != nil && *feature.Limit > 0 && actual > *feature.Limit:
-				overPct := ((actual - *feature.Limit) * 100) / *feature.Limit
-				if overPct < 1 {
-					overPct = 1
-				}
-				entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-					codersdk.LicenseAIGovernanceOverLimitWarningText,
+				// Also emit seat-capacity warnings during grace period so admins
+				// see both expiry and usage details.
+				entitlements.Warnings = appendAIGovernanceSeatLimitWarning(
+					entitlements.Warnings,
 					actual,
 					*feature.Limit,
-					overPct,
-				))
+				)
+			case feature.Limit != nil:
+				entitlements.Warnings = appendAIGovernanceSeatLimitWarning(
+					entitlements.Warnings,
+					actual,
+					*feature.Limit,
+				)
 			}
 		}
 
@@ -602,6 +580,27 @@ func LicensesEntitlements(
 	entitlements.RefreshedAt = now
 
 	return entitlements, nil
+}
+
+func appendAIGovernanceSeatLimitWarning(warnings []string, actual int64, limit int64) []string {
+	if limit <= 0 {
+		return warnings
+	}
+
+	if actual > limit {
+		overLimitSeats := actual - limit
+		return append(warnings, fmt.Sprintf(
+			codersdk.LicenseAIGovernanceOverLimitWarningText,
+			actual,
+			limit,
+			overLimitSeats,
+		))
+	} else if actual*100 >= limit*90 && actual < limit {
+		usedPercent := (actual * 100) / limit
+		return append(warnings, fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, usedPercent))
+	}
+
+	return warnings
 }
 
 const (

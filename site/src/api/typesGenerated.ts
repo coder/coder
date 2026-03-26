@@ -3756,11 +3756,11 @@ export interface License {
 
 // From codersdk/licenses.go
 export const LicenseAIGovernance90PercentWarningText =
-	"You have used 90% of your AI governance add-on seats.";
+	"You have used %d%% of your AI Governance add-on seats.";
 
 // From codersdk/licenses.go
 export const LicenseAIGovernanceOverLimitWarningText =
-	"Your organization is using %d / %d AI Governance user seats (%d%% over the limit).";
+	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
