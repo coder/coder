@@ -111,16 +111,6 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
-var errChatTitleRegenerationInProgress = xerrors.New(
-	"chat title regeneration already in progress",
-)
-
-func chatTitleRegenerationLockID(chatID uuid.UUID) int64 {
-	return database.GenLockID(
-		fmt.Sprintf("chat-title-regenerate:%s", chatID),
-	)
-}
-
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
 	payload, err := json.Marshal(pubsub.ChatConfigEvent{
 		Kind:     kind,
@@ -2134,24 +2124,9 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var updatedChat database.Chat
-	err := api.Database.InTx(func(tx database.Store) error {
-		ok, err := tx.TryAcquireLock(ctx, chatTitleRegenerationLockID(chat.ID))
-		if err != nil {
-			return xerrors.Errorf(
-				"acquire chat title regeneration lock: %w",
-				err,
-			)
-		}
-		if !ok {
-			return errChatTitleRegenerationInProgress
-		}
-
-		updatedChat, err = api.chatDaemon.RegenerateChatTitle(ctx, chat)
-		return err
-	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
+	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
 	if err != nil {
-		if errors.Is(err, errChatTitleRegenerationInProgress) {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Title regeneration already in progress for this chat.",
 			})

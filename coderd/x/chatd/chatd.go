@@ -1335,17 +1335,71 @@ func (p *Server) InterruptChat(
 
 const manualTitleMessageWindowLimit = 50
 
+var ErrManualTitleRegenerationInProgress = xerrors.New(
+	"manual title regeneration already in progress",
+)
+
+func manualTitleRegenerationLockID(chatID uuid.UUID) int64 {
+	return database.GenLockID(fmt.Sprintf("chat-title-regenerate:%s", chatID))
+}
+
 // RegenerateChatTitle regenerates a chat title from the chat's visible
 // messages, persists it when it changes, and broadcasts the update.
 func (p *Server) RegenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.Chat, error) {
-	if limitErr := p.checkUsageLimit(ctx, p.db, chat.OwnerID); limitErr != nil {
+	// Reuse chatd's scoped auth context for deployment-config lookups while
+	// keeping chat ownership authorization at the HTTP layer.
+	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	model, modelConfig, keys, err := p.resolveChatModel(chatdCtx, chat)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
+	}
+
+	var updatedChat database.Chat
+	err = p.db.InTx(func(tx database.Store) error {
+		ok, err := tx.TryAcquireLock(ctx, manualTitleRegenerationLockID(chat.ID))
+		if err != nil {
+			return xerrors.Errorf(
+				"acquire chat title regeneration lock: %w",
+				err,
+			)
+		}
+		if !ok {
+			return ErrManualTitleRegenerationInProgress
+		}
+
+		updatedChat, err = p.regenerateChatTitleWithStore(
+			chatdCtx,
+			tx,
+			chat,
+			model,
+			modelConfig,
+			keys,
+		)
+		return err
+	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return updatedChat, nil
+}
+
+func (p *Server) regenerateChatTitleWithStore(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	fallbackModel fantasy.LanguageModel,
+	fallbackConfig database.ChatModelConfig,
+	keys chatprovider.ProviderAPIKeys,
+) (database.Chat, error) {
+	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID); limitErr != nil {
 		return database.Chat{}, limitErr
 	}
 
-	headMessages, err := p.db.GetChatMessagesByChatIDAscPaginated(
+	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDAscPaginatedParams{
 			ChatID:   chat.ID,
@@ -1356,7 +1410,7 @@ func (p *Server) RegenerateChatTitle(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("get head chat messages: %w", err)
 	}
-	tailMessages, err := p.db.GetChatMessagesByChatIDDescPaginated(
+	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDDescPaginatedParams{
 			ChatID:   chat.ID,
@@ -1372,25 +1426,25 @@ func (p *Server) RegenerateChatTitle(
 		return chat, nil
 	}
 
-	// Reuse chatd's scoped auth context for deployment-config lookups while
-	// keeping chat ownership authorization at the HTTP layer.
-	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	model, modelConfig, keys, err := p.resolveChatModel(chatdCtx, chat)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
-	}
-	model, modelConfig = p.resolveManualTitleModel(
-		chatdCtx,
+	model, modelConfig := p.resolveManualTitleModel(
+		ctx,
+		store,
 		chat,
-		model,
-		modelConfig,
+		fallbackModel,
+		fallbackConfig,
 		keys,
 	)
 
 	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
-		if _, recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage, ""); recordErr != nil {
+		if _, recordErr := recordManualTitleUsage(
+			ctx,
+			store,
+			chat,
+			modelConfig,
+			usage,
+			"",
+		); recordErr != nil {
 			return database.Chat{}, errors.Join(
 				xerrors.Errorf("generate manual title: %w", err),
 				xerrors.Errorf("record manual title usage: %w", recordErr),
@@ -1399,20 +1453,22 @@ func (p *Server) RegenerateChatTitle(
 		return database.Chat{}, xerrors.Errorf("generate manual title: %w", err)
 	}
 
-	newTitle := ""
-	if title != "" && title != chat.Title {
-		newTitle = title
-	}
-
-	updatedChat, recordErr := p.recordManualTitleUsage(ctx, chat, modelConfig, usage, newTitle)
+	updatedChat, recordErr := recordManualTitleUsage(
+		ctx,
+		store,
+		chat,
+		modelConfig,
+		usage,
+		title,
+	)
 	if recordErr != nil {
-		if newTitle != "" {
+		if title != "" {
 			return database.Chat{}, xerrors.Errorf("record manual title usage and update chat title: %w", recordErr)
 		}
 		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
 	}
-	if newTitle == "" {
-		return chat, nil
+	if updatedChat.Title == chat.Title {
+		return updatedChat, nil
 	}
 
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
@@ -1421,12 +1477,13 @@ func (p *Server) RegenerateChatTitle(
 
 func (p *Server) resolveManualTitleModel(
 	ctx context.Context,
+	store database.Store,
 	chat database.Chat,
 	fallbackModel fantasy.LanguageModel,
 	fallbackConfig database.ChatModelConfig,
 	keys chatprovider.ProviderAPIKeys,
 ) (fantasy.LanguageModel, database.ChatModelConfig) {
-	configs, err := p.db.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigs(ctx)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
@@ -1502,8 +1559,9 @@ func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsa
 	return chatUsage
 }
 
-func (p *Server) recordManualTitleUsage(
+func recordManualTitleUsage(
 	ctx context.Context,
+	store database.Store,
 	chat database.Chat,
 	modelConfig database.ChatModelConfig,
 	usage fantasy.Usage,
@@ -1535,7 +1593,7 @@ func (p *Server) recordManualTitleUsage(
 	content := "[]"
 
 	updatedChat := chat
-	err := p.db.InTx(func(tx database.Store) error {
+	err := store.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title usage: %w", err)
@@ -1580,7 +1638,7 @@ func (p *Server) recordManualTitleUsage(
 				}
 			}
 		}
-		if newTitle != "" {
+		if newTitle != "" && lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
 			updatedChat, err = tx.UpdateChatByID(ctx, database.UpdateChatByIDParams{
 				ID:    chat.ID,
 				Title: newTitle,
