@@ -7,6 +7,12 @@ type CheckConstraint string
 // CheckConstraint enums.
 const (
 	CheckAPIKeysAllowListNotEmpty                    CheckConstraint = "api_keys_allow_list_not_empty"                      // api_keys
+	CheckChatAutomationEventsChatExclusivity         CheckConstraint = "chat_automation_events_chat_exclusivity"            // chat_automation_events
+	CheckChatAutomationEventsStatusChatConsistency   CheckConstraint = "chat_automation_events_status_chat_consistency"     // chat_automation_events
+	CheckChatAutomationTriggersCronFields            CheckConstraint = "chat_automation_triggers_cron_fields"               // chat_automation_triggers
+	CheckChatAutomationTriggersWebhookFields         CheckConstraint = "chat_automation_triggers_webhook_fields"            // chat_automation_triggers
+	CheckChatAutomationsMaxChatCreatesPerHourCheck   CheckConstraint = "chat_automations_max_chat_creates_per_hour_check"   // chat_automations
+	CheckChatAutomationsMaxMessagesPerHourCheck      CheckConstraint = "chat_automations_max_messages_per_hour_check"       // chat_automations
 	CheckChatModelConfigsCompressionThresholdCheck   CheckConstraint = "chat_model_configs_compression_threshold_check"     // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck           CheckConstraint = "chat_model_configs_context_limit_check"             // chat_model_configs
 	CheckChatProvidersProviderCheck                  CheckConstraint = "chat_providers_provider_check"                      // chat_providers

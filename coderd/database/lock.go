@@ -15,6 +15,9 @@ const (
 	LockIDReconcilePrebuilds
 	LockIDReconcileSystemRoles
 	LockIDBoundaryUsageStats
+	// LockIDChatAutomationCron prevents concurrent cron trigger
+	// evaluation across coderd replicas.
+	LockIDChatAutomationCron
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.

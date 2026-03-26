@@ -1075,6 +1075,19 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Chat automations are admin-managed. Regular org
+			// members cannot manage automations even if they
+			// are the owner. The owner_id field is for audit
+			// tracking, not RBAC grants.
+			Name:     "ChatAutomation",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatAutomation.InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgAuditor, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin},
+			},
+		},
 	}
 
 	// Build coverage set from test case definitions statically,

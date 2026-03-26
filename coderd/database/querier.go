@@ -78,6 +78,12 @@ type sqlcQuerier interface {
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
+	// Counts new-chat events in the rate-limit window. This count is
+	// approximate under concurrency: concurrent webhook handlers may
+	// each read the same count before any of them insert, so brief
+	// bursts can slightly exceed the configured cap.
+	CountChatAutomationChatCreatesInWindow(ctx context.Context, arg CountChatAutomationChatCreatesInWindowParams) (int64, error)
+	CountChatAutomationMessagesInWindow(ctx context.Context, arg CountChatAutomationMessagesInWindowParams) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// Counts enabled, non-deleted model configs that lack both input and
 	// output pricing in their JSONB options.cost configuration.
@@ -100,6 +106,8 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error
+	DeleteChatAutomationTriggerByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -197,6 +205,10 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
+	// Returns all cron triggers whose parent automation is active or in
+	// preview mode. The scheduler uses this to evaluate which triggers
+	// are due.
+	GetActiveChatAutomationCronTriggers(ctx context.Context) ([]GetActiveChatAutomationCronTriggersRow, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
@@ -223,6 +235,11 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
+	GetChatAutomationEvents(ctx context.Context, arg GetChatAutomationEventsParams) ([]ChatAutomationEvent, error)
+	GetChatAutomationTriggerByID(ctx context.Context, id uuid.UUID) (ChatAutomationTrigger, error)
+	GetChatAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]ChatAutomationTrigger, error)
+	GetChatAutomations(ctx context.Context, arg GetChatAutomationsParams) ([]ChatAutomation, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
@@ -696,6 +713,9 @@ type sqlcQuerier interface {
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
+	InsertChatAutomationEvent(ctx context.Context, arg InsertChatAutomationEventParams) (ChatAutomationEvent, error)
+	InsertChatAutomationTrigger(ctx context.Context, arg InsertChatAutomationTriggerParams) (ChatAutomationTrigger, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
 	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
@@ -817,6 +837,10 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Deletes old chat automation events in bounded batches to avoid
+	// long-running locks on high-volume tables. Callers should loop
+	// until zero rows are returned.
+	PurgeOldChatAutomationEvents(ctx context.Context, arg PurgeOldChatAutomationEventsParams) (int64, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -847,6 +871,10 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateChatAutomation(ctx context.Context, arg UpdateChatAutomationParams) (ChatAutomation, error)
+	UpdateChatAutomationTrigger(ctx context.Context, arg UpdateChatAutomationTriggerParams) (ChatAutomationTrigger, error)
+	UpdateChatAutomationTriggerLastTriggeredAt(ctx context.Context, arg UpdateChatAutomationTriggerLastTriggeredAtParams) error
+	UpdateChatAutomationTriggerWebhookSecret(ctx context.Context, arg UpdateChatAutomationTriggerWebhookSecretParams) (ChatAutomationTrigger, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Bumps the heartbeat timestamp for a running chat so that other

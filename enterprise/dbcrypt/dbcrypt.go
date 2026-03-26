@@ -385,6 +385,73 @@ func (db *dbCrypt) GetCryptoKeysByFeature(ctx context.Context, feature database.
 	return keys, nil
 }
 
+func (db *dbCrypt) GetChatAutomationTriggerByID(ctx context.Context, id uuid.UUID) (database.ChatAutomationTrigger, error) {
+	trigger, err := db.Store.GetChatAutomationTriggerByID(ctx, id)
+	if err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	if err := db.decryptField(&trigger.WebhookSecret.String, trigger.WebhookSecretKeyID); err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) GetChatAutomationTriggersByAutomationID(ctx context.Context, automationID uuid.UUID) ([]database.ChatAutomationTrigger, error) {
+	triggers, err := db.Store.GetChatAutomationTriggersByAutomationID(ctx, automationID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range triggers {
+		if err := db.decryptField(&triggers[i].WebhookSecret.String, triggers[i].WebhookSecretKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return triggers, nil
+}
+
+func (db *dbCrypt) InsertChatAutomationTrigger(ctx context.Context, params database.InsertChatAutomationTriggerParams) (database.ChatAutomationTrigger, error) {
+	if !params.WebhookSecret.Valid || strings.TrimSpace(params.WebhookSecret.String) == "" {
+		params.WebhookSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.WebhookSecret.String, &params.WebhookSecretKeyID); err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	trigger, err := db.Store.InsertChatAutomationTrigger(ctx, params)
+	if err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	if err := db.decryptField(&trigger.WebhookSecret.String, trigger.WebhookSecretKeyID); err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) UpdateChatAutomationTrigger(ctx context.Context, params database.UpdateChatAutomationTriggerParams) (database.ChatAutomationTrigger, error) {
+	trigger, err := db.Store.UpdateChatAutomationTrigger(ctx, params)
+	if err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	if err := db.decryptField(&trigger.WebhookSecret.String, trigger.WebhookSecretKeyID); err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	return trigger, nil
+}
+
+func (db *dbCrypt) UpdateChatAutomationTriggerWebhookSecret(ctx context.Context, params database.UpdateChatAutomationTriggerWebhookSecretParams) (database.ChatAutomationTrigger, error) {
+	if !params.WebhookSecret.Valid || strings.TrimSpace(params.WebhookSecret.String) == "" {
+		params.WebhookSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.WebhookSecret.String, &params.WebhookSecretKeyID); err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	trigger, err := db.Store.UpdateChatAutomationTriggerWebhookSecret(ctx, params)
+	if err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	if err := db.decryptField(&trigger.WebhookSecret.String, trigger.WebhookSecretKeyID); err != nil {
+		return database.ChatAutomationTrigger{}, err
+	}
+	return trigger, nil
+}
+
 func (db *dbCrypt) GetChatProviderByID(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
 	provider, err := db.Store.GetChatProviderByID(ctx, id)
 	if err != nil {

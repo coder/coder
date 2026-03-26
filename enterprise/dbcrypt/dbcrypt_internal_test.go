@@ -1177,3 +1177,133 @@ func TestMCPServerUserTokens(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
 	})
 }
+
+func TestChatAutomationTriggers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		//nolint:gosec // test credential
+		webhookSecret = "whsec-test-secret-value"
+	)
+
+	// insertTrigger creates a user, organization, chat automation, and
+	// a webhook trigger with a secret through the encrypted store.
+	insertTrigger := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) database.ChatAutomationTrigger {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		org := dbgen.Organization(t, crypt, database.Organization{})
+		now := dbtime.Now()
+		automation, err := crypt.InsertChatAutomation(ctx, database.InsertChatAutomationParams{
+			ID:                    uuid.New(),
+			OwnerID:               user.ID,
+			OrganizationID:        org.ID,
+			Name:                  "test-automation-" + uuid.New().String()[:8],
+			Description:           "test automation",
+			Instructions:          "do stuff",
+			MCPServerIDs:          []uuid.UUID{},
+			AllowedTools:          []string{},
+			Status:                database.ChatAutomationStatusActive,
+			MaxChatCreatesPerHour: 10,
+			MaxMessagesPerHour:    60,
+			CreatedAt:             now,
+			UpdatedAt:             now,
+		})
+		require.NoError(t, err)
+
+		trigger, err := crypt.InsertChatAutomationTrigger(ctx, database.InsertChatAutomationTriggerParams{
+			ID:            uuid.New(),
+			AutomationID:  automation.ID,
+			Type:          database.ChatAutomationTriggerTypeWebhook,
+			WebhookSecret: sql.NullString{String: webhookSecret, Valid: true},
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		})
+		require.NoError(t, err)
+		require.Equal(t, webhookSecret, trigger.WebhookSecret.String)
+		require.Equal(t, ciphers[0].HexDigest(), trigger.WebhookSecretKeyID.String)
+		return trigger
+	}
+
+	// requireTriggerRawEncrypted reads the trigger from the raw
+	// (unwrapped) store and asserts the secret field is encrypted.
+	requireTriggerRawEncrypted := func(
+		t *testing.T,
+		rawDB database.Store,
+		triggerID uuid.UUID,
+		ciphers []Cipher,
+		wantSecret string,
+	) {
+		t.Helper()
+		raw, err := rawDB.GetChatAutomationTriggerByID(ctx, triggerID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], raw.WebhookSecret.String, wantSecret)
+	}
+
+	t.Run("InsertChatAutomationTrigger", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		trigger := insertTrigger(t, crypt, ciphers)
+		requireTriggerRawEncrypted(t, db, trigger.ID, ciphers, webhookSecret)
+	})
+
+	t.Run("GetChatAutomationTriggerByID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		trigger := insertTrigger(t, crypt, ciphers)
+
+		got, err := crypt.GetChatAutomationTriggerByID(ctx, trigger.ID)
+		require.NoError(t, err)
+		require.Equal(t, webhookSecret, got.WebhookSecret.String)
+		require.Equal(t, ciphers[0].HexDigest(), got.WebhookSecretKeyID.String)
+		requireTriggerRawEncrypted(t, db, trigger.ID, ciphers, webhookSecret)
+	})
+
+	t.Run("GetChatAutomationTriggersByAutomationID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		trigger := insertTrigger(t, crypt, ciphers)
+
+		triggers, err := crypt.GetChatAutomationTriggersByAutomationID(ctx, trigger.AutomationID)
+		require.NoError(t, err)
+		require.Len(t, triggers, 1)
+		require.Equal(t, webhookSecret, triggers[0].WebhookSecret.String)
+		require.Equal(t, ciphers[0].HexDigest(), triggers[0].WebhookSecretKeyID.String)
+		requireTriggerRawEncrypted(t, db, trigger.ID, ciphers, webhookSecret)
+	})
+
+	t.Run("UpdateChatAutomationTrigger", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		trigger := insertTrigger(t, crypt, ciphers)
+
+		// UpdateChatAutomationTrigger does not change the webhook
+		// secret itself; it updates cron_schedule/filter/label_paths.
+		// The returned trigger should still have the decrypted secret.
+		updated, err := crypt.UpdateChatAutomationTrigger(ctx, database.UpdateChatAutomationTriggerParams{
+			ID:        trigger.ID,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, webhookSecret, updated.WebhookSecret.String)
+		require.Equal(t, ciphers[0].HexDigest(), updated.WebhookSecretKeyID.String)
+		requireTriggerRawEncrypted(t, db, trigger.ID, ciphers, webhookSecret)
+	})
+
+	t.Run("UpdateChatAutomationTriggerWebhookSecret", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		trigger := insertTrigger(t, crypt, ciphers)
+
+		const newSecret = "whsec-rotated-secret" //nolint:gosec // test credential
+		updated, err := crypt.UpdateChatAutomationTriggerWebhookSecret(ctx, database.UpdateChatAutomationTriggerWebhookSecretParams{
+			ID:            trigger.ID,
+			WebhookSecret: sql.NullString{String: newSecret, Valid: true},
+			UpdatedAt:     dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, newSecret, updated.WebhookSecret.String)
+		require.Equal(t, ciphers[0].HexDigest(), updated.WebhookSecretKeyID.String)
+		requireTriggerRawEncrypted(t, db, trigger.ID, ciphers, newSecret)
+	})
+}
