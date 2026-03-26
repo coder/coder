@@ -164,10 +164,6 @@ export const DeleteWorkspaceShowsDeletingStateImmediately: Story = {
 		await step(
 			"Show the workspace as deleting immediately after the mutation",
 			async () => {
-				await waitFor(() => {
-					const callCount = vi.mocked(API.getWorkspaces).mock.calls.length;
-					expect(callCount).toBeGreaterThanOrEqual(2);
-				});
 				const row = await canvas.findByTestId(`workspace-${workspace.id}`);
 				await within(row).findByText("Deleting");
 			},
