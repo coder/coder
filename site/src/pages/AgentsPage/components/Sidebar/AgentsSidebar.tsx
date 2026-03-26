@@ -35,6 +35,7 @@ import {
 	type FC,
 	useContext,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -332,6 +333,40 @@ const collectVisibleChatIDs = ({
 
 	return visible;
 };
+
+/**
+ * Derives the chat tree structure, lookup maps, and visible IDs from
+ * the flat chat list. Wrapped in useMemo so the compiler guards the
+ * derivation on `chats`, keeping downstream references (context
+ * value, ChatTreeNode guards) stable across re-renders.
+ */
+export function useDerivedChatTree(chats: readonly Chat[]) {
+	return useMemo(() => {
+		const chatTree = buildChatTree(chats);
+		const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
+		const visibleChatIDs = collectVisibleChatIDs({
+			chats,
+			search: "",
+			tree: chatTree,
+		});
+		const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
+			visibleChatIDs.has(chatID),
+		);
+		const firstNonEmptyGroup = TIME_GROUPS.find((group) =>
+			visibleRootIDs.some((id) => {
+				const chat = chatById.get(id);
+				return chat !== undefined && getTimeGroup(chat.updated_at) === group;
+			}),
+		);
+		return {
+			chatTree,
+			chatById,
+			visibleChatIDs,
+			visibleRootIDs,
+			firstNonEmptyGroup,
+		};
+	}, [chats]);
+}
 
 interface ChatTreeContextValue {
 	readonly chatTree: ChatTree;
@@ -631,25 +666,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
-	const chatTree = buildChatTree(chats);
-	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
-	const visibleChatIDs = collectVisibleChatIDs({
-		chats,
-		search: normalizedSearch,
-		tree: chatTree,
-	});
-	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
-		visibleChatIDs.has(chatID),
-	);
-
-	// Pre-compute the first non-empty time group so the filter
-	// dropdown renders next to it without needing a mutable IIFE.
-	const firstNonEmptyGroup = TIME_GROUPS.find((group) =>
-		visibleRootIDs.some((id) => {
-			const chat = chatById.get(id);
-			return chat !== undefined && getTimeGroup(chat.updated_at) === group;
-		}),
-	);
+	const {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		visibleRootIDs,
+		firstNonEmptyGroup,
+	} = useDerivedChatTree(chats);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	// Only runs when activeChatId changes — not on every parentById

@@ -15,7 +15,7 @@ import themes, { DEFAULT_THEME } from "theme";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { AgentsSidebar } from "./AgentsSidebar";
+import { AgentsSidebar, useDerivedChatTree } from "./AgentsSidebar";
 
 // ---- IntersectionObserver mock ----
 
@@ -469,5 +469,61 @@ describe("AgentsSidebar model display names", () => {
 		// to the actual model display name, not "Default model".
 		expect(getByText("GPT-4o")).toBeInTheDocument();
 		expect(queryByText("Default model")).not.toBeInTheDocument();
+	});
+});
+
+describe("useDerivedChatTree reference stability", () => {
+	it("returns the same references when chats array is stable", () => {
+		const { renderHook } = require("@testing-library/react");
+
+		const chats = [
+			buildChat({ id: "chat-1", title: "First" }),
+			buildChat({ id: "chat-2", title: "Second" }),
+		];
+
+		const { result, rerender } = renderHook(
+			({ c }: { c: readonly Chat[] }) => useDerivedChatTree(c),
+			{ initialProps: { c: chats } },
+		);
+
+		const first = result.current;
+		expect(first.chatTree).toBeDefined();
+		expect(first.chatById).toBeDefined();
+		expect(first.visibleChatIDs).toBeDefined();
+		expect(first.visibleRootIDs).toBeDefined();
+
+		// Re-render with the SAME chats reference.
+		rerender({ c: chats });
+
+		const second = result.current;
+		expect(second).toBe(first);
+		expect(second.chatTree).toBe(first.chatTree);
+		expect(second.chatById).toBe(first.chatById);
+		expect(second.visibleChatIDs).toBe(first.visibleChatIDs);
+		expect(second.visibleRootIDs).toBe(first.visibleRootIDs);
+	});
+
+	it("returns new references when chats array changes", () => {
+		const { renderHook } = require("@testing-library/react");
+
+		const chatsA = [buildChat({ id: "chat-1", title: "First" })];
+		const chatsB = [
+			buildChat({ id: "chat-1", title: "First" }),
+			buildChat({ id: "chat-2", title: "Second" }),
+		];
+
+		const { result, rerender } = renderHook(
+			({ c }: { c: readonly Chat[] }) => useDerivedChatTree(c),
+			{ initialProps: { c: chatsA } },
+		);
+
+		const first = result.current;
+
+		rerender({ c: chatsB });
+
+		const second = result.current;
+		expect(second).not.toBe(first);
+		expect(second.chatById.size).toBe(2);
+		expect(second.visibleRootIDs.length).toBe(2);
 	});
 });
