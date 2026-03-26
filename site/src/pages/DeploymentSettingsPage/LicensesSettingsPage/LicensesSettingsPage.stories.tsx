@@ -1,7 +1,7 @@
-import { MockEntitlements, MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, within } from "storybook/test";
+import { MockEntitlements, MockLicenseResponse } from "#/testHelpers/entities";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
 const meta: Meta<typeof LicensesSettingsPage> = {

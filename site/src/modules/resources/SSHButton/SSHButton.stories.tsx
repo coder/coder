@@ -1,12 +1,12 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	MockDeploymentSSH,
 	MockWorkspace,
 	MockWorkspaceAgent,
-} from "testHelpers/entities";
-import { withDesktopViewport } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
-import { API } from "#/api/api";
+} from "#/testHelpers/entities";
+import { withDesktopViewport } from "#/testHelpers/storybook";
 import { AgentSSHButton } from "./SSHButton";
 
 const meta: Meta<typeof AgentSSHButton> = {

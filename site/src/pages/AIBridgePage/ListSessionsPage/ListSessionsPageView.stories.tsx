@@ -1,4 +1,3 @@
-import { MockSession } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	getDefaultFilterProps,
@@ -10,6 +9,7 @@ import {
 } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
+import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];

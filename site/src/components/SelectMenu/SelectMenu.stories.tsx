@@ -1,8 +1,8 @@
-import { withDesktopViewport } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { withDesktopViewport } from "#/testHelpers/storybook";
 import {
 	SelectMenu,
 	SelectMenuButton,

@@ -1,10 +1,3 @@
-import {
-	MockAppearanceConfig,
-	MockBuildInfo,
-	MockDefaultOrganization,
-	MockEntitlements,
-	MockUserOwner,
-} from "testHelpers/entities";
 import { act, render } from "@testing-library/react";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import type { FC, PropsWithChildren } from "react";
@@ -14,6 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import {
+	MockAppearanceConfig,
+	MockBuildInfo,
+	MockDefaultOrganization,
+	MockEntitlements,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { AgentsSidebar } from "./AgentsSidebar";
 

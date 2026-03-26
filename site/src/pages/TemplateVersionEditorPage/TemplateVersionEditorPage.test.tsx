@@ -1,17 +1,4 @@
 import { AppProviders } from "App";
-import {
-	MockTemplate,
-	MockTemplateVersion,
-	MockTemplateVersionVariable1,
-	MockTemplateVersionVariable2,
-	MockWorkspaceBuildLogs,
-} from "testHelpers/entities";
-import {
-	createTestQueryClient,
-	renderWithAuth,
-	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { RequireAuth } from "contexts/auth/RequireAuth";
@@ -23,6 +10,19 @@ import type { FileTree } from "utils/filetree";
 import * as apiModule from "#/api/api";
 import { templateVersionVariablesKey } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
+import {
+	MockTemplate,
+	MockTemplateVersion,
+	MockTemplateVersionVariable1,
+	MockTemplateVersionVariable2,
+	MockWorkspaceBuildLogs,
+} from "#/testHelpers/entities";
+import {
+	createTestQueryClient,
+	renderWithAuth,
+	waitForLoaderToBeRemoved,
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage, {

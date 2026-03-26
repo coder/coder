@@ -1,10 +1,3 @@
-import {
-	MockDefaultOrganization,
-	MockGroup,
-	MockGroupWithoutMembers,
-	MockOrganizationMember,
-	MockOrganizationMember2,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { spyOn, userEvent, within } from "storybook/test";
 import {
@@ -18,6 +11,13 @@ import {
 	groupPermissionsKey,
 } from "#/api/queries/groups";
 import { organizationMembersKey } from "#/api/queries/organizations";
+import {
+	MockDefaultOrganization,
+	MockGroup,
+	MockGroupWithoutMembers,
+	MockOrganizationMember,
+	MockOrganizationMember2,
+} from "#/testHelpers/entities";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 

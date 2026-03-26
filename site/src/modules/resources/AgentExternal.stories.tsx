@@ -1,7 +1,7 @@
-import { chromatic } from "testHelpers/chromatic";
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chromatic } from "#/testHelpers/chromatic";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentExternal } from "./AgentExternal";
 
 const meta: Meta<typeof AgentExternal> = {

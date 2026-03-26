@@ -1,10 +1,10 @@
+import { screen } from "@testing-library/react";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
-} from "testHelpers/entities";
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import { screen } from "@testing-library/react";
+} from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { AppLink } from "./AppLink";
 
 const renderAppLink = (app: typeof MockWorkspaceApp) => {

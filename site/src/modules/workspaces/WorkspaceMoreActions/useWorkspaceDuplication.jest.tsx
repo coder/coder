@@ -1,11 +1,11 @@
-import * as M from "testHelpers/entities";
-import {
-	type GetLocationSnapshot,
-	renderHookWithAuth,
-} from "testHelpers/hooks";
 import { act, waitFor } from "@testing-library/react";
 import CreateWorkspacePage from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import type { Workspace } from "#/api/typesGenerated";
+import * as M from "#/testHelpers/entities";
+import {
+	type GetLocationSnapshot,
+	renderHookWithAuth,
+} from "#/testHelpers/hooks";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 function render(workspace?: Workspace) {

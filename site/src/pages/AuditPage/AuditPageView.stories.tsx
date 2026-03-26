@@ -1,10 +1,3 @@
-import { chromaticWithTablet } from "testHelpers/chromatic";
-import {
-	MockAuditLog,
-	MockAuditLog2,
-	MockAuditLog3,
-	MockUserOwner,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import {
@@ -16,6 +9,13 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
+import { chromaticWithTablet } from "#/testHelpers/chromatic";
+import {
+	MockAuditLog,
+	MockAuditLog2,
+	MockAuditLog3,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];

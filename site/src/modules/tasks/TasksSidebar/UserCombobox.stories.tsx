@@ -1,11 +1,11 @@
-import { MockUserOwner } from "testHelpers/entities";
-import { withAuthProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { waitFor } from "@testing-library/react";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { useState } from "react";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
+import { MockUserOwner } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { UserCombobox } from "./UserCombobox";
 
 const meta: Meta<typeof UserCombobox> = {

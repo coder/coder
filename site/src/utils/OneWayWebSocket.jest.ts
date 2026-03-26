@@ -10,7 +10,7 @@
 import {
 	createMockWebSocket,
 	type MockWebSocketServer,
-} from "testHelpers/websockets";
+} from "#/testHelpers/websockets";
 import { type OneWayMessageEvent, OneWayWebSocket } from "./OneWayWebSocket";
 
 describe(OneWayWebSocket.name, () => {

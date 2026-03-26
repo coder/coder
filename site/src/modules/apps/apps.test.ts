@@ -2,7 +2,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import { getAppHref, getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "./apps";
 
 describe("getVSCodeHref", () => {
