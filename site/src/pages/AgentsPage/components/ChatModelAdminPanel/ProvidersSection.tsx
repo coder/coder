@@ -171,7 +171,14 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 					baseURL=""
 					providerConfigsUnavailable={providerConfigsUnavailable}
 					isProviderMutationPending={isProviderMutationPending}
-					onCreateProvider={onCreateProvider}
+					onCreateProvider={async (req) => {
+						const created = (await onCreateProvider(
+							req,
+						)) as TypesGen.ChatProviderConfig;
+						// Navigate from add mode to the detail view for the new config.
+						setSearchParams({ providerConfig: created.id }, { replace: true });
+						return created;
+					}}
 					onUpdateProvider={onUpdateProvider}
 					onDeleteProvider={async (id) => {
 						await onDeleteProvider(id);
