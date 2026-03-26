@@ -178,7 +178,7 @@ func normalizeClassification(classified ClassifiedError) ClassifiedError {
 		classified.Kind = KindGeneric
 	}
 	if classified.Message == "" {
-		classified.Message = buildMessage(classified, false)
+		classified.Message = terminalMessage(classified)
 	}
 	return classified
 }

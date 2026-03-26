@@ -30,7 +30,7 @@ func StreamRetryPayload(
 	return &codersdk.ChatStreamRetry{
 		Attempt:    attempt,
 		DelayMs:    delay.Milliseconds(),
-		Error:      buildMessage(classified, true),
+		Error:      retryMessage(classified),
 		Kind:       classified.Kind,
 		Provider:   classified.Provider,
 		StatusCode: classified.StatusCode,

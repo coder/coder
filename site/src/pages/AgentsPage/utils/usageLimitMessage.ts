@@ -20,18 +20,19 @@ export type ChatProviderFailureKind =
 	| "timeout"
 	| "startup_timeout"
 	| "auth"
-	| "config";
+	| "config"
+	| "usage_limit";
 
 /**
  * Typed classification for errors surfaced in the agent detail view.
- * - "usage-limit": the user hit a spending cap (409 + valid usage data).
+ * - "usage_limit": the user hit a spending cap (409 + valid usage data).
  * - other kinds come from normalized stream/provider failures such as
  *   "generic", "overloaded", "rate_limit", "timeout",
  *   "startup_timeout", "auth", and "config".
  */
 export type ChatDetailError = {
 	message: string;
-	kind: "usage-limit" | ChatProviderFailureKind | (string & {});
+	kind: ChatProviderFailureKind | (string & {});
 	provider?: string;
 	retryable?: boolean;
 	statusCode?: number;

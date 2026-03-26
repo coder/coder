@@ -5,16 +5,14 @@ import (
 	"strings"
 )
 
-// buildMessage produces the user-facing error description for a
-// classified error. Terminal errors (forRetry=false) include HTTP
-// status codes and actionable guidance; retry messages
-// (forRetry=true) are clean factual statements suitable for display
-// alongside the retry countdown UI.
-func buildMessage(classified ClassifiedError, forRetry bool) string {
+// terminalMessage produces the user-facing error description shown
+// when retries are exhausted. It includes HTTP status codes and
+// actionable remediation guidance.
+func terminalMessage(classified ClassifiedError) string {
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
 	case KindOverloaded:
-		if !forRetry && classified.StatusCode > 0 {
+		if classified.StatusCode > 0 {
 			return fmt.Sprintf(
 				"%s is temporarily overloaded (HTTP %d).",
 				subject, classified.StatusCode,
@@ -23,7 +21,7 @@ func buildMessage(classified ClassifiedError, forRetry bool) string {
 		return fmt.Sprintf("%s is temporarily overloaded.", subject)
 
 	case KindRateLimit:
-		if !forRetry && classified.StatusCode > 0 {
+		if classified.StatusCode > 0 {
 			return fmt.Sprintf(
 				"%s is rate limiting requests (HTTP %d).",
 				subject, classified.StatusCode,
@@ -32,13 +30,13 @@ func buildMessage(classified ClassifiedError, forRetry bool) string {
 		return fmt.Sprintf("%s is rate limiting requests.", subject)
 
 	case KindTimeout:
-		if !forRetry && classified.StatusCode > 0 {
+		if classified.StatusCode > 0 {
 			return fmt.Sprintf(
 				"%s is temporarily unavailable (HTTP %d).",
 				subject, classified.StatusCode,
 			)
 		}
-		if !forRetry && !classified.Retryable {
+		if !classified.Retryable {
 			return "The request timed out before it completed."
 		}
 		return fmt.Sprintf("%s is temporarily unavailable.", subject)
@@ -53,32 +51,66 @@ func buildMessage(classified ClassifiedError, forRetry bool) string {
 		if displayName == "" {
 			displayName = "the AI provider"
 		}
-		base := fmt.Sprintf("Authentication with %s failed.", displayName)
-		if forRetry {
-			return base
-		}
-		return base + " Check the API key, permissions, and billing settings."
+		return fmt.Sprintf(
+			"Authentication with %s failed."+
+				" Check the API key, permissions, and billing settings.",
+			displayName,
+		)
 
 	case KindConfig:
-		base := fmt.Sprintf(
-			"%s rejected the model configuration.", subject,
+		return fmt.Sprintf(
+			"%s rejected the model configuration."+
+				" Check the selected model and provider settings.",
+			subject,
 		)
-		if forRetry {
-			return base
-		}
-		return base + " Check the selected model and provider settings."
 
 	default:
-		if !forRetry && classified.StatusCode > 0 {
+		if classified.StatusCode > 0 {
 			return fmt.Sprintf(
 				"%s returned an unexpected error (HTTP %d).",
 				subject, classified.StatusCode,
 			)
 		}
-		if !forRetry && !classified.Retryable {
+		if !classified.Retryable {
 			return "The chat request failed unexpectedly."
 		}
 		return fmt.Sprintf("%s returned an unexpected error.", subject)
+	}
+}
+
+// retryMessage produces a clean factual description suitable for
+// display alongside the retry countdown UI. It omits HTTP status
+// codes (surfaced separately in the payload) and remediation
+// guidance (not actionable while auto-retrying).
+func retryMessage(classified ClassifiedError) string {
+	subject := providerSubject(classified.Provider)
+	switch classified.Kind {
+	case KindOverloaded:
+		return fmt.Sprintf("%s is temporarily overloaded.", subject)
+	case KindRateLimit:
+		return fmt.Sprintf("%s is rate limiting requests.", subject)
+	case KindTimeout:
+		return fmt.Sprintf("%s is temporarily unavailable.", subject)
+	case KindStartupTimeout:
+		return fmt.Sprintf(
+			"%s did not start responding in time.", subject,
+		)
+	case KindAuth:
+		displayName := providerDisplayName(classified.Provider)
+		if displayName == "" {
+			displayName = "the AI provider"
+		}
+		return fmt.Sprintf(
+			"Authentication with %s failed.", displayName,
+		)
+	case KindConfig:
+		return fmt.Sprintf(
+			"%s rejected the model configuration.", subject,
+		)
+	default:
+		return fmt.Sprintf(
+			"%s returned an unexpected error.", subject,
+		)
 	}
 }
 

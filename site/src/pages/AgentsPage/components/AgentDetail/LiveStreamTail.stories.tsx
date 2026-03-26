@@ -58,7 +58,7 @@ export const UsageLimitExceeded: Story = {
 		...defaultArgs,
 		liveStatus: buildLiveStatus({
 			persistedError: {
-				kind: "usage-limit",
+				kind: "usage_limit",
 				message:
 					"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
 			},
