@@ -272,7 +272,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChats(chats, diffStatusesByChatID))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chats(chats, diffStatusesByChatID))
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -417,7 +417,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1142,7 +1142,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 			slog.Error(err),
 		)
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, diffStatus))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1972,7 +1972,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3583,78 +3583,6 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
-	mcpServerIDs := c.MCPServerIDs
-	if mcpServerIDs == nil {
-		mcpServerIDs = []uuid.UUID{}
-	}
-	labels := map[string]string(c.Labels)
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	chat := codersdk.Chat{
-		ID:                c.ID,
-		OwnerID:           c.OwnerID,
-		LastModelConfigID: c.LastModelConfigID,
-		Title:             c.Title,
-		Status:            codersdk.ChatStatus(c.Status),
-		Archived:          c.Archived,
-		CreatedAt:         c.CreatedAt,
-		UpdatedAt:         c.UpdatedAt,
-		MCPServerIDs:      mcpServerIDs,
-		Labels:            labels,
-	}
-	if c.LastError.Valid {
-		chat.LastError = &c.LastError.String
-	}
-	if c.ParentChatID.Valid {
-		parentChatID := c.ParentChatID.UUID
-		chat.ParentChatID = &parentChatID
-	}
-	switch {
-	case c.RootChatID.Valid:
-		rootChatID := c.RootChatID.UUID
-		chat.RootChatID = &rootChatID
-	case c.ParentChatID.Valid:
-		rootChatID := c.ParentChatID.UUID
-		chat.RootChatID = &rootChatID
-	default:
-		rootChatID := c.ID
-		chat.RootChatID = &rootChatID
-	}
-	if c.WorkspaceID.Valid {
-		chat.WorkspaceID = &c.WorkspaceID.UUID
-	}
-	if c.BuildID.Valid {
-		chat.BuildID = &c.BuildID.UUID
-	}
-	if c.AgentID.Valid {
-		chat.AgentID = &c.AgentID.UUID
-	}
-	if diffStatus != nil {
-		convertedDiffStatus := db2sdk.ChatDiffStatus(c.ID, diffStatus)
-		chat.DiffStatus = &convertedDiffStatus
-	}
-	return chat
-}
-
-func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
-	result := make([]codersdk.Chat, len(chats))
-	for i, c := range chats {
-		diffStatus, ok := diffStatusesByChatID[c.ID]
-		if ok {
-			result[i] = convertChat(c, &diffStatus)
-			continue
-		}
-
-		result[i] = convertChat(c, nil)
-		if diffStatusesByChatID != nil {
-			emptyDiffStatus := db2sdk.ChatDiffStatus(c.ID, nil)
-			result[i].DiffStatus = &emptyDiffStatus
-		}
-	}
-	return result
-}
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
 	displayName := strings.TrimSpace(model.DisplayName)
