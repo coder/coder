@@ -169,7 +169,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
 					model: trimmedModel,
-					enabled: values.enabled,
+					enabled: true,
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -326,27 +326,29 @@ export const ModelForm: FC<ModelFormProps> = ({
 						}
 					/>
 				</div>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span className="ml-auto inline-flex">
-							<Switch
-								checked={form.values.enabled}
-								onCheckedChange={(v) => {
-									form.setFieldValue("enabled", v);
-								}}
-								aria-label="Enabled"
-								disabled={isSaving || isDefaultModel}
-							/>
-						</span>
-					</TooltipTrigger>
-					<TooltipContent side="bottom">
-						{isDefaultModel
-							? "Default model cannot be disabled. Remove default status first."
-							: form.values.enabled
-								? "Disable this model. It will be hidden from users."
-								: "Enable this model. It will be visible to users."}
-					</TooltipContent>
-				</Tooltip>
+				{editingModel && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="ml-auto inline-flex">
+								<Switch
+									checked={form.values.enabled}
+									onCheckedChange={(v) => {
+										form.setFieldValue("enabled", v);
+									}}
+									aria-label="Enabled"
+									disabled={isSaving || isDefaultModel}
+								/>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{isDefaultModel
+								? "Default model cannot be disabled. Remove default status first."
+								: form.values.enabled
+									? "Disable this model. It will be hidden from users."
+									: "Enable this model. It will be visible to users."}
+						</TooltipContent>
+					</Tooltip>
+				)}
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 
