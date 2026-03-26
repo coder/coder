@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -3455,6 +3457,36 @@ func TestRegenerateChatTitle(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
+	t.Run("UpdateDenied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Authorizer: &coderdtest.FakeAuthorizer{
+				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
+					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
+						return xerrors.New("denied")
+					}
+					return nil
+				},
+			},
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "chat with update denied",
+			}},
+		})
+		require.NoError(t, err)
+
+		_, err = client.RegenerateChatTitle(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
 	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
 		t.Parallel()
 
@@ -3477,6 +3509,50 @@ func TestRegenerateChatTitle(t *testing.T) {
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.RegenerateChatTitle(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("Unauthenticated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "chat for unauthenticated regeneration",
+			}},
+		})
+		require.NoError(t, err)
+
+		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
+		_, err = unauthenticatedClient.RegenerateChatTitle(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("UsageLimitExceeded", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "chat over usage limit",
+			}},
+		})
+		require.NoError(t, err)
+
+		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
+		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
+
+		_, err = client.RegenerateChatTitle(ctx, chat.ID)
+		requireChatUsageLimitExceededError(t, err, 100, 100, wantResetsAt)
 	})
 
 	t.Run("RegenerationFailure", func(t *testing.T) {
