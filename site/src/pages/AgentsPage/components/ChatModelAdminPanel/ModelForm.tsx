@@ -343,8 +343,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{isDefaultModel
 							? "Default model cannot be disabled. Remove default status first."
 							: form.values.enabled
-								? "Disable this model — it will be hidden from users"
-								: "Enable this model — it will be visible to users"}
+								? "Disable this model. It will be hidden from users."
+								: "Enable this model. It will be visible to users."}
 					</TooltipContent>
 				</Tooltip>
 			</div>

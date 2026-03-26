@@ -1245,7 +1245,7 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		contextLimit := int64(4096)
 		enabled := false
-		disabledConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		_, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:     "openai",
 			Model:        "gpt-4o-disabled",
 			DisplayName:  "GPT-4o Disabled",
@@ -1259,7 +1259,6 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.Len(t, configs, 1)
 		require.Equal(t, enabledConfig.ID, configs[0].ID)
 		require.True(t, configs[0].Enabled)
-		require.NotEqual(t, disabledConfig.ID, configs[0].ID)
 	})
 
 	t.Run("DeserializesLegacyPricingJSON", func(t *testing.T) {
@@ -1540,6 +1539,65 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		for _, config := range memberConfigs {
 			require.NotEqual(t, modelConfig.ID, config.ID)
 		}
+	})
+
+	t.Run("ReEnableRestoresVisibilityForNonAdmins", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		enabled := false
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-reenable",
+			DisplayName:  "GPT-4o Re-enable",
+			Enabled:      &enabled,
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.False(t, modelConfig.Enabled)
+
+		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		foundForMember := false
+		for _, config := range memberConfigs {
+			if config.ID == modelConfig.ID {
+				foundForMember = true
+			}
+		}
+		require.False(t, foundForMember)
+
+		enabled = true
+		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Enabled: &enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, updated.ID)
+		require.True(t, updated.Enabled)
+
+		memberConfigs, err = memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		foundForMember = false
+		for _, config := range memberConfigs {
+			if config.ID == modelConfig.ID {
+				foundForMember = true
+				require.True(t, config.Enabled)
+			}
+		}
+		require.True(t, foundForMember)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
