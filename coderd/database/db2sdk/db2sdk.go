@@ -1516,6 +1516,85 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	return &value
 }
 
+// Chat converts a database.Chat to a codersdk.Chat. It coalesces
+// nil slices and maps to empty values for JSON serialization and
+// derives RootChatID from the parent chain when not explicitly set.
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+	mcpServerIDs := c.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
+	labels := map[string]string(c.Labels)
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	chat := codersdk.Chat{
+		ID:                c.ID,
+		OwnerID:           c.OwnerID,
+		LastModelConfigID: c.LastModelConfigID,
+		Title:             c.Title,
+		Status:            codersdk.ChatStatus(c.Status),
+		Archived:          c.Archived,
+		CreatedAt:         c.CreatedAt,
+		UpdatedAt:         c.UpdatedAt,
+		MCPServerIDs:      mcpServerIDs,
+		Labels:            labels,
+	}
+	if c.LastError.Valid {
+		chat.LastError = &c.LastError.String
+	}
+	if c.ParentChatID.Valid {
+		parentChatID := c.ParentChatID.UUID
+		chat.ParentChatID = &parentChatID
+	}
+	switch {
+	case c.RootChatID.Valid:
+		rootChatID := c.RootChatID.UUID
+		chat.RootChatID = &rootChatID
+	case c.ParentChatID.Valid:
+		rootChatID := c.ParentChatID.UUID
+		chat.RootChatID = &rootChatID
+	default:
+		rootChatID := c.ID
+		chat.RootChatID = &rootChatID
+	}
+	if c.WorkspaceID.Valid {
+		chat.WorkspaceID = &c.WorkspaceID.UUID
+	}
+	if c.BuildID.Valid {
+		chat.BuildID = &c.BuildID.UUID
+	}
+	if c.AgentID.Valid {
+		chat.AgentID = &c.AgentID.UUID
+	}
+	if diffStatus != nil {
+		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
+		chat.DiffStatus = &convertedDiffStatus
+	}
+	return chat
+}
+
+// Chats converts a slice of database.Chat to codersdk.Chat, looking
+// up diff statuses from the provided map. When diffStatusesByChatID
+// is non-nil, chats without an entry receive an empty DiffStatus.
+func Chats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
+	result := make([]codersdk.Chat, len(chats))
+	for i, c := range chats {
+		diffStatus, ok := diffStatusesByChatID[c.ID]
+		if ok {
+			result[i] = Chat(c, &diffStatus)
+			continue
+		}
+
+		result[i] = Chat(c, nil)
+		if diffStatusesByChatID != nil {
+			emptyDiffStatus := ChatDiffStatus(c.ID, nil)
+			result[i].DiffStatus = &emptyDiffStatus
+		}
+	}
+	return result
+}
+
 // ChatDiffStatus converts a database.ChatDiffStatus to a
 // codersdk.ChatDiffStatus. When status is nil an empty value
 // containing only the chatID is returned.

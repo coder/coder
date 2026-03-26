@@ -775,6 +775,79 @@ func TestWatchChats(t *testing.T) {
 		}
 	})
 
+	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
+		t.Parallel()
+
+		// This test verifies that the pubsub "created" event
+		// carries a fully-populated codersdk.Chat. Exhaustive
+		// field-level coverage of the converter is handled by
+		// TestChat_AllFieldsPopulated (db2sdk) and
+		// TestChat_JSONRoundTrip (codersdk). This integration
+		// test only checks that key fields survive the full
+		// API → pubsub → websocket pipeline.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		type watchEvent struct {
+			Type codersdk.ServerSentEventType `json:"type"`
+			Data json.RawMessage              `json:"data,omitempty"`
+		}
+
+		// Skip the initial ping.
+		var event watchEvent
+		err = wsjson.Read(ctx, conn, &event)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServerSentEventTypePing, event.Type)
+		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
+
+		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "watch route fields completeness test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		var got codersdk.Chat
+		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+			var update watchEvent
+			if readErr := wsjson.Read(ctx, conn, &update); readErr != nil {
+				return false
+			}
+			if update.Type != codersdk.ServerSentEventTypeData {
+				return false
+			}
+			var payload coderdpubsub.ChatEvent
+			if unmarshalErr := json.Unmarshal(update.Data, &payload); unmarshalErr != nil {
+				return false
+			}
+			if payload.Kind == coderdpubsub.ChatEventKindCreated &&
+				payload.Chat.ID == createdChat.ID {
+				got = payload.Chat
+				return true
+			}
+			return false
+		}, testutil.IntervalFast, "expected a created event for chat %s", createdChat.ID)
+
+		require.Equal(t, createdChat.ID, got.ID)
+		require.Equal(t, createdChat.OwnerID, got.OwnerID)
+		require.Equal(t, modelConfig.ID, got.LastModelConfigID)
+		require.Equal(t, createdChat.Title, got.Title)
+		require.Equal(t, codersdk.ChatStatusPending, got.Status)
+		require.NotNil(t, got.RootChatID)
+		require.Equal(t, createdChat.ID, *got.RootChatID)
+		require.NotZero(t, got.CreatedAt)
+		require.NotZero(t, got.UpdatedAt)
+	})
+
 	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
 		t.Parallel()
 

@@ -2479,28 +2479,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := codersdk.Chat{
-		ID:        chat.ID,
-		OwnerID:   chat.OwnerID,
-		Title:     chat.Title,
-		Status:    codersdk.ChatStatus(chat.Status),
-		CreatedAt: chat.CreatedAt,
-		UpdatedAt: chat.UpdatedAt,
-	}
-	if chat.ParentChatID.Valid {
-		parentChatID := chat.ParentChatID.UUID
-		sdkChat.ParentChatID = &parentChatID
-	}
-	if chat.RootChatID.Valid {
-		rootChatID := chat.RootChatID.UUID
-		sdkChat.RootChatID = &rootChatID
-	} else if !chat.ParentChatID.Valid {
-		rootChatID := chat.ID
-		sdkChat.RootChatID = &rootChatID
-	}
-	if chat.WorkspaceID.Valid {
-		sdkChat.WorkspaceID = &chat.WorkspaceID.UUID
-	}
+	sdkChat := db2sdk.Chat(chat, nil) // we have diffStatus already converted
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
