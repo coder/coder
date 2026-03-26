@@ -1,4 +1,4 @@
-package agentconnectionbatcher
+package agentapi
 
 import (
 	"database/sql"
@@ -33,10 +33,10 @@ func TestBatcher_FlushOnInterval(t *testing.T) {
 	agent2 := uuid.New()
 	now := clock.Now()
 
-	b := New(ctx, store,
-		WithLogger(log),
-		WithClock(clock),
-		WithInterval(5*time.Second),
+	b := NewHeartbeatBatcher(ctx, store,
+		WithHeartbeatLogger(log),
+		WithHeartbeatClock(clock),
+		WithHeartbeatInterval(5*time.Second),
 	)
 	t.Cleanup(b.Close)
 
@@ -87,10 +87,10 @@ func TestBatcher_FlushOnCapacity(t *testing.T) {
 			}),
 		).Return(nil)
 
-	b := New(ctx, store,
-		WithLogger(log),
-		WithClock(clock),
-		WithBatchSize(3),
+	b := NewHeartbeatBatcher(ctx, store,
+		WithHeartbeatLogger(log),
+		WithHeartbeatClock(clock),
+		WithHeartbeatBatchSize(3),
 	)
 	t.Cleanup(b.Close)
 
@@ -118,10 +118,10 @@ func TestBatcher_DeduplicatesByAgentID(t *testing.T) {
 	earlier := clock.Now()
 	later := earlier.Add(10 * time.Second)
 
-	b := New(ctx, store,
-		WithLogger(log),
-		WithClock(clock),
-		WithInterval(5*time.Second),
+	b := NewHeartbeatBatcher(ctx, store,
+		WithHeartbeatLogger(log),
+		WithHeartbeatClock(clock),
+		WithHeartbeatInterval(5*time.Second),
 	)
 	t.Cleanup(b.Close)
 
@@ -161,10 +161,10 @@ func TestBatcher_FinalFlushOnClose(t *testing.T) {
 		BatchUpdateWorkspaceAgentConnections(gomock.Any(), gomock.Any()).
 		Return(nil).Times(2)
 
-	b := New(ctx, store,
-		WithLogger(log),
-		WithClock(clock),
-		WithInterval(5*time.Second),
+	b := NewHeartbeatBatcher(ctx, store,
+		WithHeartbeatLogger(log),
+		WithHeartbeatClock(clock),
+		WithHeartbeatInterval(5*time.Second),
 	)
 
 	// Add an update and flush it via timer to ensure the loop is running.
@@ -183,7 +183,7 @@ func TestBatcher_DropsWhenFull(t *testing.T) {
 	t.Parallel()
 
 	// This test verifies the non-blocking Add() behavior directly.
-	// We construct a Batcher but only care about the channel semantics,
+	// We construct a HeartbeatBatcher but only care about the channel semantics,
 	// not the flush loop, so we use a real clock with a long interval.
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
@@ -197,10 +197,10 @@ func TestBatcher_DropsWhenFull(t *testing.T) {
 
 	// Use a large batch size so the loop doesn't capacity-flush while
 	// we fill the channel. Channel buffer = 100 * 5 = 500.
-	b := New(ctx, store,
-		WithLogger(log),
-		WithBatchSize(100),
-		WithInterval(time.Hour),
+	b := NewHeartbeatBatcher(ctx, store,
+		WithHeartbeatLogger(log),
+		WithHeartbeatBatchSize(100),
+		WithHeartbeatInterval(time.Hour),
 	)
 	t.Cleanup(b.Close)
 
@@ -259,8 +259,8 @@ func matchConnectionParams(expected map[uuid.UUID]time.Time) gomock.Matcher {
 	return connectionParamsMatcher{expected: expected}
 }
 
-func makeUpdate(id uuid.UUID, updatedAt time.Time) Update {
-	return Update{
+func makeUpdate(id uuid.UUID, updatedAt time.Time) HeartbeatUpdate {
+	return HeartbeatUpdate{
 		ID: id,
 		LastConnectedAt: sql.NullTime{
 			Time:  updatedAt,

@@ -1,4 +1,4 @@
-package agentconnectionbatcher_test
+package agentapi_test
 
 import (
 	"database/sql"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/agentconnectionbatcher"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -67,16 +67,16 @@ func TestBatcher_DB(t *testing.T) {
 		ResourceID: res.ID,
 	})
 
-	b := agentconnectionbatcher.New(ctx, db,
-		agentconnectionbatcher.WithInterval(time.Second),
-		agentconnectionbatcher.WithClock(mClock),
+	b := agentapi.NewHeartbeatBatcher(ctx, db,
+		agentapi.WithHeartbeatInterval(time.Second),
+		agentapi.WithHeartbeatClock(mClock),
 	)
 	t.Cleanup(b.Close)
 
 	now := mClock.Now()
 
 	// Add first update.
-	b.Add(agentconnectionbatcher.Update{
+	b.Add(agentapi.HeartbeatUpdate{
 		ID: agent.ID,
 		LastConnectedAt: sql.NullTime{
 			Time:  now,
@@ -88,7 +88,7 @@ func TestBatcher_DB(t *testing.T) {
 	// Add a second (later) update for the same agent to test
 	// deduplication — only the latest should be persisted.
 	later := now.Add(500 * time.Millisecond)
-	b.Add(agentconnectionbatcher.Update{
+	b.Add(agentapi.HeartbeatUpdate{
 		ID: agent.ID,
 		LastConnectedAt: sql.NullTime{
 			Time:  later,

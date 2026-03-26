@@ -1,4 +1,4 @@
-package agentconnectionbatcher
+package agentapi
 
 import (
 	"context"
@@ -36,7 +36,7 @@ const (
 )
 
 // Update represents a single agent connection state update to be batched.
-type Update struct {
+type HeartbeatUpdate struct {
 	ID                     uuid.UUID
 	FirstConnectedAt       sql.NullTime
 	LastConnectedAt        sql.NullTime
@@ -48,12 +48,12 @@ type Update struct {
 // Batcher accumulates agent connection updates and periodically flushes
 // them to the database in a single batch query. This reduces per-heartbeat
 // database write pressure from O(n) queries to O(1).
-type Batcher struct {
+type HeartbeatBatcher struct {
 	store database.Store
 	log   slog.Logger
 
-	updateCh     chan Update
-	batch        map[uuid.UUID]Update
+	updateCh     chan HeartbeatUpdate
+	batch        map[uuid.UUID]HeartbeatUpdate
 	maxBatchSize int
 
 	clock    quartz.Clock
@@ -66,41 +66,41 @@ type Batcher struct {
 }
 
 // Option is a functional option for configuring a Batcher.
-type Option func(b *Batcher)
+type HeartbeatOption func(b *HeartbeatBatcher)
 
 // WithBatchSize sets the maximum number of updates to accumulate before
 // forcing a flush.
-func WithBatchSize(size int) Option {
-	return func(b *Batcher) {
+func WithHeartbeatBatchSize(size int) HeartbeatOption {
+	return func(b *HeartbeatBatcher) {
 		b.maxBatchSize = size
 	}
 }
 
 // WithInterval sets how frequently the batcher flushes to the database.
-func WithInterval(d time.Duration) Option {
-	return func(b *Batcher) {
+func WithHeartbeatInterval(d time.Duration) HeartbeatOption {
+	return func(b *HeartbeatBatcher) {
 		b.interval = d
 	}
 }
 
 // WithLogger sets the logger for the batcher.
-func WithLogger(log slog.Logger) Option {
-	return func(b *Batcher) {
+func WithHeartbeatLogger(log slog.Logger) HeartbeatOption {
+	return func(b *HeartbeatBatcher) {
 		b.log = log
 	}
 }
 
 // WithClock sets the clock for the batcher, useful for testing.
-func WithClock(clock quartz.Clock) Option {
-	return func(b *Batcher) {
+func WithHeartbeatClock(clock quartz.Clock) HeartbeatOption {
+	return func(b *HeartbeatBatcher) {
 		b.clock = clock
 	}
 }
 
 // New creates a new Batcher and starts its background processing loop.
 // The provided context controls the lifetime of the batcher.
-func New(ctx context.Context, store database.Store, opts ...Option) *Batcher {
-	b := &Batcher{
+func NewHeartbeatBatcher(ctx context.Context, store database.Store, opts ...HeartbeatOption) *HeartbeatBatcher {
+	b := &HeartbeatBatcher{
 		store: store,
 		done:  make(chan struct{}),
 		log:   slog.Logger{},
@@ -120,8 +120,8 @@ func New(ctx context.Context, store database.Store, opts ...Option) *Batcher {
 
 	b.timer = b.clock.NewTimer(b.interval)
 	channelSize := b.maxBatchSize * defaultChannelBufferMultiplier
-	b.updateCh = make(chan Update, channelSize)
-	b.batch = make(map[uuid.UUID]Update)
+	b.updateCh = make(chan HeartbeatUpdate, channelSize)
+	b.batch = make(map[uuid.UUID]HeartbeatUpdate)
 
 	b.ctx, b.cancel = context.WithCancel(ctx)
 	go func() {
@@ -134,7 +134,7 @@ func New(ctx context.Context, store database.Store, opts ...Option) *Batcher {
 
 // Close cancels the batcher context and waits for the final flush to
 // complete.
-func (b *Batcher) Close() {
+func (b *HeartbeatBatcher) Close() {
 	b.cancel()
 	if b.timer != nil {
 		b.timer.Stop()
@@ -145,7 +145,7 @@ func (b *Batcher) Close() {
 // Add enqueues an agent connection update for batching. If the
 // channel is full, a direct (unbatched) DB write is performed as a
 // fallback so that heartbeats are never silently lost.
-func (b *Batcher) Add(u Update) {
+func (b *HeartbeatBatcher) Add(u HeartbeatUpdate) {
 	select {
 	case b.updateCh <- u:
 	default:
@@ -159,7 +159,7 @@ func (b *Batcher) Add(u Update) {
 // writeDirect performs a single-item batch write as a fallback when
 // the channel is full. This ensures heartbeats are never lost, which
 // would cause agents to be erroneously marked as disconnected.
-func (b *Batcher) writeDirect(u Update) {
+func (b *HeartbeatBatcher) writeDirect(u HeartbeatUpdate) {
 	//nolint:gocritic // System-level fallback for agent heartbeats.
 	ctx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(context.Background()), 10*time.Second)
 	defer cancel()
@@ -177,7 +177,7 @@ func (b *Batcher) writeDirect(u Update) {
 	}
 }
 
-func (b *Batcher) processUpdate(u Update) {
+func (b *HeartbeatBatcher) processUpdate(u HeartbeatUpdate) {
 	existing, exists := b.batch[u.ID]
 	if exists && u.UpdatedAt.Before(existing.UpdatedAt) {
 		return
@@ -185,7 +185,7 @@ func (b *Batcher) processUpdate(u Update) {
 	b.batch[u.ID] = u
 }
 
-func (b *Batcher) run(ctx context.Context) {
+func (b *HeartbeatBatcher) run(ctx context.Context) {
 	//nolint:gocritic // System-level batch operation for agent connections.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
@@ -215,7 +215,7 @@ func (b *Batcher) run(ctx context.Context) {
 	}
 }
 
-func (b *Batcher) flush(ctx context.Context) {
+func (b *HeartbeatBatcher) flush(ctx context.Context) {
 	count := len(b.batch)
 	if count == 0 {
 		return
@@ -243,7 +243,7 @@ func (b *Batcher) flush(ctx context.Context) {
 
 	// Clear batch before the DB call. Losing a batch of heartbeat
 	// timestamps is acceptable; the next heartbeat will update them.
-	b.batch = make(map[uuid.UUID]Update)
+	b.batch = make(map[uuid.UUID]HeartbeatUpdate)
 
 	err := b.store.BatchUpdateWorkspaceAgentConnections(ctx, database.BatchUpdateWorkspaceAgentConnectionsParams{
 		ID:                     ids,

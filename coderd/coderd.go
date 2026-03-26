@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
-	"github.com/coder/coder/v2/coderd/agentconnectionbatcher"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -252,7 +251,7 @@ type Options struct {
 	StatsBatcher       workspacestats.Batcher
 
 	MetadataBatcherOptions    []metadatabatcher.Option
-	ConnectionBatcherOptions []agentconnectionbatcher.Option
+	ConnectionBatcherOptions []agentapi.HeartbeatOption
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
 	WorkspaceBuilderMetrics   *wsbuilder.Metrics
@@ -861,11 +860,11 @@ func New(options *Options) *API {
 	}
 
 	// Initialize the connection batcher for batching agent heartbeat writes.
-	connBatcherOpts := []agentconnectionbatcher.Option{
-		agentconnectionbatcher.WithLogger(options.Logger.Named("connection_batcher")),
+	connBatcherOpts := []agentapi.HeartbeatOption{
+		agentapi.WithHeartbeatLogger(options.Logger.Named("connection_batcher")),
 	}
 	connBatcherOpts = append(connBatcherOpts, options.ConnectionBatcherOptions...)
-	api.connectionBatcher = agentconnectionbatcher.New(
+	api.connectionBatcher = agentapi.NewHeartbeatBatcher(
 		api.ctx,
 		options.Database,
 		connBatcherOpts...,
@@ -2094,7 +2093,7 @@ type API struct {
 
 	statsReporter    *workspacestats.Reporter
 	metadataBatcher    *metadatabatcher.Batcher
-	connectionBatcher *agentconnectionbatcher.Batcher
+	connectionBatcher *agentapi.HeartbeatBatcher
 	lifecycleMetrics *agentapi.LifecycleMetrics
 
 	Acquirer *provisionerdserver.Acquirer

@@ -17,7 +17,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
-	"github.com/coder/coder/v2/coderd/agentconnectionbatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -294,7 +293,7 @@ type agentConnectionMonitor struct {
 	logger         slog.Logger
 	pingPeriod     time.Duration
 
-	connectionBatcher *agentconnectionbatcher.Batcher
+	connectionBatcher *agentapi.HeartbeatBatcher
 
 	// state manipulated by both sendPings() and monitor() goroutines: needs to be threadsafe
 	lastPing atomic.Pointer[time.Time]
@@ -459,7 +458,7 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 		}
 
 		if m.connectionBatcher != nil {
-			m.connectionBatcher.Add(agentconnectionbatcher.Update{
+			m.connectionBatcher.Add(agentapi.HeartbeatUpdate{
 				ID:               m.workspaceAgent.ID,
 				FirstConnectedAt: m.firstConnectedAt,
 				LastConnectedAt:  m.lastConnectedAt,
