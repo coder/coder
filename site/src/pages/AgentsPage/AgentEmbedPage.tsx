@@ -1,13 +1,13 @@
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
+import { DashboardProvider } from "modules/dashboard/DashboardProvider";
+import { permissionChecks } from "modules/permissions";
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
-import { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
-import { permissionChecks } from "#/modules/permissions";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,
@@ -208,9 +208,10 @@ const AgentEmbedPage: FC = () => {
 				return;
 			}
 			if (event.data?.type === "coder:scroll-to-bottom") {
-				// flex-col-reverse: scrollTop 0 is the visual bottom.
+				// Normal flow: scroll to the bottom of the transcript.
 				if (scrollContainerRef.current) {
-					scrollContainerRef.current.scrollTop = 0;
+					scrollContainerRef.current.scrollTop =
+						scrollContainerRef.current.scrollHeight;
 				}
 			}
 		};
@@ -229,9 +230,9 @@ const AgentEmbedPage: FC = () => {
 		clearChatErrorReason,
 		requestArchiveAgent,
 		requestUnarchiveAgent,
-		requestArchiveAndDeleteWorkspace,
 		requestPinAgent: () => {},
 		requestUnpinAgent: () => {},
+		requestArchiveAndDeleteWorkspace,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

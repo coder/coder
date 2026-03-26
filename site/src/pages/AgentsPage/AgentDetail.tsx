@@ -1,4 +1,9 @@
 import { useProxy } from "contexts/ProxyContext";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+} from "modules/apps/apps";
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -9,6 +14,9 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import { isMobileViewport } from "utils/mobile";
+import { pageTitle } from "utils/page";
+import { rewriteLocalhostURL } from "utils/portForward";
 import { API, watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import {
@@ -29,14 +37,6 @@ import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
-import {
-	getTerminalHref,
-	getVSCodeHref,
-	openAppInNewWindow,
-} from "#/modules/apps/apps";
-import { isMobileViewport } from "#/utils/mobile";
-import { pageTitle } from "#/utils/page";
-import { rewriteLocalhostURL } from "#/utils/portForward";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
@@ -302,6 +302,7 @@ const AgentDetail: FC = () => {
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
+	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -667,9 +668,7 @@ const AgentDetail: FC = () => {
 			clearChatErrorReason(agentId);
 			clearStreamError();
 			setPendingEditMessageId(editedMessageID);
-			if (scrollContainerRef.current) {
-				scrollContainerRef.current.scrollTop = 0;
-			}
+			scrollToBottomRef.current?.();
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
@@ -695,9 +694,7 @@ const AgentDetail: FC = () => {
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
-		if (scrollContainerRef.current) {
-			scrollContainerRef.current.scrollTop = 0;
-		}
+		scrollToBottomRef.current?.();
 
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
@@ -963,6 +960,7 @@ const AgentDetail: FC = () => {
 			}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
+			scrollToBottomRef={scrollToBottomRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
