@@ -160,7 +160,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 							DATE_FORMAT.FULL_DATETIME,
 						)}
 					</span>
-					<ChevronRightIcon className="ml-4" />
+					<ChevronRightIcon className="ml-4 size-icon-sm" />
 				</div>
 			</TableCell>
 		</TableRow>
