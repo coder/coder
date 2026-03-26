@@ -7,13 +7,13 @@ import {
 	MockExperiments,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
-} from "api/typesGenerated";
-import { expect, within } from "storybook/test";
-import { docs } from "utils/docs";
+} from "#/api/typesGenerated";
+import { docs } from "#/utils/docs";
 import { DashboardContext, type DashboardValue } from "../DashboardProvider";
 import { LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";

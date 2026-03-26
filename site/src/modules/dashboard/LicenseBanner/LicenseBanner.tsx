@@ -1,12 +1,12 @@
+import type { FC } from "react";
 import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
-} from "api/typesGenerated";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/api/typesGenerated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { docs } from "#/utils/docs";
 import {
 	type LicenseBannerLink,
 	type LicenseBannerMessage,
@@ -21,7 +21,7 @@ const aiGovernanceNearLimitFallbackMessage =
 	"You are approaching your AI Governance add-on seat limit.";
 
 const isAIGovernanceWarning = (message: string): boolean =>
-	message === LicenseAIGovernance90PercentWarningText ||
+	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
 const isAIGovernanceNearLimitWarning = (message: string): boolean =>
