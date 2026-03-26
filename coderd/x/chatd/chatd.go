@@ -1375,10 +1375,18 @@ func (p *Server) RegenerateChatTitle(
 	// Reuse chatd's scoped auth context for deployment-config lookups while
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	model, modelConfig, _, err := p.resolveChatModel(dbauthz.AsChatd(ctx), chat)
+	chatdCtx := dbauthz.AsChatd(ctx)
+	model, modelConfig, keys, err := p.resolveChatModel(chatdCtx, chat)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("resolve chat model: %w", err)
 	}
+	model, modelConfig = p.resolveManualTitleModel(
+		chatdCtx,
+		chat,
+		model,
+		modelConfig,
+		keys,
+	)
 
 	title, usage, err := generateManualTitle(ctx, messages, model)
 	if err != nil {
@@ -1412,6 +1420,47 @@ func (p *Server) RegenerateChatTitle(
 
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
 	return updatedChat, nil
+}
+
+func (p *Server) resolveManualTitleModel(
+	ctx context.Context,
+	chat database.Chat,
+	fallbackModel fantasy.LanguageModel,
+	fallbackConfig database.ChatModelConfig,
+	keys chatprovider.ProviderAPIKeys,
+) (fantasy.LanguageModel, database.ChatModelConfig) {
+	configs, err := p.db.GetEnabledChatModelConfigs(ctx)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to list manual title model configs",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return fallbackModel, fallbackConfig
+	}
+
+	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
+	if !ok {
+		return fallbackModel, fallbackConfig
+	}
+
+	model, err := chatprovider.ModelFromConfig(
+		config.Provider,
+		config.Model,
+		keys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+	)
+	if err != nil {
+		p.logger.Debug(ctx, "manual title preferred model unavailable",
+			slog.F("chat_id", chat.ID),
+			slog.F("provider", config.Provider),
+			slog.F("model", config.Model),
+			slog.Error(err),
+		)
+		return fallbackModel, fallbackConfig
+	}
+
+	return model, config
 }
 
 func mergeManualTitleMessages(

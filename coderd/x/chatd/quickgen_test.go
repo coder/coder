@@ -470,6 +470,58 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 	require.Equal(t, int64(18), usage.TotalTokens)
 }
 
+func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
+		t.Parallel()
+
+		configs := []database.ChatModelConfig{
+			{Provider: preferredTitleModels[2].provider, Model: preferredTitleModels[2].model},
+			{Provider: preferredTitleModels[1].provider, Model: preferredTitleModels[1].model},
+			{Provider: "openai", Model: "gpt-4.1"},
+		}
+
+		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
+		require.True(t, ok)
+		require.Equal(t, preferredTitleModels[1].provider, got.Provider)
+		require.Equal(t, preferredTitleModels[1].model, got.Model)
+	})
+
+	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
+		t.Parallel()
+
+		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.ChatModelConfig{{
+			Provider: "openai",
+			Model:    "gpt-4.1",
+		}})
+		require.False(t, ok)
+		require.Equal(t, database.ChatModelConfig{}, got)
+	})
+}
+
+func Test_generateShortText_NormalizesQuotedOutput(t *testing.T) {
+	t.Parallel()
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "  \"Quoted summary\"  "},
+				},
+				Usage: fantasy.Usage{InputTokens: 3, OutputTokens: 2, TotalTokens: 5},
+			}, nil
+		},
+	}
+
+	text, usage, err := generateShortText(context.Background(), model, "system", "user")
+	require.NoError(t, err)
+	require.Equal(t, "Quoted summary", text)
+	require.Equal(t, int64(3), usage.InputTokens)
+	require.Equal(t, int64(2), usage.OutputTokens)
+	require.Equal(t, int64(5), usage.TotalTokens)
+}
+
 type stubModel struct {
 	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
 }

@@ -56,6 +56,33 @@ var preferredTitleModels = []struct {
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
+func selectPreferredConfiguredShortTextModelConfig(
+	configs []database.ChatModelConfig,
+) (database.ChatModelConfig, bool) {
+	for _, preferred := range preferredTitleModels {
+		for _, config := range configs {
+			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
+				continue
+			}
+			if !strings.EqualFold(strings.TrimSpace(config.Model), preferred.model) {
+				continue
+			}
+			return config, true
+		}
+	}
+	return database.ChatModelConfig{}, false
+}
+
+func normalizeShortTextOutput(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	text = strings.Trim(text, "\"'`")
+	return strings.Join(strings.Fields(text), " ")
+}
+
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
 // current title is either empty or still the fallback truncation).
@@ -201,13 +228,10 @@ func titleInput(
 }
 
 func normalizeTitleOutput(title string) string {
-	title = strings.TrimSpace(title)
+	title = normalizeShortTextOutput(title)
 	if title == "" {
 		return ""
 	}
-
-	title = strings.Trim(title, "\"'`")
-	title = strings.Join(strings.Fields(title), " ")
 	return truncateRunes(title, 80)
 }
 
@@ -538,6 +562,6 @@ func generateShortText(
 			responseParts = append(responseParts, p)
 		}
 	}
-	text := strings.TrimSpace(contentBlocksToText(responseParts))
+	text := normalizeShortTextOutput(contentBlocksToText(responseParts))
 	return text, response.Usage, nil
 }
