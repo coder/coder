@@ -3600,6 +3600,12 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
+	if c.BuildID.Valid {
+		chat.BuildID = &c.BuildID.UUID
+	}
+	if c.AgentID.Valid {
+		chat.AgentID = &c.AgentID.UUID
+	}
 	if diffStatus != nil {
 		convertedDiffStatus := db2sdk.ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
