@@ -108,8 +108,8 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onArchiveAndDeleteWorkspace: vi.fn(),
-	onPinChat: vi.fn(),
-	onUnpinChat: vi.fn(),
+	onPinAgent: vi.fn(),
+	onUnpinAgent: vi.fn(),
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,
 	archivedFilter: "active" as const,
@@ -597,15 +597,15 @@ describe("Pinned chats", () => {
 		});
 	});
 
-	it("calls onPinChat when Pin agent is clicked", async () => {
+	it("calls onPinAgent when Pin agent is clicked", async () => {
 		const user = userEvent.setup();
-		const onPinChat = vi.fn();
+		const onPinAgent = vi.fn();
 
 		render(
 			<Wrapper>
 				<AgentsSidebar
 					{...defaultProps}
-					onPinChat={onPinChat}
+					onPinAgent={onPinAgent}
 					chats={[
 						buildChat({
 							id: "chat-to-pin",
@@ -625,18 +625,18 @@ describe("Pinned chats", () => {
 		const pinItem = await screen.findByText("Pin agent");
 		await user.click(pinItem);
 
-		expect(onPinChat).toHaveBeenCalledWith("chat-to-pin");
+		expect(onPinAgent).toHaveBeenCalledWith("chat-to-pin");
 	});
 
-	it("calls onUnpinChat when Unpin agent is clicked", async () => {
+	it("calls onUnpinAgent when Unpin agent is clicked", async () => {
 		const user = userEvent.setup();
-		const onUnpinChat = vi.fn();
+		const onUnpinAgent = vi.fn();
 
 		render(
 			<Wrapper>
 				<AgentsSidebar
 					{...defaultProps}
-					onUnpinChat={onUnpinChat}
+					onUnpinAgent={onUnpinAgent}
 					chats={[
 						buildChat({
 							id: "chat-to-unpin",
@@ -657,7 +657,7 @@ describe("Pinned chats", () => {
 		const unpinItem = await screen.findByText("Unpin agent");
 		await user.click(unpinItem);
 
-		expect(onUnpinChat).toHaveBeenCalledWith("chat-to-unpin");
+		expect(onUnpinAgent).toHaveBeenCalledWith("chat-to-unpin");
 	});
 
 	it("shows filter on Pinned header when pinned chats exist", () => {

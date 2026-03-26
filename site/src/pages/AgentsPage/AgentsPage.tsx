@@ -356,7 +356,7 @@ const AgentsPage: FC = () => {
 	const requestUnpinAgent = (chatId: string) => {
 		unpinAgentMutation.mutate(chatId);
 	};
-	const requestReorderPinnedChat = (chatId: string, pinOrder: number) => {
+	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
 	const handleToggleSidebarCollapsed = () =>
@@ -608,7 +608,7 @@ const AgentsPage: FC = () => {
 				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 				requestPinAgent={requestPinAgent}
 				requestUnpinAgent={requestUnpinAgent}
-				requestReorderPinnedChat={requestReorderPinnedChat}
+				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}

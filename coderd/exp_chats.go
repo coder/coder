@@ -1652,6 +1652,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if pinOrder > 0 && chat.Archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin an archived chat.",
+			})
+			return
+		}
+
 		// The behavior depends on current pin state:
 		// - pinOrder == 0: unpin.
 		// - pinOrder > 0 && already pinned: reorder (shift
@@ -1678,6 +1685,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Failed to %s chat.", action),
+				Detail:  err.Error(),
 			})
 			return
 		}

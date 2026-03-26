@@ -22,7 +22,7 @@ export interface AgentsOutletContext {
 	) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
-	requestReorderPinnedChat?: (chatId: string, pinOrder: number) => void;
+	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
@@ -58,7 +58,7 @@ interface AgentsPageViewProps {
 	) => void;
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
-	requestReorderPinnedChat?: (chatId: string, pinOrder: number) => void;
+	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
@@ -92,7 +92,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestArchiveAndDeleteWorkspace,
 	requestPinAgent,
 	requestUnpinAgent,
-	requestReorderPinnedChat,
+	requestReorderPinnedAgent,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
 	hasNextPage,
@@ -132,7 +132,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestArchiveAndDeleteWorkspace,
 		requestPinAgent,
 		requestUnpinAgent,
-		requestReorderPinnedChat,
+		requestReorderPinnedAgent,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
@@ -163,9 +163,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-					onPinChat={requestPinAgent}
-					onUnpinChat={requestUnpinAgent}
-					onReorderPinnedChat={requestReorderPinnedChat}
+					onPinAgent={requestPinAgent}
+					onUnpinAgent={requestUnpinAgent}
+					onReorderPinnedAgent={requestReorderPinnedAgent}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
 					isArchiving={isArchiving}

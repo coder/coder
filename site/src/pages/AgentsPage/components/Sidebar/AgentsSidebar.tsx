@@ -2,13 +2,16 @@ import {
 	closestCenter,
 	DndContext,
 	type DragEndEvent,
+	KeyboardSensor,
 	MouseSensor,
+	TouchSensor,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
 import {
 	arrayMove,
 	SortableContext,
+	sortableKeyboardCoordinates,
 	useSortable,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -117,9 +120,9 @@ interface AgentsSidebarProps {
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
-	onPinChat: (chatId: string) => void;
-	onUnpinChat: (chatId: string) => void;
-	onReorderPinnedChat?: (chatId: string, pinOrder: number) => void;
+	onPinAgent: (chatId: string) => void;
+	onUnpinAgent: (chatId: string) => void;
+	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -371,8 +374,8 @@ interface ChatTreeContextValue {
 		chatId: string,
 		workspaceId: string,
 	) => void;
-	readonly onPinChat: (chatId: string) => void;
-	readonly onUnpinChat: (chatId: string) => void;
+	readonly onPinAgent: (chatId: string) => void;
+	readonly onUnpinAgent: (chatId: string) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -406,8 +409,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
-		onPinChat,
-		onUnpinChat,
+		onPinAgent,
+		onUnpinAgent,
 	} = useChatTree();
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
@@ -568,8 +571,8 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<DropdownMenuItem
 											onSelect={() =>
 												chat.pin_order > 0
-													? onUnpinChat(chat.id)
-													: onPinChat(chat.id)
+													? onUnpinAgent(chat.id)
+													: onPinAgent(chat.id)
 											}
 										>
 											{" "}
@@ -689,9 +692,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
-		onPinChat,
-		onUnpinChat,
-		onReorderPinnedChat,
+		onPinAgent,
+		onUnpinAgent,
+		onReorderPinnedAgent,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -753,7 +756,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const sortedPinnedChats = localPinOrder
 		? localPinOrder
 				.map((id) => pinnedChats.find((c) => c.id === id))
-				.filter((c): c is Chat => c !== undefined)
+				.filter((c) => c !== undefined)
 		: pinnedChats;
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
@@ -763,6 +766,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
 			activationConstraint: { distance: 5 },
+		}),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 200, tolerance: 5 },
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
 		}),
 	);
 
@@ -794,7 +803,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
 		setLocalPinOrder(reordered);
-		onReorderPinnedChat?.(active.id as string, newIndex + 1);
+		onReorderPinnedAgent?.(active.id as string, newIndex + 1);
 	};
 
 	// The filter dropdown attaches to the first visible section
@@ -897,8 +906,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
-		onPinChat,
-		onUnpinChat,
+		onPinAgent,
+		onUnpinAgent,
 	};
 
 	const subNavTitle = "Settings";

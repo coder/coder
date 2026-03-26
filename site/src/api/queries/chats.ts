@@ -229,12 +229,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -292,12 +287,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -355,12 +345,7 @@ export const pinChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -416,12 +401,7 @@ export const unpinChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
