@@ -4,11 +4,11 @@ import {
 	type MockWebSocketServer,
 } from "testHelpers/websockets";
 import { renderHook, waitFor } from "@testing-library/react";
-import * as apiModule from "api/api";
-import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { act } from "react";
 import { toast } from "sonner";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
+import * as apiModule from "#/api/api";
+import type { WorkspaceAgentLog } from "#/api/typesGenerated";
 import { useAgentLogs } from "./useAgentLogs";
 
 const millisecondsInOneMinute = 60_000;

@@ -118,11 +118,6 @@ func (k ProviderAPIKeys) APIKey(provider string) string {
 	}
 }
 
-//nolint:revive // Intentional: apiKey is the unexported helper for APIKey.
-func (k ProviderAPIKeys) apiKey(provider string) string {
-	return k.APIKey(provider)
-}
-
 // BaseURL returns the configured base URL for a provider.
 func (k ProviderAPIKeys) BaseURL(provider string) string {
 	normalized := NormalizeProvider(provider)
@@ -219,7 +214,7 @@ func (c *ModelCatalog) ListConfiguredModels(
 	providerSet := make(map[string]struct{})
 
 	for _, provider := range configuredProviders {
-		normalized := normalizeProvider(provider.Provider)
+		normalized := NormalizeProvider(provider.Provider)
 		if normalized == "" {
 			continue
 		}
@@ -264,7 +259,7 @@ func (c *ModelCatalog) ListConfiguredModels(
 			Provider: provider,
 			Models:   models,
 		}
-		if keys.apiKey(provider) == "" {
+		if keys.APIKey(provider) == "" {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
 		} else {
@@ -292,7 +287,7 @@ func (c *ModelCatalog) ListConfiguredProviderAvailability(
 			Provider: provider,
 			Models:   []codersdk.ChatModel{},
 		}
-		if keys.apiKey(provider) == "" {
+		if keys.APIKey(provider) == "" {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
 		} else {
@@ -371,11 +366,6 @@ func NormalizeProvider(provider string) string {
 	}
 }
 
-//nolint:revive // Intentional: normalizeProvider is the unexported helper for NormalizeProvider.
-func normalizeProvider(provider string) string {
-	return NormalizeProvider(provider)
-}
-
 func ResolveModelWithProviderHint(modelName, providerHint string) (provider string, model string, err error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
@@ -386,7 +376,7 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 		return provider, modelID, nil
 	}
 
-	if provider := normalizeProvider(providerHint); provider != "" {
+	if provider := NormalizeProvider(providerHint); provider != "" {
 		return provider, modelName, nil
 	}
 
@@ -422,7 +412,7 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 			continue
 		}
 
-		provider := normalizeProvider(parts[0])
+		provider := NormalizeProvider(parts[0])
 		modelID := strings.TrimSpace(parts[1])
 		if provider != "" && modelID != "" {
 			return provider, modelID, true
@@ -433,7 +423,7 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 }
 
 func isChatModelForProvider(provider, modelID string) bool {
-	normalizedProvider := normalizeProvider(provider)
+	normalizedProvider := NormalizeProvider(provider)
 	normalizedModel := strings.ToLower(strings.TrimSpace(modelID))
 	switch normalizedProvider {
 	case fantasyopenai.Name:

@@ -15,7 +15,7 @@ const makeStreamState = (
 
 const makeRetryState = (overrides: Partial<RetryState> = {}): RetryState => ({
 	attempt: 2,
-	error: "Retrying request shortly.",
+	error: "Anthropic returned an unexpected error.",
 	kind: "generic",
 	provider: "anthropic",
 	delayMs: 2000,
@@ -62,7 +62,7 @@ describe("deriveLiveStatus", () => {
 		hasAccumulatedOutput: false,
 		title: "Retrying request",
 		kind: "generic",
-		message: "Retrying request shortly.",
+		message: "Anthropic returned an unexpected error.",
 		attempt: 2,
 		provider: "anthropic",
 		delayMs: 2000,
@@ -84,7 +84,6 @@ describe("deriveLiveStatus", () => {
 		kind: "generic",
 		message: "Chat processing failed.",
 		provider: "anthropic",
-		retryable: false,
 		statusCode: 500,
 	};
 

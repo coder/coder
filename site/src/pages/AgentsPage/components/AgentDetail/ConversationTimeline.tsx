@@ -1,4 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
 import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
@@ -12,6 +11,7 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConversationItem,
 	Message,
@@ -38,6 +38,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
+import { buildSubagentTitles } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -47,12 +48,12 @@ import type {
 	StreamState,
 } from "./types";
 
-const ReasoningDisclosure: FC<{
+const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}> = ({ id, text, isStreaming = false, urlTransform }) => {
+}>(({ id, text, isStreaming = false, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -68,6 +69,7 @@ const ReasoningDisclosure: FC<{
 				<Response
 					className="text-[11px] text-content-secondary"
 					urlTransform={urlTransform}
+					streaming={isStreaming}
 				>
 					{displayText}
 				</Response>
@@ -84,7 +86,7 @@ const ReasoningDisclosure: FC<{
 			</div>
 		</div>
 	);
-};
+});
 
 // Shared block renderer used by both ChatMessageItem (historical
 // messages) and StreamingOutput (live stream). Encapsulates the
@@ -105,19 +107,23 @@ type RenderBlockListParams = {
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
 // messages render through <Response> directly.
-const SmoothedResponse: FC<{
+const SmoothedResponse = memo<{
 	text: string;
 	streamKey: string;
 	urlTransform?: UrlTransform;
-}> = ({ text, streamKey, urlTransform }) => {
+}>(({ text, streamKey, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming: true,
 		bypassSmoothing: false,
 		streamKey,
 	});
-	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
-};
+	return (
+		<Response streaming urlTransform={urlTransform}>
+			{visibleText}
+		</Response>
+	);
+});
 
 const InlineTextAttachmentButton: FC<{
 	content: string;
@@ -398,6 +404,7 @@ const ChatMessageItem = memo<{
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	subagentTitles?: Map<string, string>;
 }>(
 	({
 		message,
@@ -409,6 +416,7 @@ const ChatMessageItem = memo<{
 		fadeFromBottom = false,
 		urlTransform,
 		mcpServers,
+		subagentTitles,
 	}) => {
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
@@ -437,6 +445,12 @@ const ChatMessageItem = memo<{
 			return null;
 		}
 
+		// Hide messages that consist entirely of context-file parts.
+		// These are metadata for the context indicator, not
+		// conversation content.
+		if (parts.length > 0 && parts.every((p) => p.type === "context-file")) {
+			return null;
+		}
 		const hasRenderableContent =
 			parsed.blocks.length > 0 ||
 			parsed.tools.length > 0 ||
@@ -469,6 +483,7 @@ const ChatMessageItem = memo<{
 			blocks: parsed.blocks,
 			toolByID,
 			keyPrefix: String(message.id),
+			subagentTitles,
 			onImageClick: setPreviewImage,
 			onTextFileClick: (content) => setPreviewText(content),
 			urlTransform,
@@ -614,6 +629,7 @@ const ChatMessageItem = memo<{
 											result={tool.result}
 											status={tool.status}
 											isError={tool.isError}
+											subagentTitles={subagentTitles}
 											mcpServerConfigId={tool.mcpServerConfigId}
 											mcpServers={mcpServers}
 										/>
@@ -1043,6 +1059,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 }) => {
+	const subagentTitles = buildSubagentTitles(parsedMessages);
+
 	if (parsedMessages.length === 0) {
 		return null;
 	}
@@ -1085,6 +1103,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 						urlTransform={urlTransform}
 						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 						mcpServers={mcpServers}
+						subagentTitles={subagentTitles}
 					/>
 				),
 			)}

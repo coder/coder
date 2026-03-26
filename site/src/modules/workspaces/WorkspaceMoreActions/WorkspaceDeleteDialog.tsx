@@ -2,13 +2,13 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import type {
-	CreateWorkspaceBuildRequest,
-	Workspace,
-} from "api/typesGenerated";
 import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { docs } from "utils/docs";
+import type {
+	CreateWorkspaceBuildRequest,
+	Workspace,
+} from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 interface WorkspaceDeleteDialogProps {

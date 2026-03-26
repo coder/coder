@@ -1,8 +1,8 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { regenerateUserSSHKey, userSSHKey } from "#/api/queries/sshKeys";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Section } from "../Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";

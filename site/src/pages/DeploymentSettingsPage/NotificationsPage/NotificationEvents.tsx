@@ -6,12 +6,6 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	type selectTemplatesByGroup,
-	updateNotificationTemplateMethod,
-} from "api/queries/notifications";
-import type { DeploymentValues } from "api/typesGenerated";
 import {
 	castNotificationMethod,
 	methodIcons,
@@ -22,6 +16,12 @@ import { type FC, Fragment } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	type selectTemplatesByGroup,
+	updateNotificationTemplateMethod,
+} from "#/api/queries/notifications";
+import type { DeploymentValues } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Stack } from "#/components/Stack/Stack";

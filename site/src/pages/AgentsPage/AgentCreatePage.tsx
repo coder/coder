@@ -1,13 +1,13 @@
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
 import {
 	chatModelConfigs,
 	chatModels,
 	createChat,
 	mcpServerConfigs,
-} from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+} from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -15,10 +15,7 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
-import {
-	buildModelConfigIDByModelID,
-	getModelOptionsFromCatalog,
-} from "./utils/modelOptions";
+import { getModelOptionsFromConfigs } from "./utils/modelOptions";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
@@ -32,12 +29,9 @@ const AgentCreatePage: FC = () => {
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const createMutation = useMutation(createChat(queryClient));
 
-	const catalogModelOptions = getModelOptionsFromCatalog(
+	const catalogModelOptions = getModelOptionsFromConfigs(
+		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
-		chatModelConfigsQuery.data,
-	);
-	const modelConfigIDByModelID = buildModelConfigIDByModelID(
-		chatModelConfigsQuery.data,
 	);
 
 	const handleCreateChat = async ({
@@ -47,8 +41,7 @@ const AgentCreatePage: FC = () => {
 		model,
 		mcpServerIds,
 	}: CreateChatOptions) => {
-		const modelConfigID =
-			(model && modelConfigIDByModelID.get(model)) || nilUUID;
+		const modelConfigID = model || nilUUID;
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
 			content.push({ type: "text", text: message });

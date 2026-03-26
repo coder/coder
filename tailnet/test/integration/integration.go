@@ -174,7 +174,8 @@ func (s *derpServer) Close() {
 	s.closeFn()
 }
 
-//nolint:revive
+// Router constructs a chi.Mux wired with a coordinator, DERP server,
+// and the networking routes needed for integration tests.
 func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	coord := tailnet.NewCoordinator(logger)
 	var coordPtr atomic.Pointer[tailnet.Coordinator]
@@ -195,7 +196,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 				Regions: map[int]*tailcfg.DERPRegion{},
 			}
 		},
-		NetworkTelemetryHandler: func(batch []*tailnetproto.TelemetryEvent) {},
+		NetworkTelemetryHandler: func(_ []*tailnetproto.TelemetryEvent) {},
 		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
@@ -244,10 +245,10 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 
 			derpServer.Load().ServeHTTP(w, r)
 		})
-		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+		r.Get("/latency-check", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
-		r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
+		r.Post("/restart", func(w http.ResponseWriter, _ *http.Request) {
 			oldServer := derpServer.Swap(newDerpServer(t, logger))
 			oldServer.Close()
 			w.WriteHeader(http.StatusOK)

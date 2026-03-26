@@ -565,7 +565,7 @@ func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
 	require.Greater(t, retryEvent.DelayMs, int64(0))
 	require.Equal(t, "rate_limit", retryEvent.Kind)
 	require.Equal(t, "openai", retryEvent.Provider)
-	require.Equal(t, 0, retryEvent.StatusCode)
+	require.Equal(t, 429, retryEvent.StatusCode)
 	require.Contains(t, retryEvent.Error, "rate limiting requests")
 	require.False(t, assistantMessageBeforeRetry)
 	require.False(t, waitingBeforeRetry)

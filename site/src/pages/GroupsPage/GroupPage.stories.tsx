@@ -6,18 +6,18 @@ import {
 	MockOrganizationMember2,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import {
-	getGroupMembersQueryKey,
-	getGroupQueryKey,
-	groupPermissionsKey,
-} from "api/queries/groups";
-import { organizationMembersKey } from "api/queries/organizations";
 import { spyOn, userEvent, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import {
+	getGroupMembersQueryKey,
+	getGroupQueryKey,
+	groupPermissionsKey,
+} from "#/api/queries/groups";
+import { organizationMembersKey } from "#/api/queries/organizations";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 

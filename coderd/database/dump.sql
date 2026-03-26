@@ -1398,7 +1398,10 @@ CREATE TABLE chats (
     archived boolean DEFAULT false NOT NULL,
     last_error text,
     mode chat_mode,
-    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL,
+    build_id uuid,
+    agent_id uuid
 );
 
 CREATE TABLE connection_logs (
@@ -3726,6 +3729,8 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
+CREATE INDEX idx_chats_labels ON chats USING gin (labels);
+
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
@@ -4029,6 +4034,12 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_build_id_fkey FOREIGN KEY (build_id) REFERENCES workspace_builds(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);

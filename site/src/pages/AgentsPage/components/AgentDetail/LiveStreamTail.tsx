@@ -1,6 +1,6 @@
-import type * as TypesGen from "api/typesGenerated";
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
@@ -55,7 +55,7 @@ export const LiveStreamTailContent = ({
 	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
 	const terminalStatus = liveStatus.phase === "failed" ? liveStatus : null;
 	const usageLimitStatus =
-		terminalStatus?.kind === "usage-limit" ? terminalStatus : null;
+		terminalStatus?.kind === "usage_limit" ? terminalStatus : null;
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
 

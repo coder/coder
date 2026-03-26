@@ -1,6 +1,6 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { watchChat } from "api/api";
-import { chatMessagesKey, chatsKey } from "api/queries/chats";
+import { watchChat } from "#/api/api";
+import { chatMessagesKey, chatsKey } from "#/api/queries/chats";
 
 // The infinite query key used by useInfiniteQuery(infiniteChats())
 // is [...chatsKey, undefined] = ["chats", undefined].
@@ -30,11 +30,11 @@ const readInfiniteChats = (
 	return data?.pages.flat();
 };
 
-import type * as TypesGen from "api/typesGenerated";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	selectChatStatus,
 	selectOrderedMessageIDs,
@@ -201,6 +201,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	owner_id: "owner-1",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
+	labels: {},
 	title: "test",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
@@ -1825,6 +1826,92 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("running");
 		});
 		expect(result.current.retryState).toBeNull();
+	});
+
+	it("clears retryState when message_part arrives after retry", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-retry-message-part";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					retryState: useChatSelector(store, selectRetryState),
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "retry",
+				chat_id: chatID,
+				retry: {
+					attempt: 1,
+					error: "rate limited",
+					kind: "rate_limit",
+					provider: "anthropic",
+					delay_ms: 3000,
+					retrying_at: "2025-01-01T00:00:30.000Z",
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.retryState).toEqual({
+				attempt: 1,
+				error: "rate limited",
+				kind: "rate_limit",
+				provider: "anthropic",
+				delayMs: 3000,
+				retryingAt: "2025-01-01T00:00:30.000Z",
+			});
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "retry recovered" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.retryState).toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "retry recovered" },
+			]);
+		});
 	});
 
 	it("routes status events for other chatIDs to subagent overrides", async () => {

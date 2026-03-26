@@ -1,4 +1,4 @@
-import type { TemplateVersionParameter } from "api/typesGenerated";
+import type { TemplateVersionParameter } from "#/api/typesGenerated";
 import { getInitialRichParameterValues } from "./richParameters";
 
 test("getInitialRichParameterValues return default value when default build parameter is not valid", () => {

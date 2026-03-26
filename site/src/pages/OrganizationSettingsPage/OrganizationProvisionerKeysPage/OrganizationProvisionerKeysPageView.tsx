@@ -1,11 +1,11 @@
+import type { FC } from "react";
+import { docs } from "utils/docs";
 import {
 	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
-} from "api/typesGenerated";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
@@ -62,7 +62,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 				<PaywallPremium
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/")}
+					documentationLink={docs("/admin/provisioners")}
 				/>
 			) : (
 				<Table className="mt-6">

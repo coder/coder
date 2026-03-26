@@ -1,9 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { TemplateExample } from "api/typesGenerated";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
+import type { TemplateExample } from "#/api/typesGenerated";
 import { Stack } from "#/components/Stack/Stack";
 
 const getTagLabel = (tag: string) => {

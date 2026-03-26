@@ -161,6 +161,10 @@ WHERE
         )
         ELSE true
     END
+    AND CASE
+        WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
+        ELSE true
+    END
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -176,21 +180,27 @@ LIMIT
 INSERT INTO chats (
     owner_id,
     workspace_id,
+    build_id,
+    agent_id,
     parent_chat_id,
     root_chat_id,
     last_model_config_id,
     title,
     mode,
-    mcp_server_ids
+    mcp_server_ids,
+    labels
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
+    sqlc.narg('build_id')::uuid,
+    sqlc.narg('agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
-    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[])
+    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
+    COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb)
 )
 RETURNING
     *;
@@ -288,16 +298,34 @@ WHERE
 RETURNING
     *;
 
--- name: UpdateChatWorkspace :one
+-- name: UpdateChatLabelsByID :one
 UPDATE
     chats
 SET
-    workspace_id = sqlc.narg('workspace_id')::uuid,
+    labels = @labels::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
 RETURNING
     *;
+
+-- name: UpdateChatWorkspaceBinding :one
+UPDATE chats SET
+    workspace_id = sqlc.narg('workspace_id')::uuid,
+    build_id = sqlc.narg('build_id')::uuid,
+    agent_id = sqlc.narg('agent_id')::uuid,
+    updated_at = NOW()
+WHERE id = @id::uuid
+RETURNING *;
+
+-- name: UpdateChatBuildAgentBinding :one
+UPDATE chats SET
+    build_id = sqlc.narg('build_id')::uuid,
+    agent_id = sqlc.narg('agent_id')::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING *;
 
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
@@ -860,6 +888,13 @@ FROM groups g
 JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = @user_id::uuid
   AND g.chat_spend_limit_micros IS NOT NULL;
+
+-- name: GetChatsByWorkspaceIDs :many
+SELECT *
+FROM chats
+WHERE archived = false
+  AND workspace_id = ANY(@ids::uuid[])
+ORDER BY workspace_id, updated_at DESC;
 
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:

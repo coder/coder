@@ -1,6 +1,6 @@
-import type { Region } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC } from "react";
+import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {

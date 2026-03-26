@@ -1,11 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	deleteGroup,
-	group,
-	groupMembers,
-	groupPermissions,
-} from "api/queries/groups";
-import type { Group, ReducedUser } from "api/typesGenerated";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { TrashIcon } from "lucide-react";
 import { type ComponentProps, type FC, useState } from "react";
@@ -19,6 +11,14 @@ import {
 } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	deleteGroup,
+	group,
+	groupMembers,
+	groupPermissions,
+} from "#/api/queries/groups";
+import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";

@@ -1,16 +1,16 @@
-import {
-	type DeploymentConfig,
-	type GetLicensesResponse,
-	withDefaultFeatures,
-} from "api/api";
-import type { FieldError } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
+import {
+	type DeploymentConfig,
+	type GetLicensesResponse,
+	withDefaultFeatures,
+} from "#/api/api";
+import type { FieldError } from "#/api/errors";
+import type * as TypesGen from "#/api/typesGenerated";
 
 export const MockOrganization: TypesGen.Organization = {
 	id: "my-organization-id",
@@ -519,6 +519,7 @@ export const MockUserOwner: TypesGen.User = {
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	last_seen_at: "",
 	login_type: "password",
+	has_ai_seat: false,
 	name: "",
 };
 
@@ -534,6 +535,7 @@ export const MockUserMember: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "2022-09-14T19:12:21Z",
 	login_type: "oidc",
+	has_ai_seat: false,
 	name: "Mock User The Second",
 };
 
@@ -549,6 +551,7 @@ export const SuspendedMockUser: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "",
 	login_type: "password",
+	has_ai_seat: false,
 	name: "",
 };
 
@@ -576,6 +579,7 @@ export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	name: MockUserOwner.name,
 	avatar_url: MockUserOwner.avatar_url,
 	global_roles: MockUserOwner.roles,
+	has_ai_seat: false,
 	roles: [],
 };
 
@@ -595,6 +599,7 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		name: MockUserMember.name,
 		avatar_url: MockUserMember.avatar_url,
 		global_roles: MockUserMember.roles,
+		has_ai_seat: false,
 		roles: [],
 	};
 

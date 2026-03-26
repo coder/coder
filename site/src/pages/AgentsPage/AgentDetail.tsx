@@ -1,24 +1,3 @@
-import { API, watchWorkspace } from "api/api";
-
-import { isApiError } from "api/errors";
-import {
-	chat,
-	chatDesktopEnabled,
-	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
-	chatModels,
-	createChatMessage,
-	deleteChatQueuedMessage,
-	editChatMessage,
-	interruptChat,
-	mcpServerConfigs,
-	promoteChatQueuedMessage,
-	userCompactionThresholds,
-} from "api/queries/chats";
-import { deploymentSSHConfig } from "api/queries/deployment";
-import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatMessagePart } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	getTerminalHref,
@@ -38,6 +17,26 @@ import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
 import { rewriteLocalhostURL } from "utils/portForward";
+import { API, watchWorkspace } from "#/api/api";
+import { isApiError } from "#/api/errors";
+import {
+	chat,
+	chatDesktopEnabled,
+	chatMessagesForInfiniteScroll,
+	chatModelConfigs,
+	chatModels,
+	createChatMessage,
+	deleteChatQueuedMessage,
+	editChatMessage,
+	interruptChat,
+	mcpServerConfigs,
+	promoteChatQueuedMessage,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
@@ -62,11 +61,10 @@ import {
 } from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
-	buildModelConfigIDByModelID,
-	buildModelIDByConfigID,
-	getModelOptionsFromCatalog,
+	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	resolveModelOptionId,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
@@ -249,7 +247,7 @@ const getPersistedDetailError = ({
 	chatRecord: TypesGen.Chat | undefined;
 	cachedError: ChatDetailError | undefined;
 }): ChatDetailError | undefined => {
-	if (cachedError?.kind === "usage-limit") {
+	if (cachedError?.kind === "usage_limit") {
 		return cachedError;
 	}
 	if (chatStatus === "error") {
@@ -271,17 +269,11 @@ const getPersistedDetailError = ({
 function resolveCompactionThreshold(
 	modelConfigID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
+	modelConfigs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 ): number | undefined {
-	if (!modelConfigID) {
-		return undefined;
-	}
-	const config = modelConfigs.find(
-		(modelConfig) => modelConfig.id === modelConfigID,
-	);
-	if (!config) {
-		return undefined;
-	}
+	if (!modelConfigID || !Array.isArray(modelConfigs)) return undefined;
+	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!config) return undefined;
 	const userOverride = userThresholds?.find(
 		(threshold) => threshold.model_config_id === modelConfigID,
 	);
@@ -302,13 +294,14 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
+		onChatReady,
+		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -373,14 +366,10 @@ const AgentDetail: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromCatalog(
+	const modelOptions = getModelOptionsFromConfigs(
+		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
-		chatModelConfigsQuery.data,
 	);
-	const modelConfigIDByModelID = buildModelConfigIDByModelID(
-		chatModelConfigsQuery.data,
-	);
-	const modelIDByConfigID = buildModelIDByConfigID(modelConfigIDByModelID);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
@@ -560,18 +549,22 @@ const AgentDetail: FC = () => {
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
 	const effectiveSelectedModel = (() => {
-		if (
-			selectedModel &&
-			modelOptions.some((model) => model.id === selectedModel)
-		) {
-			return selectedModel;
+		const resolvedSelectedModel = resolveModelOptionId(
+			selectedModel,
+			modelOptions,
+		);
+		if (resolvedSelectedModel) {
+			return resolvedSelectedModel;
 		}
-		if (chatLastModelConfigID) {
-			const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
-			if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
-				return fromChat;
-			}
+
+		const resolvedChatModel = resolveModelOptionId(
+			chatLastModelConfigID,
+			modelOptions,
+		);
+		if (resolvedChatModel) {
+			return resolvedChatModel;
 		}
+
 		return modelOptions[0]?.id ?? "";
 	})();
 
@@ -603,7 +596,7 @@ const AgentDetail: FC = () => {
 			isUsageLimitData(error.response.data)
 		) {
 			const reason: ChatDetailError = {
-				kind: "usage-limit",
+				kind: "usage_limit",
 				message: formatUsageLimitMessage(error.response.data),
 			};
 			store.setStreamError(reason);
@@ -677,12 +670,12 @@ const AgentDetail: FC = () => {
 			if (scrollContainerRef.current) {
 				scrollContainerRef.current.scrollTop = 0;
 			}
-			store.clearStreamState();
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
+				store.clearStreamState();
 				setPendingEditMessageId(null);
 			} catch (error) {
 				setPendingEditMessageId(null);
@@ -691,10 +684,7 @@ const AgentDetail: FC = () => {
 			}
 			return;
 		}
-		const selectedModelConfigID =
-			(effectiveSelectedModel &&
-				modelConfigIDByModelID.get(effectiveSelectedModel)) ||
-			undefined;
+		const selectedModelConfigID = effectiveSelectedModel || undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
 			content,
 			model_config_id: selectedModelConfigID,
@@ -709,10 +699,10 @@ const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 
-		// No optimistic rendering — the message will appear in the
-		// timeline when the server confirms via the POST response or
-		// via the SSE stream.
-		store.clearStreamState();
+		// Don't clear stream state before the POST completes.
+		// For queued sends the WebSocket status events handle
+		// clearing; for non-queued sends we clear explicitly
+		// below. Clearing eagerly causes a visible cutoff.
 		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
 		try {
 			response = await sendMutation.mutateAsync(request);
@@ -721,10 +711,14 @@ const AgentDetail: FC = () => {
 			throw error;
 		}
 		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
+		// queued), clear the stream and insert the user's message
+		// so it appears in the timeline without waiting for the
+		// WebSocket stream.
+		if (!response.queued) {
+			store.clearStreamState();
+			if (response.message) {
+				store.upsertDurableMessage(response.message);
+			}
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
@@ -885,6 +879,16 @@ const AgentDetail: FC = () => {
 		}
 		requestUnarchiveAgent(agentId);
 	};
+
+	// Signal the parent layout that messages have loaded.
+	const chatReadyFiredRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
+			return;
+		}
+		chatReadyFiredRef.current = agentId ?? null;
+		onChatReady();
+	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (

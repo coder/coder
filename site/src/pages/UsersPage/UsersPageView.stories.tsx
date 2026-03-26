@@ -32,7 +32,10 @@ const meta: Meta<typeof UsersPageView> = {
 	component: UsersPageView,
 	args: {
 		isNonInitialPage: false,
-		users: [MockUserOwner, MockUserMember],
+		users: [
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
+		],
 		roles: MockAssignableSiteRoles,
 		canEditUsers: true,
 		filterProps: defaultFilterProps,

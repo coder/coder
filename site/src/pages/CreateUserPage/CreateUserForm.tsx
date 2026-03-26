@@ -1,6 +1,4 @@
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { hasApiFieldErrors, isApiError } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
 import { useFormik } from "formik";
 import { Check } from "lucide-react";
 import type { FC } from "react";
@@ -12,6 +10,8 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { hasApiFieldErrors, isApiError } from "#/api/errors";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FormFooter } from "#/components/Form/Form";

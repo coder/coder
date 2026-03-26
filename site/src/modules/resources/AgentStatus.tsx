@@ -1,11 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
+import { TriangleAlertIcon } from "lucide-react";
+import type { FC } from "react";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
-} from "api/typesGenerated";
-import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/api/typesGenerated";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	HelpTooltip,

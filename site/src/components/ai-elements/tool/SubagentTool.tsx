@@ -1,7 +1,8 @@
 import {
 	BotIcon,
 	ChevronDownIcon,
-	CircleAlertIcon,
+	CircleXIcon,
+	ClockIcon,
 	ExternalLinkIcon,
 	LoaderIcon,
 } from "lucide-react";
@@ -17,11 +18,34 @@ import {
 	type ToolStatus,
 } from "./utils";
 
-const SUBAGENT_VERBS: Record<string, { completed: string; running: string }> = {
-	spawn_agent: { completed: "Spawned ", running: "Spawning " },
-	wait_agent: { completed: "Waited for ", running: "Waiting for " },
-	message_agent: { completed: "Messaged ", running: "Messaging " },
-	close_agent: { completed: "Terminated ", running: "Terminating " },
+const SUBAGENT_VERBS: Record<
+	string,
+	{ completed: string; running: string; error: string; timeout: string }
+> = {
+	spawn_agent: {
+		completed: "Spawned ",
+		running: "Spawning ",
+		error: "Failed to spawn ",
+		timeout: "Timed out spawning ",
+	},
+	wait_agent: {
+		completed: "Waited for ",
+		running: "Waiting for ",
+		error: "Failed waiting for ",
+		timeout: "Timed out waiting for ",
+	},
+	message_agent: {
+		completed: "Messaged ",
+		running: "Messaging ",
+		error: "Failed to message ",
+		timeout: "Timed out messaging ",
+	},
+	close_agent: {
+		completed: "Terminated ",
+		running: "Terminating ",
+		error: "Failed to terminate ",
+		timeout: "Timed out terminating ",
+	},
 };
 
 /**
@@ -35,17 +59,14 @@ const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
-}> = ({ subagentStatus, toolStatus, isError }) => {
+	isTimeout: boolean;
+}> = ({ subagentStatus, toolStatus, isError, isTimeout }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-	if (isError && !subagentCompleted) {
-		return (
-			<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-destructive" />
-		);
+	if (isTimeout && !subagentCompleted) {
+		return <ClockIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
-	if (toolStatus === "error") {
-		return (
-			<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-destructive" />
-		);
+	if ((isError && !subagentCompleted) || toolStatus === "error") {
+		return <CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
 	if (toolStatus === "running") {
 		return (
@@ -72,6 +93,7 @@ export const SubagentTool: React.FC<{
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
+	isTimeout?: boolean;
 }> = ({
 	toolName,
 	title,
@@ -83,6 +105,7 @@ export const SubagentTool: React.FC<{
 	report,
 	toolStatus,
 	isError,
+	isTimeout = false,
 }) => {
 	const [expanded, setExpanded] = useState(false);
 	const hasPrompt = Boolean(prompt?.trim());
@@ -107,10 +130,17 @@ export const SubagentTool: React.FC<{
 					subagentStatus={subagentStatus}
 					toolStatus={toolStatus}
 					isError={isError}
+					isTimeout={isTimeout}
 				/>
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
 					{SUBAGENT_VERBS[toolName]?.[
-						toolStatus === "completed" ? "completed" : "running"
+						isTimeout
+							? "timeout"
+							: toolStatus === "completed"
+								? "completed"
+								: toolStatus === "error"
+									? "error"
+									: "running"
 					] ?? ""}
 					<span className="text-content-secondary opacity-60">{title}</span>
 					{chatId && (

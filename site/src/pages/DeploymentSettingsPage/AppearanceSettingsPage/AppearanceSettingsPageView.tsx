@@ -1,8 +1,8 @@
-import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
+import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
 import {
 	Badges,
 	EnterpriseBadge,

@@ -1,9 +1,3 @@
-import type {
-	NullHCLString,
-	PreviewParameter,
-	PreviewParameterOption,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
 import {
 	CircleAlert,
 	Eye,
@@ -18,6 +12,12 @@ import { type FC, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import type {
+	NullHCLString,
+	PreviewParameter,
+	PreviewParameterOption,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";

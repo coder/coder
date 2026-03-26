@@ -2,8 +2,14 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
-import { RBACResourceActions } from "api/rbacresourcesGenerated";
+import { useFormik } from "formik";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type ChangeEvent, type FC, useState } from "react";
+import { useNavigate } from "react-router";
+import { getFormHelpers, nameValidator } from "utils/formUtils";
+import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import { RBACResourceActions } from "#/api/rbacresourcesGenerated";
 import type {
 	AssignableRoles,
 	CustomRoleRequest,
@@ -11,13 +17,7 @@ import type {
 	RBACAction,
 	RBACResource,
 	Role,
-} from "api/typesGenerated";
-import { useFormik } from "formik";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router";
-import { getFormHelpers, nameValidator } from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FormFields, FormFooter, VerticalForm } from "#/components/Form/Form";

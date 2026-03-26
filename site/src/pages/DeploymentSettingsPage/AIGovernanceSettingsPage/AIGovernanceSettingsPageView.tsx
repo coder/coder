@@ -1,7 +1,7 @@
-import type { SerpentOption } from "api/typesGenerated";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import type { SerpentOption } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";

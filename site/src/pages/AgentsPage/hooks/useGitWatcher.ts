@@ -1,11 +1,11 @@
-import { watchChatGit } from "api/api";
+import { useEffect, useRef, useState } from "react";
+import { watchChatGit } from "#/api/api";
 import type {
 	WorkspaceAgentGitClientMessage,
 	WorkspaceAgentGitServerMessage,
 	WorkspaceAgentRepoChanges,
 	WorkspaceAgentStatus,
-} from "api/typesGenerated";
-import { useEffect, useRef, useState } from "react";
+} from "#/api/typesGenerated";
 
 // Compile-time guard: ensures the bailout comparison in setRepositories
 // covers every data field. If WorkspaceAgentRepoChanges gains a new

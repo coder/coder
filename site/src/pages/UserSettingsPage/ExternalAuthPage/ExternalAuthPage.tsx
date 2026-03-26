@@ -1,13 +1,13 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	externalAuths,
 	unlinkExternalAuths,
 	validateExternalAuth,
-} from "api/queries/externalAuth";
-import type { ExternalAuthLinkProvider } from "api/typesGenerated";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
+} from "#/api/queries/externalAuth";
+import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { Section } from "../Section";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";

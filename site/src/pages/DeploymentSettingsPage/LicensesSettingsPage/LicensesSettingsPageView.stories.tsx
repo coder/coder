@@ -1,8 +1,8 @@
 import { chromatic } from "testHelpers/chromatic";
 import { MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Feature } from "api/typesGenerated";
 import { expect, fn, within } from "storybook/test";
+import type { Feature } from "#/api/typesGenerated";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const meta: Meta<typeof LicensesSettingsPageView> = {

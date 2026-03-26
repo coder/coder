@@ -1,18 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	insightsTemplate,
-	insightsUserActivity,
-	insightsUserLatency,
-} from "api/queries/insights";
-import type {
-	Template,
-	TemplateAppUsage,
-	TemplateInsightsResponse,
-	TemplateParameterUsage,
-	TemplateParameterValue,
-	UserActivityInsightsResponse,
-	UserLatencyInsightsResponse,
-} from "api/typesGenerated";
 import chroma from "chroma-js";
 import {
 	CircleCheck as CircleCheckIcon,
@@ -44,6 +29,21 @@ import {
 	startOfHour,
 	subtractTime,
 } from "utils/time";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	insightsTemplate,
+	insightsUserActivity,
+	insightsUserLatency,
+} from "#/api/queries/insights";
+import type {
+	Template,
+	TemplateAppUsage,
+	TemplateInsightsResponse,
+	TemplateParameterUsage,
+	TemplateParameterValue,
+	UserActivityInsightsResponse,
+	UserLatencyInsightsResponse,
+} from "#/api/typesGenerated";
 import {
 	ActiveUserChart,
 	ActiveUsersTitle,
@@ -142,6 +142,7 @@ interface TemplateInsightsControlsProps {
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
+	now?: Date;
 }
 
 export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
@@ -150,6 +151,7 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 	setDateRange,
 	searchParams,
 	setSearchParams,
+	now,
 }) => {
 	return (
 		<>
@@ -165,7 +167,12 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 				}}
 			/>
 			{interval === "day" ? (
-				<DailyPicker value={dateRange} onChange={setDateRange} />
+				<DailyPicker
+					value={dateRange}
+					onChange={setDateRange}
+					now={now}
+					size="lg"
+				/>
 			) : (
 				<WeekPicker value={dateRange} onChange={setDateRange} />
 			)}

@@ -1,10 +1,10 @@
 import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
-import type { Chat } from "api/typesGenerated";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { AgentsSidebar } from "./AgentsSidebar";
 
@@ -41,6 +41,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,

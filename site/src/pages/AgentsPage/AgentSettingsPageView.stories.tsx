@@ -1,11 +1,11 @@
-import { MockUserOwner } from "testHelpers/entities";
+import { MockTemplate, MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { userKey } from "api/queries/users";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { userKey } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
 import { AgentSettingsPageView } from "./AgentSettingsPageView";
 
 // ── Usage mock helpers ─────────────────────────────────────────
@@ -59,6 +59,7 @@ const mockUserProfile: TypesGen.User = {
 	roles: [],
 	last_seen_at: "2026-03-11T10:00:00Z",
 	login_type: "password",
+	has_ai_seat: false,
 };
 
 const mockCostSummary: TypesGen.ChatCostSummary = {
@@ -127,6 +128,7 @@ const getChatCostUsersCalls = () =>
 	).mock.calls;
 
 const fixedNow = dayjs("2026-03-12T00:00:00Z");
+const mockDefaultSystemPrompt = "You are Coder, an AI coding assistant...";
 
 // ── Meta ───────────────────────────────────────────────────────
 
@@ -147,6 +149,8 @@ const meta = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
@@ -170,6 +174,30 @@ const meta = {
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockResolvedValue({
+			template_ids: [],
+		});
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockResolvedValue();
+		spyOn(API, "getTemplates").mockResolvedValue([
+			{
+				...MockTemplate,
+				id: "abc-123",
+				name: "docker-dev",
+				display_name: "Docker Development",
+			},
+			{
+				...MockTemplate,
+				id: "def-456",
+				name: "kubernetes-prod",
+				display_name: "Kubernetes Production",
+			},
+			{
+				...MockTemplate,
+				id: "ghi-789",
+				name: "aws-windows",
+				display_name: "AWS Windows Desktop",
+			},
+		]);
 	},
 } satisfies Meta<typeof AgentSettingsPageView>;
 
@@ -203,6 +231,79 @@ export const TogglesDesktop: Story = {
 				enable_desktop: true,
 			});
 		});
+	},
+};
+
+export const AdminWithDefaultToggleOn: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "Always use TypeScript for code examples.",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Include Coder Agents default system prompt",
+		});
+		expect(toggle).toBeChecked();
+		expect(
+			await canvas.findByDisplayValue(
+				"Always use TypeScript for code examples.",
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText(/built-in Coder Agents prompt is prepended/i),
+		).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Preview" }));
+		expect(await body.findByText("Default System Prompt")).toBeInTheDocument();
+		expect(body.getByText(mockDefaultSystemPrompt)).toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(body.queryByText("Default System Prompt")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(toggle);
+		const promptForm = canvas
+			.getByDisplayValue("Always use TypeScript for code examples.")
+			.closest("form")!;
+		const saveButton = within(promptForm).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(API.experimental.updateChatSystemPrompt).toHaveBeenCalledWith({
+				system_prompt: "Always use TypeScript for code examples.",
+				include_default_system_prompt: false,
+			});
+		});
+	},
+};
+
+export const AdminWithDefaultToggleOff: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "You are a custom assistant.",
+			include_default_system_prompt: false,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Include Coder Agents default system prompt",
+		});
+		expect(toggle).not.toBeChecked();
+		expect(
+			await canvas.findByDisplayValue("You are a custom assistant."),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText(/only the additional instructions below are used/i),
+		).toBeInTheDocument();
 	},
 };
 
@@ -513,6 +614,7 @@ export const DefaultAutostopNotVisibleToNonAdmin: Story = {
 
 		const desktopHeading = canvas.queryByText("Virtual Desktop");
 		expect(desktopHeading).toBeNull();
+		expect(API.experimental.getChatSystemPrompt).not.toHaveBeenCalled();
 	},
 };
 
@@ -761,6 +863,8 @@ export const InvisibleUnicodeWarningSystemPrompt: Story = {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt:
 				"Normal prompt text\u200b\u200b\u200b\u200bhidden instruction",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
 		});
 	},
 	play: async ({ canvasElement }) => {
@@ -821,6 +925,8 @@ export const NoWarningForCleanPrompt: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "You are a helpful coding assistant.",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
 		});
 		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "Be concise and use TypeScript.",
@@ -835,5 +941,128 @@ export const NoWarningForCleanPrompt: Story = {
 
 		// No invisible Unicode warning should be present.
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+	},
+};
+
+// ── Templates tab stories ──────────────────────────────────────
+
+const manyTemplates = [
+	{ id: "t-01", name: "docker-dev", display_name: "Docker Development" },
+	{
+		id: "t-02",
+		name: "kubernetes-prod",
+		display_name: "Kubernetes Production",
+	},
+	{ id: "t-03", name: "aws-windows", display_name: "AWS Windows Desktop" },
+	{ id: "t-04", name: "gcp-linux", display_name: "GCP Linux Workspace" },
+	{ id: "t-05", name: "azure-dotnet", display_name: "Azure .NET Environment" },
+	{ id: "t-06", name: "ml-jupyter", display_name: "ML Jupyter Notebook" },
+	{
+		id: "t-07",
+		name: "data-eng-spark",
+		display_name: "Data Engineering (Spark)",
+	},
+	{
+		id: "t-08",
+		name: "frontend-vite",
+		display_name: "Frontend (Vite + React)",
+	},
+].map((t) => ({ ...MockTemplate, ...t }));
+
+export const TemplateAllowlist: Story = {
+	args: {
+		activeSection: "templates",
+		canManageChatModelConfigs: true,
+		canSetSystemPrompt: true,
+	},
+	beforeEach: () => {
+		// Track saved allowlist state across mock calls so the
+		// refetch after save returns the updated value.
+		let savedIDs: string[] = [];
+
+		spyOn(API, "getTemplates").mockResolvedValue(manyTemplates);
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockImplementation(
+			async () => ({ template_ids: savedIDs }),
+		);
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockImplementation(
+			async (req) => {
+				savedIDs = [...req.template_ids];
+			},
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("starts empty", async () => {
+			// Status text confirms no restrictions.
+			await canvas.findByText(/no templates selected/i);
+			// Save is disabled — nothing to save.
+			const saveBtn = await canvas.findByRole("button", { name: "Save" });
+			expect(saveBtn).toBeDisabled();
+		});
+
+		await step("select one template and save", async () => {
+			// Open the combobox.
+			const input = canvas.getByPlaceholderText("Select templates...");
+			await userEvent.click(input);
+			// Pick the first template from the dropdown.
+			await userEvent.click(
+				await canvas.findByRole("option", { name: "Docker Development" }),
+			);
+			// Badge pill should appear and status should update.
+			await waitFor(() => {
+				expect(canvas.getByText("1 template selected")).toBeInTheDocument();
+			});
+			// Save should now be enabled.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			expect(saveBtn).toBeEnabled();
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenCalledWith({ template_ids: ["t-01"] });
+			});
+		});
+
+		await step("add the remaining seven and save", async () => {
+			// Open the combobox again.
+			const input = canvas.getByLabelText("Select allowed templates");
+			await userEvent.click(input);
+			// Select the other seven templates one by one.
+			for (const name of [
+				"Kubernetes Production",
+				"AWS Windows Desktop",
+				"GCP Linux Workspace",
+				"Azure .NET Environment",
+				"ML Jupyter Notebook",
+				"Data Engineering (Spark)",
+				"Frontend (Vite + React)",
+			]) {
+				await userEvent.click(await canvas.findByRole("option", { name }));
+			}
+			// All eight should now be selected.
+			await waitFor(() => {
+				expect(canvas.getByText("8 templates selected")).toBeInTheDocument();
+			});
+			// Save.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenLastCalledWith({
+					template_ids: expect.arrayContaining([
+						"t-01",
+						"t-02",
+						"t-03",
+						"t-04",
+						"t-05",
+						"t-06",
+						"t-07",
+						"t-08",
+					]),
+				});
+			});
+		});
 	},
 };

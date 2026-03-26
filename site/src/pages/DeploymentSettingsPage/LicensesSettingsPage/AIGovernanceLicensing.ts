@@ -1,6 +1,6 @@
-import type { GetLicensesResponse } from "api/api";
-import type { Feature } from "api/typesGenerated";
 import dayjs from "dayjs";
+import type { GetLicensesResponse } from "#/api/api";
+import type { Feature } from "#/api/typesGenerated";
 
 function isPremiumLicense(license: GetLicensesResponse): boolean {
 	return license.claims.feature_set?.toLowerCase() === "premium";

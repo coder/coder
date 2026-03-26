@@ -9,7 +9,7 @@ import { CalendarIcon, MoveRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { cn } from "utils/cn";
-import { Button } from "#/components/Button/Button";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
@@ -27,45 +27,62 @@ interface DateRangePreset {
 	range: () => { from: Date; to: Date };
 }
 
-const defaultPresets: DateRangePreset[] = [
-	{
-		label: "Today",
-		range: () => ({ from: new Date(), to: new Date() }),
-	},
-	{
-		label: "Yesterday",
-		range: () => {
-			const d = dayjs().subtract(1, "day").toDate();
-			return { from: d, to: d };
+const buildDefaultPresets = (now?: Date): DateRangePreset[] => {
+	const getCurrentTime = () => dayjs(now ?? new Date());
+	return [
+		{
+			label: "Today",
+			range: () => {
+				const currentTime = getCurrentTime();
+				return { from: currentTime.toDate(), to: currentTime.toDate() };
+			},
 		},
-	},
-	{
-		label: "Last 7 days",
-		range: () => ({
-			from: dayjs().subtract(6, "day").toDate(),
-			to: new Date(),
-		}),
-	},
-	{
-		label: "Last 14 days",
-		range: () => ({
-			from: dayjs().subtract(13, "day").toDate(),
-			to: new Date(),
-		}),
-	},
-	{
-		label: "Last 30 days",
-		range: () => ({
-			from: dayjs().subtract(29, "day").toDate(),
-			to: new Date(),
-		}),
-	},
-];
+		{
+			label: "Yesterday",
+			range: () => {
+				const d = getCurrentTime().subtract(1, "day").toDate();
+				return { from: d, to: d };
+			},
+		},
+		{
+			label: "Last 7 days",
+			range: () => {
+				const currentTime = getCurrentTime();
+				return {
+					from: currentTime.subtract(6, "day").toDate(),
+					to: currentTime.toDate(),
+				};
+			},
+		},
+		{
+			label: "Last 14 days",
+			range: () => {
+				const currentTime = getCurrentTime();
+				return {
+					from: currentTime.subtract(13, "day").toDate(),
+					to: currentTime.toDate(),
+				};
+			},
+		},
+		{
+			label: "Last 30 days",
+			range: () => {
+				const currentTime = getCurrentTime();
+				return {
+					from: currentTime.subtract(29, "day").toDate(),
+					to: currentTime.toDate(),
+				};
+			},
+		},
+	];
+};
 
 interface DateRangePickerProps {
 	value: DateRangeValue;
 	onChange: (value: DateRangeValue) => void;
+	now?: Date;
 	presets?: DateRangePreset[];
+	size?: ButtonProps["size"];
 }
 
 /**
@@ -74,10 +91,11 @@ interface DateRangePickerProps {
  * rounded up to the next hour (if it falls on today) or to the start of
  * the following day.
  */
-function toBoundary(from: Date, to: Date): DateRangeValue {
+function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
-	const end = dayjs(to).isSame(dayjs(), "day")
-		? dayjs().startOf("hour").add(1, "hour").toDate()
+	const end = dayjs(to).isSame(currentTime, "day")
+		? currentTime.startOf("hour").add(1, "hour").toDate()
 		: dayjs(to).startOf("day").add(1, "day").toDate();
 	return { startDate: start, endDate: end };
 }
@@ -100,9 +118,13 @@ function fromBoundary(value: DateRangeValue): DayPickerDateRange {
 export const DateRangePicker: FC<DateRangePickerProps> = ({
 	value,
 	onChange,
-	presets = defaultPresets,
+	now,
+	presets,
+	size = "sm",
 }) => {
 	const [open, setOpen] = useState(false);
+	const currentTime = now ?? new Date();
+	const resolvedPresets = presets ?? buildDefaultPresets(now);
 
 	// Internal selection state kept separate from the committed value
 	// so the user can freely adjust the range before applying. This
@@ -113,7 +135,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 
 	const commit = () => {
 		if (selection?.from && selection?.to) {
-			onChange(toBoundary(selection.from, selection.to));
+			onChange(toBoundary(selection.from, selection.to, now ?? new Date()));
 		}
 		setOpen(false);
 	};
@@ -122,7 +144,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		const { from, to } = preset.range();
 		setSelection({ from, to });
 		// Presets are a complete selection — commit immediately.
-		onChange(toBoundary(from, to));
+		onChange(toBoundary(from, to, now ?? new Date()));
 		setOpen(false);
 	};
 
@@ -153,7 +175,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button variant="outline" size={size}>
 					<CalendarIcon className="size-4 text-content-secondary" />
 					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />
@@ -168,7 +190,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 				<div className="flex">
 					{/* Presets sidebar */}
 					<div className="flex flex-col border-r border-border-default p-2 text-sm">
-						{presets.map((preset) => (
+						{resolvedPresets.map((preset) => (
 							<button
 								key={preset.label}
 								type="button"
@@ -223,7 +245,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
-								disabled={{ after: new Date() }}
+								disabled={{ after: currentTime }}
 							/>
 						</div>
 

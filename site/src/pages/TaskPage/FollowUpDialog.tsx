@@ -1,7 +1,7 @@
-import type { Task } from "api/typesGenerated";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useId } from "react";
+import type { Task } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,

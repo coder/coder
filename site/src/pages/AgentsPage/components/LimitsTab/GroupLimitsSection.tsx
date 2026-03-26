@@ -1,9 +1,9 @@
-import { getErrorMessage } from "api/errors";
-import type { Group } from "api/typesGenerated";
 import { Check } from "lucide-react";
 import { getGroupSubtitle } from "modules/groups";
 import { type FC, useId } from "react";
 import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+import { getErrorMessage } from "#/api/errors";
+import type { Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";

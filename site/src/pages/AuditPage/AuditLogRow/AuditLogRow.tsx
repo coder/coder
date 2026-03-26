@@ -1,10 +1,10 @@
-import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import { type FC, type KeyboardEvent, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
 import { cn } from "utils/cn";
 import { buildReasonLabels } from "utils/workspace";
+import type { AuditLog, BuildReason } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {

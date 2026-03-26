@@ -9,12 +9,15 @@ import {
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta } from "@storybook/react-vite";
-import { HEALTH_QUERY_KEY, HEALTH_QUERY_SETTINGS_KEY } from "api/queries/debug";
 import {
 	type RouteDefinition,
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
+import {
+	HEALTH_QUERY_KEY,
+	HEALTH_QUERY_SETTINGS_KEY,
+} from "#/api/queries/debug";
 import { HealthLayout } from "./HealthLayout";
 
 type MetaOptions = {

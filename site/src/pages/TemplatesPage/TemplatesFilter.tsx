@@ -1,7 +1,7 @@
-import { API } from "api/api";
-import type { Organization } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import { API } from "#/api/api";
+import type { Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Filter,

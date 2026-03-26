@@ -14,7 +14,6 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelSelectorPlaceholder,
-	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "../utils/modelOptions";
 import {
@@ -125,43 +124,21 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
-	const modelIDByConfigID = (() => {
-		const optionIDByRef = new Map<string, string>();
-		for (const option of modelOptions) {
-			const provider = option.provider.trim().toLowerCase();
-			const model = option.model.trim();
-			if (!provider || !model) {
-				continue;
-			}
-			const key = `${provider}:${model}`;
-			if (!optionIDByRef.has(key)) {
-				optionIDByRef.set(key, option.id);
-			}
-		}
-
-		const byConfigID = new Map<string, string>();
-		for (const config of modelConfigs) {
-			const { provider, model } = getNormalizedModelRef(config);
-			if (!provider || !model) {
-				continue;
-			}
-			const modelID = optionIDByRef.get(`${provider}:${model}`);
-			if (!modelID || byConfigID.has(config.id)) {
-				continue;
-			}
-			byConfigID.set(config.id, modelID);
-		}
-		return byConfigID;
-	})();
-	const lastUsedModelID = initialLastModelConfigID
-		? (modelIDByConfigID.get(initialLastModelConfigID) ?? "")
-		: "";
+	const lastUsedModelID =
+		initialLastModelConfigID &&
+		modelOptions.some((option) => option.id === initialLastModelConfigID)
+			? initialLastModelConfigID
+			: "";
 	const defaultModelID = (() => {
-		const defaultModelConfig = modelConfigs.find((config) => config.is_default);
+		const defaultModelConfig = Array.isArray(modelConfigs)
+			? modelConfigs.find((config) => config.is_default)
+			: undefined;
 		if (!defaultModelConfig) {
 			return "";
 		}
-		return modelIDByConfigID.get(defaultModelConfig.id) ?? "";
+		return modelOptions.some((option) => option.id === defaultModelConfig.id)
+			? defaultModelConfig.id
+			: "";
 	})();
 	const preferredModelID =
 		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
@@ -256,10 +233,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				selectedMCPServerIdsRef.current.length > 0
 					? [...selectedMCPServerIdsRef.current]
 					: undefined,
-		}).catch(() => {
+		}).catch((err) => {
 			// Re-enable draft persistence so the user can edit
-			// and retry after a failed send attempt.
+			// and retry after a failed send attempt, then rethrow
+			// so callers (handleSendWithAttachments) can preserve
+			// attachments on failure.
 			resetDraft();
+			throw err;
 		});
 	};
 
@@ -271,7 +251,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizations[0]?.id);
+	} = useFileAttachments(organizations[0]?.id, { persist: true });
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];

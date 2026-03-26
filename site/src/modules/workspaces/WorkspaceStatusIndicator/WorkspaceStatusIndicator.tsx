@@ -1,10 +1,11 @@
-import type { Workspace } from "api/typesGenerated";
+import { getAgentHealthIssue } from "modules/workspaces/health";
 import type React from "react";
 import type { FC } from "react";
 import {
 	type DisplayWorkspaceStatusType,
 	getDisplayWorkspaceStatus,
 } from "utils/workspace";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
@@ -67,9 +68,7 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 					{children}
 				</StatusIndicator>
 			</TooltipTrigger>
-			<TooltipContent>
-				Your workspace is running but some agents are unhealthy.
-			</TooltipContent>
+			<TooltipContent>{getAgentHealthIssue(workspace).detail}</TooltipContent>
 		</Tooltip>
 	);
 };

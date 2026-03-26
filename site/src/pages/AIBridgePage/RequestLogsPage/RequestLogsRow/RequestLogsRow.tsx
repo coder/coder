@@ -1,8 +1,8 @@
-import type { AIBridgeInterception } from "api/typesGenerated";
 import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { formatDate, humanDuration } from "utils/time";
+import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";

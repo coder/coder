@@ -1,6 +1,6 @@
-import type { AIBridgeInterception } from "api/typesGenerated";
 import type { ComponentProps, FC } from "react";
 import { docs } from "utils/docs";
+import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import {
@@ -61,6 +61,14 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 
 	return (
 		<>
+			<Alert severity="info" className="mb-4">
+				Visit the new{" "}
+				<Link href="/aibridge/sessions" className="text-content-link italic">
+					AI Sessions
+				</Link>{" "}
+				page for a more comprehensive view of AI activity.
+			</Alert>
+
 			<RequestLogsFilter {...filterProps} />
 
 			<PaginationContainer

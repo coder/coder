@@ -1,5 +1,5 @@
-import type { SerpentOption } from "api/typesGenerated";
 import { humanDuration } from "utils/time";
+import type { SerpentOption } from "#/api/typesGenerated";
 
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(

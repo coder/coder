@@ -1,8 +1,3 @@
-import type {
-	TemplateVersionParameter,
-	Workspace,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
 import { useFormik } from "formik";
 import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import type { FC } from "react";
@@ -13,6 +8,11 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
+import type {
+	TemplateVersionParameter,
+	Workspace,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {

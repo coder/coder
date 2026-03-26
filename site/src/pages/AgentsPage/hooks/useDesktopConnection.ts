@@ -1,6 +1,6 @@
 import RFB from "@novnc/novnc/lib/rfb";
-import { watchChatDesktop } from "api/api";
 import { useEffect, useRef, useState } from "react";
+import { watchChatDesktop } from "#/api/api";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;
@@ -91,6 +91,8 @@ export function useDesktopConnection({
 	// contains primitives. This avoids any reliance on the React
 	// Compiler for function identity stability.
 	useEffect(() => {
+		let visibilityObserver: ResizeObserver | null = null;
+
 		const cleanupRfb = () => {
 			if (rfbRef.current) {
 				try {
@@ -127,6 +129,8 @@ export function useDesktopConnection({
 			}
 			offscreenContainerRef.current = null;
 			reconnectAttemptRef.current = 0;
+			visibilityObserver?.disconnect();
+			visibilityObserver = null;
 		};
 
 		const doConnect = () => {
@@ -141,6 +145,8 @@ export function useDesktopConnection({
 
 			clearAllTimers();
 			cleanupRfb();
+			visibilityObserver?.disconnect();
+			visibilityObserver = null;
 			setStatus("connecting");
 
 			// Remove the previous offscreen container from the DOM
@@ -261,6 +267,30 @@ export function useDesktopConnection({
 
 				rfbRef.current = rfb;
 				setRfbInstance(rfb);
+
+				// Work around a noVNC rendering bug: when an ancestor
+				// hides this container (display: none), the canvas
+				// shrinks to 0×0. When the container becomes visible
+				// again, noVNC may skip rescaling because it believes
+				// the viewport size hasn't changed. Re-assigning
+				// scaleViewport = true forces a fresh scale pass
+				// regardless.
+				let prevContainerW = 0;
+				let prevContainerH = 0;
+				visibilityObserver = new ResizeObserver((entries) => {
+					const entry = entries[0];
+					if (!entry) return;
+					if (gen !== generationRef.current) return;
+					const { width, height } = entry.contentRect;
+					const wasHidden = prevContainerW === 0 && prevContainerH === 0;
+					const isVisible = width > 0 && height > 0;
+					prevContainerW = width;
+					prevContainerH = height;
+					if (wasHidden && isVisible && rfbRef.current) {
+						rfbRef.current.scaleViewport = true;
+					}
+				});
+				visibilityObserver.observe(offscreenContainerRef.current);
 			} catch {
 				socket.close();
 				setStatus("error");

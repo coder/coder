@@ -1,6 +1,6 @@
-import { templateVersions } from "api/queries/templates";
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { templateVersions } from "#/api/queries/templates";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Select,

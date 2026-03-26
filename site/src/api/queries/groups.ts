@@ -1,4 +1,7 @@
-import { API } from "api/api";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import type { QueryClient, UseQueryOptions } from "react-query";
+import { prepareQuery } from "utils/filters";
+import { API } from "#/api/api";
 import type {
 	CreateGroupRequest,
 	Group,
@@ -6,10 +9,7 @@ import type {
 	GroupRequest,
 	PatchGroupRequest,
 	UsersRequest,
-} from "api/typesGenerated";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
-import type { QueryClient, UseQueryOptions } from "react-query";
-import { prepareQuery } from "utils/filters";
+} from "#/api/typesGenerated";
 
 type GroupSortOrder = "asc" | "desc";
 

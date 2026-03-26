@@ -1,7 +1,7 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	archiveChat,
 	cancelChatListQueries,
@@ -78,6 +78,7 @@ const makeChat = (
 	owner_id: "owner-1",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
+	labels: {},
 	title: `Chat ${id}`,
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",

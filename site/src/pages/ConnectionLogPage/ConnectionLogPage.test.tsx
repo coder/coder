@@ -10,9 +10,9 @@ import {
 import { server } from "testHelpers/server";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
 import { HttpResponse, http } from "msw";
 import * as CreateDayString from "utils/createDayString";
+import { API } from "#/api/api";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import ConnectionLogPage from "./ConnectionLogPage";
 

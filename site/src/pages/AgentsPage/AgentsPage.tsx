@@ -1,5 +1,17 @@
-import { API, watchChats } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { useAuthenticated } from "hooks";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, useEffect, useRef, useState } from "react";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
+import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import { API, watchChats } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
 	cancelChatListQueries,
@@ -13,21 +25,9 @@ import {
 	readInfiniteChatsCache,
 	unarchiveChat,
 	updateInfiniteChatsCache,
-} from "api/queries/chats";
-import { workspaceById } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import { useAuthenticated } from "hooks";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect, useRef, useState } from "react";
-import {
-	useInfiniteQuery,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
-import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
-import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+} from "#/api/queries/chats";
+import { workspaceById } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
@@ -38,7 +38,7 @@ import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
-import { getModelOptionsFromCatalog } from "./utils/modelOptions";
+import { getModelOptionsFromConfigs } from "./utils/modelOptions";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -199,9 +199,9 @@ const AgentsPage: FC = () => {
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
-	const catalogModelOptions = getModelOptionsFromCatalog(
-		chatModelsQuery.data,
+	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
+		chatModelsQuery.data,
 	);
 	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
 		const trimmedMessage = reason.message.trim();

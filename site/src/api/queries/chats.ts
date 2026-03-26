@@ -1,11 +1,22 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
+
+const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+
+export const chatsByWorkspace = (workspaceIds: string[]) => {
+	const sorted = workspaceIds.toSorted();
+	return {
+		queryKey: [...chatsKey, "by-workspace", sorted],
+		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
+		enabled: workspaceIds.length > 0,
+	};
+};
 
 /**
  * Updates a single chat inside every page of the infinite chats query
@@ -240,6 +251,9 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -300,6 +314,9 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -308,6 +325,9 @@ export const createChat = (queryClient: QueryClient) => ({
 		API.experimental.createChat(req),
 	onSuccess: () => {
 		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -399,7 +419,8 @@ export const chatSystemPrompt = () => ({
 });
 
 export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatSystemPrompt,
+	mutationFn: (req: TypesGen.UpdateChatSystemPromptRequest) =>
+		API.experimental.updateChatSystemPrompt(req),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,
@@ -435,6 +456,22 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatWorkspaceTTLKey,
+		});
+	},
+});
+
+const chatTemplateAllowlistKey = ["chat-template-allowlist"] as const;
+
+export const chatTemplateAllowlist = () => ({
+	queryKey: chatTemplateAllowlistKey,
+	queryFn: () => API.experimental.getChatTemplateAllowlist(),
+});
+
+export const updateChatTemplateAllowlist = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatTemplateAllowlist,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatTemplateAllowlistKey,
 		});
 	},
 });

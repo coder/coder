@@ -1,8 +1,8 @@
 import { MockTemplate } from "testHelpers/entities";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { API } from "api/api";
 import { createElement } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
+import { API } from "#/api/api";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 const wrapper = ({ children }: { children: React.ReactNode }) =>

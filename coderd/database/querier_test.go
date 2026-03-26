@@ -10486,3 +10486,215 @@ func TestGetPRInsights(t *testing.T) {
 		assert.Equal(t, int64(5_000_000), summary.MergedCostMicros)
 	})
 }
+
+func TestChatLabels(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	t.Run("CreateWithLabels", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		labels := database.StringMap{"github.repo": "coder/coder", "env": "prod"}
+		labelsJSON, err := json.Marshal(labels)
+		require.NoError(t, err)
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "labeled-chat",
+			Labels: pqtype.NullRawMessage{
+				RawMessage: labelsJSON,
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.StringMap{"github.repo": "coder/coder", "env": "prod"}, chat.Labels)
+
+		// Read back and verify.
+		fetched, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.Labels, fetched.Labels)
+	})
+
+	t.Run("CreateWithoutLabels", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "no-labels-chat",
+		})
+		require.NoError(t, err)
+		// Default should be an empty map, not nil.
+		require.NotNil(t, chat.Labels)
+		require.Empty(t, chat.Labels)
+	})
+
+	t.Run("UpdateLabels", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "update-labels-chat",
+		})
+		require.NoError(t, err)
+		require.Empty(t, chat.Labels)
+
+		// Set labels.
+		newLabels, err := json.Marshal(database.StringMap{"team": "backend"})
+		require.NoError(t, err)
+		updated, err := db.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
+			ID:     chat.ID,
+			Labels: newLabels,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.StringMap{"team": "backend"}, updated.Labels)
+
+		// Title should be unchanged.
+		require.Equal(t, "update-labels-chat", updated.Title)
+
+		// Clear labels by setting empty object.
+		emptyLabels, err := json.Marshal(database.StringMap{})
+		require.NoError(t, err)
+		cleared, err := db.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
+			ID:     chat.ID,
+			Labels: emptyLabels,
+		})
+		require.NoError(t, err)
+		require.Empty(t, cleared.Labels)
+	})
+
+	t.Run("UpdateTitleDoesNotAffectLabels", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		labels := database.StringMap{"pr": "1234"}
+		labelsJSON, err := json.Marshal(labels)
+		require.NoError(t, err)
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "original-title",
+			Labels: pqtype.NullRawMessage{
+				RawMessage: labelsJSON,
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Update title only — labels must survive.
+		updated, err := db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+			ID:    chat.ID,
+			Title: "new-title",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new-title", updated.Title)
+		require.Equal(t, database.StringMap{"pr": "1234"}, updated.Labels)
+	})
+
+	t.Run("FilterByLabels", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create three chats with different labels.
+		for _, tc := range []struct {
+			title  string
+			labels database.StringMap
+		}{
+			{"filter-a", database.StringMap{"env": "prod", "team": "backend"}},
+			{"filter-b", database.StringMap{"env": "prod", "team": "frontend"}},
+			{"filter-c", database.StringMap{"env": "staging"}},
+		} {
+			labelsJSON, err := json.Marshal(tc.labels)
+			require.NoError(t, err)
+			_, err = db.InsertChat(ctx, database.InsertChatParams{
+				OwnerID:           owner.ID,
+				LastModelConfigID: modelCfg.ID,
+				Title:             tc.title,
+				Labels: pqtype.NullRawMessage{
+					RawMessage: labelsJSON,
+					Valid:      true,
+				},
+			})
+			require.NoError(t, err)
+		}
+
+		// Filter by env=prod — should match filter-a and filter-b.
+		filterJSON, err := json.Marshal(database.StringMap{"env": "prod"})
+		require.NoError(t, err)
+		results, err := db.GetChats(ctx, database.GetChatsParams{
+			OwnerID: owner.ID,
+			LabelFilter: pqtype.NullRawMessage{
+				RawMessage: filterJSON,
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+
+		titles := make([]string, 0, len(results))
+		for _, c := range results {
+			titles = append(titles, c.Title)
+		}
+		require.Contains(t, titles, "filter-a")
+		require.Contains(t, titles, "filter-b")
+		require.NotContains(t, titles, "filter-c")
+
+		// Filter by env=prod AND team=backend — should match only filter-a.
+		filterJSON, err = json.Marshal(database.StringMap{"env": "prod", "team": "backend"})
+		require.NoError(t, err)
+		results, err = db.GetChats(ctx, database.GetChatsParams{
+			OwnerID: owner.ID,
+			LabelFilter: pqtype.NullRawMessage{
+				RawMessage: filterJSON,
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		require.Equal(t, "filter-a", results[0].Title)
+
+		// No filter — should return all chats for this owner.
+		allChats, err := db.GetChats(ctx, database.GetChatsParams{
+			OwnerID: owner.ID,
+		})
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(allChats), 3)
+	})
+}

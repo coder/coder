@@ -1,6 +1,6 @@
-import type { ProvisionerJob } from "api/typesGenerated";
 import { BanIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import type { ProvisionerJob } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,

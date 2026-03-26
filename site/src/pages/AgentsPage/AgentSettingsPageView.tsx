@@ -1,19 +1,3 @@
-import { getErrorMessage } from "api/errors";
-import {
-	chatCostSummary,
-	chatCostUsers,
-	chatDesktopEnabled,
-	chatModelConfigs,
-	chatSystemPrompt,
-	chatUserCustomPrompt,
-	chatWorkspaceTTL,
-	updateChatDesktopEnabled,
-	updateChatSystemPrompt,
-	updateChatWorkspaceTTL,
-	updateUserChatCustomPrompt,
-} from "api/queries/chats";
-import { user } from "api/queries/users";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
@@ -31,10 +15,33 @@ import { formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
 import { countInvisibleCharacters } from "utils/invisibleUnicode";
+import { getErrorMessage } from "#/api/errors";
+import {
+	chatCostSummary,
+	chatCostUsers,
+	chatDesktopEnabled,
+	chatModelConfigs,
+	chatSystemPrompt,
+	chatTemplateAllowlist,
+	chatUserCustomPrompt,
+	chatWorkspaceTTL,
+	updateChatDesktopEnabled,
+	updateChatSystemPrompt,
+	updateChatTemplateAllowlist,
+	updateChatWorkspaceTTL,
+	updateUserChatCustomPrompt,
+} from "#/api/queries/chats";
+import { templates } from "#/api/queries/templates";
+import { user } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
+import {
+	MultiSelectCombobox,
+	type Option,
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "#/components/SearchField/SearchField";
@@ -65,6 +72,7 @@ import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
 import { SectionHeader } from "./components/SectionHeader";
+import { TextPreviewDialog } from "./components/TextPreviewDialog";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const AdminBadge: FC = () => (
@@ -266,6 +274,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 				<DateRangePicker
 					value={displayDateRange}
 					onChange={onDateRangeChange}
+					now={now?.toDate()}
 				/>
 			}
 		/>
@@ -513,7 +522,10 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 
-	const systemPromptQuery = useQuery(chatSystemPrompt());
+	const systemPromptQuery = useQuery({
+		...chatSystemPrompt(),
+		enabled: canSetSystemPrompt,
+	});
 	const {
 		mutate: saveSystemPrompt,
 		isPending: isSavingSystemPrompt,
@@ -545,9 +557,21 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		isError: isSaveWorkspaceTTLError,
 	} = useMutation(updateChatWorkspaceTTL(queryClient));
 
+	const hasLoadedSystemPrompt = systemPromptQuery.isSuccess;
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
+	const serverIncludeDefault =
+		systemPromptQuery.data?.include_default_system_prompt;
+	const defaultSystemPrompt =
+		systemPromptQuery.data?.default_system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
+	const [localIncludeDefault, setLocalIncludeDefault] = useState<
+		boolean | null
+	>(null);
+	const [showDefaultPromptPreview, setShowDefaultPromptPreview] =
+		useState(false);
 	const systemPromptDraft = localEdit ?? serverPrompt;
+	const includeDefaultDraft =
+		localIncludeDefault ?? serverIncludeDefault ?? false;
 
 	const serverUserPrompt = userPromptQuery.data?.custom_prompt ?? "";
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
@@ -565,7 +589,11 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
-	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
+	const isSystemPromptDirty =
+		hasLoadedSystemPrompt &&
+		((localEdit !== null && localEdit !== serverPrompt) ||
+			(localIncludeDefault !== null &&
+				localIncludeDefault !== serverIncludeDefault));
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
@@ -579,16 +607,25 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const isTTLOverMax = ttlMs > maxTTLMs;
 	const isTTLZero = isAutostopEnabled && ttlMs === 0;
 	const isPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
+	const isSystemPromptDisabled = isPromptSaving || !hasLoadedSystemPrompt;
 	const isDesktopSaving = isSavingDesktopEnabled;
 	const isTTLSaving = isSavingWorkspaceTTL;
 	const isTTLLoading = workspaceTTLQuery.isLoading;
 
 	const handleSaveSystemPrompt = (event: FormEvent) => {
 		event.preventDefault();
-		if (!isSystemPromptDirty) return;
+		if (!hasLoadedSystemPrompt || !isSystemPromptDirty) return;
 		saveSystemPrompt(
-			{ system_prompt: systemPromptDraft },
-			{ onSuccess: () => setLocalEdit(null) },
+			{
+				system_prompt: systemPromptDraft,
+				include_default_system_prompt: includeDefaultDraft,
+			},
+			{
+				onSuccess: () => {
+					setLocalEdit(null);
+					setLocalIncludeDefault(null);
+				},
+			},
 		);
 	};
 
@@ -725,22 +762,44 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										</h3>
 										<AdminBadge />
 									</div>
+									<div className="flex items-center justify-between gap-4">
+										<div className="flex min-w-0 items-center gap-2 text-xs font-medium text-content-primary">
+											<span>Include Coder Agents default system prompt</span>
+											<Button
+												size="xs"
+												variant="subtle"
+												type="button"
+												onClick={() => setShowDefaultPromptPreview(true)}
+												disabled={!hasLoadedSystemPrompt}
+												className="min-w-0 px-0 text-content-link hover:text-content-link"
+											>
+												Preview
+											</Button>
+										</div>
+										<Switch
+											checked={includeDefaultDraft}
+											onCheckedChange={setLocalIncludeDefault}
+											aria-label="Include Coder Agents default system prompt"
+											disabled={isSystemPromptDisabled}
+										/>
+									</div>
 									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										Applied to all chats for every user. When empty, the
-										built-in default is used.
+										{includeDefaultDraft
+											? "The built-in Coder Agents prompt is prepended. Additional instructions below are appended."
+											: "Only the additional instructions below are used. When empty, no deployment-wide system prompt is sent."}
 									</p>
 									<TextareaAutosize
 										className={cn(
 											textareaBaseClassName,
 											isSystemPromptOverflowing && textareaOverflowClassName,
 										)}
-										placeholder="Additional behavior, style, and tone preferences for all users"
+										placeholder="Additional instructions for all users"
 										value={systemPromptDraft}
 										onChange={(event) => setLocalEdit(event.target.value)}
 										onHeightChange={(height) =>
 											setIsSystemPromptOverflowing(height >= textareaMaxHeight)
 										}
-										disabled={isPromptSaving}
+										disabled={isSystemPromptDisabled}
 										minRows={1}
 									/>
 									{systemInvisibleCharCount > 0 && (
@@ -759,14 +818,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 											variant="outline"
 											type="button"
 											onClick={() => setLocalEdit("")}
-											disabled={isPromptSaving || !systemPromptDraft}
+											disabled={isSystemPromptDisabled || !systemPromptDraft}
 										>
 											Clear
 										</Button>
 										<Button
 											size="sm"
 											type="submit"
-											disabled={isPromptSaving || !isSystemPromptDirty}
+											disabled={isSystemPromptDisabled || !isSystemPromptDirty}
 										>
 											Save
 										</Button>
@@ -931,7 +990,154 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 				{activeSection === "insights" && canManageChatModelConfigs && (
 					<InsightsContent />
 				)}
+				{activeSection === "templates" && canManageChatModelConfigs && (
+					<TemplateAllowlistSection />
+				)}
 			</div>
+			{showDefaultPromptPreview && (
+				<TextPreviewDialog
+					content={defaultSystemPrompt}
+					fileName="Default System Prompt"
+					onClose={() => setShowDefaultPromptPreview(false)}
+				/>
+			)}
+		</div>
+	);
+};
+
+const TemplateAllowlistSection: FC = () => {
+	const queryClient = useQueryClient();
+
+	// Fetch all available templates.
+	const templatesQuery = useQuery(templates());
+
+	// Fetch current allowlist.
+	const allowlistQuery = useQuery(chatTemplateAllowlist());
+
+	const {
+		mutate: saveAllowlist,
+		isPending: isSaving,
+		isError: isSaveError,
+	} = useMutation(updateChatTemplateAllowlist(queryClient));
+
+	const [localSelection, setLocalSelection] = useState<Option[] | null>(null);
+
+	// Map all templates to MultiSelectCombobox options.
+	const allOptions: Option[] = (templatesQuery.data ?? []).map((t) => ({
+		value: t.id,
+		label: t.display_name || t.name,
+		icon: t.icon,
+	}));
+
+	// Build a lookup from template ID to Option for resolving server IDs.
+	const optionsByID = new Map(allOptions.map((o) => [o.value, o]));
+
+	// Resolve the server-side allowlist IDs into Option objects.
+	const serverSelection: Option[] = (allowlistQuery.data?.template_ids ?? [])
+		.map((id) => optionsByID.get(id))
+		.filter((o) => o !== undefined);
+
+	const currentSelection = localSelection ?? serverSelection;
+
+	const serverSet = new Set(serverSelection.map((o) => o.value));
+	const isDirty =
+		localSelection !== null &&
+		(localSelection.length !== serverSet.size ||
+			localSelection.some((o) => !serverSet.has(o.value)));
+
+	const handleSave = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isDirty) return;
+		saveAllowlist(
+			{ template_ids: currentSelection.map((o) => o.value) },
+			{ onSuccess: () => setLocalSelection(null) },
+		);
+	};
+
+	const isLoading = templatesQuery.isLoading || allowlistQuery.isLoading;
+
+	return (
+		<div className="space-y-6">
+			<SectionHeader
+				label="Templates"
+				description="Restrict which templates agents can use to create workspaces. When no templates are selected, all templates are available."
+				badge={<AdminBadge />}
+			/>
+
+			{isLoading && (
+				<div
+					role="status"
+					aria-label="Loading templates"
+					className="flex min-h-[120px] items-center justify-center"
+				>
+					<Spinner size="lg" loading className="text-content-secondary" />
+				</div>
+			)}
+
+			{!isLoading && (templatesQuery.error || allowlistQuery.error) && (
+				<div className="flex min-h-[120px] flex-col items-center justify-center gap-4 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						Failed to load template data.
+					</p>
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => {
+							void templatesQuery.refetch();
+							void allowlistQuery.refetch();
+						}}
+					>
+						Retry
+					</Button>
+				</div>
+			)}
+
+			{!isLoading && !templatesQuery.error && !allowlistQuery.error && (
+				<form
+					className="space-y-3"
+					onSubmit={(event) => void handleSave(event)}
+				>
+					<MultiSelectCombobox
+						key={serverSelection.map((o) => o.value).join(",")}
+						inputProps={{ "aria-label": "Select allowed templates" }}
+						options={allOptions}
+						defaultOptions={currentSelection}
+						value={currentSelection}
+						onChange={setLocalSelection}
+						placeholder="Select templates..."
+						emptyIndicator={
+							<p className="text-center text-sm text-content-secondary">
+								No templates found.
+							</p>
+						}
+						disabled={isSaving}
+						hidePlaceholderWhenSelected
+						data-testid="template-allowlist-select"
+					/>
+					<p
+						aria-live="polite"
+						role="status"
+						className="m-0 text-xs text-content-secondary"
+					>
+						{currentSelection.length > 0
+							? `${currentSelection.length} template${currentSelection.length !== 1 ? "s" : ""} selected`
+							: "No templates selected \u2014 all templates are available"}
+					</p>
+
+					<div className="flex justify-end">
+						<Button size="sm" type="submit" disabled={isSaving || !isDirty}>
+							Save
+						</Button>
+					</div>
+
+					{isSaveError && (
+						<p role="alert" className="m-0 text-xs text-content-destructive">
+							Failed to save template allowlist.
+						</p>
+					)}
+				</form>
+			)}
 		</div>
 	);
 };

@@ -8,9 +8,9 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
+import { API } from "#/api/api";
 import TerminalPage, { Language } from "./TerminalPage";
 
 const renderTerminal = async (

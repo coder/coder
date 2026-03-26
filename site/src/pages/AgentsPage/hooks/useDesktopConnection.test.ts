@@ -63,9 +63,43 @@ vi.mock("@novnc/novnc/lib/rfb", () => ({
 	default: FakeRFB,
 }));
 
-import { watchChatDesktop } from "api/api";
+import { watchChatDesktop } from "#/api/api";
 
 const mockWatchChatDesktop = vi.mocked(watchChatDesktop);
+
+// ---- Mock ResizeObserver ----------------------------------------------------
+
+interface FakeResizeObserverInstance {
+	disconnect: ReturnType<typeof vi.fn>;
+	simulateResize: (width: number, height: number) => void;
+}
+
+let resizeObserverInstances: FakeResizeObserverInstance[] = [];
+
+class MockResizeObserver {
+	private _callback: ResizeObserverCallback;
+	private _disconnect = vi.fn();
+
+	constructor(callback: ResizeObserverCallback) {
+		this._callback = callback;
+		const self = this;
+		resizeObserverInstances.push({
+			disconnect: this._disconnect,
+			simulateResize(width: number, height: number) {
+				self._callback(
+					[{ contentRect: { width, height } } as ResizeObserverEntry],
+					self as unknown as ResizeObserver,
+				);
+			},
+		});
+	}
+
+	observe(_target: Element) {}
+	unobserve(_target: Element) {}
+	disconnect() {
+		this._disconnect();
+	}
+}
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -74,6 +108,14 @@ function getLastRFBInstance(): MockRFBInstance {
 		throw new Error("No RFB instance was constructed");
 	}
 	return lastInstance.current;
+}
+
+function getLastResizeObserver(): FakeResizeObserverInstance {
+	const instance = resizeObserverInstances[resizeObserverInstances.length - 1];
+	if (!instance) {
+		throw new Error("No ResizeObserver was constructed");
+	}
+	return instance;
 }
 
 function createMockSocket(): WebSocket {
@@ -90,6 +132,9 @@ describe("useDesktopConnection", () => {
 		mockWatchChatDesktop.mockReturnValue(createMockSocket());
 		lastInstance.current = null;
 		FakeRFB.throwOnConstruct = false;
+		resizeObserverInstances = [];
+		globalThis.ResizeObserver =
+			MockResizeObserver as unknown as typeof ResizeObserver;
 	});
 
 	afterEach(() => {
@@ -819,5 +864,119 @@ describe("useDesktopConnection", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	// -- Visibility observer (ResizeObserver) ---------------------------------
+
+	it("forces scaleViewport on hidden→visible transition", () => {
+		renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+		const rfb = getLastRFBInstance();
+		act(() => rfb.simulateEvent("connect"));
+
+		const observer = getLastResizeObserver();
+
+		// First observation with nonzero size (initial attach).
+		act(() => observer.simulateResize(800, 600));
+
+		// Container hidden (ancestor applies display: none).
+		act(() => observer.simulateResize(0, 0));
+
+		// Reset so we can detect re-assignment.
+		rfb.scaleViewport = false;
+
+		// Container visible again — should force rescale.
+		act(() => observer.simulateResize(800, 600));
+
+		expect(rfb.scaleViewport).toBe(true);
+	});
+
+	it("does not force scaleViewport on normal nonzero→nonzero resize", () => {
+		renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+		const rfb = getLastRFBInstance();
+		act(() => rfb.simulateEvent("connect"));
+
+		const observer = getLastResizeObserver();
+
+		// Initial nonzero observation.
+		act(() => observer.simulateResize(800, 600));
+
+		// Reset so we can detect re-assignment.
+		rfb.scaleViewport = false;
+
+		// Normal resize — not a hidden→visible transition.
+		act(() => observer.simulateResize(1024, 768));
+
+		expect(rfb.scaleViewport).toBe(false);
+	});
+
+	it("disconnects visibility observer on unmount", () => {
+		const { unmount } = renderHook(() =>
+			useDesktopConnection({ chatId: "chat-1" }),
+		);
+
+		getLastRFBInstance();
+		const observer = getLastResizeObserver();
+
+		unmount();
+
+		expect(observer.disconnect).toHaveBeenCalled();
+	});
+
+	it("disconnects visibility observer before reconnect", () => {
+		vi.useFakeTimers();
+
+		try {
+			renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
+			const rfb1 = getLastRFBInstance();
+			act(() => rfb1.simulateEvent("connect"));
+
+			expect(resizeObserverInstances).toHaveLength(1);
+			const observer1 = resizeObserverInstances[0];
+
+			// Trigger reconnect.
+			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
+			act(() => vi.advanceTimersByTime(1000));
+
+			// Old observer should be disconnected.
+			expect(observer1.disconnect).toHaveBeenCalled();
+
+			// New observer created for the new connection.
+			expect(resizeObserverInstances).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("ignores stale visibility observer callback after chatId change", () => {
+		const { rerender } = renderHook(
+			({ chatId }: { chatId: string | undefined }) =>
+				useDesktopConnection({ chatId }),
+			{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+		);
+
+		const rfb1 = getLastRFBInstance();
+		act(() => rfb1.simulateEvent("connect"));
+
+		const observer1 = resizeObserverInstances[0];
+
+		// Set nonzero previous dimensions on old observer.
+		act(() => observer1.simulateResize(800, 600));
+
+		// Change chatId — triggers teardown + new connection.
+		rerender({ chatId: "chat-bbb" });
+
+		const rfb2 = getLastRFBInstance();
+		act(() => rfb2.simulateEvent("connect"));
+
+		// Reset so we can detect re-assignment.
+		rfb2.scaleViewport = false;
+
+		// Fire a stale hidden→visible transition on the OLD
+		// observer. The generation mismatch should prevent it
+		// from writing to the current RFB instance.
+		act(() => observer1.simulateResize(0, 0));
+		act(() => observer1.simulateResize(800, 600));
+
+		expect(rfb2.scaleViewport).toBe(false);
 	});
 });

@@ -1,6 +1,6 @@
-import type { AIBridgeInterception } from "api/typesGenerated";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { cn } from "utils/cn";
+import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 export const AIBridgeClientIcon = ({
@@ -15,6 +15,13 @@ export const AIBridgeClientIcon = ({
 	// the AI Bridge bridge.go file.
 	// https://github.com/coder/aibridge/blob/main/bridge.go#L31-L32
 	switch (client) {
+		case "Coder Agents":
+			return (
+				<ExternalImage
+					src="/icon/coder.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
 		case "Claude Code":
 			return (
 				<ExternalImage

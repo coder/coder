@@ -5,9 +5,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 import { AgentChatInput, type UploadState } from "./AgentChatInput";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",

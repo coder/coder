@@ -1,7 +1,7 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import type { APIKeyWithOwner } from "api/typesGenerated";
 import type { FC } from "react";
 import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { useDeleteToken } from "./hooks";
 

@@ -1,4 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	Building2Icon,
@@ -12,6 +11,7 @@ import { isExternalApp, needsSessionToken } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, type ReactNode, useState } from "react";
 import { docs } from "utils/docs";
+import type * as TypesGen from "#/api/typesGenerated";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
 import { Markdown } from "#/components/Markdown/Markdown";

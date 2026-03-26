@@ -66,7 +66,9 @@ type CreateWorkspaceOptions struct {
 	AgentConnFn                    AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
+	OnChatUpdated                  func(database.Chat)
 	Logger                         slog.Logger
+	AllowedTemplateIDs             func() map[uuid.UUID]bool
 }
 
 type createWorkspaceArgs struct {
@@ -106,6 +108,10 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
+			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
+				return fantasy.NewTextErrorResponse("template not available for chat workspaces; use list_templates to find allowed templates"), nil
+			}
+
 			// Serialize workspace creation to prevent parallel
 			// tool calls from creating duplicate workspaces.
 			if options.WorkspaceMu != nil {
@@ -121,7 +127,6 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			if done {
 				return toolResponse(existing), nil
 			}
-
 			ownerID := options.OwnerID
 
 			// Set up dbauthz context for DB lookups.
@@ -207,20 +212,29 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				}
 			}
 
-			// Persist workspace + agent association on the chat.
+			// Persist the workspace binding on the chat.
 			if options.DB != nil && options.ChatID != uuid.Nil {
-				if _, err := options.DB.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
+				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 					ID: options.ChatID,
 					WorkspaceID: uuid.NullUUID{
 						UUID:  workspace.ID,
 						Valid: true,
 					},
-				}); err != nil {
+					// BuildID and AgentID are intentionally left null
+					// here. The chatd runtime (loadWorkspaceAgentLocked)
+					// will bind them on the next turn. Authoritative
+					// tool-path binding is deferred to a follow-up PR.
+					BuildID: uuid.NullUUID{},
+					AgentID: uuid.NullUUID{},
+				})
+				if err != nil {
 					options.Logger.Error(ctx, "failed to persist chat workspace association",
 						slog.F("chat_id", options.ChatID),
 						slog.F("workspace_id", workspace.ID),
 						slog.Error(err),
 					)
+				} else if options.OnChatUpdated != nil {
+					options.OnChatUpdated(updatedChat)
 				}
 			}
 

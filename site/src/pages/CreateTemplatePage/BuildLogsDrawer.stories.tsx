@@ -5,7 +5,7 @@ import {
 } from "testHelpers/entities";
 import { withWebSocket } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { JobError } from "api/queries/templates";
+import { JobError } from "#/api/queries/templates";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 
 const meta: Meta<typeof BuildLogsDrawer> = {

@@ -1168,6 +1168,11 @@
 									]
 								},
 								{
+									"title": "Auditing AI Sessions",
+									"description": "How to audit AI sessions",
+									"path": "./ai-coder/ai-bridge/audit.md"
+								},
+								{
 									"title": "Monitoring",
 									"description": "How to monitor AI Bridge",
 									"path": "./ai-coder/ai-bridge/monitoring.md"

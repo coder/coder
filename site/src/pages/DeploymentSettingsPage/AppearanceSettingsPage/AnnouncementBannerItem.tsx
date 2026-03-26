@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
-import type { BannerConfig } from "api/typesGenerated";
 import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
+import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,

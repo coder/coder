@@ -1,7 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { GroupsByUserId } from "api/queries/groups";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
@@ -12,8 +10,11 @@ import {
 	TrashIcon,
 	UserLockIcon,
 } from "lucide-react";
+import { AISeatCell } from "modules/users/AISeatCell";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type { GroupsByUserId } from "#/api/queries/groups";
+import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { PremiumBadge } from "#/components/Badges/Badges";
@@ -48,6 +49,7 @@ interface UsersTableBodyProps {
 	canEditUsers: boolean;
 	isLoading: boolean;
 	canViewActivity?: boolean;
+	showAISeatColumn?: boolean;
 	onSuspendUser: (user: TypesGen.User) => void;
 	onDeleteUser: (user: TypesGen.User) => void;
 	onListWorkspaces: (user: TypesGen.User) => void;
@@ -80,6 +82,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 	isUpdatingUserRoles,
 	canEditUsers,
 	canViewActivity,
+	showAISeatColumn,
 	isLoading,
 	isNonInitialPage,
 	actorID,
@@ -104,6 +107,12 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						<TableCell>
 							<Skeleton variant="text" width="25%" />
 						</TableCell>
+
+						{showAISeatColumn && (
+							<TableCell>
+								<Skeleton variant="text" width="25%" />
+							</TableCell>
+						)}
 
 						<TableCell>
 							<Skeleton variant="text" width="25%" />
@@ -170,6 +179,8 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						/>
 
 						<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
+
+						{showAISeatColumn && <AISeatCell hasAISeat={user.has_ai_seat} />}
 
 						<TableCell>
 							<LoginType authMethods={authMethods!} value={user.login_type} />

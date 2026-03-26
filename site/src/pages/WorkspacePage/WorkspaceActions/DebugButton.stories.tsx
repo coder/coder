@@ -3,9 +3,9 @@ import {
 	MockWorkspace,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { richParametersKey } from "api/queries/templates";
-import { workspaceBuildParametersKey } from "api/queries/workspaceBuilds";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
+import { richParametersKey } from "#/api/queries/templates";
+import { workspaceBuildParametersKey } from "#/api/queries/workspaceBuilds";
 import { DebugButton } from "./DebugButton";
 
 const meta: Meta<typeof DebugButton> = {

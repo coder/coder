@@ -1,8 +1,8 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { FC } from "react";
+import { type FC, type RefObject, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import {
 	AgentsSidebar,
@@ -23,6 +23,9 @@ export interface AgentsOutletContext {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
+	onChatReady: () => void;
+	/** Ref attached to the chat scroll container by AgentDetail. */
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 interface AgentsPageViewProps {
@@ -109,6 +112,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		]),
 	);
 
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -119,6 +124,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
+		onChatReady: () => {},
+		scrollContainerRef,
 	};
 
 	return (

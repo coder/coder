@@ -37,7 +37,6 @@ export type LiveStatusModel =
 			kind: string;
 			message: string;
 			provider?: string;
-			retryable?: boolean;
 			statusCode?: number;
 	  } & LiveStatusBase);
 
@@ -64,6 +63,21 @@ const toReconnectingLiveStatus = (
 	...reconnectState,
 });
 
+const toRetryingLiveStatus = (
+	retryState: RetryState,
+	options: { hasAccumulatedOutput?: boolean } = {},
+): Extract<LiveStatusModel, { phase: "retrying" }> => ({
+	phase: "retrying",
+	hasAccumulatedOutput: options.hasAccumulatedOutput ?? false,
+	title: getErrorTitle(retryState.kind, "retry"),
+	kind: retryState.kind,
+	message: retryState.error,
+	attempt: retryState.attempt,
+	provider: retryState.provider,
+	delayMs: retryState.delayMs,
+	retryingAt: retryState.retryingAt,
+});
+
 const toFailedLiveStatus = (
 	error: ChatDetailError,
 	options: { hasAccumulatedOutput?: boolean } = {},
@@ -74,7 +88,6 @@ const toFailedLiveStatus = (
 	kind: error.kind,
 	message: error.message,
 	provider: error.provider,
-	retryable: error.retryable,
 	statusCode: error.statusCode,
 });
 
@@ -89,17 +102,7 @@ export const deriveLiveStatus = ({
 	const hasAccumulatedOutput = getHasAccumulatedOutput(streamState);
 
 	if (retryState) {
-		return {
-			phase: "retrying",
-			hasAccumulatedOutput,
-			title: getErrorTitle(retryState.kind, "retry"),
-			kind: retryState.kind,
-			message: retryState.error,
-			attempt: retryState.attempt,
-			provider: retryState.provider,
-			delayMs: retryState.delayMs,
-			retryingAt: retryState.retryingAt,
-		};
+		return toRetryingLiveStatus(retryState, { hasAccumulatedOutput });
 	}
 
 	if (streamError) {

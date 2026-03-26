@@ -6,9 +6,9 @@ import {
 import { server } from "testHelpers/server";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Response, User } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router";
+import type { Response, User } from "#/api/typesGenerated";
 import { SetupPage } from "./SetupPage";
 import { Language as PageViewLanguage } from "./SetupPageView";
 
