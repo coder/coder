@@ -116,6 +116,11 @@ type Server struct {
 	// never contend with each other.
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
+	// workspaceMCPToolsCache caches workspace MCP tool definitions
+	// per chat to avoid re-fetching on every turn. The cache is
+	// keyed by chat ID and invalidated when the agent changes.
+	workspaceMCPToolsCache sync.Map // uuid.UUID -> *cachedWorkspaceMCPTools
+
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
 
@@ -154,6 +159,13 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 		m[id] = true
 	}
 	return m
+}
+
+// cachedWorkspaceMCPTools stores workspace MCP tools discovered
+// from a workspace agent, keyed by the agent ID that provided them.
+type cachedWorkspaceMCPTools struct {
+	agentID uuid.UUID
+	tools   []workspacesdk.MCPToolInfo
 }
 
 type turnWorkspaceContext struct {
@@ -3319,6 +3331,25 @@ func (p *Server) runChat(
 	}
 	if chat.WorkspaceID.Valid {
 		g2.Go(func() error {
+			// Check cache first. On subsequent turns with the same
+			// agent, reuse cached tools to avoid a round-trip.
+			if cached, ok := p.workspaceMCPToolsCache.Load(chat.ID); ok {
+				entry, ok2 := cached.(*cachedWorkspaceMCPTools)
+				if !ok2 {
+					return nil
+				}
+				// Verify the agent hasn't changed.
+				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID == entry.agentID {
+					for _, t := range entry.tools {
+						workspaceMCPTools = append(workspaceMCPTools,
+							chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+						)
+					}
+					return nil
+				}
+			}
+
+			// Cache miss or agent changed — fetch fresh tools.
 			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
 			if connErr != nil {
 				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
@@ -3331,6 +3362,15 @@ func (p *Server) runChat(
 					slog.Error(listErr))
 				return nil
 			}
+
+			// Cache the result for subsequent turns.
+			if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+				p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
+					agentID: agent.ID,
+					tools:   toolsResp.Tools,
+				})
+			}
+
 			for _, t := range toolsResp.Tools {
 				workspaceMCPTools = append(workspaceMCPTools,
 					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),

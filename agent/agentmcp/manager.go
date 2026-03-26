@@ -35,6 +35,15 @@ const connectTimeout = 30 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+var (
+	// ErrInvalidToolName is returned when the tool name format
+	// is not "server__tool".
+	ErrInvalidToolName = xerrors.New("invalid tool name format")
+	// ErrUnknownServer is returned when no MCP server matches
+	// the prefix in the tool name.
+	ErrUnknownServer = xerrors.New("unknown MCP server")
+)
+
 // Manager manages connections to MCP servers discovered from a
 // workspace's .mcp.json file. It caches the aggregated tool list
 // and proxies tool calls to the appropriate server.
@@ -71,11 +80,18 @@ func (m *Manager) Connect(ctx context.Context, dir string) error {
 		return xerrors.Errorf("parse mcp config: %w", err)
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	// Connect to servers without holding the lock, since each
+	// connectServer call may block on network I/O for up to
+	// connectTimeout.
+	type connectedServer struct {
+		name   string
+		config ServerConfig
+		client *client.Client
+	}
+	var connected []connectedServer
 	for _, cfg := range configs {
-		if err := m.connectOne(ctx, cfg); err != nil {
+		c, err := m.connectServer(ctx, cfg)
+		if err != nil {
 			m.logger.Warn(ctx, "skipping MCP server",
 				slog.F("server", cfg.Name),
 				slog.F("transport", cfg.Transport),
@@ -83,17 +99,39 @@ func (m *Manager) Connect(ctx context.Context, dir string) error {
 			)
 			continue
 		}
+		connected = append(connected, connectedServer{
+			name: cfg.Name, config: cfg, client: c,
+		})
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Close previous connections to avoid leaking child
+	// processes on agent reconnect.
+	for _, entry := range m.servers {
+		_ = entry.client.Close()
+	}
+	m.servers = make(map[string]*serverEntry, len(connected))
+
+	for _, cs := range connected {
+		m.servers[cs.name] = &serverEntry{
+			config: cs.config,
+			client: cs.client,
+		}
 	}
 
 	m.refreshToolsLocked(ctx)
 	return nil
 }
 
-// connectOne establishes a connection to a single MCP server.
-func (m *Manager) connectOne(ctx context.Context, cfg ServerConfig) error {
+// connectServer establishes a connection to a single MCP server
+// and returns the connected client. It does not modify any Manager
+// state.
+func (*Manager) connectServer(ctx context.Context, cfg ServerConfig) (*client.Client, error) {
 	tr, err := createTransport(cfg)
 	if err != nil {
-		return xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
+		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
 	}
 
 	c := client.NewClient(tr)
@@ -103,7 +141,7 @@ func (m *Manager) connectOne(ctx context.Context, cfg ServerConfig) error {
 
 	if err := c.Start(connectCtx); err != nil {
 		_ = c.Close()
-		return xerrors.Errorf("start %q: %w", cfg.Name, err)
+		return nil, xerrors.Errorf("start %q: %w", cfg.Name, err)
 	}
 
 	_, err = c.Initialize(connectCtx, mcp.InitializeRequest{
@@ -117,14 +155,10 @@ func (m *Manager) connectOne(ctx context.Context, cfg ServerConfig) error {
 	})
 	if err != nil {
 		_ = c.Close()
-		return xerrors.Errorf("initialize %q: %w", cfg.Name, err)
+		return nil, xerrors.Errorf("initialize %q: %w", cfg.Name, err)
 	}
 
-	m.servers[cfg.Name] = &serverEntry{
-		config: cfg,
-		client: c,
-	}
-	return nil
+	return c, nil
 }
 
 // createTransport builds the mcp-go transport for a server config.
@@ -218,9 +252,7 @@ func (m *Manager) Tools() []workspacesdk.MCPToolInfo {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	out := make([]workspacesdk.MCPToolInfo, len(m.tools))
-	copy(out, m.tools)
-	return out
+	return slices.Clone(m.tools)
 }
 
 // CallTool proxies a tool call to the appropriate MCP server.
@@ -235,7 +267,7 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	m.mu.RUnlock()
 
 	if !ok {
-		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("unknown MCP server %q", serverName)
+		return workspacesdk.CallMCPToolResponse{}, xerrors.Errorf("%w: %q", ErrUnknownServer, serverName)
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
@@ -257,11 +289,11 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 // splitToolName extracts the server name and original tool name
 // from a prefixed tool name like "server__tool".
 func splitToolName(prefixed string) (serverName, toolName string, err error) {
-	parts := strings.SplitN(prefixed, ToolNameSep, 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", xerrors.Errorf("invalid tool name %q: expected format \"server%stool\"", prefixed, ToolNameSep)
+	server, tool, ok := strings.Cut(prefixed, ToolNameSep)
+	if !ok || server == "" || tool == "" {
+		return "", "", xerrors.Errorf("%w: expected format \"server%stool\", got %q", ErrInvalidToolName, ToolNameSep, prefixed)
 	}
-	return parts[0], parts[1], nil
+	return server, tool, nil
 }
 
 // convertResult translates an MCP CallToolResult into a
@@ -319,10 +351,44 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 // RefreshTools re-fetches tool lists from all connected servers
 // and rebuilds the cache.
 func (m *Manager) RefreshTools(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	// Snapshot servers under read lock.
+	m.mu.RLock()
+	servers := make(map[string]*serverEntry, len(m.servers))
+	for k, v := range m.servers {
+		servers[k] = v
+	}
+	m.mu.RUnlock()
 
-	m.refreshToolsLocked(ctx)
+	// Fetch tool lists without holding any lock.
+	var tools []workspacesdk.MCPToolInfo
+	for name, entry := range servers {
+		result, err := entry.client.ListTools(ctx, mcp.ListToolsRequest{})
+		if err != nil {
+			m.logger.Warn(ctx, "failed to list tools from MCP server",
+				slog.F("server", name),
+				slog.Error(err),
+			)
+			continue
+		}
+		for _, tool := range result.Tools {
+			tools = append(tools, workspacesdk.MCPToolInfo{
+				ServerName:  name,
+				Name:        name + ToolNameSep + tool.Name,
+				Description: tool.Description,
+				Schema:      tool.InputSchema.Properties,
+				Required:    tool.InputSchema.Required,
+			})
+		}
+	}
+	slices.SortFunc(tools, func(a, b workspacesdk.MCPToolInfo) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	// Swap the cached list under write lock.
+	m.mu.Lock()
+	m.tools = tools
+	m.mu.Unlock()
+
 	return nil
 }
 
@@ -332,10 +398,11 @@ func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	var errs []error
 	for _, entry := range m.servers {
-		_ = entry.client.Close()
+		errs = append(errs, entry.client.Close())
 	}
 	m.servers = make(map[string]*serverEntry)
 	m.tools = nil
-	return nil
+	return errors.Join(errs...)
 }

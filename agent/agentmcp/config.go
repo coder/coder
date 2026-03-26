@@ -60,7 +60,16 @@ func ParseConfig(path string) ([]ServerConfig, error) {
 			return nil, xerrors.Errorf("parse server %q in %q: %w", name, path, err)
 		}
 
+		if strings.Contains(name, ToolNameSep) {
+			return nil, xerrors.Errorf("server name %q in %q contains reserved separator %q", name, path, ToolNameSep)
+		}
+
 		transport := inferTransport(entry)
+
+		if transport == "" {
+			return nil, xerrors.Errorf("server %q in %q has no command or url", name, path)
+		}
+
 		resolveEnvVars(entry.Env)
 
 		servers = append(servers, ServerConfig{

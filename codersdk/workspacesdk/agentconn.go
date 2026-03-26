@@ -963,7 +963,7 @@ type CallMCPToolResponse struct {
 
 // MCPToolContent is a single content block in an MCP tool response.
 type MCPToolContent struct {
-	Type      string `json:"type"` // "text", "image", "resource"
+	Type      string `json:"type"` // "text", "image", "audio", "resource"
 	Text      string `json:"text,omitempty"`
 	Data      string `json:"data,omitempty"` // base64 for binary
 	MediaType string `json:"media_type,omitempty"`

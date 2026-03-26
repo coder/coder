@@ -1,6 +1,7 @@
 package agentmcp
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -66,7 +67,13 @@ func (api *API) handleCallTool(rw http.ResponseWriter, r *http.Request) {
 
 	resp, err := api.manager.CallTool(ctx, req)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		status := http.StatusBadGateway
+		if errors.Is(err, ErrInvalidToolName) {
+			status = http.StatusBadRequest
+		} else if errors.Is(err, ErrUnknownServer) {
+			status = http.StatusNotFound
+		}
+		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: "MCP tool call failed.",
 			Detail:  err.Error(),
 		})

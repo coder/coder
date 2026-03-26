@@ -17,7 +17,6 @@ func TestParseConfig(t *testing.T) {
 	tests := []struct {
 		name        string
 		content     string
-		envVars     map[string]string
 		expected    []agentmcp.ServerConfig
 		expectError bool
 	}{
@@ -126,6 +125,24 @@ func TestParseConfig(t *testing.T) {
 		{
 			name:        "MalformedJSON",
 			content:     `{not valid json`,
+			expectError: true,
+		},
+		{
+			name: "ServerNameContainsSeparator",
+			content: mustJSON(t, map[string]any{
+				"mcpServers": map[string]any{
+					"bad__name": map[string]any{"command": "run"},
+				},
+			}),
+			expectError: true,
+		},
+		{
+			name: "EmptyTransport",
+			content: mustJSON(t, map[string]any{
+				"mcpServers": map[string]any{
+					"empty": map[string]any{},
+				},
+			}),
 			expectError: true,
 		},
 		{

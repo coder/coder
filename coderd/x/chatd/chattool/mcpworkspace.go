@@ -108,7 +108,7 @@ func convertMCPToolResponse(
 		switch c.Type {
 		case "text":
 			textParts = append(textParts, c.Text)
-		case "image", "media":
+		case "image", "audio":
 			if c.Data == "" {
 				continue
 			}
