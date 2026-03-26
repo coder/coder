@@ -39,7 +39,6 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 import { buildSubagentTitles } from "./messageParsing";
-import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -53,24 +52,18 @@ const ReasoningDisclosure: FC<{
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}> = ({ id, text, isStreaming = false, urlTransform }) => {
-	const { visibleText } = useSmoothStreamingText({
-		fullText: text,
-		isStreaming,
-		bypassSmoothing: !isStreaming,
-		streamKey: id,
-	});
-	const displayText = isStreaming ? visibleText : text;
-	const hasText = displayText.trim().length > 0;
+}> = ({ id: _id, text, isStreaming = false, urlTransform }) => {
+	const hasText = text.trim().length > 0;
 
 	if (hasText) {
 		return (
 			<div className="w-full">
 				<Response
 					className="text-[11px] text-content-secondary"
+					isAnimating={isStreaming}
 					urlTransform={urlTransform}
 				>
-					{displayText}
+					{text}
 				</Response>
 			</div>
 		);
@@ -101,23 +94,6 @@ type RenderBlockListParams = {
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (content: string) => void;
 	urlTransform?: UrlTransform;
-};
-
-// Wrapper that runs the smooth-streaming jitter buffer on a single
-// response block. Only used during live streaming — historical
-// messages render through <Response> directly.
-const SmoothedResponse: FC<{
-	text: string;
-	streamKey: string;
-	urlTransform?: UrlTransform;
-}> = ({ text, streamKey, urlTransform }) => {
-	const { visibleText } = useSmoothStreamingText({
-		fullText: text,
-		isStreaming: true,
-		bypassSmoothing: false,
-		streamKey,
-	});
-	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
 };
 
 const InlineTextAttachmentButton: FC<{
@@ -283,16 +259,10 @@ function renderBlockList({
 		.map((block, index) => {
 			switch (block.type) {
 				case "response":
-					return isStreaming ? (
-						<SmoothedResponse
-							key={`${keyPrefix}-response-${index}`}
-							text={block.text}
-							streamKey={keyPrefix}
-							urlTransform={urlTransform}
-						/>
-					) : (
+					return (
 						<Response
 							key={`${keyPrefix}-response-${index}`}
+							isAnimating={isStreaming}
 							urlTransform={urlTransform}
 						>
 							{block.text}

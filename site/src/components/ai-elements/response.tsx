@@ -5,6 +5,7 @@ import {
 } from "@pierre/diffs/react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
 import {
+	type AnimateOptions,
 	type Components,
 	defaultRehypePlugins,
 	Streamdown,
@@ -15,7 +16,17 @@ import { cn } from "utils/cn";
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
 	urlTransform?: UrlTransform;
+	isAnimating?: boolean;
 }
+
+// Character-level animation so new tokens fade in individually
+// rather than by word, giving a smoother streaming feel.
+const streamAnimationOptions: AnimateOptions = {
+	animation: "fadeIn",
+	sep: "char",
+	duration: 120,
+	stagger: 15,
+};
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
 // escaped text instead of being parsed by the HTML5 engine. Without
@@ -231,6 +242,7 @@ export const Response = ({
 	children,
 	ref,
 	urlTransform,
+	isAnimating,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
@@ -250,6 +262,9 @@ export const Response = ({
 		>
 			<Streamdown
 				controls={false}
+				animated={isAnimating ? streamAnimationOptions : false}
+				isAnimating={isAnimating}
+				caret={isAnimating ? "block" : undefined}
 				components={components}
 				urlTransform={urlTransform}
 				rehypePlugins={chatRehypePlugins}
