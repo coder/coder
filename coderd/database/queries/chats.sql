@@ -481,6 +481,16 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateChatLastModelConfigByID :one
+UPDATE
+    chats
+SET
+    last_model_config_id = @last_model_config_id::uuid
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: UpdateChatLabelsByID :one
 UPDATE
     chats

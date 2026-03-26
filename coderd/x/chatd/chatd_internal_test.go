@@ -143,12 +143,16 @@ func TestRecordManualTitleUsage_DoesNotChangeChatModel(t *testing.T) {
 		gomock.AssignableToTypeOf(database.InsertChatMessagesParams{}),
 	).DoAndReturn(
 		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{chat.LastModelConfigID}, arg.ModelConfigID)
+			require.Equal(t, []uuid.UUID{modelConfig.ID}, arg.ModelConfigID)
 			require.Equal(t, []string{"[]"}, arg.Content)
 			return []database.ChatMessage{{ID: 1}}, nil
 		},
 	)
 	tx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(1)).Return(nil)
+	tx.EXPECT().UpdateChatLastModelConfigByID(gomock.Any(), database.UpdateChatLastModelConfigByIDParams{
+		ID:                chat.ID,
+		LastModelConfigID: chat.LastModelConfigID,
+	}).Return(chat, nil)
 
 	err := server.recordManualTitleUsage(context.Background(), chat, modelConfig, usage)
 	require.NoError(t, err)

@@ -6321,6 +6321,48 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 	return i, err
 }
 
+const updateChatLastModelConfigByID = `-- name: UpdateChatLastModelConfigByID :one
+UPDATE
+    chats
+SET
+    last_model_config_id = $1::uuid
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels
+`
+
+type UpdateChatLastModelConfigByIDParams struct {
+	LastModelConfigID uuid.UUID `db:"last_model_config_id" json:"last_model_config_id"`
+	ID                uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatLastModelConfigByID, arg.LastModelConfigID, arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+	)
+	return i, err
+}
+
 const updateChatMCPServerIDs = `-- name: UpdateChatMCPServerIDs :one
 UPDATE
     chats

@@ -1470,12 +1470,9 @@ func (p *Server) recordManualTitleUsage(
 
 	return p.db.InTx(func(tx database.Store) error {
 		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:    chat.ID,
-			CreatedBy: []uuid.UUID{uuid.Nil},
-			// Reuse the chat's selected model config so this synthetic
-			// usage write preserves per-model attribution without
-			// changing the chat's selected model.
-			ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
 			Content:             []string{content},
 			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
@@ -1500,6 +1497,14 @@ func (p *Server) recordManualTitleUsage(
 		}
 		if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
 			return xerrors.Errorf("soft delete manual title usage message: %w", err)
+		}
+		if chat.LastModelConfigID != modelConfig.ID {
+			if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+				ID:                chat.ID,
+				LastModelConfigID: chat.LastModelConfigID,
+			}); err != nil {
+				return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
+			}
 		}
 		return nil
 	}, nil)

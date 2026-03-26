@@ -2128,6 +2128,10 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
 	if err != nil {
