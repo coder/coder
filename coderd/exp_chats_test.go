@@ -69,17 +69,9 @@ func newChatClientWithDatabase(t testing.TB) (*codersdk.ExperimentalClient, data
 type failNextChatSystemPromptStore struct {
 	database.Store
 
-	failNextGetChatSystemPrompt                  atomic.Bool
 	failNextGetChatIncludeDefaultSystemPrompt    atomic.Bool
 	failNextGetChatSystemPromptConfig            atomic.Bool
 	failNextUpsertChatIncludeDefaultSystemPrompt atomic.Bool
-}
-
-func (s *failNextChatSystemPromptStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
-	if s.failNextGetChatSystemPrompt.CompareAndSwap(true, false) {
-		return "", stderrors.New("forced chat system prompt read failure")
-	}
-	return s.Store.GetChatSystemPrompt(ctx)
 }
 
 func (s *failNextChatSystemPromptStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
@@ -5124,7 +5116,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
 	})
 
-	t.Run("CreateChatFallsBackToDefaultWhenSystemPromptConfigReadFailsWithIncludeDefaultDisabled", func(t *testing.T) {
+	t.Run("CreateChatFallbackIgnoresDisabledPreferenceWhenConfigReadFails", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
@@ -5143,6 +5135,8 @@ func TestChatSystemPrompt(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// A config read failure loses all admin preferences, including
+		// include_default=false, so chat creation falls back to the built-in default.
 		store.failNextGetChatSystemPromptConfig.Store(true)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{

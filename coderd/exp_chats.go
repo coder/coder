@@ -3288,7 +3288,11 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	if sanitizedCustom != "" {
 		parts = append(parts, sanitizedCustom)
 	}
-	return strings.Join(parts, "\n\n")
+	result := strings.Join(parts, "\n\n")
+	if result == "" {
+		api.Logger.Warn(ctx, "resolved system prompt is empty, no system prompt will be injected into chats")
+	}
+	return result
 }
 
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
