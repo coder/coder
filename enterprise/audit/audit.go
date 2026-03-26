@@ -58,7 +58,7 @@ func (a *auditor) Export(ctx context.Context, alog database.AuditLog) error {
 
 	// AsSystemRestricted is used to look up the actor name even
 	// when the caller lacks read access to the user.
-	actor, err := a.db.GetUserByID(dbauthz.AsSystemRestricted(ctx), alog.UserID) //nolint:gocritic // Requires system access to resolve actor name for the audit log.
+	actor, err := a.db.GetUserByID(dbauthz.AsSystemRestricted(ctx), alog.UserID) //nolint:gocritic // see above
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return err
 	}

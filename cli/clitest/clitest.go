@@ -174,7 +174,8 @@ func Start(t *testing.T, inv *serpent.Invocation) {
 }
 
 // StartWithAssert starts the given invocation and calls assertCallback
-// with the resulting error when the invocation completes.
+// with the resulting error when the invocation completes. If assertCallback
+// is nil, expected shutdown errors are silently tolerated.
 func StartWithAssert(t *testing.T, inv *serpent.Invocation, assertCallback func(t *testing.T, err error)) {
 	t.Helper()
 
