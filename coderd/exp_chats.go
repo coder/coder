@@ -2718,7 +2718,7 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	includeDefault, err := api.Database.GetChatIncludeDefaultSystemPrompt(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching chat system prompt configuration.",
+			Message: "Internal error fetching include-default system prompt setting.",
 			Detail:  err.Error(),
 		})
 		return
@@ -2732,6 +2732,10 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
@@ -2749,20 +2753,23 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	includeDefault := true
-	if req.IncludeDefaultSystemPrompt != nil {
-		includeDefault = *req.IncludeDefaultSystemPrompt
-	}
 	err := api.Database.InTx(func(tx database.Store) error {
+		var includeDefault bool
+		if req.IncludeDefaultSystemPrompt != nil {
+			includeDefault = *req.IncludeDefaultSystemPrompt
+		} else {
+			currentIncludeDefault, err := tx.GetChatIncludeDefaultSystemPrompt(ctx)
+			if err != nil {
+				return err
+			}
+			includeDefault = currentIncludeDefault
+		}
 		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
 			return err
 		}
 		return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefault)
 	}, nil)
-	if httpapi.Is404Error(err) { // also catches authz error
-		httpapi.ResourceNotFound(rw)
-		return
-	} else if err != nil {
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt configuration.",
 			Detail:  err.Error(),
@@ -3272,8 +3279,9 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	custom, err := api.Database.GetChatSystemPrompt(ctx)
 	if err != nil {
-		// Log but don't fail chat creation — fall back to the
-		// built-in default so the user isn't blocked.
+		// We intentionally fail open here. When the custom prompt cannot be
+		// read, returning the built-in default keeps the chat grounded
+		// instead of sending no system guidance at all.
 		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}

@@ -66,13 +66,21 @@ func newChatClientWithDatabase(t testing.TB) (*codersdk.ExperimentalClient, data
 	return codersdk.NewExperimentalClient(client), db
 }
 
-type failNextChatIncludeDefaultStore struct {
+type failNextChatSystemPromptStore struct {
 	database.Store
 
+	failNextGetChatSystemPrompt               atomic.Bool
 	failNextGetChatIncludeDefaultSystemPrompt atomic.Bool
 }
 
-func (s *failNextChatIncludeDefaultStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
+func (s *failNextChatSystemPromptStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
+	if s.failNextGetChatSystemPrompt.CompareAndSwap(true, false) {
+		return "", xerrors.New("forced chat system prompt read failure")
+	}
+	return s.Store.GetChatSystemPrompt(ctx)
+}
+
+func (s *failNextChatSystemPromptStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	if s.failNextGetChatIncludeDefaultSystemPrompt.CompareAndSwap(true, false) {
 		return false, xerrors.New("forced include-default read failure")
 	}
@@ -4772,6 +4780,8 @@ func TestChatSystemPrompt(t *testing.T) {
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
+	const workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
 		t.Helper()
 
@@ -4815,7 +4825,6 @@ func TestChatSystemPrompt(t *testing.T) {
 			systemTexts = append(systemTexts, parts[0].Text)
 		}
 
-		const workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
 		if wantResolvedPrompt == "" {
 			require.Equal(t, []string{workspaceAwareness}, systemTexts)
 			return
@@ -4886,7 +4895,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
 	})
 
-	t.Run("DefaultsIncludeDefaultWhenOmitted", func(t *testing.T) {
+	t.Run("PreservesIncludeDefaultWhenOmitted", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
@@ -4900,8 +4909,49 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		resp := getChatSystemPrompt(t, ctx)
 		require.Equal(t, "Omitted toggle request", resp.SystemPrompt)
-		require.True(t, resp.IncludeDefaultSystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
 		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+	})
+
+	t.Run("ExistingCustomPromptDefaultsIncludeDefaultOff", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		legacyClient, legacyDB := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, legacyClient.Client)
+		_ = createChatModelConfig(t, legacyClient)
+
+		require.NoError(t, legacyDB.UpsertChatSystemPrompt(dbauthz.AsSystemRestricted(ctx), "Legacy custom instructions"))
+
+		resp, err := legacyClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Legacy custom instructions", resp.SystemPrompt)
+		require.False(t, resp.IncludeDefaultSystemPrompt)
+		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
+
+		chat, err := legacyClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: fmt.Sprintf("legacy custom prompt %s", t.Name()),
+			}},
+		})
+		require.NoError(t, err)
+
+		messages, err := legacyDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		var systemTexts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+			systemTexts = append(systemTexts, parts[0].Text)
+		}
+
+		require.Equal(t, []string{"Legacy custom instructions", workspaceAwareness}, systemTexts)
 	})
 
 	t.Run("DefaultSystemPromptPreview", func(t *testing.T) {
@@ -5000,7 +5050,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := &failNextChatIncludeDefaultStore{Store: rawDB}
+		store := &failNextChatSystemPromptStore{Store: rawDB}
 		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
@@ -5039,11 +5089,56 @@ func TestChatSystemPrompt(t *testing.T) {
 			systemTexts = append(systemTexts, parts[0].Text)
 		}
 
-		const workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
 		require.Equal(t, []string{
 			chatd.DefaultSystemPrompt + "\n\nKeep custom instructions",
 			workspaceAwareness,
 		}, systemTexts)
+	})
+
+	t.Run("CreateChatFallsBackToDefaultWhenPromptReadFailsWithIncludeDefaultDisabled", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := &failNextChatSystemPromptStore{Store: rawDB}
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: chatDeploymentValues(t),
+		}))
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt:               "Do not use the default prompt",
+			IncludeDefaultSystemPrompt: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		store.failNextGetChatSystemPrompt.Store(true)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: fmt.Sprintf("prompt-read fallback %s", t.Name()),
+			}},
+		})
+		require.NoError(t, err)
+
+		messages, err := rawDB.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		var systemTexts []string
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleSystem {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+			systemTexts = append(systemTexts, parts[0].Text)
+		}
+
+		require.Equal(t, []string{chatd.DefaultSystemPrompt, workspaceAwareness}, systemTexts)
 	})
 
 	t.Run("NonAdminFails", func(t *testing.T) {
@@ -5053,7 +5148,7 @@ func TestChatSystemPrompt(t *testing.T) {
 			SystemPrompt:               "This should fail.",
 			IncludeDefaultSystemPrompt: ptr.Ref(true),
 		})
-		requireSDKError(t, err, http.StatusNotFound)
+		requireSDKError(t, err, http.StatusForbidden)
 
 		_, err = memberClient.GetChatSystemPrompt(ctx)
 		requireSDKError(t, err, http.StatusNotFound)
