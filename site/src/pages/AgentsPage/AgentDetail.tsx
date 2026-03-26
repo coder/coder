@@ -893,7 +893,7 @@ const AgentDetail: FC = () => {
 		if (
 			chatReadyFiredRef.current === agentId ||
 			!chatMessagesQuery.isSuccess ||
-			(fetchedMessageCount > 0 && storeMessageCount === 0)
+			storeMessageCount < fetchedMessageCount
 		) {
 			return;
 		}

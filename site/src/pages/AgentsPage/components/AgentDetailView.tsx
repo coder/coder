@@ -842,6 +842,11 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
+			if (autoScrollRef.current) {
+				scheduleBottomPin();
+				return;
+			}
+
 			// Skip compensation during reflow. Width changes indicate the
 			// height delta is distributed through the transcript rather than
 			// appended at the bottom, so applying the full delta would
@@ -850,13 +855,9 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (autoScrollRef.current) {
-				scheduleBottomPin();
-				return;
-			}
-
 			// In normal flow, appends grow below the viewport, so users reading
 			// history do not need scroll compensation.
+			compensateScroll(delta);
 		});
 		observer.observe(content);
 

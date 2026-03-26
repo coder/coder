@@ -213,10 +213,6 @@ const AgentEmbedPage: FC = () => {
 
 	const onChatReady = () => {
 		window.parent.postMessage({ type: "coder:chat-ready" }, "*");
-		// flex-col-reverse: scrollTop 0 is the visual bottom.
-		if (scrollContainerRef.current) {
-			scrollContainerRef.current.scrollTop = 0;
-		}
 	};
 
 	const outletContext: AgentsOutletContext = {
