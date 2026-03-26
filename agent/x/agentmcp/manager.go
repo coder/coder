@@ -340,7 +340,10 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 }
 
 // RefreshTools re-fetches tool lists from all connected servers
-// and rebuilds the cache.
+// in parallel and rebuilds the cache. On partial failure, tools
+// from servers that responded successfully are merged with the
+// existing cached tools for servers that failed, so a single
+// dead server doesn't block updates from healthy ones.
 func (m *Manager) RefreshTools(ctx context.Context) error {
 	// Snapshot servers under read lock.
 	m.mu.RLock()
@@ -350,45 +353,79 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 	}
 	m.mu.RUnlock()
 
-	// Fetch tool lists without holding any lock.
-	var (
+	// Fetch tool lists in parallel without holding any lock.
+	type serverTools struct {
+		name  string
 		tools []workspacesdk.MCPToolInfo
-		errs  []error
-	)
-	for name, entry := range servers {
-		listCtx, cancel := context.WithTimeout(ctx, connectTimeout)
-		result, err := entry.client.ListTools(listCtx, mcp.ListToolsRequest{})
-		cancel()
-		if err != nil {
-			m.logger.Warn(ctx, "failed to list tools from MCP server",
-				slog.F("server", name),
-				slog.Error(err),
-			)
-			errs = append(errs, xerrors.Errorf("list tools from %q: %w", name, err))
-			continue
-		}
-		for _, tool := range result.Tools {
-			tools = append(tools, workspacesdk.MCPToolInfo{
-				ServerName:  name,
-				Name:        name + ToolNameSep + tool.Name,
-				Description: tool.Description,
-				Schema:      tool.InputSchema.Properties,
-				Required:    tool.InputSchema.Required,
-			})
-		}
 	}
-	slices.SortFunc(tools, func(a, b workspacesdk.MCPToolInfo) int {
+	var (
+		mu      sync.Mutex
+		results []serverTools
+		failed  []string
+		errs    []error
+	)
+	var eg errgroup.Group
+	for name, entry := range servers {
+		eg.Go(func() error {
+			listCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+			result, err := entry.client.ListTools(listCtx, mcp.ListToolsRequest{})
+			cancel()
+			if err != nil {
+				m.logger.Warn(ctx, "failed to list tools from MCP server",
+					slog.F("server", name),
+					slog.Error(err),
+				)
+				mu.Lock()
+				errs = append(errs, xerrors.Errorf("list tools from %q: %w", name, err))
+				failed = append(failed, name)
+				mu.Unlock()
+				return nil
+			}
+			var tools []workspacesdk.MCPToolInfo
+			for _, tool := range result.Tools {
+				tools = append(tools, workspacesdk.MCPToolInfo{
+					ServerName:  name,
+					Name:        name + ToolNameSep + tool.Name,
+					Description: tool.Description,
+					Schema:      tool.InputSchema.Properties,
+					Required:    tool.InputSchema.Required,
+				})
+			}
+			mu.Lock()
+			results = append(results, serverTools{name: name, tools: tools})
+			mu.Unlock()
+			return nil
+		})
+	}
+	_ = eg.Wait()
+
+	// Build the new tool list. For servers that failed, preserve
+	// their tools from the existing cache so a single dead server
+	// doesn't remove healthy tools.
+	var merged []workspacesdk.MCPToolInfo
+	for _, st := range results {
+		merged = append(merged, st.tools...)
+	}
+	if len(failed) > 0 {
+		failedSet := make(map[string]struct{}, len(failed))
+		for _, f := range failed {
+			failedSet[f] = struct{}{}
+		}
+		m.mu.RLock()
+		for _, t := range m.tools {
+			if _, ok := failedSet[t.ServerName]; ok {
+				merged = append(merged, t)
+			}
+		}
+		m.mu.RUnlock()
+	}
+	slices.SortFunc(merged, func(a, b workspacesdk.MCPToolInfo) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 
-	// Only swap the cached list if every server responded
-	// successfully. Partial failures would silently drop
-	// tools from servers that had transient errors.
-	if len(errs) == 0 {
-		m.mu.Lock()
-		m.tools = tools
-		m.mu.Unlock()
-	}
+	m.mu.Lock()
+	m.tools = merged
+	m.mu.Unlock()
 
 	return errors.Join(errs...)
 }
