@@ -1748,7 +1748,7 @@ func recordManualTitleUsage(
 		if hasUsage {
 			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 				ChatID:              chat.ID,
-				CreatedBy:           []uuid.UUID{uuid.Nil},
+				CreatedBy:           []uuid.UUID{chat.OwnerID},
 				ModelConfigID:       []uuid.UUID{modelConfig.ID},
 				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
 				Content:             []string{content},

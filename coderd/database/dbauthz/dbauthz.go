@@ -2615,7 +2615,6 @@ func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetC
 }
 
 func (q *querier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDAscPaginatedParams) ([]database.ChatMessage, error) {
-	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return nil, err
