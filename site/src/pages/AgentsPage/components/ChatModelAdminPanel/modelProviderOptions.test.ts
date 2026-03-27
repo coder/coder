@@ -74,6 +74,29 @@ describe("buildModelProviderOptions", () => {
 			},
 		]);
 	});
+
+	it("includes enabled database configs without a stored API key", () => {
+		const options = buildModelProviderOptions([
+			providerState({
+				providerConfigs: [
+					providerConfig({
+						id: "provider-config-env-key",
+						display_name: "OpenAI Env Key",
+						has_api_key: false,
+					}),
+				],
+			}),
+		]);
+
+		expect(options).toEqual([
+			{
+				key: "provider-config-env-key",
+				provider: "openai",
+				label: "OpenAI Env Key",
+				iconProvider: "openai",
+			},
+		]);
+	});
 });
 
 describe("resolveDefaultOption", () => {
