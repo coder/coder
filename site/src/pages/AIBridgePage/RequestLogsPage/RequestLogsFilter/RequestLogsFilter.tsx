@@ -5,6 +5,7 @@ import {
 	type useFilter,
 } from "#/components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "#/components/Filter/UserFilter";
+import { ClientFilter, type ClientFilterMenu } from "./ClientFilter";
 import { ModelFilter, type ModelFilterMenu } from "./ModelFilter";
 import { ProviderFilter, type ProviderFilterMenu } from "./ProviderFilter";
 
@@ -15,6 +16,7 @@ interface RequestLogsFilterProps {
 		user: UserFilterMenu;
 		provider: ProviderFilterMenu;
 		model: ModelFilterMenu;
+		client: ClientFilterMenu;
 	};
 }
 
@@ -44,6 +46,7 @@ export const RequestLogsFilter: FC<RequestLogsFilterProps> = ({
 					<UserMenu menu={menus.user} placeholder="All initiators" />
 					<ProviderFilter menu={menus.provider} />
 					<ModelFilter menu={menus.model} />
+					<ClientFilter menu={menus.client} />
 				</>
 			}
 		/>

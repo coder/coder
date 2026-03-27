@@ -1,4 +1,3 @@
-import { AppProviders } from "#/App";
 import {
 	screen,
 	render as testingLibraryRender,
@@ -11,6 +10,7 @@ import {
 	type RouteObject,
 	RouterProvider,
 } from "react-router";
+import { AppProviders } from "#/App";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import type { ProxyProvider } from "#/contexts/ProxyContext";

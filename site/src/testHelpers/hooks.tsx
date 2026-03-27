@@ -1,4 +1,3 @@
-import { AppProviders } from "#/App";
 import {
 	act,
 	type RenderHookOptions,
@@ -19,6 +18,7 @@ import {
 	RouterProvider,
 	useLocation,
 } from "react-router";
+import { AppProviders } from "#/App";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import {
 	createTestQueryClient,

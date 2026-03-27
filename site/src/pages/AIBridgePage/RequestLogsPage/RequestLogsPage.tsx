@@ -8,6 +8,7 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { useClientFilterMenu } from "./RequestLogsFilter/ClientFilter";
 import { useModelFilterMenu } from "./RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "./RequestLogsFilter/ProviderFilter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
@@ -65,6 +66,15 @@ const RequestLogsPage: FC = () => {
 			}),
 	});
 
+	const clientMenu = useClientFilterMenu({
+		value: filter.values.client,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				client: option?.value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
@@ -82,6 +92,7 @@ const RequestLogsPage: FC = () => {
 						user: userMenu,
 						provider: providerMenu,
 						model: modelMenu,
+						client: clientMenu,
 					},
 				}}
 			/>

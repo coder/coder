@@ -1,7 +1,7 @@
-import { AppProviders } from "#/App";
 import { render, screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
+import { AppProviders } from "#/App";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import { MockTemplate } from "#/testHelpers/entities";
 import { server } from "#/testHelpers/server";
