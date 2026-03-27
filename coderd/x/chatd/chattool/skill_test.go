@@ -493,6 +493,39 @@ func TestLoadSkillFile(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "required")
 	})
+
+	t.Run("OversizedFileTruncated", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+
+		skill := chattool.SkillMeta{
+			Name: "my-skill",
+			Dir:  "/work/.agents/skills/my-skill",
+		}
+
+		// Build a file that exceeds maxSkillFileBytes (512KB).
+		bigContent := strings.Repeat("x", 512*1024+100)
+
+		conn.EXPECT().ReadFile(
+			gomock.Any(),
+			"/work/.agents/skills/my-skill/large.txt",
+			int64(0),
+			int64(512*1024+1),
+		).Return(
+			io.NopCloser(strings.NewReader(bigContent)),
+			"text/plain",
+			nil,
+		)
+
+		content, err := chattool.LoadSkillFile(
+			context.Background(), conn, skill, "large.txt",
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 512*1024, len(content),
+			"content should be truncated to maxSkillFileBytes")
+	})
 }
 
 func TestReadSkillTool(t *testing.T) {
