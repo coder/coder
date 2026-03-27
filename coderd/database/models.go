@@ -4174,6 +4174,7 @@ type Chat struct {
 	BuildID           uuid.NullUUID  `db:"build_id" json:"build_id"`
 	AgentID           uuid.NullUUID  `db:"agent_id" json:"agent_id"`
 	PinOrder          int32          `db:"pin_order" json:"pin_order"`
+	LastReadMessageID sql.NullInt64  `db:"last_read_message_id" json:"last_read_message_id"`
 }
 
 type ChatDiffStatus struct {

@@ -336,7 +336,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		LimitOpt: int32(paginationParams.Limit),
 	}
 
-	chats, err := api.Database.GetChats(ctx, params)
+	chatRows, err := api.Database.GetChats(ctx, params)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -345,7 +345,13 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, chats)
+	// Extract the Chat objects for diff status lookup.
+	dbChats := make([]database.Chat, len(chatRows))
+	for i, row := range chatRows {
+		dbChats[i] = row.Chat
+	}
+
+	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, dbChats)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -354,7 +360,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chats(chats, diffStatusesByChatID))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRows(chatRows, diffStatusesByChatID))
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -1947,6 +1953,39 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatMessage(promoteResult.PromotedMessage))
 }
 
+// markChatAsRead updates the last read message ID for a chat to the
+// latest message, so subsequent unread checks treat all current
+// messages as seen. This is called on stream connect and disconnect
+// to avoid per-message API calls during active streaming.
+func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
+	lastMsg, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		// No assistant messages yet, nothing to mark as read.
+		return
+	}
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to get last assistant message for read marker",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	err = api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chatID,
+		LastReadMessageID: lastMsg.ID,
+	})
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to update chat last read message ID",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2002,6 +2041,12 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 	defer cancel()
+
+	// Mark the chat as read when the stream connects and again
+	// when it disconnects so we avoid per-message API calls while
+	// messages are actively streaming.
+	api.markChatAsRead(ctx, chatID)
+	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {

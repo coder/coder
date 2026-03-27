@@ -64,6 +64,10 @@ type Chat struct {
 	PinOrder          int32             `json:"pin_order"`
 	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string `json:"labels"`
+	// HasUnread is true when assistant messages exist beyond
+	// the owner's read cursor, which updates on stream
+	// connect and disconnect.
+	HasUnread bool `json:"has_unread"`
 }
 
 // ChatMessage represents a single message in a chat.

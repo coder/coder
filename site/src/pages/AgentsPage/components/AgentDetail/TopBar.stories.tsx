@@ -68,6 +68,7 @@ export const WithParentChat: Story = {
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
 			pin_order: 0,
+			has_unread: false,
 		},
 	},
 };

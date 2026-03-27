@@ -393,6 +393,25 @@ const AgentsPage: FC = () => {
 		activeChatIDRef.current = agentId;
 	});
 
+	// Optimistically clear the unread indicator for the active
+	// chat. The server marks chats as read on stream connect
+	// and disconnect, but the list cache is not refetched until
+	// window focus. Without this, navigating away from a chat
+	// causes its cached has_unread to reappear as a stale dot.
+	useEffect(() => {
+		if (!agentId) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) => {
+			let changed = false;
+			const next = chats.map((c) => {
+				if (c.id !== agentId || !c.has_unread) return c;
+				changed = true;
+				return { ...c, has_unread: false };
+			});
+			return changed ? next : chats;
+		});
+	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
 			connect() {
@@ -508,11 +527,21 @@ const AgentsPage: FC = () => {
 									c.updated_at > updatedChat.updated_at
 										? c.updated_at
 										: updatedChat.updated_at;
+								// The server's pubsub path does not compute
+								// has_unread (it always sends false). For
+								// status_change events on non-active chats,
+								// optimistically mark as unread since the
+								// assistant produced new output.
+								const nextHasUnread =
+									isStatusEvent && updatedChat.id !== activeChatIDRef.current
+										? true
+										: c.has_unread;
 								if (
 									nextStatus === c.status &&
 									nextTitle === c.title &&
 									diffStatusEqual(nextDiffStatus, c.diff_status) &&
-									nextWorkspaceId === c.workspace_id
+									nextWorkspaceId === c.workspace_id &&
+									nextHasUnread === c.has_unread
 								) {
 									return c;
 								}
@@ -524,6 +553,7 @@ const AgentsPage: FC = () => {
 									diff_status: nextDiffStatus,
 									workspace_id: nextWorkspaceId,
 									updated_at: nextUpdatedAt,
+									has_unread: nextHasUnread,
 								};
 							});
 							return didUpdate ? nextChats : chats;

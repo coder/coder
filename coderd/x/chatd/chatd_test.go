@@ -3431,8 +3431,8 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	require.NoError(t, err)
 	var children []database.Chat
 	for _, c := range allChats {
-		if c.ParentChatID.Valid && c.ParentChatID.UUID == chat.ID {
-			children = append(children, c)
+		if c.Chat.ParentChatID.Valid && c.Chat.ParentChatID.UUID == chat.ID {
+			children = append(children, c.Chat)
 		}
 	}
 	require.Len(t, children, 1)
