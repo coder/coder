@@ -87,7 +87,7 @@ func TestConfigCache_EnabledProviders_CacheHit(t *testing.T) {
 	require.Equal(t, int32(1), store.enabledProvidersCalls.Load())
 }
 
-func TestConfigCache_EnabledProviders_SortsByFamilyPrecedence(t *testing.T) {
+func TestConfigCache_EnabledProviders_CollapsesFamilyPrecedence(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -113,7 +113,7 @@ func TestConfigCache_EnabledProviders_SortsByFamilyPrecedence(t *testing.T) {
 
 	providers, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []database.ChatProvider{anthropic, newerOpenAI, olderOpenAI}, providers)
+	require.Equal(t, []database.ChatProvider{anthropic, olderOpenAI}, providers)
 }
 
 func TestConfigCache_EnabledProviders_TTLExpiry(t *testing.T) {

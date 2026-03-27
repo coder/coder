@@ -137,7 +137,7 @@ func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.Chat
 			if err != nil {
 				return nil, err
 			}
-			database.SortChatProvidersByFamilyPrecedence(fetched)
+			fetched = database.ChatProvidersByFamilyPrecedence(fetched)
 			c.storeProviders(generation, fetched)
 			return slices.Clone(fetched), nil
 		},

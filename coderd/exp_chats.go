@@ -526,7 +526,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	database.SortChatProvidersByFamilyPrecedence(enabledProviders)
+	enabledProviders = database.ChatProvidersByFamilyPrecedence(enabledProviders)
 	enabledModels, err := api.Database.GetEnabledChatModelConfigs(
 		systemCtx,
 	)
@@ -3877,7 +3877,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	database.SortChatProvidersByFamilyPrecedence(enabledProviders)
+	enabledProviders = database.ChatProvidersByFamilyPrecedence(enabledProviders)
 
 	enabledConfiguredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
