@@ -452,29 +452,30 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 					"name is required",
 				), nil
 			}
-				if args.Path == "" {
-					return fantasy.NewTextErrorResponse(
-						"path is required",
-					), nil
-				}
+			if args.Path == "" {
+				return fantasy.NewTextErrorResponse(
+					"path is required",
+				), nil
+			}
 
-				skill, ok := findSkill(options.GetSkills, args.Name)
-				if !ok {
-					return fantasy.NewTextErrorResponse(
-						fmt.Sprintf("skill %q not found", args.Name),
-					), nil
-				}
+			skill, ok := findSkill(options.GetSkills, args.Name)
+			if !ok {
+				return fantasy.NewTextErrorResponse(
+					fmt.Sprintf("skill %q not found", args.Name),
+				), nil
+			}
 
-				// Validate the path early so we reject bad
-				// inputs before dialing the workspace agent.
-				if err := validateSkillFilePath(args.Path); err != nil {
-					return fantasy.NewTextErrorResponse(
-						err.Error(),
-					), nil
-				}
+			// Validate the path early so we reject bad
+			// inputs before dialing the workspace agent.
+			if err := validateSkillFilePath(args.Path); err != nil {
+				return fantasy.NewTextErrorResponse(
+					err.Error(),
+				), nil
+			}
 
-					conn, err := options.GetWorkspaceConn(ctx)
-					if err != nil {				return fantasy.NewTextErrorResponse(
+			conn, err := options.GetWorkspaceConn(ctx)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(
 					err.Error(),
 				), nil
 			}

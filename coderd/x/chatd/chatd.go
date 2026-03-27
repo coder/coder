@@ -3947,11 +3947,16 @@ func (p *Server) runChat(
 								chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
 							)
 						}
+						// Also load cached skills on the fast path.
+						if sc, ok := p.skillsCache.Load(chat.ID); ok {
+							if se, ok := sc.(*cachedSkills); ok && se.agentID == agent.ID {
+								skills = se.skills
+							}
+						}
 						return nil
 					}
 				}
 			}
-
 			// Cache miss, agent changed, or no cache — validate
 			// that the workspace still has a live agent before
 			// attempting a dial.
@@ -3973,6 +3978,12 @@ func (p *Server) runChat(
 					slog.Error(agentErr))
 				return nil
 			}
+
+			// Discover skills and MCP tools using the
+			// same conn to avoid a second dial attempt.
+			skills = p.discoverWorkspaceSkills(
+				ctx, chat.ID, &workspaceCtx, logger,
+			)
 
 			// Fetch fresh tools from the workspace agent.
 			conn, connErr := workspaceCtx.getWorkspaceConn(workspaceMCPCtx)
