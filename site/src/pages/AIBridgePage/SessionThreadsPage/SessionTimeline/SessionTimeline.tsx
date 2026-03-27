@@ -301,6 +301,11 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 		new Date(thread.ended_at ?? Date.now()).getTime() -
 		new Date(thread.started_at).getTime();
 
+	const toolCalls = thread.agentic_actions?.reduce(
+		(count, action) => count + action.tool_calls.length,
+		0,
+	);
+
 	return (
 		<>
 			<div className="border border-surface-secondary border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
@@ -360,7 +365,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 					<AgenticLoopTable
 						className="lg:max-w-64 flex-1 my-3 mx-2"
 						duration={durationInMs}
-						toolCalls={thread.agentic_actions?.length ?? 0}
+						toolCalls={toolCalls}
 						inputTokens={thread.token_usage.input_tokens}
 						outputTokens={thread.token_usage.output_tokens}
 					/>
