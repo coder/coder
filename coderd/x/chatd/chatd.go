@@ -339,7 +339,13 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			ctx,
 			chatSnapshot.WorkspaceID.UUID,
 		)
-		if err != nil || len(agents) == 0 {
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
+				"get workspace agents in latest build: %w",
+				err,
+			)
+		}
+		if len(agents) == 0 {
 			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
 		}
 
@@ -383,7 +389,13 @@ func (c *turnWorkspaceContext) latestWorkspaceAgentID(
 		ctx,
 		workspaceID,
 	)
-	if err != nil || len(agents) == 0 {
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf(
+			"get workspace agents in latest build: %w",
+			err,
+		)
+	}
+	if len(agents) == 0 {
 		return uuid.Nil, errChatHasNoWorkspaceAgent
 	}
 	return agents[0].ID, nil
