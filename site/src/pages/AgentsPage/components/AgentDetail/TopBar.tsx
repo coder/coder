@@ -202,7 +202,10 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<EllipsisIcon className="h-4 w-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
+						<DropdownMenuContent
+							align="end"
+							className="[&_[role=menuitem]]:text-[13px] [&_[role=menuitem]]:font-normal"
+						>
 							<DropdownMenuItem
 								disabled={!workspace.canOpenEditors}
 								onSelect={() => {
