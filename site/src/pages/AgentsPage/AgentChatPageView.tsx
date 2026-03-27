@@ -13,6 +13,7 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import { TerminalPanel } from "./components/TerminalPanel";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -65,6 +66,8 @@ interface AgentChatPageViewProps {
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	workspace?: TypesGen.Workspace;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -152,6 +155,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	persistedError,
 	isArchived,
 	hasWorkspace,
+	workspaceAgent,
+	workspace,
 	store,
 	editing,
 	pendingEditMessageId,
@@ -385,6 +390,20 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									/>
 								),
 							},
+							...(hasWorkspace
+								? [
+										{
+											id: "terminal",
+											label: "Terminal",
+											content: (
+												<TerminalPanel
+													workspace={workspace}
+													workspaceAgent={workspaceAgent}
+												/>
+											),
+										},
+									]
+								: []),
 						]}
 						onClose={() => onSetShowSidebarPanel(false)}
 						isExpanded={visualExpanded}

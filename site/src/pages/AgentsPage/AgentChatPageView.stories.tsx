@@ -9,6 +9,7 @@ import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withProxyProvider,
 } from "#/testHelpers/storybook";
 import {
 	AgentChatPageLoadingView,
@@ -166,7 +167,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
