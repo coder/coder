@@ -1,6 +1,4 @@
 import Skeleton from "@mui/material/Skeleton";
-import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -18,6 +16,8 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Latency } from "#/components/Latency/Latency";
+import type { ProxyContextValue } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {

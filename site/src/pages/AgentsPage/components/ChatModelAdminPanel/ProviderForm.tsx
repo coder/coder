@@ -3,6 +3,14 @@ import { type FC, type FormEvent, useId, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -267,61 +275,66 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					{/* Footer — pushed to bottom */}
 					<div className="mt-auto pt-6">
 						<hr className="mb-4 border-0 border-t border-solid border-border" />
-						{confirmingDelete && providerConfig ? (
-							<div className="flex items-center gap-3">
-								<p className="m-0 flex-1 text-sm text-content-secondary">
-									Are you sure? This action is irreversible.
-								</p>
-								<div className="flex shrink-0 items-center gap-2">
-									<Button
-										variant="outline"
-										size="lg"
-										type="button"
-										onClick={() => setConfirmingDelete(false)}
-										disabled={isProviderMutationPending}
-									>
-										Cancel
-									</Button>
-									<Button
-										variant="destructive"
-										size="lg"
-										type="button"
-										disabled={isProviderMutationPending}
-										onClick={() => void onDeleteProvider(providerConfig.id)}
-									>
-										{isProviderMutationPending && (
-											<Spinner className="h-4 w-4" loading />
-										)}
-										Delete provider
-									</Button>
-								</div>
-							</div>
-						) : (
-							<div className="flex items-center justify-between">
-								{providerConfig ? (
-									<Button
-										variant="outline"
-										size="lg"
-										type="button"
-										className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-										disabled={isDisabled}
-										onClick={() => setConfirmingDelete(true)}
-									>
-										Delete
-									</Button>
-								) : (
-									<div />
-								)}
-								<Button size="lg" type="submit" disabled={!canSave}>
-									{isProviderMutationPending && (
-										<Spinner className="h-4 w-4" loading />
-									)}
-									{providerConfig ? "Save changes" : "Create provider config"}
+						<div className="flex items-center justify-between">
+							{providerConfig ? (
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+									disabled={isDisabled}
+									onClick={() => setConfirmingDelete(true)}
+								>
+									Delete
 								</Button>
-							</div>
-						)}
+							) : (
+								<div />
+							)}
+							<Button size="lg" type="submit" disabled={!canSave}>
+								{isProviderMutationPending && (
+									<Spinner className="h-4 w-4" loading />
+								)}
+								{providerConfig ? "Save changes" : "Create provider config"}
+							</Button>
+						</div>
 					</div>
 				</form>
+			)}
+
+			{providerConfig && (
+				<Dialog
+					open={confirmingDelete}
+					onOpenChange={(open) => !open && setConfirmingDelete(false)}
+				>
+					<DialogContent variant="destructive">
+						<DialogHeader>
+							<DialogTitle>Delete provider</DialogTitle>
+							<DialogDescription>
+								Are you sure you want to delete this provider? This action is
+								irreversible.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setConfirmingDelete(false)}
+								disabled={isProviderMutationPending}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => void onDeleteProvider(providerConfig.id)}
+								disabled={isProviderMutationPending}
+							>
+								{isProviderMutationPending && (
+									<Spinner className="h-4 w-4" loading />
+								)}
+								Delete provider
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			)}
 		</div>
 	);

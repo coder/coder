@@ -48,7 +48,7 @@ import {
 	useChatStore,
 } from "./ChatContext";
 
-vi.mock("api/api", () => ({
+vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
 }));
 
@@ -208,6 +208,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	updated_at: "2025-01-01T00:00:00.000Z",
 	archived: false,
 	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 });
 

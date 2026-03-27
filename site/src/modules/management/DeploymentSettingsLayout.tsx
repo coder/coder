@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import { type FC, Suspense } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import {
@@ -9,6 +8,7 @@ import {
 	BreadcrumbSeparator,
 } from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { canViewDeploymentSettings } from "#/modules/permissions";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { DeploymentSidebar } from "./DeploymentSidebar";

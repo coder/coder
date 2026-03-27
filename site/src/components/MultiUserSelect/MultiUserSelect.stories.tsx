@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { usersKey } from "api/queries/users";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { spyOn } from "storybook/test";
+import { API } from "#/api/api";
+import { usersKey } from "#/api/queries/users";
+import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import { mockApiError } from "#/testHelpers/entities";
 import { MultiUserSelect } from "./MultiUserSelect";
 

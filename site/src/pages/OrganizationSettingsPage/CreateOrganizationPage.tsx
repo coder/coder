@@ -1,9 +1,9 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { createOrganization } from "#/api/queries/organizations";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";

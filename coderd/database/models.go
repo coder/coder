@@ -4174,6 +4174,7 @@ type Chat struct {
 	BuildID           uuid.NullUUID  `db:"build_id" json:"build_id"`
 	AgentID           uuid.NullUUID  `db:"agent_id" json:"agent_id"`
 	PinOrder          int32          `db:"pin_order" json:"pin_order"`
+	LastReadMessageID sql.NullInt64  `db:"last_read_message_id" json:"last_read_message_id"`
 }
 
 type ChatDiffStatus struct {
@@ -4488,6 +4489,7 @@ type MCPServerConfig struct {
 	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
+	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 }
 
 type MCPServerUserToken struct {

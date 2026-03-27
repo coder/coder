@@ -776,14 +776,15 @@ export const ModelDeleteConfirmation: Story = {
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
 		await expect(deleteButton).toBeInTheDocument();
 
-		// Click Delete to show the inline confirmation.
+		// Click Delete to show the confirmation dialog.
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear — leave it visible
+		// The confirmation dialog should appear — leave it visible
 		// so the Chromatic snapshot captures this state.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this model/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete model" }),
 		).toBeInTheDocument();
@@ -820,19 +821,16 @@ export const ModelDeleteCancelled: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to edit form, trigger confirmation, then cancel.
+		// Navigate to edit form, open delete dialog, then cancel.
 		await userEvent.click(await body.findByText("GPT-4o"));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
-		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByRole("button", { name: "Save" }),
-		).toBeInTheDocument();
+		// The dialog should be closed.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 	},
 };
 
@@ -863,7 +861,7 @@ export const ModelDeleteConfirmed: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to edit form, trigger delete confirmation, then confirm.
+		// Navigate to edit form, open delete dialog, then confirm.
 		await userEvent.click(await body.findByText("GPT-4o"));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await userEvent.click(
@@ -903,15 +901,16 @@ export const ProviderDeleteConfirmation: Story = {
 		// Navigate to the provider detail view.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 
-		// Click Delete to show the inline confirmation.
+		// Click Delete to show the confirmation dialog.
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear — leave it visible
+		// The confirmation dialog should appear — leave it visible
 		// so the Chromatic snapshot captures this state.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this provider/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete provider" }),
 		).toBeInTheDocument();
@@ -941,19 +940,16 @@ export const ProviderDeleteCancelled: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to provider detail, trigger confirmation, then cancel.
+		// Navigate to provider detail, open delete dialog, then cancel.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
-		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByRole("button", { name: "Save changes" }),
-		).toBeInTheDocument();
+		// The dialog should be closed.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 	},
 };
 
@@ -977,7 +973,7 @@ export const ProviderDeleteConfirmed: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to provider detail, trigger delete, then confirm.
+		// Navigate to provider detail, open delete dialog, then confirm.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await userEvent.click(

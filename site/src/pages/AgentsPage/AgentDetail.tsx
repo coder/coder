@@ -1,9 +1,3 @@
-import { useProxy } from "contexts/ProxyContext";
-import {
-	getTerminalHref,
-	getVSCodeHref,
-	openAppInNewWindow,
-} from "modules/apps/apps";
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -14,9 +8,6 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { isMobileViewport } from "utils/mobile";
-import { pageTitle } from "utils/page";
-import { rewriteLocalhostURL } from "utils/portForward";
 import { API, watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import {
@@ -37,6 +28,15 @@ import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+} from "#/modules/apps/apps";
+import { isMobileViewport } from "#/utils/mobile";
+import { pageTitle } from "#/utils/page";
+import { rewriteLocalhostURL } from "#/utils/portForward";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
@@ -884,15 +884,28 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent(agentId);
 	};
 
-	// Signal the parent layout that messages have loaded.
+	// Signal ready only after the store has synced fetched messages,
+	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
+	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
+	const fetchedMessageCount = chatMessagesList?.length ?? 0;
 	useEffect(() => {
-		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
+		if (
+			chatReadyFiredRef.current === agentId ||
+			!chatMessagesQuery.isSuccess ||
+			storeMessageCount < fetchedMessageCount
+		) {
 			return;
 		}
 		chatReadyFiredRef.current = agentId ?? null;
 		onChatReady();
-	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
+	}, [
+		onChatReady,
+		storeMessageCount,
+		fetchedMessageCount,
+		chatMessagesQuery.isSuccess,
+		agentId,
+	]);
 
 	const handleRegenerateTitle = () => {
 		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {

@@ -20,9 +20,18 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import {
 	Select,
 	SelectContent,
@@ -231,6 +240,7 @@ interface MCPServerFormValues {
 	apiKeyTouched: boolean;
 	availability: string;
 	enabled: boolean;
+	modelIntent: boolean;
 	toolAllowList: string;
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
@@ -259,6 +269,7 @@ const buildInitialValues = (
 	apiKeyTouched: false,
 	availability: server?.availability ?? "default_off",
 	enabled: server?.enabled ?? true,
+	modelIntent: server?.model_intent ?? false,
 	toolAllowList: joinList(server?.tool_allow_list),
 	toolDenyList: joinList(server?.tool_deny_list),
 	customHeaders: [],
@@ -312,6 +323,7 @@ const ServerForm: FC<ServerFormProps> = ({
 				auth_type: values.authType,
 				availability: values.availability,
 				enabled: values.enabled,
+				model_intent: values.modelIntent,
 				...(values.authType === "oauth2" && {
 					oauth2_client_id: values.oauth2ClientID.trim(),
 					oauth2_client_secret: effectiveOAuth2Secret,
@@ -357,7 +369,6 @@ const ServerForm: FC<ServerFormProps> = ({
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
 			</button>
-
 			{/* Header with icon + editable name + enabled toggle */}
 			<div className="flex items-center gap-3">
 				<MCPServerIcon
@@ -398,7 +409,6 @@ const ServerForm: FC<ServerFormProps> = ({
 				</Tooltip>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
-
 			<form
 				id={formId}
 				onSubmit={form.handleSubmit}
@@ -771,7 +781,25 @@ const ServerForm: FC<ServerFormProps> = ({
 					</Field>{" "}
 					{/* ── Tool governance row ── */}
 					<hr className="!my-2 border-0 border-t border-solid border-border" />
+					<div className="flex items-center justify-between">
+						<div>
+							<Label htmlFor={`${formId}-model-intent`}>Model intent</Label>
+							<p className="text-sm text-content-secondary">
+								Require the model to describe each tool call's purpose in
+								natural language, shown as a status label in the UI.
+							</p>
+						</div>
+						<Switch
+							id={`${formId}-model-intent`}
+							checked={form.values.modelIntent}
+							onCheckedChange={(v) => {
+								form.setFieldValue("modelIntent", v);
+							}}
+							disabled={isDisabled}
+						/>
+					</div>
 					<div className="grid items-start gap-5 sm:grid-cols-2">
+						{" "}
 						<Field
 							label="Tool Allow List"
 							htmlFor={`${formId}-allow-list`}
@@ -785,7 +813,6 @@ const ServerForm: FC<ServerFormProps> = ({
 								disabled={isDisabled}
 							/>
 						</Field>
-
 						<Field
 							label="Tool Deny List"
 							htmlFor={`${formId}-deny-list`}
@@ -805,57 +832,61 @@ const ServerForm: FC<ServerFormProps> = ({
 				{/* Footer — pushed to bottom, matches ProviderForm */}
 				<div className="mt-auto pt-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
-					{confirmingDelete && server ? (
-						<div className="flex items-center gap-3">
-							<p className="m-0 flex-1 text-sm text-content-secondary">
-								Are you sure? This action is irreversible.
-							</p>
-							<div className="flex shrink-0 items-center gap-2">
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									onClick={() => setConfirmingDelete(false)}
-									disabled={isDisabled}
-								>
-									Cancel
-								</Button>
-								<Button
-									variant="destructive"
-									size="lg"
-									type="button"
-									disabled={isDisabled}
-									onClick={() => void onDelete(server.id)}
-								>
-									{isDeleting && <Spinner className="h-4 w-4" loading />}
-									Delete server
-								</Button>
-							</div>
-						</div>
-					) : (
-						<div className="flex items-center justify-between">
-							{isEditing ? (
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-									disabled={isDisabled}
-									onClick={() => setConfirmingDelete(true)}
-								>
-									Delete
-								</Button>
-							) : (
-								<div />
-							)}
-							<Button size="lg" type="submit" disabled={!canSubmit}>
-								{isSaving && <Spinner className="h-4 w-4" loading />}
-								{isEditing ? "Save changes" : "Create server"}
+					<div className="flex items-center justify-between">
+						{isEditing ? (
+							<Button
+								variant="outline"
+								size="lg"
+								type="button"
+								className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+								disabled={isDisabled}
+								onClick={() => setConfirmingDelete(true)}
+							>
+								Delete
 							</Button>
-						</div>
-					)}
+						) : (
+							<div />
+						)}
+						<Button size="lg" type="submit" disabled={!canSubmit}>
+							{isSaving && <Spinner className="h-4 w-4" loading />}
+							{isEditing ? "Save changes" : "Create server"}
+						</Button>
+					</div>
 				</div>
 			</form>
+			{server && (
+				<Dialog
+					open={confirmingDelete}
+					onOpenChange={(open) => !open && setConfirmingDelete(false)}
+				>
+					<DialogContent variant="destructive">
+						<DialogHeader>
+							<DialogTitle>Delete server</DialogTitle>
+							<DialogDescription>
+								Are you sure you want to delete this MCP server? This action is
+								irreversible.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setConfirmingDelete(false)}
+								disabled={isDisabled}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => void onDelete(server.id)}
+								disabled={isDisabled}
+							>
+								{isDeleting && <Spinner className="h-4 w-4" loading />}
+								Delete server
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}{" "}
 		</div>
 	);
 };
