@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { ChatProviderConfig } from "#/api/typesGenerated";
+import type { ProviderState } from "./ChatModelAdminPanel";
 import {
+	buildModelProviderOptions,
 	type ModelProviderOption,
 	resolveDefaultOption,
 } from "./modelProviderOptions";
@@ -18,6 +21,60 @@ const options: readonly ModelProviderOption[] = [
 		iconProvider: "anthropic",
 	},
 ];
+
+const providerConfig = (
+	overrides: Partial<ChatProviderConfig>,
+): ChatProviderConfig => ({
+	id: "provider-config-id",
+	provider: "openai",
+	display_name: "OpenAI Primary",
+	enabled: true,
+	has_api_key: true,
+	base_url: "",
+	source: "database",
+	created_at: "2025-01-01T00:00:00Z",
+	updated_at: "2025-01-01T00:00:00Z",
+	...overrides,
+});
+
+const providerState = (overrides: Partial<ProviderState>): ProviderState => ({
+	provider: "openai",
+	label: "OpenAI",
+	providerConfigs: [],
+	modelConfigs: [],
+	catalogModelCount: 0,
+	hasManagedAPIKey: false,
+	hasCatalogAPIKey: false,
+	hasEffectiveAPIKey: false,
+	isEnvPreset: false,
+	baseURL: "",
+	...overrides,
+});
+
+describe("buildModelProviderOptions", () => {
+	it("treats undefined source as a database config", () => {
+		const options = buildModelProviderOptions([
+			providerState({
+				providerConfigs: [
+					providerConfig({
+						id: "provider-config-undefined-source",
+						display_name: "OpenAI Legacy",
+						source: undefined,
+					}),
+				],
+			}),
+		]);
+
+		expect(options).toEqual([
+			{
+				key: "provider-config-undefined-source",
+				provider: "openai",
+				label: "OpenAI Legacy",
+				iconProvider: "openai",
+			},
+		]);
+	});
+});
 
 describe("resolveDefaultOption", () => {
 	it("returns the matching provider option when present", () => {
