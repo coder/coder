@@ -62,7 +62,9 @@ const mockTextAttachmentFetch = () => {
 const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
 	"parsedMessages"
-> = {};
+> = {
+	subagentTitles: new Map(),
+};
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/AgentDetail/ConversationTimeline",

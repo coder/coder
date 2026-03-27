@@ -243,7 +243,7 @@ export const getEditableUserMessagePayload = (
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
 } => {
-	const parsed = parseMessageContent(message.content);
+	const parsed = cachedParseMessageContent(message);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {
 		text: parsed.markdown || "",
@@ -251,12 +251,34 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
+// Per-message parse cache. The chat store preserves ChatMessage
+// object identity for messages whose content hasn't changed, so
+// a WeakMap keyed on the message object gives O(1) cache hits
+// for the common case (only the actively-streaming message is
+// new each tick). WeakMap lets the GC reclaim entries when old
+// message objects are dropped by the store.
+const parseContentCache = new WeakMap<
+	TypesGen.ChatMessage,
+	ParsedMessageContent
+>();
+
+const cachedParseMessageContent = (
+	message: TypesGen.ChatMessage,
+): ParsedMessageContent => {
+	let result = parseContentCache.get(message);
+	if (!result) {
+		result = parseMessageContent(message.content);
+		parseContentCache.set(message, result);
+	}
+	return result;
+};
+
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
 ): ParsedMessageEntry[] => {
 	const rawParsed = messages.map((message) => ({
 		message,
-		parsed: parseMessageContent(message.content),
+		parsed: cachedParseMessageContent(message),
 	}));
 
 	const globalToolResults = new Map<string, ParsedToolResult>();
@@ -266,7 +288,10 @@ export const parseMessagesWithMergedTools = (
 		}
 	}
 
-	for (const { parsed } of rawParsed) {
+	// Build merged tools per message without mutating the cached
+	// ParsedMessageContent. Spread a new object so the cache
+	// entry stays clean for the next call.
+	return rawParsed.map(({ message, parsed }) => {
 		const resultById = new Map<string, ParsedToolResult>();
 		for (const result of parsed.toolResults) {
 			resultById.set(result.id, result);
@@ -279,13 +304,14 @@ export const parseMessagesWithMergedTools = (
 				}
 			}
 		}
-		parsed.tools = mergeTools(
-			parsed.toolCalls,
-			Array.from(resultById.values()),
-		);
-	}
-
-	return rawParsed;
+		return {
+			message,
+			parsed: {
+				...parsed,
+				tools: mergeTools(parsed.toolCalls, Array.from(resultById.values())),
+			},
+		};
+	});
 };
 
 export const buildSubagentTitles = (
