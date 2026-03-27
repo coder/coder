@@ -1215,6 +1215,90 @@ func TestAIBridgeListSessions(t *testing.T) {
 	})
 }
 
+func TestAIBridgeListClients(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIBridgeListClients(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		},
+	})
+
+	now := dbtime.Now()
+	endedAt := now.Add(time.Minute)
+
+	// Completed interception with an explicit client.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+	}, &endedAt)
+
+	// Completed interception with a different client.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
+	}, &endedAt)
+
+	// Completed interception with no client — should appear as "Unknown".
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+	}, &endedAt)
+
+	// Duplicate client — should be deduplicated in results.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+	}, &endedAt)
+
+	// In-flight interception (no ended_at) — must NOT appear in results.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientCopilotCLI), Valid: true},
+	}, nil)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clients, err := client.AIBridgeListClients(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{
+		string(aiblib.ClientCursor),
+		string(aiblib.ClientClaudeCode),
+		"Unknown",
+	}, clients)
+}
+
 func TestAIBridgeRouting(t *testing.T) {
 	t.Parallel()
 
