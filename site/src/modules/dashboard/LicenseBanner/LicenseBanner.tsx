@@ -17,7 +17,7 @@ const aiGovernanceOverLimitWarningPrefix =
 	LicenseAIGovernanceOverLimitWarningText.split("%d")[0];
 const aiGovernanceNearLimitWarningPrefix =
 	LicenseAIGovernance90PercentWarningText.split("%d%%")[0];
-const aiGovernanceNearLimitFallbackMessage =
+const AI_GOVERNANCE_NEAR_LIMIT_FALLBACK_MESSAGE =
 	"You are approaching your AI Governance add-on seat limit.";
 
 const isAIGovernanceWarning = (message: string): boolean =>
@@ -95,7 +95,7 @@ const normalizeAIGovernanceWarning = (
 
 	return (
 		aiGovernanceNearLimitMessage(feature) ??
-		aiGovernanceNearLimitFallbackMessage
+		AI_GOVERNANCE_NEAR_LIMIT_FALLBACK_MESSAGE
 	);
 };
 
