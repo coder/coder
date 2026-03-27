@@ -55,6 +55,7 @@ const (
 	homeInstructionLookupTimeout = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	workspaceDialValidationDelay = 5 * time.Second
+	workspaceMCPDiscoveryTimeout = 5 * time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
@@ -88,6 +89,8 @@ const (
 
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
+
+var errChatHasNoWorkspaceAgent = xerrors.New("chat has no workspace agent")
 
 // Server handles background processing of pending chats.
 type Server struct {
@@ -337,7 +340,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			chatSnapshot.WorkspaceID.UUID,
 		)
 		if err != nil || len(agents) == 0 {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace agent")
+			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
 		}
 
 		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
@@ -368,6 +371,59 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	}
 
 	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
+		"chat workspace changed while resolving agent",
+	)
+}
+
+func (c *turnWorkspaceContext) latestWorkspaceAgentID(
+	ctx context.Context,
+	workspaceID uuid.UUID,
+) (uuid.UUID, error) {
+	agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		ctx,
+		workspaceID,
+	)
+	if err != nil || len(agents) == 0 {
+		return uuid.Nil, errChatHasNoWorkspaceAgent
+	}
+	return agents[0].ID, nil
+}
+
+func (c *turnWorkspaceContext) workspaceAgentIDForConn(
+	ctx context.Context,
+) (database.Chat, uuid.UUID, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		chatSnapshot := c.currentChatSnapshot()
+		if !chatSnapshot.WorkspaceID.Valid || !chatSnapshot.AgentID.Valid {
+			updatedChat, agent, err := c.ensureWorkspaceAgent(ctx)
+			if err != nil {
+				return updatedChat, uuid.Nil, err
+			}
+			return updatedChat, agent.ID, nil
+		}
+
+		currentAgentID, err := c.latestWorkspaceAgentID(
+			ctx,
+			chatSnapshot.WorkspaceID.UUID,
+		)
+		if err != nil {
+			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
+				c.clearCachedWorkspaceState()
+			}
+			return chatSnapshot, uuid.Nil, err
+		}
+
+		latestChat, workspaceMatches := c.currentWorkspaceMatches(
+			chatSnapshot.WorkspaceID,
+		)
+		if !workspaceMatches {
+			continue
+		}
+		return latestChat, currentAgentID, nil
+	}
+
+	chatSnapshot := c.currentChatSnapshot()
+	return chatSnapshot, uuid.Nil, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
 }
@@ -422,15 +478,14 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			chatSnapshot.WorkspaceID.UUID,
 			DialFunc(c.server.agentConnFn),
 			func(ctx context.Context, workspaceID uuid.UUID) (uuid.UUID, error) {
-				agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
-				if err != nil || len(agents) == 0 {
-					return uuid.Nil, xerrors.New("chat has no workspace agent")
-				}
-				return agents[0].ID, nil
+				return c.latestWorkspaceAgentID(ctx, workspaceID)
 			},
 			workspaceDialValidationDelay,
 		)
 		if err != nil {
+			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
+				c.clearCachedWorkspaceState()
+			}
 			return nil, err
 		}
 
@@ -3752,7 +3807,12 @@ func (p *Server) runChat(
 				chat,
 				modelConfig.ID,
 				workspaceCtx.getWorkspaceAgent,
-				workspaceCtx.getWorkspaceConn,
+				func(instructionCtx context.Context) (workspacesdk.AgentConn, error) {
+					if _, _, err := workspaceCtx.workspaceAgentIDForConn(instructionCtx); err != nil {
+						return nil, err
+					}
+					return workspaceCtx.getWorkspaceConn(instructionCtx)
+				},
 			)
 			if persistErr != nil {
 				p.logger.Warn(ctx, "failed to persist instruction files",
@@ -3782,32 +3842,54 @@ func (p *Server) runChat(
 	}
 	if chat.WorkspaceID.Valid {
 		g2.Go(func() error {
-			// Check cache first. On subsequent turns with the same
-			// agent, reuse cached tools to avoid a round-trip.
-			if cached, ok := p.workspaceMCPToolsCache.Load(chat.ID); ok {
-				entry, ok2 := cached.(*cachedWorkspaceMCPTools)
-				if !ok2 {
-					return nil
-				}
-				// Verify the agent hasn't changed.
-				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID == entry.agentID {
-					for _, t := range entry.tools {
-						workspaceMCPTools = append(workspaceMCPTools,
-							chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
-						)
+			// Fast path: check cache using the in-memory cached
+			// agent (ensureWorkspaceAgent is free when already
+			// loaded). This avoids a per-turn latest-build DB
+			// query on the common subsequent-turn path.
+			if agent, err := workspaceCtx.getWorkspaceAgent(ctx); err == nil {
+				if cached, ok := p.workspaceMCPToolsCache.Load(chat.ID); ok {
+					entry, ok := cached.(*cachedWorkspaceMCPTools)
+					if ok && entry.agentID == agent.ID {
+						for _, t := range entry.tools {
+							workspaceMCPTools = append(workspaceMCPTools,
+								chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
+							)
+						}
+						return nil
 					}
-					return nil
 				}
 			}
 
-			// Cache miss or agent changed — fetch fresh tools.
-			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
+			// Cache miss, agent changed, or no cache — validate
+			// that the workspace still has a live agent before
+			// attempting a dial.
+			workspaceMCPCtx, cancel := context.WithTimeout(
+				ctx,
+				workspaceMCPDiscoveryTimeout,
+			)
+			defer cancel()
+
+			_, _, agentErr := workspaceCtx.workspaceAgentIDForConn(
+				workspaceMCPCtx,
+			)
+			if agentErr != nil {
+				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
+					p.workspaceMCPToolsCache.Delete(chat.ID)
+					return nil
+				}
+				logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
+					slog.Error(agentErr))
+				return nil
+			}
+
+			// Fetch fresh tools from the workspace agent.
+			conn, connErr := workspaceCtx.getWorkspaceConn(workspaceMCPCtx)
 			if connErr != nil {
 				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
 					slog.Error(connErr))
 				return nil
 			}
-			toolsResp, listErr := conn.ListMCPTools(ctx)
+			toolsResp, listErr := conn.ListMCPTools(workspaceMCPCtx)
 			if listErr != nil {
 				logger.Warn(ctx, "failed to list workspace MCP tools",
 					slog.Error(listErr))
@@ -3820,7 +3902,7 @@ func (p *Server) runChat(
 			// caching an empty list would hide tools
 			// permanently.
 			if len(toolsResp.Tools) > 0 {
-				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+				if agent, agentErr := workspaceCtx.getWorkspaceAgent(workspaceMCPCtx); agentErr == nil {
 					p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
 						agentID: agent.ID,
 						tools:   toolsResp.Tools,
@@ -4698,7 +4780,10 @@ func (p *Server) persistInstructionFiles(
 	}
 
 	// Read instruction files from the workspace agent.
-	var sections []instructionFileSection
+	var (
+		sections        []instructionFileSection
+		workspaceConnOK bool
+	)
 	if getWorkspaceConn != nil {
 		instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
 		defer cancel()
@@ -4710,6 +4795,7 @@ func (p *Server) persistInstructionFiles(
 				slog.Error(connErr),
 			)
 		} else {
+			workspaceConnOK = true
 			if content, source, truncated, readErr := readHomeInstructionFile(instructionCtx, conn); readErr != nil {
 				p.logger.Debug(ctx, "failed to load home instruction file",
 					slog.F("chat_id", chat.ID), slog.Error(readErr))
@@ -4729,6 +4815,9 @@ func (p *Server) persistInstructionFiles(
 	}
 
 	if len(sections) == 0 {
+		if !workspaceConnOK {
+			return "", nil
+		}
 		// Persist a sentinel so subsequent turns skip the
 		// workspace agent dial.
 		parts := []codersdk.ChatMessagePart{{

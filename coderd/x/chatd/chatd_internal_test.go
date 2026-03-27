@@ -363,6 +363,43 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	require.Contains(t, instruction, "Working Directory: /home/coder/project")
 }
 
+func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: true,
+		},
+	}
+	server := &Server{
+		db:     db,
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	}
+
+	instruction, err := server.persistInstructionFiles(
+		ctx,
+		chat,
+		uuid.New(),
+		func(context.Context) (database.WorkspaceAgent, error) {
+			return database.WorkspaceAgent{
+				ID:        uuid.New(),
+				Directory: "/home/coder/project",
+			}, nil
+		},
+		func(context.Context) (workspacesdk.AgentConn, error) {
+			return nil, errChatHasNoWorkspaceAgent
+		},
+	)
+	require.NoError(t, err)
+	require.Empty(t, instruction)
+}
+
 func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
 	t.Parallel()
 
@@ -588,6 +625,64 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	gotAgent, err := workspaceCtx.getWorkspaceAgent(ctx)
 	require.NoError(t, err)
 	require.Equal(t, currentAgent, gotAgent)
+}
+
+func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	staleAgentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  staleAgentID,
+			Valid: true,
+		},
+	}
+
+	staleAgent := database.WorkspaceAgent{ID: staleAgentID}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).
+		Return(staleAgent, nil).
+		Times(1)
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{}, nil).
+		Times(1)
+
+	server := &Server{db: db}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return nil, nil, xerrors.New("dial failed")
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatHasNoWorkspaceAgent)
+
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.Equal(t, database.WorkspaceAgent{}, workspaceCtx.agent)
+	require.False(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
+	require.Nil(t, workspaceCtx.releaseConn)
+	require.Equal(t, uuid.NullUUID{}, workspaceCtx.cachedWorkspaceID)
 }
 
 func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
