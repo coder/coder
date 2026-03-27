@@ -114,8 +114,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const selectedProviderConfigCount =
-		selectedProviderState?.providerConfigs.length;
 	const providerOptions: readonly ModelProviderOption[] = isEditing
 		? []
 		: buildModelProviderOptions(providerStates);
@@ -128,10 +126,21 @@ export const ModelForm: FC<ModelFormProps> = ({
 				providerOptions,
 				selectedProvider ?? selectedProviderState?.provider ?? null,
 			));
+	const effectiveProvider = isEditing
+		? (selectedProviderState?.provider ?? selectedProvider ?? null)
+		: (resolvedProviderOption?.provider ??
+			selectedProviderState?.provider ??
+			selectedProvider ??
+			null);
+	const effectiveProviderState = effectiveProvider
+		? (providerStates.find((ps) => ps.provider === effectiveProvider) ?? null)
+		: null;
+	const selectedProviderConfigCount =
+		effectiveProviderState?.providerConfigs.length;
 	const canManageModels = isEditing
 		? Boolean(
 				selectedProviderConfigCount &&
-					selectedProviderState?.hasEffectiveAPIKey,
+					effectiveProviderState?.hasEffectiveAPIKey,
 			)
 		: Boolean(resolvedProviderOption);
 
@@ -152,7 +161,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				selectedProviderState?.provider,
+				effectiveProvider,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -189,10 +198,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.provider) return;
+				if (!effectiveProvider) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: selectedProviderState.provider,
+					provider: effectiveProvider,
 					model: trimmedModel,
 					enabled: true,
 					...(parsedContextLimit !== null && {
@@ -223,7 +232,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		selectedProviderState?.provider,
+		effectiveProvider,
 		form.values.config,
 	);
 
@@ -301,7 +310,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	);
 
 	// No provider selected or configs unavailable.
-	if (!selectedProviderState || modelConfigsUnavailable) {
+	if (!effectiveProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
 				<button
@@ -369,9 +378,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 			{/* Header — editable display name */}
 			<div className="flex items-center gap-3">
-				{selectedProviderState && (
+				{effectiveProviderState && (
 					<ProviderIcon
-						provider={selectedProviderState.provider}
+						provider={effectiveProviderState.provider}
 						className="h-8 w-8"
 					/>
 				)}
@@ -493,7 +502,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 					{/* Provider-specific model config fields */}
 					<ModelConfigFields
-						provider={selectedProviderState.provider}
+						provider={effectiveProviderState.provider}
 						form={form}
 						fieldErrors={modelConfigFormBuildResult.fieldErrors}
 						disabled={isSaving}
@@ -525,7 +534,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									</div>
 									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 										<PricingModelConfigFields
-											provider={selectedProviderState.provider}
+											provider={effectiveProviderState.provider}
 											form={form}
 											fieldErrors={modelConfigFormBuildResult.fieldErrors}
 											disabled={isSaving}
@@ -553,7 +562,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								<div className="mt-4 space-y-5">
 									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 										<GeneralModelConfigFields
-											provider={selectedProviderState.provider}
+											provider={effectiveProviderState.provider}
 											form={form}
 											fieldErrors={modelConfigFormBuildResult.fieldErrors}
 											disabled={isSaving}
