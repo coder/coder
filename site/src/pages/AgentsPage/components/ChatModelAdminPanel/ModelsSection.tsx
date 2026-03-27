@@ -28,6 +28,7 @@ import { ModelForm } from "./ModelForm";
 import {
 	buildModelProviderOptions,
 	type ModelProviderOption,
+	resolveDefaultOption,
 } from "./modelProviderOptions";
 import { ProviderIcon } from "./ProviderIcon";
 import { hasCustomPricing } from "./pricingFields";
@@ -107,6 +108,18 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		return { mode: "list" };
 	})();
 
+	const providerOptions: readonly ModelProviderOption[] =
+		buildModelProviderOptions(providerStates);
+	const addModelProvider = view.mode === "add" ? view.provider : null;
+	const selectedModelOption = selectedModelOptionKey
+		? providerOptions.find((option) => option.key === selectedModelOptionKey)
+		: undefined;
+	const resolvedSelectedModelOptionKey =
+		addModelProvider !== null &&
+		selectedModelOption?.provider !== addModelProvider
+			? (resolveDefaultOption(providerOptions, addModelProvider)?.key ?? null)
+			: selectedModelOptionKey;
+
 	// Clear model-related search params and return to the list.
 	const clearModelView = () => {
 		setSearchParams((prev) => {
@@ -164,7 +177,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				selectedProvider={effectiveProvider}
 				selectedProviderState={effectiveProviderState}
 				onSelectedProviderChange={onSelectedProviderChange}
-				selectedModelOptionKey={selectedModelOptionKey}
+				selectedModelOptionKey={resolvedSelectedModelOptionKey}
 				onSelectedModelOptionChange={onSelectedModelOptionChange}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
@@ -191,9 +204,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	}
 
 	// ── List view ──────────────────────────────────────────────
-
-	const providerOptions: readonly ModelProviderOption[] =
-		buildModelProviderOptions(providerStates);
 
 	const addButton = providerOptions.length > 0 && (
 		<DropdownMenu>

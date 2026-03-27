@@ -3515,12 +3515,18 @@ SELECT
     cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
 FROM
     chat_model_configs cmc
-JOIN
-    chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
+    AND EXISTS (
+        SELECT
+            1
+        FROM
+            chat_providers cp
+        WHERE
+            cp.provider = cmc.provider
+            AND cp.enabled = TRUE
+    )
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
