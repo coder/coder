@@ -699,8 +699,8 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 // is being used with the correct audience/resource server (RFC 8707).
 func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
 	// Get the OAuth2 provider app token to check its audience
-	//nolint:gocritic // System needs to access token for audience validation
-	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemRestricted(ctx), key.ID)
+	//nolint:gocritic // OAuth2 system context — audience validation for provider app tokens
+	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID)
 	if err != nil {
 		return xerrors.Errorf("failed to get OAuth2 token: %w", err)
 	}
