@@ -269,4 +269,3 @@ func makeUpdate(id uuid.UUID, updatedAt time.Time) HeartbeatUpdate {
 		UpdatedAt: updatedAt,
 	}
 }
-

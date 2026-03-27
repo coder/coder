@@ -224,7 +224,7 @@ func (b *HeartbeatBatcher) flush(ctx context.Context) {
 	b.log.Debug(ctx, "flushing connection batch", slog.F("count", count))
 
 	var (
-		ids                     = make([]uuid.UUID, 0, count)
+		ids                    = make([]uuid.UUID, 0, count)
 		firstConnectedAt       = make([]time.Time, 0, count)
 		lastConnectedAt        = make([]time.Time, 0, count)
 		lastConnectedReplicaID = make([]uuid.UUID, 0, count)

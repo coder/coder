@@ -250,7 +250,7 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
-	MetadataBatcherOptions    []metadatabatcher.Option
+	MetadataBatcherOptions   []metadatabatcher.Option
 	ConnectionBatcherOptions []agentapi.HeartbeatOption
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
@@ -2091,10 +2091,10 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter    *workspacestats.Reporter
-	metadataBatcher    *metadatabatcher.Batcher
+	statsReporter     *workspacestats.Reporter
+	metadataBatcher   *metadatabatcher.Batcher
 	connectionBatcher *agentapi.HeartbeatBatcher
-	lifecycleMetrics *agentapi.LifecycleMetrics
+	lifecycleMetrics  *agentapi.LifecycleMetrics
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
