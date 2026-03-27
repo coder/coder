@@ -21,6 +21,7 @@ import { formatProviderLabel } from "../../utils/modelOptions";
 import { normalizeProvider, readOptionalString } from "./helpers";
 import { ModelsSection } from "./ModelsSection";
 import { ProvidersSection } from "./ProvidersSection";
+import { hasEffectiveProviderAPIKey } from "./providerAvailability";
 
 // ── Exported types ─────────────────────────────────────────────
 
@@ -176,6 +177,13 @@ const useProviderStates = (
 		const isEnvPreset =
 			firstProviderEntry?.source === "env_preset" || isCatalogEnvPreset;
 
+		const hasEffectiveAPIKey = hasEffectiveProviderAPIKey({
+			hasManagedAPIKey,
+			hasCatalogAPIKey,
+			hasProviderEntryAPIKey,
+			hasDatabaseProviderConfig: Boolean(effectiveProviderConfig),
+		});
+
 		return {
 			provider,
 			label,
@@ -184,11 +192,7 @@ const useProviderStates = (
 			catalogModelCount: getProviderModels(catalogProvider).length,
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
-			hasEffectiveAPIKey: effectiveProviderConfig
-				? hasManagedAPIKey
-				: firstProviderEntry
-					? hasProviderEntryAPIKey
-					: hasCatalogAPIKey,
+			hasEffectiveAPIKey,
 			isEnvPreset,
 			baseURL: getProviderBaseURL(effectiveProviderConfig),
 		};
