@@ -282,12 +282,13 @@ func isMetaTitleOutput(title string, contextText string) bool {
 	}
 
 	mentionsToolTopic := strings.Contains(normalizedContext, "tool") &&
-		(strings.Contains(normalizedContext, "don't") ||
-			strings.Contains(normalizedContext, "dont") ||
-			strings.Contains(normalizedContext, "do not") ||
-			strings.Contains(normalizedContext, "can't") ||
-			strings.Contains(normalizedContext, "cannot") ||
-			strings.Contains(normalizedContext, "use"))
+		(strings.Contains(normalizedContext, "don't have") ||
+			strings.Contains(normalizedContext, "dont have") ||
+			strings.Contains(normalizedContext, "do not have") ||
+			strings.Contains(normalizedContext, "can't use") ||
+			strings.Contains(normalizedContext, "cannot use") ||
+			strings.Contains(normalizedContext, "use tools") ||
+			strings.Contains(normalizedContext, "use tool"))
 	for _, variant := range []string{
 		"don't have any tools",
 		"dont have any tools",
