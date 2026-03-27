@@ -1068,6 +1068,40 @@ func TestListChatProviders(t *testing.T) {
 		require.True(t, hasPlaceholder, "should still have placeholder entries for unconfigured families")
 	})
 
+	t.Run("ReportsHasAPIKeyPerConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		withKey, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI With Key",
+			APIKey:      "test-api-key",
+		})
+		require.NoError(t, err)
+		require.True(t, withKey.HasAPIKey)
+
+		withoutKey, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI Without Key",
+		})
+		require.NoError(t, err)
+		require.False(t, withoutKey.HasAPIKey)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+
+		providerByID := make(map[uuid.UUID]codersdk.ChatProviderConfig, len(providers))
+		for _, provider := range providers {
+			providerByID[provider.ID] = provider
+		}
+
+		require.True(t, providerByID[withKey.ID].HasAPIKey)
+		require.False(t, providerByID[withoutKey.ID].HasAPIKey)
+	})
+
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 

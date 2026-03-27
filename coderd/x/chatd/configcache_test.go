@@ -87,6 +87,35 @@ func TestConfigCache_EnabledProviders_CacheHit(t *testing.T) {
 	require.Equal(t, int32(1), store.enabledProvidersCalls.Load())
 }
 
+func TestConfigCache_EnabledProviders_SortsByFamilyPrecedence(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	anthropic := testChatProvider("anthropic")
+	anthropic.ID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	anthropic.CreatedAt = time.Unix(0, 0).UTC()
+	anthropic.UpdatedAt = anthropic.CreatedAt
+	olderOpenAI := testChatProvider("openai")
+	olderOpenAI.ID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	olderOpenAI.CreatedAt = time.Unix(1, 0).UTC()
+	olderOpenAI.UpdatedAt = olderOpenAI.CreatedAt
+	newerOpenAI := testChatProvider("openai")
+	newerOpenAI.ID = uuid.MustParse("00000000-0000-0000-0000-000000000003")
+	newerOpenAI.CreatedAt = time.Unix(2, 0).UTC()
+	newerOpenAI.UpdatedAt = newerOpenAI.CreatedAt
+	store := &stubChatConfigStore{
+		getEnabledChatProviders: func(context.Context) ([]database.ChatProvider, error) {
+			return []database.ChatProvider{newerOpenAI, anthropic, olderOpenAI}, nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	providers, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []database.ChatProvider{anthropic, olderOpenAI, newerOpenAI}, providers)
+}
+
 func TestConfigCache_EnabledProviders_TTLExpiry(t *testing.T) {
 	t.Parallel()
 
