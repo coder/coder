@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { type FC, useId } from "react";
+import { type FC, useId, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
@@ -7,6 +7,14 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -84,6 +92,9 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	const groupAutocompleteId = useId();
 	const groupAmountId = useId();
 	const isEditing = editingGroupOverride !== null;
+	const [pendingDeleteGroupId, setPendingDeleteGroupId] = useState<
+		string | null
+	>(null);
 
 	return (
 		<section className="space-y-4">
@@ -136,7 +147,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 												size="sm"
 												type="button"
 												onClick={() =>
-													void onDeleteGroupOverride(override.group_id)
+													setPendingDeleteGroupId(override.group_id)
 												}
 												disabled={deletePending || upsertPending || isEditing}
 											>
@@ -287,6 +298,43 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 					</p>
 				)}
 			</div>
+
+			<Dialog
+				open={pendingDeleteGroupId !== null}
+				onOpenChange={(open) => !open && setPendingDeleteGroupId(null)}
+			>
+				<DialogContent variant="destructive">
+					<DialogHeader>
+						<DialogTitle>Delete group override</DialogTitle>
+						<DialogDescription>
+							Are you sure you want to delete this group limit override? This
+							action is irreversible.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setPendingDeleteGroupId(null)}
+							disabled={deletePending}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant="destructive"
+							onClick={() => {
+								if (pendingDeleteGroupId) {
+									void onDeleteGroupOverride(pendingDeleteGroupId);
+									setPendingDeleteGroupId(null);
+								}
+							}}
+							disabled={deletePending}
+						>
+							{deletePending && <Spinner className="h-4 w-4" loading />}
+							Delete override
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</section>
 	);
 };
