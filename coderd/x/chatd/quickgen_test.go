@@ -332,7 +332,9 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			require.Contains(t, prompt, "The user's primary objective was:")
 			require.Contains(t, prompt, "Requirements:")
 			require.Contains(t, prompt, "- Output a short title of 2-8 words.")
-			require.Contains(t, prompt, "- Output ONLY the title - nothing else.")
+			require.Contains(t, prompt, "Never describe your role, title generation itself")
+			require.Contains(t, prompt, `Bad outputs: "I am a title generator", "Testing title generation", "I am a title generator I don't have any tools".`)
+			require.Contains(t, prompt, "- Output ONLY the title, nothing else.")
 
 			if tt.wantConversationSample {
 				require.Contains(t, prompt, "Conversation sample:")
@@ -351,6 +353,189 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_titleGenerationPrompt_IncludesMetaBadExamples(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, titleGenerationPrompt, "Never describe your role, title generation itself")
+	require.Contains(t, titleGenerationPrompt, "\"I am a title generator\"")
+	require.Contains(t, titleGenerationPrompt, "\"Testing title generation\"")
+	require.Contains(t, titleGenerationPrompt, "\"I am a title generator I don't have any tools\"")
+}
+
+func Test_generateTitle_RejectsMetaOutputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  string
+		output string
+	}{
+		{
+			name:   "rejects role parroting",
+			input:  "test",
+			output: "I am a title generator",
+		},
+		{
+			name:   "rejects title generation phrase when user did not ask about it",
+			input:  "test",
+			output: "Testing title generation",
+		},
+		{
+			name:   "rejects tool disclaimer",
+			input:  "what tools do you have",
+			output: "I am a title generator I don't have any tools",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := &stubModel{
+				generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+					return &fantasy.Response{
+						Content: fantasy.ResponseContent{
+							fantasy.TextContent{Text: tt.output},
+						},
+					}, nil
+				},
+			}
+
+			_, err := generateTitle(context.Background(), model, tt.input)
+			require.ErrorContains(t, err, "generated title was invalid")
+		})
+	}
+}
+
+func Test_generateTitle_AllowsTitleGenerationTopicWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  string
+		output string
+		want   string
+	}{
+		{
+			name:   "allows title generation phrasing for title generation bugs",
+			input:  "debug title generation bug in short prompts",
+			output: "Debug title generation bug",
+			want:   "Debug title generation bug",
+		},
+		{
+			name:   "allows title generator phrasing for title generator bugs",
+			input:  "fix title generator prompt handling",
+			output: "Fix title generator prompts",
+			want:   "Fix title generator prompts",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := &stubModel{
+				generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+					return &fantasy.Response{
+						Content: fantasy.ResponseContent{
+							fantasy.TextContent{Text: tt.output},
+						},
+					}, nil
+				},
+			}
+
+			title, err := generateTitle(context.Background(), model, tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, title)
+		})
+	}
+}
+
+func Test_generateTitle_AllowsValidIVerbTitles(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		input  string
+		output string
+	}{
+		{input: "implement oauth device flow", output: "Implement OAuth device flow"},
+		{input: "investigate flaky test auth timeout", output: "Investigate flaky auth timeout"},
+		{input: "improve error handling for title generation", output: "Improve title generation errors"},
+	} {
+		tt := tt
+		t.Run(tt.output, func(t *testing.T) {
+			t.Parallel()
+
+			model := &stubModel{
+				generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+					return &fantasy.Response{
+						Content: fantasy.ResponseContent{
+							fantasy.TextContent{Text: tt.output},
+						},
+					}, nil
+				},
+			}
+
+			title, err := generateTitle(context.Background(), model, tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.output, title)
+		})
+	}
+}
+
+func Test_generateTitle_RejectsAdditionalToolDisclaimers(t *testing.T) {
+	t.Parallel()
+
+	for _, output := range []string{
+		"No tools available",
+		"Cannot access tools",
+		"Do not have any tools",
+		"Don't have tools",
+		"Unable to access tools",
+		"Can't use tools",
+		"Have no tools",
+	} {
+		output := output
+		t.Run(output, func(t *testing.T) {
+			t.Parallel()
+
+			model := &stubModel{
+				generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+					return &fantasy.Response{
+						Content: fantasy.ResponseContent{
+							fantasy.TextContent{Text: output},
+						},
+					}, nil
+				},
+			}
+
+			_, err := generateTitle(context.Background(), model, "what tools do you have")
+			require.ErrorContains(t, err, "generated title was invalid")
+		})
+	}
+}
+
+func Test_generateTitle_RejectsTitleGeneratorWithoutRelevantContext(t *testing.T) {
+	t.Parallel()
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Fix title generator prompts"},
+				},
+			}, nil
+		},
+	}
+
+	_, err := generateTitle(
+		context.Background(),
+		model,
+		"debug code generator prompt handling",
+	)
+	require.ErrorContains(t, err, "generated title was invalid")
 }
 
 func Test_generateManualTitle_UsesTimeout(t *testing.T) {
@@ -468,6 +653,75 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 	require.Equal(t, int64(11), usage.InputTokens)
 	require.Equal(t, int64(7), usage.OutputTokens)
 	require.Equal(t, int64(18), usage.TotalTokens)
+}
+
+func Test_generateManualTitle_RejectsMetaOutput(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("what tools do you have"),
+		),
+	}
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "I am a title generator I don't have any tools"},
+				},
+				Usage: fantasy.Usage{
+					InputTokens:  11,
+					OutputTokens: 9,
+					TotalTokens:  20,
+				},
+			}, nil
+		},
+	}
+
+	_, usage, err := generateManualTitle(
+		context.Background(),
+		messages,
+		model,
+	)
+	require.ErrorContains(t, err, "generated title was invalid")
+	require.Equal(t, int64(11), usage.InputTokens)
+	require.Equal(t, int64(9), usage.OutputTokens)
+	require.Equal(t, int64(20), usage.TotalTokens)
+}
+
+func Test_generateManualTitle_AllowsTitleGeneratorTopicWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("fix title generator prompt handling"),
+		),
+	}
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Fix title generator prompts"},
+				},
+			}, nil
+		},
+	}
+
+	title, _, err := generateManualTitle(
+		context.Background(),
+		messages,
+		model,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Fix title generator prompts", title)
 }
 
 func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
