@@ -2871,9 +2871,20 @@ func (p *Server) Subscribe(
 					continue
 				}
 				if hasPubsub {
-					// Only forward message_part events from local
-					// (durable events come via pubsub + cache).
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+					// Forward transient events from local.
+					// Durable events (messages, queue updates)
+					// come via pubsub + cache.  Status is
+					// included alongside message_part because
+					// both travel through the same ordered
+					// channel: publishStatus is called before
+					// the first message_part, so FIFO delivery
+					// guarantees the frontend sees
+					// status=running before any content.
+					// Pubsub will deliver a duplicate status
+					// later; the frontend deduplicates it
+					// (setChatStatus is idempotent).
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart ||
+						event.Type == codersdk.ChatStreamEventTypeStatus {
 						select {
 						case <-mergedCtx.Done():
 							return
