@@ -1,17 +1,17 @@
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { TableCell, TableRow } from "components/Table/Table";
+import { ChevronRightIcon } from "lucide-react";
+import type { FC } from "react";
+import type { AIBridgeSession } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ChevronRightIcon } from "lucide-react";
-import { AIBridgeClientIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
-import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
-import type { FC } from "react";
-import type { AIBridgeSession } from "#/api/typesGenerated";
+} from "#/components/Tooltip/Tooltip";
+import { AIBridgeClientIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
+import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName, getProviderIconName } from "../utils";

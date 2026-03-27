@@ -1,11 +1,11 @@
 import { ExternalLinkIcon } from "lucide-react";
-import {
-	type UseDesktopConnectionResult,
-	useDesktopConnection,
-} from "pages/AgentsPage/hooks/useDesktopConnection";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	type UseDesktopConnectionResult,
+	useDesktopConnection,
+} from "#/pages/AgentsPage/hooks/useDesktopConnection";
 
 /** Default aspect ratio used before the remote framebuffer size is known. */
 const DEFAULT_ASPECT = "16 / 9";

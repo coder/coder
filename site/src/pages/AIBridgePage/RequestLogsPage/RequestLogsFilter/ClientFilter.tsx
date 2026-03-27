@@ -1,10 +1,10 @@
-import { API } from "api/api";
-import { ComboboxInput } from "components/Combobox/Combobox";
+import { API } from "#/api/api";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "components/Filter/menu";
-import { SelectFilter } from "components/Filter/SelectFilter";
+} from "#/components/Filter/menu";
+import { SelectFilter } from "#/components/Filter/SelectFilter";
 import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
 
 export const useClientFilterMenu = ({

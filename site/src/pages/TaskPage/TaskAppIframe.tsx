@@ -1,4 +1,3 @@
-import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { type FC, type HTMLProps, useRef } from "react";
 import { Link as RouterLink } from "react-router";
@@ -11,6 +10,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useProxy } from "#/contexts/ProxyContext";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import type { WorkspaceAppWithAgent } from "#/modules/tasks/apps";
 import { cn } from "#/utils/cn";

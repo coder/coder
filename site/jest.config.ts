@@ -34,7 +34,7 @@ module.exports = {
 			testRegex: "(/__tests__/.*|(\\.|/)(jest))\\.tsx?$",
 			testPathIgnorePatterns: ["/node_modules/", "/e2e/"],
 			transformIgnorePatterns: [],
-			moduleDirectories: ["node_modules", "<rootDir>/src"],
+			moduleDirectories: ["node_modules"],
 			moduleNameMapper: {
 				"\\.css$": "<rootDir>/src/testHelpers/styleMock.ts",
 				"^@fontsource": "<rootDir>/src/testHelpers/styleMock.ts",

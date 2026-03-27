@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
-import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { API } from "#/api/api";
+import { defaultSchedule } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { MockTemplate } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { timeZones } from "#/utils/timeZones";

@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import {
 	MockDisplayNameTasks,
 	MockTask,

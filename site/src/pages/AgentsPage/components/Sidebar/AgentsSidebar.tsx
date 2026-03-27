@@ -16,7 +16,6 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
@@ -85,6 +84,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";

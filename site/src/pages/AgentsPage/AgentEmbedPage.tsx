@@ -1,13 +1,13 @@
-import { useAuthContext } from "contexts/auth/AuthProvider";
-import { ProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import { permissionChecks } from "modules/permissions";
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { useAuthContext } from "#/contexts/auth/AuthProvider";
+import { ProxyProvider } from "#/contexts/ProxyContext";
+import { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
+import { permissionChecks } from "#/modules/permissions";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,
