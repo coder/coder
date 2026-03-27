@@ -733,6 +733,43 @@ func TestListChatModels(t *testing.T) {
 		require.True(t, foundModel)
 	})
 
+	t.Run("IncludesEnabledModelsWithoutProviderRow", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		contextLimit := int64(4096)
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-mini-no-provider-row",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		var openAIProvider *codersdk.ChatModelProvider
+		for i := range models.Providers {
+			if models.Providers[i].Provider == "openai" {
+				openAIProvider = &models.Providers[i]
+				break
+			}
+		}
+		require.NotNil(t, openAIProvider)
+
+		foundModel := false
+		for _, model := range openAIProvider.Models {
+			if model.Provider == "openai" && model.Model == "gpt-4o-mini-no-provider-row" {
+				foundModel = true
+				break
+			}
+		}
+		require.True(t, foundModel)
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 
@@ -1561,6 +1598,38 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.Len(t, configs, 1)
 		require.Equal(t, enabledConfig.ID, configs[0].ID)
 		require.True(t, configs[0].Enabled)
+	})
+
+	t.Run("NonAdminIncludesEnabledConfigsWithoutProviderRow", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		contextLimit := int64(4096)
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-non-admin-no-provider-row",
+			DisplayName:  "GPT-4o Non Admin No Provider Row",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		configs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		found := false
+		for _, config := range configs {
+			if config.ID == modelConfig.ID {
+				found = true
+				require.True(t, config.Enabled)
+				break
+			}
+		}
+		require.True(t, found)
 	})
 
 	t.Run("DeserializesLegacyPricingJSON", func(t *testing.T) {

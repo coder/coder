@@ -37,15 +37,6 @@ FROM
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND EXISTS (
-        SELECT
-            1
-        FROM
-            chat_providers cp
-        WHERE
-            cp.provider = cmc.provider
-            AND cp.enabled = TRUE
-    )
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
