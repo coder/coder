@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"slices"
@@ -26,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd"
@@ -3591,6 +3593,85 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("invalid desired instances expression warns and preserves expression", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
+		db, ps := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			JobID:          job.ID,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		const presetName = "preset1"
+		const expression = "unknown_variable"
+
+		err := provisionerdserver.InsertWorkspacePresetsAndParameters(
+			ctx,
+			logger,
+			db,
+			job.ID,
+			templateVersion.ID,
+			[]*sdkproto.Preset{{
+				Name: presetName,
+				Prebuild: &sdkproto.Prebuild{
+					Instances:                  1,
+					DesiredInstancesExpression: expression,
+				},
+			}},
+			time.Now(),
+		)
+		require.NoError(t, err)
+
+		gotPresets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
+		require.NoError(t, err)
+		require.Len(t, gotPresets, 1)
+		require.True(t, gotPresets[0].DesiredInstancesExpression.Valid)
+		require.Equal(t, expression, gotPresets[0].DesiredInstancesExpression.String)
+
+		warns := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelWarn &&
+				e.Message == "invalid desired_instances_expression in preset; expression will be ignored at runtime"
+		})
+		require.Len(t, warns, 1)
+
+		requireFieldValue := func(entry slog.SinkEntry, name string, expected interface{}) {
+			t.Helper()
+			for _, field := range entry.Fields {
+				if field.Name == name {
+					require.Equal(t, expected, field.Value, "field %q value mismatch", name)
+					return
+				}
+			}
+			t.Fatalf("field %q not found in log entry", name)
+		}
+
+		requireFieldContaining := func(entry slog.SinkEntry, name string, expected string) {
+			t.Helper()
+			for _, field := range entry.Fields {
+				if field.Name == name {
+					require.Contains(t, fmt.Sprint(field.Value), expected, "field %q value mismatch", name)
+					return
+				}
+			}
+			t.Fatalf("field %q not found in log entry", name)
+		}
+
+		requireFieldValue(warns[0], "preset_name", presetName)
+		requireFieldValue(warns[0], "expression", expression)
+		requireFieldContaining(warns[0], "error", "invalid target expression")
+	})
 }
 
 func TestInsertWorkspaceResource(t *testing.T) {

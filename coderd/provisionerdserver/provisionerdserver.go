@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/prebuilds/targetexpr"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -2661,19 +2662,20 @@ func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UU
 }
 
 func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger, db database.Store, jobID uuid.UUID, templateVersionID uuid.UUID, protoPresets []*sdkproto.Preset, t time.Time) error {
+	evaluator := targetexpr.NewEvaluator()
 	for _, preset := range protoPresets {
 		logger.Info(ctx, "inserting template import job preset",
 			slog.F("job_id", jobID.String()),
 			slog.F("preset_name", preset.Name),
 		)
-		if err := InsertWorkspacePresetAndParameters(ctx, db, templateVersionID, preset, t); err != nil {
+		if err := InsertWorkspacePresetAndParameters(ctx, logger, evaluator, db, templateVersionID, preset, t); err != nil {
 			return xerrors.Errorf("insert workspace preset: %w", err)
 		}
 	}
 	return nil
 }
 
-func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
+func InsertWorkspacePresetAndParameters(ctx context.Context, logger slog.Logger, evaluator targetexpr.Evaluator, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
 		var (
 			desiredInstances           sql.NullInt32
@@ -2701,6 +2703,16 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 				schedulingEnabled = true
 				schedulingTimezone = protoPreset.Prebuild.Scheduling.Timezone
 				prebuildSchedules = protoPreset.Prebuild.Scheduling.Schedule
+			}
+		}
+
+		if desiredInstancesExpression.Valid {
+			if err := evaluator.Validate(desiredInstancesExpression.String); err != nil {
+				logger.Warn(ctx, "invalid desired_instances_expression in preset; expression will be ignored at runtime",
+					slog.F("preset_name", protoPreset.Name),
+					slog.F("expression", desiredInstancesExpression.String),
+					slog.Error(err),
+				)
 			}
 		}
 
