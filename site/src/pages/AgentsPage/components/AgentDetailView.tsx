@@ -624,7 +624,11 @@ const ScrollAnchoredContainer: FC<{
 	// scroll reaches its destination or the user actively interrupts.
 	const isRestoringScrollRef = useRef(false);
 	const cancelPendingPinsRef = useRef<(() => void) | null>(null);
-	const isTouchingRef = useRef(false);
+	// Guard counter: positive while one or more touch contacts are active.
+	// Prevents ResizeObserver callbacks from snapping scroll to bottom
+	// during mobile URL bar show/hide, which triggers container resize
+	// events while the user's finger is still on the screen.
+	const activeTouchCountRef = useRef(0);
 	useLayoutEffect(() => {
 		isFetchingRef.current = isFetchingMoreMessages;
 		if (isFetchingMoreMessages) {
@@ -843,7 +847,7 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (autoScrollRef.current && !isTouchingRef.current) {
+			if (autoScrollRef.current && activeTouchCountRef.current === 0) {
 				scheduleBottomPin();
 				return;
 			}
@@ -894,7 +898,7 @@ const ScrollAnchoredContainer: FC<{
 			if (Math.abs(delta) < 1 || !autoScrollRef.current) {
 				return;
 			}
-			if (isTouchingRef.current) {
+			if (activeTouchCountRef.current > 0) {
 				return;
 			}
 
@@ -973,18 +977,23 @@ const ScrollAnchoredContainer: FC<{
 		};
 
 		const handleTouchStart = () => {
-			isTouchingRef.current = true;
+			activeTouchCountRef.current++;
 			handleUserInterrupt();
 		};
 
 		const handleTouchEnd = () => {
-			isTouchingRef.current = false;
-			// Re-evaluate because momentum scrolling may carry the user
-			// away from the bottom after touchstart initially saw them as
-			// near the bottom.
-			if (!isNearBottom(container)) {
-				autoScrollRef.current = false;
-				cancelPendingPinsRef.current?.();
+			activeTouchCountRef.current = Math.max(
+				0,
+				activeTouchCountRef.current - 1,
+			);
+			if (activeTouchCountRef.current === 0) {
+				// Re-evaluate because momentum scrolling may carry the
+				// user away from the bottom after touchstart initially
+				// saw them as near the bottom.
+				if (!isNearBottom(container)) {
+					autoScrollRef.current = false;
+					cancelPendingPinsRef.current?.();
+				}
 			}
 		};
 
@@ -998,15 +1007,29 @@ const ScrollAnchoredContainer: FC<{
 		container.addEventListener("touchend", handleTouchEnd, {
 			passive: true,
 		});
+		// touchcancel fires when the OS interrupts a gesture (e.g.,
+		// incoming call, system gesture). Must also decrement the
+		// touch counter to avoid a stuck positive value.
 		container.addEventListener("touchcancel", handleTouchEnd, {
 			passive: true,
 		});
+		// Reset touch counter when page is hidden (e.g., tab switch).
+		// The browser may not fire touchend/touchcancel when the user
+		// switches away mid-gesture, which would leave the counter
+		// positive and permanently block ResizeObserver pins.
+		const handleVisibilityChange = () => {
+			if (document.hidden) {
+				activeTouchCountRef.current = 0;
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibilityChange);
 		return () => {
 			container.removeEventListener("scroll", handleScroll);
 			container.removeEventListener("wheel", handleUserInterrupt);
 			container.removeEventListener("touchstart", handleTouchStart);
 			container.removeEventListener("touchend", handleTouchEnd);
 			container.removeEventListener("touchcancel", handleTouchEnd);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 			if (rafId !== null) {
 				cancelAnimationFrame(rafId);
 			}
