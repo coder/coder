@@ -79,7 +79,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
-							<InfoIcon className="ml-2 h-4 w-4 text-content-secondary" />
+							<InfoIcon className="ml-2 text-content-secondary size-icon-sm" />
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && <Loader className="my-4" />}

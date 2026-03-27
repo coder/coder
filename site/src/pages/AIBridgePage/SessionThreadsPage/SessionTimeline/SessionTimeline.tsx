@@ -21,13 +21,14 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
@@ -481,22 +482,32 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				{/* row 3/4: AI Governance tooltip */}
 				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2 pt-1">
 					AI Governance
-					<Popover>
-						<PopoverTrigger asChild>
-							<InfoIcon className="size-icon-sm p-0.5 ml-1" />
-						</PopoverTrigger>
-						<PopoverContent className="max-w-64" align="end" side="top">
-							<div className="text-sm text-content-primary font-medium mb-1">
-								Controls and logs AI tooling so AI use stays secure, compliant,
-								and visible.
-							</div>
-							<div className="text-sm text-content-secondary">
-								<Link href={docs("/ai-coder/ai-governance")} target="_blank">
-									More about AI Governance
-								</Link>
-							</div>
-						</PopoverContent>
-					</Popover>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
+							</TooltipTrigger>
+							<TooltipContent
+								className="max-w-64 text-xs"
+								align="end"
+								side="top"
+							>
+								<div className="text-content-secondary font-medium mb-1">
+									Controls and logs AI tooling so AI use stays secure,
+									compliant, and visible.
+								</div>
+								<div>
+									<Link
+										href={docs("/ai-coder/ai-governance")}
+										target="_blank"
+										className="text-xs"
+									>
+										More about AI Governance
+									</Link>
+								</div>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 
 				{/* row 4:  */}
