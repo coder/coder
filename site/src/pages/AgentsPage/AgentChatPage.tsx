@@ -1034,6 +1034,8 @@ const AgentChatPage: FC = () => {
 			persistedError={persistedError}
 			isArchived={isArchived}
 			hasWorkspace={Boolean(workspaceId)}
+			workspaceAgent={workspaceAgent}
+			workspace={workspace}
 			store={store}
 			initialInputValue={initialInputValue}
 			editing={editing}
