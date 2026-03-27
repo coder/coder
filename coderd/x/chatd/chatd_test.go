@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -2150,6 +2151,162 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 	}
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include start_workspace tool output")
+}
+
+func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+	toolsByCall := make([][]string, 0, 2)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Stopped workspace regression")
+		}
+
+		names := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			names = append(names, tool.Function.Name)
+		}
+
+		streamedCallsMu.Lock()
+		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		toolsByCall = append(toolsByCall, names)
+		streamedCallsMu.Unlock()
+
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("execute", `{"command":"echo hi"}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("The workspace is unavailable. Start it before retrying workspace tools.")...,
+		)
+	})
+
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	inactive := newTestServer(t, db, ps, uuid.New())
+	chat, err := inactive.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "stopped-workspace-regression",
+		ModelConfigID: model.ID,
+		WorkspaceID:   uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Run echo hi in the workspace."),
+		},
+	})
+	require.NoError(t, err)
+
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
+	require.NoError(t, err)
+	chat, err = db.UpdateChatBuildAgentBinding(ctx, database.UpdateChatBuildAgentBindingParams{
+		ID:      chat.ID,
+		BuildID: uuid.NullUUID{UUID: build.ID, Valid: true},
+		AgentID: uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+		Transition:  database.WorkspaceTransitionStop,
+		BuildNumber: 2,
+	}).Do()
+
+	var dialCalls atomic.Int32
+	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			dialCalls.Add(1)
+			require.Equal(t, dbAgent.ID, agentID)
+			<-ctx.Done()
+			return nil, nil, ctx.Err()
+		}
+	})
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	require.EqualValues(t, 1, dialCalls.Load())
+	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+
+	streamedCallsMu.Lock()
+	recordedCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	recordedTools := append([][]string(nil), toolsByCall...)
+	streamedCallsMu.Unlock()
+	require.GreaterOrEqual(t, len(recordedCalls), 2)
+	require.NotEmpty(t, recordedTools)
+	require.Contains(t, recordedTools[0], "execute")
+	require.Contains(t, recordedTools[0], "start_workspace")
+
+	var foundUnavailableToolResult bool
+	for _, message := range recordedCalls[1] {
+		if message.Role != "tool" {
+			continue
+		}
+		if strings.Contains(message.Content, "chat has no workspace agent") {
+			foundUnavailableToolResult = true
+			break
+		}
+		if !json.Valid([]byte(message.Content)) {
+			continue
+		}
+		var toolResult map[string]any
+		if err := json.Unmarshal([]byte(message.Content), &toolResult); err != nil {
+			continue
+		}
+		errMsg, _ := toolResult["error"].(string)
+		outputMsg, _ := toolResult["output"].(string)
+		if strings.Contains(errMsg, "chat has no workspace agent") ||
+			strings.Contains(outputMsg, "chat has no workspace agent") {
+			foundUnavailableToolResult = true
+			break
+		}
+	}
+	require.True(t, foundUnavailableToolResult,
+		"expected the second streamed model call to include the unavailable workspace tool result")
+
+	var toolMessage *database.ChatMessage
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for i := range messages {
+			if messages[i].Role == database.ChatMessageRoleTool {
+				toolMessage = &messages[i]
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	require.NotNil(t, toolMessage)
+
+	parts, err := chatprompt.ParseContent(*toolMessage)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+	require.Equal(t, "execute", parts[0].ToolName)
+	require.True(t, parts[0].IsError)
+	require.Contains(t, string(parts[0].Result), "chat has no workspace agent")
 }
 
 func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
