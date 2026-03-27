@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	coreprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -1964,6 +1966,115 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions[0].BackoffUntil).Truncate(backoffInterval))
 }
 
+func TestSnapshotStateLoadsPrebuildEventCounts(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	clock := quartz.NewMock(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval: serpent.Duration(time.Second),
+	}
+
+	db, ps := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	userID := uuid.New()
+	dbgen.User(t, db, database.User{ID: userID})
+	org, template := setupTestDBTemplate(t, db, userID, false)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, userID, template.ID)
+	preset := setupTestDBPreset(t, db, templateVersionID, 0, "event-counts")
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	insertPrebuildEvent(systemCtx, t, db, preset.ID, coreprebuilds.PrebuildEventClaimSucceeded, clock.Now().Add(-3*time.Minute))
+	insertPrebuildEvent(systemCtx, t, db, preset.ID, coreprebuilds.PrebuildEventClaimSucceeded, clock.Now().Add(-70*time.Minute))
+	insertPrebuildEvent(systemCtx, t, db, preset.ID, coreprebuilds.PrebuildEventClaimMissed, clock.Now().Add(-20*time.Minute))
+
+	snapshot, err := reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+
+	presetSnapshot, err := snapshot.FilterByPreset(preset.ID)
+	require.NoError(t, err)
+	require.Equal(t, coreprebuilds.PrebuildEventCounts{
+		ClaimSucceeded: coreprebuilds.WindowedCounts{
+			Count5m:   1,
+			Count10m:  1,
+			Count30m:  1,
+			Count60m:  1,
+			Count120m: 2,
+		},
+		ClaimMissed: coreprebuilds.WindowedCounts{
+			Count30m:  1,
+			Count60m:  1,
+			Count120m: 1,
+		},
+	}, presetSnapshot.EventCounts)
+}
+
+func TestReconcileAllCleansUpOldPrebuildEvents(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	clock := quartz.NewMock(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval: serpent.Duration(time.Second),
+	}
+
+	db, ps := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	userID := uuid.New()
+	dbgen.User(t, db, database.User{ID: userID})
+	org, template := setupTestDBTemplate(t, db, userID, false)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, userID, template.ID)
+	preset := setupTestDBPreset(t, db, templateVersionID, 0, "cleanup-events")
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	insertPrebuildEvent(systemCtx, t, db, preset.ID, coreprebuilds.PrebuildEventClaimSucceeded, clock.Now().Add(-8*24*time.Hour))
+	insertPrebuildEvent(systemCtx, t, db, preset.ID, coreprebuilds.PrebuildEventClaimSucceeded, clock.Now().Add(-6*24*time.Hour))
+
+	allTimeParams := database.GetPrebuildEventCountsParams{
+		Since5m:   clock.Now().Add(-10 * 24 * time.Hour),
+		Since10m:  clock.Now().Add(-10 * 24 * time.Hour),
+		Since30m:  clock.Now().Add(-10 * 24 * time.Hour),
+		Since60m:  clock.Now().Add(-10 * 24 * time.Hour),
+		Since120m: clock.Now().Add(-10 * 24 * time.Hour),
+	}
+	countsBefore, err := db.GetPrebuildEventCounts(systemCtx, allTimeParams)
+	require.NoError(t, err)
+	require.Len(t, countsBefore, 1)
+	require.EqualValues(t, 2, countsBefore[0].Count120m)
+
+	_, err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	countsAfter, err := db.GetPrebuildEventCounts(systemCtx, allTimeParams)
+	require.NoError(t, err)
+	require.Len(t, countsAfter, 1)
+	require.EqualValues(t, 1, countsAfter[0].Count120m)
+}
+
 func TestReconciliationLock(t *testing.T) {
 	t.Parallel()
 
@@ -3190,6 +3301,22 @@ func setupTestDBPresetWithScheduling(
 		Values:                  []string{"test"},
 	})
 	return preset
+}
+
+func insertPrebuildEvent(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	presetID uuid.UUID,
+	eventType coreprebuilds.PrebuildEventType,
+	createdAt time.Time,
+) {
+	t.Helper()
+	require.NoError(t, db.InsertPrebuildEvent(ctx, database.InsertPrebuildEventParams{
+		PresetID:  presetID,
+		EventType: string(eventType),
+		CreatedAt: createdAt,
+	}))
 }
 
 func setupTestDBPrebuild(

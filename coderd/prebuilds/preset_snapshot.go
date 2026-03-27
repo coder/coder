@@ -51,6 +51,7 @@ type PresetSnapshot struct {
 	InProgress        []database.CountInProgressPrebuildsRow
 	PendingCount      int
 	Backoff           *database.GetPresetsBackoffRow
+	EventCounts       PrebuildEventCounts
 	IsHardLimited     bool
 	clock             quartz.Clock
 	logger            slog.Logger
@@ -64,6 +65,7 @@ func NewPresetSnapshot(
 	inProgress []database.CountInProgressPrebuildsRow,
 	pendingCount int,
 	backoff *database.GetPresetsBackoffRow,
+	eventCounts PrebuildEventCounts,
 	isHardLimited bool,
 	clock quartz.Clock,
 	logger slog.Logger,
@@ -76,6 +78,7 @@ func NewPresetSnapshot(
 		InProgress:        inProgress,
 		PendingCount:      pendingCount,
 		Backoff:           backoff,
+		EventCounts:       eventCounts,
 		IsHardLimited:     isHardLimited,
 		clock:             clock,
 		logger:            logger,

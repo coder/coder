@@ -20,6 +20,7 @@ type GlobalSnapshot struct {
 	PrebuildsInProgress   []database.CountInProgressPrebuildsRow
 	PendingPrebuilds      []database.CountPendingNonActivePrebuildsRow
 	Backoffs              []database.GetPresetsBackoffRow
+	EventCounts           map[uuid.UUID]PrebuildEventCounts
 	HardLimitedPresetsMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
 	clock                 quartz.Clock
 	logger                slog.Logger
@@ -32,6 +33,7 @@ func NewGlobalSnapshot(
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
 	pendingPrebuilds []database.CountPendingNonActivePrebuildsRow,
 	backoffs []database.GetPresetsBackoffRow,
+	eventCountRows []database.GetPrebuildEventCountsRow,
 	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
 	clock quartz.Clock,
 	logger slog.Logger,
@@ -41,6 +43,20 @@ func NewGlobalSnapshot(
 		hardLimitedPresetsMap[preset.PresetID] = preset
 	}
 
+	eventCounts := make(map[uuid.UUID]PrebuildEventCounts, len(eventCountRows))
+	for _, row := range eventCountRows {
+		counts := eventCounts[row.PresetID]
+		switch PrebuildEventType(row.EventType) {
+		case PrebuildEventClaimSucceeded:
+			counts.ClaimSucceeded = newWindowedCounts(row)
+		case PrebuildEventClaimMissed:
+			counts.ClaimMissed = newWindowedCounts(row)
+		default:
+			continue
+		}
+		eventCounts[row.PresetID] = counts
+	}
+
 	return GlobalSnapshot{
 		Presets:               presets,
 		PrebuildSchedules:     prebuildSchedules,
@@ -48,6 +64,7 @@ func NewGlobalSnapshot(
 		PrebuildsInProgress:   prebuildsInProgress,
 		PendingPrebuilds:      pendingPrebuilds,
 		Backoffs:              backoffs,
+		EventCounts:           eventCounts,
 		HardLimitedPresetsMap: hardLimitedPresetsMap,
 		clock:                 clock,
 		logger:                logger,
@@ -100,6 +117,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	}
 
 	_, isHardLimited := s.HardLimitedPresetsMap[preset.ID]
+	eventCounts := s.EventCounts[preset.ID]
 
 	presetSnapshot := NewPresetSnapshot(
 		preset,
@@ -109,6 +127,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		inProgress,
 		pendingCount,
 		backoffPtr,
+		eventCounts,
 		isHardLimited,
 		s.clock,
 		s.logger,

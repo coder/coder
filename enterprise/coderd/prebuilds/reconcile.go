@@ -416,6 +416,14 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 		c.reportHardLimitedPresets(snapshot)
 		c.reportValidationFailedPresets(snapshot)
 
+		// Best-effort cleanup of old prebuild events. This runs under the
+		// advisory lock so only one replica performs retention cleanup.
+		cleanupCutoff := c.clock.Now().Add(-7 * 24 * time.Hour)
+		// nolint:gocritic // System context is required for prebuild event cleanup.
+		if err := c.store.DeleteOldPrebuildEvents(dbauthz.AsSystemRestricted(ctx), cleanupCutoff); err != nil {
+			logger.Warn(ctx, "failed to clean up old prebuild events", slog.Error(err))
+		}
+
 		if len(snapshot.Presets) == 0 {
 			logger.Debug(ctx, "no templates found with prebuilds configured")
 			return nil
@@ -596,7 +604,19 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get pending prebuilds: %w", err)
 		}
 
-		presetsBackoff, err := db.GetPresetsBackoff(ctx, c.clock.Now().Add(-c.cfg.ReconciliationBackoffLookback.Value()))
+		now := c.clock.Now()
+		eventCounts, err := db.GetPrebuildEventCounts(ctx, database.GetPrebuildEventCountsParams{
+			Since5m:   now.Add(-5 * time.Minute),
+			Since10m:  now.Add(-10 * time.Minute),
+			Since30m:  now.Add(-30 * time.Minute),
+			Since60m:  now.Add(-60 * time.Minute),
+			Since120m: now.Add(-120 * time.Minute),
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to get prebuild event counts: %w", err)
+		}
+
+		presetsBackoff, err := db.GetPresetsBackoff(ctx, now.Add(-c.cfg.ReconciliationBackoffLookback.Value()))
 		if err != nil {
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
 		}
@@ -613,6 +633,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			allPrebuildsInProgress,
 			allPendingPrebuilds,
 			presetsBackoff,
+			eventCounts,
 			hardLimitedPresets,
 			c.clock,
 			c.logger,
