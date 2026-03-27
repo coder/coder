@@ -842,16 +842,16 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
+			if (autoScrollRef.current) {
+				scheduleBottomPin();
+				return;
+			}
+
 			// Skip compensation during reflow. Width changes indicate the
 			// height delta is distributed through the transcript rather than
 			// appended at the bottom, so applying the full delta would
 			// overcompensate and jump the user.
 			if (widthChanged) {
-				return;
-			}
-
-			if (autoScrollRef.current) {
-				scheduleBottomPin();
 				return;
 			}
 

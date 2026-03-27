@@ -194,8 +194,7 @@ const AgentEmbedPage: FC = () => {
 	// instead of creating its own.
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-	// Listen for parent frame commands: theme changes and
-	// scroll-to-bottom requests.
+	// Listen for parent frame commands (e.g. theme changes).
 	useEffect(() => {
 		const parentWindow = window.parent;
 		const handler = (event: MessageEvent) => {
@@ -205,14 +204,6 @@ const AgentEmbedPage: FC = () => {
 			const theme = getThemeFromMessage(event.data);
 			if (theme) {
 				applyEmbedTheme(theme);
-				return;
-			}
-			if (event.data?.type === "coder:scroll-to-bottom") {
-				// Normal flow: scroll to the bottom of the transcript.
-				if (scrollContainerRef.current) {
-					scrollContainerRef.current.scrollTop =
-						scrollContainerRef.current.scrollHeight;
-				}
 			}
 		};
 
