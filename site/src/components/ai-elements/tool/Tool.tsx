@@ -69,6 +69,8 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	mcpServerConfigId?: string;
 	/** Available MCP server configs for icon/name lookup. */
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	/** Human-readable intent extracted from the model's tool-call args. */
+	modelIntent?: string;
 }
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -85,6 +87,7 @@ type ToolRendererProps = {
 	subagentStatusOverrides?: Map<string, string>;
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	modelIntent?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -497,6 +500,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	isError,
 	mcpServerConfigId,
 	mcpServers,
+	modelIntent,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -534,12 +538,18 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 						isRunning={isRunning}
 						serverName={mcpServer?.display_name}
 					/>
-					<ToolLabel
-						name={name}
-						args={args}
-						result={result}
-						mcpSlug={mcpServer?.slug}
-					/>
+					{modelIntent ? (
+						<span className="truncate text-sm text-content-secondary">
+							{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+						</span>
+					) : (
+						<ToolLabel
+							name={name}
+							args={args}
+							result={result}
+							mcpSlug={mcpServer?.slug}
+						/>
+					)}
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -646,6 +656,7 @@ export const Tool = memo(
 		subagentStatusOverrides,
 		mcpServerConfigId,
 		mcpServers,
+		modelIntent,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -676,6 +687,7 @@ export const Tool = memo(
 					subagentStatusOverrides={subagentStatusOverrides}
 					mcpServerConfigId={mcpServerConfigId}
 					mcpServers={mcpServers}
+					modelIntent={modelIntent}
 				/>
 			</div>
 		);

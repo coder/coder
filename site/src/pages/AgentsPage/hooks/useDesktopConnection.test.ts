@@ -3,7 +3,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDesktopConnection } from "./useDesktopConnection";
 
-vi.mock("api/api", () => ({
+vi.mock("#/api/api", () => ({
 	watchChatDesktop: vi.fn(),
 }));
 

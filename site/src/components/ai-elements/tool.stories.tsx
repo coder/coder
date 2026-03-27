@@ -491,11 +491,12 @@ const sampleMCPServers = [
 		tool_deny_list: [],
 		availability: "default_on",
 		enabled: true,
+		model_intent: false,
 		auth_connected: true,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
-] satisfies readonly import("api/typesGenerated").MCPServerConfig[];
+] satisfies readonly import("#/api/typesGenerated").MCPServerConfig[];
 
 export const MCPToolRunning: Story = {
 	args: {
@@ -647,6 +648,53 @@ export const MCPToolNoServer: Story = {
 		const canvas = within(canvasElement);
 		// Falls through to generic wrench icon + raw tool name.
 		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
+	},
+};
+
+export const MCPToolModelIntentRunning: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "running",
+		args: { project: "backend" },
+		modelIntent: "Fetching backend issues from Linear",
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show the model intent label instead of the raw tool name.
+		expect(
+			canvas.getByText("Fetching backend issues from Linear"),
+		).toBeInTheDocument();
+		// Spinner should be visible while running.
+		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+	},
+};
+
+export const MCPToolModelIntentCompleted: Story = {
+	args: {
+		name: "github__create_pull_request",
+		status: "completed",
+		args: { title: "Fix auth flow", base: "main" },
+		result: { url: "https://github.com/org/repo/pull/42" },
+		modelIntent: "creating pull request for auth fix",
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "github",
+				display_name: "GitHub",
+				icon_url:
+					"https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Intent should be capitalized.
+		expect(
+			canvas.getByText("Creating pull request for auth fix"),
+		).toBeInTheDocument();
 	},
 };
 

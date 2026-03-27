@@ -49,6 +49,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	updated_at: oneWeekAgo,
 	archived: false,
 	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 	...overrides,
 });
@@ -704,6 +705,69 @@ export const WithPRStateIcons: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const WithUnreadChats: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unread-1",
+				title: "Unread chat with new activity",
+				has_unread: true,
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "read-1",
+				title: "Already read chat",
+				has_unread: false,
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "unread-2",
+				title: "Another unread chat",
+				has_unread: true,
+				status: "running",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "unread-active",
+				title: "Unread but currently viewed",
+				has_unread: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/unread-active",
+				pathParams: { agentId: "unread-active" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			// Unread indicators should be visible for unread chats
+			// that are NOT the active chat.
+			expect(
+				canvas.getByTestId("unread-indicator-unread-1"),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByTestId("unread-indicator-unread-2"),
+			).toBeInTheDocument();
+		});
+		// Read chat should not have an unread indicator.
+		expect(
+			canvas.queryByTestId("unread-indicator-read-1"),
+		).not.toBeInTheDocument();
+		// Unread chat that IS the active chat should not show
+		// the indicator — the user is already viewing it.
+		expect(
+			canvas.queryByTestId("unread-indicator-unread-active"),
+		).not.toBeInTheDocument();
 	},
 };
 

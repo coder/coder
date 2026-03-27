@@ -1,6 +1,6 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useParams } from "react-router";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AgentSettingsPageView } from "./AgentSettingsPageView";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 

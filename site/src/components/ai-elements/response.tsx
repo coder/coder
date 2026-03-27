@@ -230,6 +230,15 @@ const createComponents = (
 	};
 };
 
+// Precompute component maps for both themes at module scope so
+// every Response instance shares the same stable references.
+// This prevents Streamdown from discarding its cached render
+// tree on each parent re-render.
+const componentsByTheme: Record<FileViewerThemeType, Components> = {
+	light: createComponents("light", fileViewerTheme.light),
+	dark: createComponents("dark", fileViewerTheme.dark),
+};
+
 export const Response = ({
 	className,
 	children,
@@ -241,8 +250,7 @@ export const Response = ({
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
-	const viewerTheme = fileViewerTheme[fileViewerThemeType];
-	const components = createComponents(fileViewerThemeType, viewerTheme);
+	const components = componentsByTheme[fileViewerThemeType];
 
 	return (
 		<div

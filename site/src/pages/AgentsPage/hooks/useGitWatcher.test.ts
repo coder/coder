@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceAgentStatus } from "#/api/typesGenerated";
 import { useGitWatcher } from "./useGitWatcher";
 
-vi.mock("api/api", () => ({
+vi.mock("#/api/api", () => ({
 	watchChatGit: vi.fn(),
 }));
 

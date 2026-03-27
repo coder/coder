@@ -49,6 +49,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	updated_at: oneWeekAgo,
 	archived: false,
 	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 	...overrides,
 });

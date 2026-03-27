@@ -33,6 +33,7 @@ const createServerConfig = (
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
+	model_intent: overrides.model_intent ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -479,7 +480,7 @@ export const EditServerWithCustomHeaders: Story = {
 	},
 };
 
-/** Delete a server with confirmation step. */
+/** Delete a server shows confirmation dialog. */
 export const DeleteServerConfirmation: Story = {
 	beforeEach: () => {
 		setupMCPSpies({
@@ -500,14 +501,15 @@ export const DeleteServerConfirmation: Story = {
 		// Click Delete.
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 
-		// Confirmation should appear.
+		// Confirmation dialog should appear.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this MCP server/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 	},
 };
 
-/** Cancel delete returns to normal form footer. */
+/** Cancel delete closes the dialog. */
 export const DeleteServerCancelled: Story = {
 	beforeEach: () => {
 		setupMCPSpies({
@@ -525,20 +527,17 @@ export const DeleteServerCancelled: Story = {
 
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
-		await body.findByText(/Are you sure/i);
+		await body.findByText(/Are you sure you want to delete this MCP server/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
-		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
-		expect(
-			body.getByRole("button", { name: /Save changes/i }),
-		).toBeInTheDocument();
+		// The dialog should be closed.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 	},
 };
 
-/** Confirm delete calls the API. */
+/** Confirm delete in dialog calls the API. */
 export const DeleteServerConfirmed: Story = {
 	beforeEach: () => {
 		setupMCPSpies({
@@ -556,7 +555,6 @@ export const DeleteServerConfirmed: Story = {
 
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
-		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: /Delete server/i }));
 
 		await waitFor(() => {

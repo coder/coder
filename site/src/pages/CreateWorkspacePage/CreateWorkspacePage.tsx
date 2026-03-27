@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import {
 	type FC,
 	useCallback,
@@ -28,6 +27,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "#/utils/page";

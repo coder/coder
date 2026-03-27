@@ -1,13 +1,13 @@
-import { useAuthContext } from "contexts/auth/AuthProvider";
-import { ProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import { permissionChecks } from "modules/permissions";
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { useAuthContext } from "#/contexts/auth/AuthProvider";
+import { ProxyProvider } from "#/contexts/ProxyContext";
+import { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
+import { permissionChecks } from "#/modules/permissions";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,
@@ -194,8 +194,7 @@ const AgentEmbedPage: FC = () => {
 	// instead of creating its own.
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-	// Listen for parent frame commands: theme changes and
-	// scroll-to-bottom requests.
+	// Listen for parent frame commands (e.g. theme changes).
 	useEffect(() => {
 		const parentWindow = window.parent;
 		const handler = (event: MessageEvent) => {
@@ -205,14 +204,6 @@ const AgentEmbedPage: FC = () => {
 			const theme = getThemeFromMessage(event.data);
 			if (theme) {
 				applyEmbedTheme(theme);
-				return;
-			}
-			if (event.data?.type === "coder:scroll-to-bottom") {
-				// Normal flow: scroll to the bottom of the transcript.
-				if (scrollContainerRef.current) {
-					scrollContainerRef.current.scrollTop =
-						scrollContainerRef.current.scrollHeight;
-				}
 			}
 		};
 

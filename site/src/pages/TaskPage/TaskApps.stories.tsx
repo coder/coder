@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import kebabCase from "lodash/kebabCase";
 import type { Task, Workspace, WorkspaceApp } from "#/api/typesGenerated";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockTask,

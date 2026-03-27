@@ -313,7 +313,14 @@ ORDER BY
 
 -- name: GetChats :many
 SELECT
-    *
+    sqlc.embed(chats),
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
 FROM
     chats
 WHERE
@@ -1132,3 +1139,10 @@ LEFT JOIN LATERAL (
 ) gl ON TRUE
 WHERE u.id = @user_id::uuid
 LIMIT 1;
+
+-- name: UpdateChatLastReadMessageID :exec
+-- Updates the last read message ID for a chat. This is used to track
+-- which messages the owner has seen, enabling unread indicators.
+UPDATE chats
+SET last_read_message_id = @last_read_message_id::bigint
+WHERE id = @id::uuid;

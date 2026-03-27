@@ -16,7 +16,6 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
@@ -85,6 +84,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
@@ -369,6 +369,7 @@ interface ChatTreeContextValue {
 	readonly modelOptions: readonly ModelSelectorOption[];
 	readonly modelConfigs: readonly ChatModelConfig[];
 	readonly chatErrorReasons: Record<string, string>;
+	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
 	readonly isRegeneratingTitle: boolean;
@@ -410,6 +411,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		modelOptions,
 		modelConfigs,
 		chatErrorReasons,
+		activeChatId,
 		isArchiving,
 		archivingChatId,
 		isRegeneratingTitle,
@@ -423,6 +425,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onRegenerateTitle,
 	} = useChatTree();
 	const chatID = chat.id;
+	const isActiveChat = activeChatId === chatID;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
 		visibleChatIDs.has(childID),
 	);
@@ -531,6 +534,9 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									>
 										{chat.title}
 									</span>
+									{chat.has_unread && !isActiveChat && (
+										<span className="sr-only">(unread)</span>
+									)}
 									{isRegeneratingThisChat && (
 										<span className="sr-only" role="status">
 											Regenerating title…
@@ -573,7 +579,15 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					) : (
 						<>
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{shortRelativeTime(chat.updated_at)}
+								{chat.has_unread && !isActiveChat ? (
+									<span
+										className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+										data-testid={`unread-indicator-${chat.id}`}
+										aria-hidden="true"
+									/>
+								) : (
+									shortRelativeTime(chat.updated_at)
+								)}
 							</span>
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
@@ -936,6 +950,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelOptions,
 		modelConfigs,
 		chatErrorReasons,
+		activeChatId,
 		isArchiving,
 		archivingChatId,
 		isRegeneratingTitle,
@@ -950,7 +965,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	};
 
 	const subNavTitle = "Settings";
-
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			{/* ── Panel 1: Chats ── */}

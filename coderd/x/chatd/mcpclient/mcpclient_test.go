@@ -986,3 +986,162 @@ func TestConnectAll_CallToolError(t *testing.T) {
 	assert.True(t, resp.IsError, "response should be flagged as error")
 	assert.Contains(t, resp.Content, "something broke")
 }
+
+func TestModelIntent_Info_WrapsSchema(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("intent-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+
+	// Top-level schema should have model_intent and properties.
+	_, hasModelIntent := info.Parameters["model_intent"]
+	_, hasProperties := info.Parameters["properties"]
+	assert.True(t, hasModelIntent, "schema should contain model_intent")
+	assert.True(t, hasProperties, "schema should contain properties")
+
+	// Required should include both.
+	assert.Contains(t, info.Required, "model_intent")
+	assert.Contains(t, info.Required, "properties")
+
+	// The original "input" parameter should be nested under
+	// properties.properties.
+	propsObj, ok := info.Parameters["properties"].(map[string]any)
+	require.True(t, ok)
+	innerProps, ok := propsObj["properties"].(map[string]any)
+	require.True(t, ok)
+	_, hasInput := innerProps["input"]
+	assert.True(t, hasInput, "original 'input' param should be nested")
+}
+
+func TestModelIntent_Info_NoWrapWhenDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("no-intent", ts.URL)
+	cfg.ModelIntent = false
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+
+	// Original schema should be flat — no model_intent wrapper.
+	_, hasModelIntent := info.Parameters["model_intent"]
+	assert.False(t, hasModelIntent, "schema should NOT contain model_intent")
+	_, hasInput := info.Parameters["input"]
+	assert.True(t, hasInput, "original 'input' param should be at top level")
+}
+
+func TestModelIntent_Run_UnwrapsProperties(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("unwrap-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Correct format: model_intent + properties wrapper.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "unwrap-srv__echo",
+		Input: `{"model_intent":"Testing echo","properties":{"input":"hello"}}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "echo: hello", resp.Content)
+}
+
+func TestModelIntent_Run_UnwrapsFlat(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("flat-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Flat format: model_intent at top level, no properties wrapper.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-2",
+		Name:  "flat-srv__echo",
+		Input: `{"model_intent":"Testing flat","input":"world"}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "echo: world", resp.Content)
+}
+
+func TestModelIntent_Run_PassthroughWhenDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("pass-srv", ts.URL)
+	cfg.ModelIntent = false
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Without model_intent, input is passed through unchanged.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-3",
+		Name:  "pass-srv__echo",
+		Input: `{"input":"direct"}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "echo: direct", resp.Content)
+}
+
+func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("bad-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Malformed JSON should not panic — the error is returned
+	// from the JSON unmarshal in Run(), not from unwrap.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-bad",
+		Name:  "bad-srv__echo",
+		Input: `not-json`,
+	})
+	require.NoError(t, err)
+	assert.True(t, resp.IsError, "malformed input should produce an error response")
+}

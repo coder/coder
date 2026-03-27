@@ -191,7 +191,7 @@ const CreateTemplateGalleryPage = lazy(
 	() => import("./pages/CreateTemplateGalleryPage/CreateTemplateGalleryPage"),
 );
 const StarterTemplatePage = lazy(
-	() => import("pages/StarterTemplatePage/StarterTemplatePage"),
+	() => import("./pages/StarterTemplatePage/StarterTemplatePage"),
 );
 const CreateTemplatePage = lazy(
 	() => import("./pages/CreateTemplatePage/CreateTemplatePage"),
