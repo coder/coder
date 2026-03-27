@@ -1519,7 +1519,7 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
-func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByIDsRow) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1571,6 +1571,19 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
+	if len(files) > 0 {
+		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
+		for _, row := range files {
+			chat.Files = append(chat.Files, codersdk.ChatFileMetadata{
+				ID:             row.ID,
+				OwnerID:        row.OwnerID,
+				OrganizationID: row.OrganizationID,
+				Name:           row.Name,
+				MimeType:       row.Mimetype,
+				CreatedAt:      row.CreatedAt,
+			})
+		}
+	}
 	return chat
 }
 
@@ -1582,11 +1595,11 @@ func Chats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.Ch
 	for i, c := range chats {
 		diffStatus, ok := diffStatusesByChatID[c.ID]
 		if ok {
-			result[i] = Chat(c, &diffStatus)
+			result[i] = Chat(c, &diffStatus, nil)
 			continue
 		}
 
-		result[i] = Chat(c, nil)
+		result[i] = Chat(c, nil, nil)
 		if diffStatusesByChatID != nil {
 			emptyDiffStatus := ChatDiffStatus(c.ID, nil)
 			result[i].DiffStatus = &emptyDiffStatus
@@ -1676,18 +1689,4 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 	result.StaleAt = &staleAt
 
 	return result
-}
-
-// ChatFileMetadata converts a slice of GetChatFileMetadataByIDsRow to a slice of codersdk.ChatFileMetadata.
-func ChatFileMetadata(rows ...database.GetChatFileMetadataByIDsRow) []codersdk.ChatFileMetadata {
-	files := make([]codersdk.ChatFileMetadata, 0, len(rows))
-	for _, row := range rows {
-		files = append(files, codersdk.ChatFileMetadata{
-			ID:        row.ID,
-			Name:      row.Name,
-			MimeType:  row.Mimetype,
-			CreatedAt: row.CreatedAt,
-		})
-	}
-	return files
 }
