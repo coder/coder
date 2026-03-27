@@ -635,6 +635,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			presetsBackoff,
 			eventCounts,
 			hardLimitedPresets,
+			nil,
 			c.clock,
 			c.logger,
 		)

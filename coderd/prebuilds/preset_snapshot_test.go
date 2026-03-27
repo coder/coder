@@ -84,7 +84,7 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -133,7 +133,7 @@ func TestNewGlobalSnapshotBuildsEventCountsMap(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(nil, nil, nil, nil, nil, nil, eventRows, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(nil, nil, nil, nil, nil, nil, eventRows, nil, nil, clock, testutil.Logger(t))
 	require.Len(t, snapshot.EventCounts, 2)
 	require.Equal(t, prebuilds.PrebuildEventCounts{
 		ClaimSucceeded: prebuilds.WindowedCounts{
@@ -193,7 +193,7 @@ func TestFilterByPresetPassesEventCounts(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, eventRows, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, eventRows, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(presetA.presetID)
 	require.NoError(t, err)
 	require.Equal(t, prebuilds.PrebuildEventCounts{
@@ -230,7 +230,7 @@ func TestFilterByPresetMissingEventCountsDefaultsToZero(t *testing.T) {
 		Count5m:   1,
 	}}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, eventRows, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, eventRows, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(presetB.presetID)
 	require.NoError(t, err)
 	require.Equal(t, prebuilds.PrebuildEventCounts{}, ps.EventCounts)
@@ -246,7 +246,7 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -288,7 +288,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -354,7 +354,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -402,7 +402,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		}}
 
 		// When: calculating the current preset's state
-		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, nil, clock, testutil.Logger(t))
+		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, nil, nil, clock, testutil.Logger(t))
 		ps, err := snapshot.FilterByPreset(current.presetID)
 		require.NoError(t, err)
 
@@ -432,7 +432,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		}}
 
 		// When: calculating the current preset's state
-		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, nil, clock, testutil.Logger(t))
+		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, nil, nil, clock, testutil.Logger(t))
 		ps, err := snapshot.FilterByPreset(current.presetID)
 		require.NoError(t, err)
 
@@ -666,7 +666,7 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -709,7 +709,7 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -959,7 +959,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -995,7 +995,7 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -1048,7 +1048,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, backoffs, nil, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, backoffs, nil, nil, nil, clock, testutil.Logger(t))
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -1141,7 +1141,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, nil, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 
 	// Nothing has to be created for preset 1.
 	{
@@ -1261,7 +1261,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				schedule(presets[1].ID, "* 14-16 * * 1-5", 5),
 			}
 
-			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 
 			// Check 1st preset.
 			{
@@ -1352,6 +1352,7 @@ func TestCalculateDesiredInstances(t *testing.T) {
 				Int32: instances,
 				Valid: true,
 			},
+			UsingActiveVersion: true,
 			SchedulingTimezone: timezone,
 		}
 	}
@@ -1372,6 +1373,7 @@ func TestCalculateDesiredInstances(t *testing.T) {
 			nil,
 			prebuilds.PrebuildEventCounts{},
 			false,
+			nil,
 			quartz.NewMock(t),
 			testutil.Logger(t),
 		)
@@ -1895,6 +1897,7 @@ func TestCanSkipReconciliation(t *testing.T) {
 				tt.backoff,
 				prebuilds.PrebuildEventCounts{},
 				tt.isHardLimited,
+				nil,
 				clock,
 				logger,
 			)
@@ -1990,7 +1993,27 @@ func prebuiltWorkspace(
 }
 
 func validateState(t *testing.T, expected, actual prebuilds.ReconciliationState) {
-	require.Equal(t, expected, actual)
+	t.Helper()
+	require.Equal(t, expected.Actual, actual.Actual)
+	require.Equal(t, expected.Expired, actual.Expired)
+	require.Equal(t, expected.Desired, actual.Desired)
+	require.Equal(t, expected.Eligible, actual.Eligible)
+	require.Equal(t, expected.Extraneous, actual.Extraneous)
+	require.Equal(t, expected.Starting, actual.Starting)
+	require.Equal(t, expected.Stopping, actual.Stopping)
+	require.Equal(t, expected.Deleting, actual.Deleting)
+	if expected.ScheduledTarget != 0 {
+		require.Equal(t, expected.ScheduledTarget, actual.ScheduledTarget)
+	}
+	if expected.TargetSource != "" {
+		require.Equal(t, expected.TargetSource, actual.TargetSource)
+	}
+	if expected.ExpressionConfigured {
+		require.Equal(t, expected.ExpressionConfigured, actual.ExpressionConfigured)
+	}
+	if expected.ExpressionError != "" {
+		require.Equal(t, expected.ExpressionError, actual.ExpressionError)
+	}
 }
 
 // validateActions is a convenience func to make tests more readable; it exploits the fact that the default states for

@@ -8,6 +8,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/prebuilds/targetexpr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/quartz"
 )
@@ -22,6 +23,7 @@ type GlobalSnapshot struct {
 	Backoffs              []database.GetPresetsBackoffRow
 	EventCounts           map[uuid.UUID]PrebuildEventCounts
 	HardLimitedPresetsMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
+	evaluator             targetexpr.Evaluator
 	clock                 quartz.Clock
 	logger                slog.Logger
 }
@@ -35,9 +37,14 @@ func NewGlobalSnapshot(
 	backoffs []database.GetPresetsBackoffRow,
 	eventCountRows []database.GetPrebuildEventCountsRow,
 	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
+	evaluator targetexpr.Evaluator,
 	clock quartz.Clock,
 	logger slog.Logger,
 ) GlobalSnapshot {
+	if evaluator == nil {
+		evaluator = targetexpr.NewEvaluator()
+	}
+
 	hardLimitedPresetsMap := make(map[uuid.UUID]database.GetPresetsAtFailureLimitRow, len(hardLimitedPresets))
 	for _, preset := range hardLimitedPresets {
 		hardLimitedPresetsMap[preset.PresetID] = preset
@@ -66,6 +73,7 @@ func NewGlobalSnapshot(
 		Backoffs:              backoffs,
 		EventCounts:           eventCounts,
 		HardLimitedPresetsMap: hardLimitedPresetsMap,
+		evaluator:             evaluator,
 		clock:                 clock,
 		logger:                logger,
 	}
@@ -83,7 +91,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		return schedule.PresetID == presetID
 	})
 
-	// Only include workspaces that have successfully started
+	// Only include workspaces that have successfully started.
 	running := slice.Filter(s.RunningPrebuilds, func(prebuild database.GetRunningPrebuiltWorkspacesRow) bool {
 		if !prebuild.CurrentPresetID.Valid {
 			return false
@@ -91,16 +99,16 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		return prebuild.CurrentPresetID.UUID == preset.ID
 	})
 
-	// Separate running workspaces into non-expired and expired based on the preset's TTL
+	// Separate running workspaces into non-expired and expired based on the preset's TTL.
 	nonExpired, expired := filterExpiredWorkspaces(preset, running)
 
 	// Includes in-progress prebuilds only for active template versions.
-	// In-progress prebuilds correspond to workspace statuses: 'pending', 'starting', 'stopping', and 'deleting'
+	// In-progress prebuilds correspond to workspace statuses: 'pending', 'starting', 'stopping', and 'deleting'.
 	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.CountInProgressPrebuildsRow) bool {
 		return prebuild.PresetID.UUID == preset.ID
 	})
 
-	// Includes count of pending prebuilds only for non-active template versions
+	// Includes count of pending prebuilds only for non-active template versions.
 	pendingCount := 0
 	if found, ok := slice.Find(s.PendingPrebuilds, func(prebuild database.CountPendingNonActivePrebuildsRow) bool {
 		return prebuild.PresetID.UUID == preset.ID
@@ -129,6 +137,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		backoffPtr,
 		eventCounts,
 		isHardLimited,
+		s.evaluator,
 		s.clock,
 		s.logger,
 	)
@@ -152,12 +161,12 @@ func filterExpiredWorkspaces(preset database.GetTemplatePresetsWithPrebuildsRow,
 	for _, prebuild := range runningWorkspaces {
 		isExpired := false
 
-		// Check if prebuild was created before last invalidation
+		// Check if prebuild was created before last invalidation.
 		if preset.LastInvalidatedAt.Valid && prebuild.CreatedAt.Before(preset.LastInvalidatedAt.Time) {
 			isExpired = true
 		}
 
-		// Check TTL expiration if set
+		// Check TTL expiration if set.
 		if !isExpired && preset.Ttl.Valid {
 			ttl := time.Duration(preset.Ttl.Int32) * time.Second
 			if ttl > 0 && time.Since(prebuild.CreatedAt) > ttl {
