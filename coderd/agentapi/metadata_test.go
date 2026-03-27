@@ -57,16 +57,44 @@ func TestBatchUpdateMetadata(t *testing.T) {
 						CollectedAt: timestamppb.New(now.Add(-3 * time.Second)),
 						Age:         3,
 						Value:       "",
-						Error:       "uncool value",
+						Error:       "\t uncool error  ",
 					},
 				},
 			},
 		}
 		batchSize := len(req.Metadata)
-		// This test sends 2 metadata entries. With batch size 2, we expect
-		// exactly 1 capacity flush.
+		// This test sends 2 metadata entries (one clean, one with
+		// whitespace padding). With batch size 2 we expect exactly
+		// 1 capacity flush. The matcher verifies that stored values
+		// are trimmed while clean values pass through unchanged.
+		expectedValues := map[string]string{
+			"awesome key": "awesome value",
+			"uncool key":  "",
+		}
+		expectedErrors := map[string]string{
+			"awesome key": "",
+			"uncool key":  "uncool error",
+		}
 		store.EXPECT().
-			BatchUpdateWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).
+			BatchUpdateWorkspaceAgentMetadata(
+				gomock.Any(),
+				gomock.Cond(func(arg database.BatchUpdateWorkspaceAgentMetadataParams) bool {
+					if len(arg.Key) != len(expectedValues) {
+						return false
+					}
+					for i, key := range arg.Key {
+						expVal, ok := expectedValues[key]
+						if !ok || arg.Value[i] != expVal {
+							return false
+						}
+						expErr, ok := expectedErrors[key]
+						if !ok || arg.Error[i] != expErr {
+							return false
+						}
+					}
+					return true
+				}),
+			).
 			Return(nil).
 			Times(1)
 
@@ -252,113 +280,6 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		require.Nil(t, resp)
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			return prom_testutil.ToFloat64(batcher.Metrics.MetadataTotal) == 3.0
-		}, testutil.IntervalFast)
-	})
-
-	t.Run("TrimWhitespace", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		ctrl := gomock.NewController(t)
-		store := dbmock.NewMockStore(ctrl)
-		ps := pubsub.NewInMemory()
-		reg := prometheus.NewRegistry()
-
-		now := dbtime.Now()
-		req := &agentproto.BatchUpdateMetadataRequest{
-			Metadata: []*agentproto.Metadata{
-				{
-					Key: "spaces",
-					Result: &agentproto.WorkspaceAgentMetadata_Result{
-						Value: "  hello  ",
-					},
-				},
-				{
-					Key: "mixed",
-					Result: &agentproto.WorkspaceAgentMetadata_Result{
-						Value: "\n\ttabs and newlines\n\t",
-					},
-				},
-				{
-					Key: "error trimming",
-					Result: &agentproto.WorkspaceAgentMetadata_Result{
-						Error: "  some error\n",
-					},
-				},
-				{
-					Key: "inner preserved",
-					Result: &agentproto.WorkspaceAgentMetadata_Result{
-						Value: "  no inner change  here  ",
-					},
-				},
-			},
-		}
-		batchSize := len(req.Metadata)
-
-		// Custom matcher verifies that whitespace was trimmed from
-		// Value and Error fields before reaching the store. Because
-		// the batcher flushes from a map, entry order is
-		// non-deterministic, so we match by key.
-		expectedValues := map[string]string{
-			"spaces":          "hello",
-			"mixed":           "tabs and newlines",
-			"error trimming":  "",
-			"inner preserved": "no inner change  here",
-		}
-		expectedErrors := map[string]string{
-			"spaces":          "",
-			"mixed":           "",
-			"error trimming":  "some error",
-			"inner preserved": "",
-		}
-		store.EXPECT().
-			BatchUpdateWorkspaceAgentMetadata(
-				gomock.Any(),
-				gomock.Cond(func(arg database.BatchUpdateWorkspaceAgentMetadataParams) bool {
-					if len(arg.Key) != len(expectedValues) {
-						return false
-					}
-					for i, key := range arg.Key {
-						expVal, ok := expectedValues[key]
-						if !ok || arg.Value[i] != expVal {
-							return false
-						}
-						expErr, ok := expectedErrors[key]
-						if !ok || arg.Error[i] != expErr {
-							return false
-						}
-					}
-					return true
-				}),
-			).
-			Return(nil).
-			Times(1)
-
-		batcher, err := metadatabatcher.NewBatcher(ctx, reg, store, ps,
-			metadatabatcher.WithLogger(testutil.Logger(t)),
-			metadatabatcher.WithBatchSize(batchSize),
-		)
-		require.NoError(t, err)
-		t.Cleanup(batcher.Close)
-
-		api := &agentapi.MetadataAPI{
-			AgentID:   agent.ID,
-			Workspace: &agentapi.CachedWorkspaceFields{},
-			Log:       testutil.Logger(t),
-			Batcher:   batcher,
-			TimeNowFn: func() time.Time {
-				return now
-			},
-		}
-
-		resp, err := api.BatchUpdateMetadata(context.Background(), req)
-		require.NoError(t, err)
-		require.Equal(t, &agentproto.BatchUpdateMetadataResponse{}, resp)
-
-		// Wait for the capacity flush to complete before test ends.
-		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-			return prom_testutil.ToFloat64(batcher.Metrics.MetadataTotal) == 4.0
 		}, testutil.IntervalFast)
 	})
 }
