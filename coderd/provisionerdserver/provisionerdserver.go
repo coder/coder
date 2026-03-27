@@ -2676,16 +2676,20 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
 		var (
-			desiredInstances   sql.NullInt32
-			ttl                sql.NullInt32
-			schedulingEnabled  bool
-			schedulingTimezone string
-			prebuildSchedules  []*sdkproto.Schedule
+			desiredInstances           sql.NullInt32
+			desiredInstancesExpression sql.NullString
+			ttl                        sql.NullInt32
+			schedulingEnabled          bool
+			schedulingTimezone         string
+			prebuildSchedules          []*sdkproto.Schedule
 		)
 		if protoPreset != nil && protoPreset.Prebuild != nil {
 			desiredInstances = sql.NullInt32{
 				Int32: protoPreset.Prebuild.Instances,
 				Valid: true,
+			}
+			if expr := protoPreset.Prebuild.GetDesiredInstancesExpression(); expr != "" {
+				desiredInstancesExpression = sql.NullString{String: expr, Valid: true}
 			}
 			if protoPreset.Prebuild.ExpirationPolicy != nil {
 				ttl = sql.NullInt32{
@@ -2706,7 +2710,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			Name:                       protoPreset.Name,
 			CreatedAt:                  t,
 			DesiredInstances:           desiredInstances,
-			DesiredInstancesExpression: sql.NullString{},
+			DesiredInstancesExpression: desiredInstancesExpression,
 			InvalidateAfterSecs:        ttl,
 			SchedulingTimezone:         schedulingTimezone,
 			IsDefault:                  protoPreset.GetDefault(),

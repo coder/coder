@@ -127,10 +127,13 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 	t.Run("unsupported_upload_type", func(t *testing.T) {
 		t.Parallel()
 
-		//nolint:govet // Ignore lock copy
-		cpy := *upload
-		cpy.UploadType = sdkproto.DataUploadType_UPLOAD_TYPE_UNKNOWN // Set to an unsupported type
-		stream := newMockUploadStream(&cpy, chunks...)
+		cpy := &sdkproto.DataUpload{
+			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_UNKNOWN,
+			DataHash:   append([]byte(nil), upload.DataHash...),
+			FileSize:   upload.FileSize,
+			Chunks:     upload.Chunks,
+		}
+		stream := newMockUploadStream(cpy, chunks...)
 
 		err := server.UploadFile(stream)
 		require.ErrorContains(t, err, "unsupported file upload type")

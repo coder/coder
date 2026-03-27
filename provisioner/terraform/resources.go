@@ -980,9 +980,10 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Name:       preset.Name,
 			Parameters: presetParameters,
 			Prebuild: &proto.Prebuild{
-				Instances:        prebuildInstances,
-				ExpirationPolicy: expirationPolicy,
-				Scheduling:       scheduling,
+				Instances:                  prebuildInstances,
+				DesiredInstancesExpression: "",
+				ExpirationPolicy:           expirationPolicy,
+				Scheduling:                 scheduling,
 			},
 			Default:     preset.Default,
 			Description: preset.Description,
