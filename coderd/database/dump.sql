@@ -1962,6 +1962,13 @@ CREATE TABLE parameter_values (
     destination_scheme parameter_destination_scheme NOT NULL
 );
 
+CREATE TABLE prebuild_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    preset_id uuid NOT NULL,
+    event_type text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -3486,6 +3493,9 @@ ALTER TABLE ONLY parameter_values
 ALTER TABLE ONLY parameter_values
     ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
 
+ALTER TABLE ONLY prebuild_events
+    ADD CONSTRAINT prebuild_events_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_pkey PRIMARY KEY (id);
 
@@ -3807,6 +3817,8 @@ CREATE INDEX idx_organization_member_organization_id_uuid ON organization_member
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name)) WHERE (deleted = false);
+
+CREATE INDEX idx_prebuild_events_preset_created ON prebuild_events USING btree (preset_id, created_at DESC);
 
 CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
@@ -4192,6 +4204,9 @@ ALTER TABLE ONLY organization_members
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY prebuild_events
+    ADD CONSTRAINT prebuild_events_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_key_id_fkey FOREIGN KEY (key_id) REFERENCES provisioner_keys(id) ON DELETE CASCADE;

@@ -999,6 +999,20 @@ func (mr *MockStoreMockRecorder) DeleteOldNotificationMessages(ctx any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldNotificationMessages", reflect.TypeOf((*MockStore)(nil).DeleteOldNotificationMessages), ctx)
 }
 
+// DeleteOldPrebuildEvents mocks base method.
+func (m *MockStore) DeleteOldPrebuildEvents(ctx context.Context, before time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldPrebuildEvents", ctx, before)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOldPrebuildEvents indicates an expected call of DeleteOldPrebuildEvents.
+func (mr *MockStoreMockRecorder) DeleteOldPrebuildEvents(ctx, before any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldPrebuildEvents", reflect.TypeOf((*MockStore)(nil).DeleteOldPrebuildEvents), ctx, before)
+}
+
 // DeleteOldProvisionerDaemons mocks base method.
 func (m *MockStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	m.ctrl.T.Helper()
@@ -3601,6 +3615,21 @@ func (m *MockStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.U
 func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
+}
+
+// GetPrebuildEventCounts mocks base method.
+func (m *MockStore) GetPrebuildEventCounts(ctx context.Context, arg database.GetPrebuildEventCountsParams) ([]database.GetPrebuildEventCountsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPrebuildEventCounts", ctx, arg)
+	ret0, _ := ret[0].([]database.GetPrebuildEventCountsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPrebuildEventCounts indicates an expected call of GetPrebuildEventCounts.
+func (mr *MockStoreMockRecorder) GetPrebuildEventCounts(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrebuildEventCounts", reflect.TypeOf((*MockStore)(nil).GetPrebuildEventCounts), ctx, arg)
 }
 
 // GetPrebuildMetrics mocks base method.
@@ -6461,6 +6490,20 @@ func (m *MockStore) InsertOrganizationMember(ctx context.Context, arg database.I
 func (mr *MockStoreMockRecorder) InsertOrganizationMember(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), ctx, arg)
+}
+
+// InsertPrebuildEvent mocks base method.
+func (m *MockStore) InsertPrebuildEvent(ctx context.Context, arg database.InsertPrebuildEventParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertPrebuildEvent", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertPrebuildEvent indicates an expected call of InsertPrebuildEvent.
+func (mr *MockStoreMockRecorder) InsertPrebuildEvent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPrebuildEvent", reflect.TypeOf((*MockStore)(nil).InsertPrebuildEvent), ctx, arg)
 }
 
 // InsertPreset mocks base method.

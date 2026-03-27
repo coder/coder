@@ -250,6 +250,27 @@ WHERE NOT t.deleted AND wpb.build_number = 1
 GROUP BY t.name, tvp.name, o.name
 ORDER BY t.name, tvp.name, o.name;
 
+-- name: InsertPrebuildEvent :exec
+INSERT INTO prebuild_events (preset_id, event_type, created_at)
+VALUES (@preset_id, @event_type, @created_at);
+
+-- name: GetPrebuildEventCounts :many
+SELECT
+	preset_id,
+	event_type,
+	COUNT(*) FILTER (WHERE created_at >= @since_5m::timestamptz) AS count_5m,
+	COUNT(*) FILTER (WHERE created_at >= @since_10m::timestamptz) AS count_10m,
+	COUNT(*) FILTER (WHERE created_at >= @since_30m::timestamptz) AS count_30m,
+	COUNT(*) FILTER (WHERE created_at >= @since_60m::timestamptz) AS count_60m,
+	COUNT(*) FILTER (WHERE created_at >= @since_120m::timestamptz) AS count_120m
+FROM prebuild_events
+WHERE created_at >= @since_120m::timestamptz
+GROUP BY preset_id, event_type;
+
+-- name: DeleteOldPrebuildEvents :exec
+DELETE FROM prebuild_events
+WHERE created_at < @before::timestamptz;
+
 -- name: FindMatchingPresetID :one
 -- FindMatchingPresetID finds a preset ID that is the largest exact subset of the provided parameters.
 -- It returns the preset ID if a match is found, or NULL if no match is found.

@@ -4711,6 +4711,13 @@ type ParameterValue struct {
 	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
 }
 
+type PrebuildEvent struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
+	EventType string    `db:"event_type" json:"event_type"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `db:"id" json:"id"`
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`

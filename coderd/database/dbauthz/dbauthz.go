@@ -2038,6 +2038,13 @@ func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
 	return q.db.DeleteOldNotificationMessages(ctx)
 }
 
+func (q *querier) DeleteOldPrebuildEvents(ctx context.Context, before time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldPrebuildEvents(ctx, before)
+}
+
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
@@ -3373,6 +3380,13 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 		return nil, err
 	}
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
+}
+
+func (q *querier) GetPrebuildEventCounts(ctx context.Context, arg database.GetPrebuildEventCountsParams) ([]database.GetPrebuildEventCountsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetPrebuildEventCounts(ctx, arg)
 }
 
 func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
@@ -5006,6 +5020,13 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
+}
+
+func (q *querier) InsertPrebuildEvent(ctx context.Context, arg database.InsertPrebuildEventParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertPrebuildEvent(ctx, arg)
 }
 
 func (q *querier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {

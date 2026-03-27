@@ -14852,6 +14852,16 @@ func (q *sqlQuerier) CountPendingNonActivePrebuilds(ctx context.Context) ([]Coun
 	return items, nil
 }
 
+const deleteOldPrebuildEvents = `-- name: DeleteOldPrebuildEvents :exec
+DELETE FROM prebuild_events
+WHERE created_at < $1::timestamptz
+`
+
+func (q *sqlQuerier) DeleteOldPrebuildEvents(ctx context.Context, before time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteOldPrebuildEvents, before)
+	return err
+}
+
 const findMatchingPresetID = `-- name: FindMatchingPresetID :one
 WITH provided_params AS (
 	SELECT
@@ -14966,6 +14976,75 @@ func (q *sqlQuerier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg
 			&i.HasPrebuildUser,
 			&i.PrebuildsGroupID,
 			&i.HasPrebuildUserInGroup,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPrebuildEventCounts = `-- name: GetPrebuildEventCounts :many
+SELECT
+	preset_id,
+	event_type,
+	COUNT(*) FILTER (WHERE created_at >= $1::timestamptz) AS count_5m,
+	COUNT(*) FILTER (WHERE created_at >= $2::timestamptz) AS count_10m,
+	COUNT(*) FILTER (WHERE created_at >= $3::timestamptz) AS count_30m,
+	COUNT(*) FILTER (WHERE created_at >= $4::timestamptz) AS count_60m,
+	COUNT(*) FILTER (WHERE created_at >= $5::timestamptz) AS count_120m
+FROM prebuild_events
+WHERE created_at >= $5::timestamptz
+GROUP BY preset_id, event_type
+`
+
+type GetPrebuildEventCountsParams struct {
+	Since5m   time.Time `db:"since_5m" json:"since_5m"`
+	Since10m  time.Time `db:"since_10m" json:"since_10m"`
+	Since30m  time.Time `db:"since_30m" json:"since_30m"`
+	Since60m  time.Time `db:"since_60m" json:"since_60m"`
+	Since120m time.Time `db:"since_120m" json:"since_120m"`
+}
+
+type GetPrebuildEventCountsRow struct {
+	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
+	EventType string    `db:"event_type" json:"event_type"`
+	Count5m   int64     `db:"count_5m" json:"count_5m"`
+	Count10m  int64     `db:"count_10m" json:"count_10m"`
+	Count30m  int64     `db:"count_30m" json:"count_30m"`
+	Count60m  int64     `db:"count_60m" json:"count_60m"`
+	Count120m int64     `db:"count_120m" json:"count_120m"`
+}
+
+func (q *sqlQuerier) GetPrebuildEventCounts(ctx context.Context, arg GetPrebuildEventCountsParams) ([]GetPrebuildEventCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPrebuildEventCounts,
+		arg.Since5m,
+		arg.Since10m,
+		arg.Since30m,
+		arg.Since60m,
+		arg.Since120m,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPrebuildEventCountsRow
+	for rows.Next() {
+		var i GetPrebuildEventCountsRow
+		if err := rows.Scan(
+			&i.PresetID,
+			&i.EventType,
+			&i.Count5m,
+			&i.Count10m,
+			&i.Count30m,
+			&i.Count60m,
+			&i.Count120m,
 		); err != nil {
 			return nil, err
 		}
@@ -15387,6 +15466,22 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertPrebuildEvent = `-- name: InsertPrebuildEvent :exec
+INSERT INTO prebuild_events (preset_id, event_type, created_at)
+VALUES ($1, $2, $3)
+`
+
+type InsertPrebuildEventParams struct {
+	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
+	EventType string    `db:"event_type" json:"event_type"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertPrebuildEvent(ctx context.Context, arg InsertPrebuildEventParams) error {
+	_, err := q.db.ExecContext(ctx, insertPrebuildEvent, arg.PresetID, arg.EventType, arg.CreatedAt)
+	return err
 }
 
 const updatePrebuildProvisionerJobWithCancel = `-- name: UpdatePrebuildProvisionerJobWithCancel :many

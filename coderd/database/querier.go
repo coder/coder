@@ -130,6 +130,7 @@ type sqlcQuerier interface {
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error
+	DeleteOldPrebuildEvents(ctx context.Context, before time.Time) error
 	// Delete provisioner daemons that have been created at least a week ago
 	// and have not connected to coderd since a week.
 	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
@@ -410,6 +411,7 @@ type sqlcQuerier interface {
 	// the same pull request are only counted once (keeping the most recent chat).
 	GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsightsTimeSeriesParams) ([]GetPRInsightsTimeSeriesRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
+	GetPrebuildEventCounts(ctx context.Context, arg GetPrebuildEventCountsParams) ([]GetPrebuildEventCountsRow, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
@@ -728,6 +730,7 @@ type sqlcQuerier interface {
 	InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
+	InsertPrebuildEvent(ctx context.Context, arg InsertPrebuildEventParams) error
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
 	InsertPresetPrebuildSchedule(ctx context.Context, arg InsertPresetPrebuildScheduleParams) (TemplateVersionPresetPrebuildSchedule, error)

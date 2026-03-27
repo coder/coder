@@ -600,6 +600,14 @@ func (m queryMetricsStore) DeleteOldNotificationMessages(ctx context.Context) er
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOldPrebuildEvents(ctx context.Context, before time.Time) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldPrebuildEvents(ctx, before)
+	m.queryLatencies.WithLabelValues("DeleteOldPrebuildEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldPrebuildEvents").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldProvisionerDaemons(ctx)
@@ -1941,6 +1949,14 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	r0, r1 := m.s.GetParameterSchemasByJobID(ctx, jobID)
 	m.queryLatencies.WithLabelValues("GetParameterSchemasByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetParameterSchemasByJobID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPrebuildEventCounts(ctx context.Context, arg database.GetPrebuildEventCountsParams) ([]database.GetPrebuildEventCountsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPrebuildEventCounts(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetPrebuildEventCounts").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPrebuildEventCounts").Inc()
 	return r0, r1
 }
 
@@ -3446,6 +3462,14 @@ func (m queryMetricsStore) InsertOrganizationMember(ctx context.Context, arg dat
 	m.queryLatencies.WithLabelValues("InsertOrganizationMember").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOrganizationMember").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) InsertPrebuildEvent(ctx context.Context, arg database.InsertPrebuildEventParams) error {
+	start := time.Now()
+	r0 := m.s.InsertPrebuildEvent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPrebuildEvent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertPrebuildEvent").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
