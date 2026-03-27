@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import { spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { workspaceAgentContainersKey } from "#/api/queries/workspaces";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
 import { chromatic } from "#/testHelpers/chromatic";
 import * as M from "#/testHelpers/entities";
 import {

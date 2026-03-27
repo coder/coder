@@ -1,5 +1,4 @@
 import Skeleton from "@mui/material/Skeleton";
-import { useProxy } from "contexts/ProxyContext";
 import { Container, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
@@ -33,6 +32,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useProxy } from "#/contexts/ProxyContext";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";

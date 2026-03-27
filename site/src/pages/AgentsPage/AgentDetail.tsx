@@ -1,4 +1,3 @@
-import { useProxy } from "contexts/ProxyContext";
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -29,6 +28,7 @@ import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
 import {
 	getTerminalHref,
 	getVSCodeHref,

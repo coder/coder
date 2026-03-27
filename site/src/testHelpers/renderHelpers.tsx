@@ -4,9 +4,6 @@ import {
 	render as testingLibraryRender,
 	waitFor,
 } from "@testing-library/react";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import type { ProxyProvider } from "contexts/ProxyContext";
-import { ThemeOverride } from "contexts/ThemeProvider";
 import type { JSX, ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
@@ -15,6 +12,9 @@ import {
 	RouterProvider,
 } from "react-router";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
+import type { ProxyProvider } from "#/contexts/ProxyContext";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardLayout } from "#/modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "#/modules/management/OrganizationSettingsLayout";

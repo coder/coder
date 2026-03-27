@@ -1,8 +1,8 @@
-import { useAuthContext } from "contexts/auth/AuthProvider";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "#/api/queries/groups";
 import { Stack } from "#/components/Stack/Stack";
+import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { Section } from "../Section";

@@ -23,7 +23,7 @@ import {
 import type * as ProxyLatency from "./useProxyLatency";
 
 // Mock useProxyLatency to use a hard-coded latency.
-vi.mock("contexts/useProxyLatency", () => ({
+vi.mock("#/contexts/useProxyLatency", () => ({
 	useProxyLatency: () => {
 		return {
 			proxyLatencies: hardCodedLatencies,
