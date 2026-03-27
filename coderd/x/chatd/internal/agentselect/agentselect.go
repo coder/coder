@@ -10,6 +10,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// chatAgentSuffix is a PoC naming convention, not a long-term contract.
+// Template authors can name one root coder_agent with this suffix to
+// direct chat traffic to that agent. If the PoC succeeds, revisit with
+// an explicit field or role-based model.
 const chatAgentSuffix = "-coderd-chat"
 
 // SelectChatAgent picks the best workspace agent for a chat session from

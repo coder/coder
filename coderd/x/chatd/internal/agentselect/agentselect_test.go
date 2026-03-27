@@ -1,5 +1,4 @@
-//nolint:testpackage // Tests the unexported helper without widening its API.
-package chatd
+package agentselect_test
 
 import (
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 )
 
 func TestSelectChatAgent(t *testing.T) {
@@ -78,7 +78,10 @@ func TestSelectChatAgent(t *testing.T) {
 				newRootAgent("gamma", 0),
 			},
 			wantErrContains: []string{
-				fmt.Sprintf("multiple agents match the chat suffix %q", chatAgentSuffix),
+				fmt.Sprintf(
+					"multiple agents match the chat suffix %q",
+					"-coderd-chat",
+				),
 				"alpha-coderd-chat",
 				"beta-coderd-chat",
 				"only one agent should use this suffix",
@@ -142,7 +145,7 @@ func TestSelectChatAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := selectChatAgent(tt.agents)
+			got, err := agentselect.SelectChatAgent(tt.agents)
 			if len(tt.wantErrContains) > 0 {
 				require.Error(t, err)
 				for _, wantErr := range tt.wantErrContains {
