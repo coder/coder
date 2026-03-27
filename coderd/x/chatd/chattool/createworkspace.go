@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -203,12 +204,21 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				}
 			}
 
-			// Look up the first agent so we can link it to the chat.
+			// Select the chat agent so follow-up tools wait on the
+			// intended workspace agent.
 			workspaceAgentID := uuid.Nil
 			if options.DB != nil {
 				agents, agentErr := options.DB.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-				if agentErr == nil && len(agents) > 0 {
-					workspaceAgentID = agents[0].ID
+				if agentErr == nil {
+					selected, selectErr := agentselect.SelectChatAgent(agents)
+					if selectErr == nil {
+						workspaceAgentID = selected.ID
+					} else {
+						options.Logger.Debug(ctx, "failed to select chat workspace agent",
+							slog.F("workspace_id", workspace.ID),
+							slog.Error(selectErr),
+						)
+					}
 				}
 			}
 
@@ -321,9 +331,12 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			"message":        "workspace build completed",
 		}
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-		if agentsErr == nil && len(agents) > 0 {
-			for k, v := range waitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
-				result[k] = v
+		if agentsErr == nil {
+			selected, selectErr := agentselect.SelectChatAgent(agents)
+			if selectErr == nil {
+				for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+					result[k] = v
+				}
 			}
 		}
 		return result, true, nil
@@ -344,31 +357,34 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		// connection status to decide whether the workspace is
 		// still usable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-		if agentsErr == nil && len(agents) > 0 {
-			status := agents[0].Status(agentInactiveDisconnectTimeout)
-			result := map[string]any{
-				"created":        false,
-				"workspace_name": ws.Name,
-				"status":         "already_exists",
-			}
+		if agentsErr == nil {
+			selected, selectErr := agentselect.SelectChatAgent(agents)
+			if selectErr == nil {
+				status := selected.Status(agentInactiveDisconnectTimeout)
+				result := map[string]any{
+					"created":        false,
+					"workspace_name": ws.Name,
+					"status":         "already_exists",
+				}
 
-			switch status.Status {
-			case database.WorkspaceAgentStatusConnected:
-				result["message"] = "workspace is already running and recently connected"
-				for k, v := range waitForAgentReady(ctx, db, agents[0].ID, nil) {
-					result[k] = v
+				switch status.Status {
+				case database.WorkspaceAgentStatusConnected:
+					result["message"] = "workspace is already running and recently connected"
+					for k, v := range waitForAgentReady(ctx, db, selected.ID, nil) {
+						result[k] = v
+					}
+					return result, true, nil
+				case database.WorkspaceAgentStatusConnecting:
+					result["message"] = "workspace exists and the agent is still connecting"
+					for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+						result[k] = v
+					}
+					return result, true, nil
+				case database.WorkspaceAgentStatusDisconnected,
+					database.WorkspaceAgentStatusTimeout:
+					// Agent is offline or never became ready - allow
+					// creation.
 				}
-				return result, true, nil
-			case database.WorkspaceAgentStatusConnecting:
-				result["message"] = "workspace exists and the agent is still connecting"
-				for k, v := range waitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
-					result[k] = v
-				}
-				return result, true, nil
-			case database.WorkspaceAgentStatusDisconnected,
-				database.WorkspaceAgentStatusTimeout:
-				// Agent is offline or never became ready — allow
-				// creation.
 			}
 		}
 		// No agent ID or no agent status — allow creation.

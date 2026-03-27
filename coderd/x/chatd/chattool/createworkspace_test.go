@@ -118,6 +118,89 @@ func TestWaitForAgentReady(t *testing.T) {
 	})
 }
 
+func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+	jobID := uuid.New()
+	fallbackAgentID := uuid.New()
+	chatAgentID := uuid.New()
+
+	db.EXPECT().
+		GetAuthorizationUserRoles(gomock.Any(), ownerID).
+		Return(database.GetAuthorizationUserRolesRow{
+			ID:     ownerID,
+			Roles:  []string{},
+			Groups: []string{},
+			Status: database.UserStatusActive,
+		}, nil)
+
+	db.EXPECT().
+		GetChatWorkspaceTTL(gomock.Any()).
+		Return("0s", nil)
+
+	db.EXPECT().
+		GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{
+			WorkspaceID: workspaceID,
+			JobID:       jobID,
+		}, nil)
+	db.EXPECT().
+		GetProvisionerJobByID(gomock.Any(), jobID).
+		Return(database.ProvisionerJob{
+			ID:        jobID,
+			JobStatus: database.ProvisionerJobStatusSucceeded,
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{
+			{ID: fallbackAgentID, Name: "dev", DisplayOrder: 0},
+			{ID: chatAgentID, Name: "dev-coderd-chat", DisplayOrder: 1},
+		}, nil)
+	db.EXPECT().
+		GetWorkspaceAgentLifecycleStateByID(gomock.Any(), chatAgentID).
+		Return(database.GetWorkspaceAgentLifecycleStateByIDRow{
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}, nil)
+
+	var connectedAgentID uuid.UUID
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{
+			ID:        workspaceID,
+			Name:      req.Name,
+			OwnerName: "testuser",
+		}, nil
+	}
+	agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		connectedAgentID = agentID
+		return nil, func() {}, nil
+	}
+
+	tool := CreateWorkspace(CreateWorkspaceOptions{
+		DB:          db,
+		OwnerID:     ownerID,
+		CreateFn:    createFn,
+		AgentConnFn: agentConnFn,
+		WorkspaceMu: &sync.Mutex{},
+		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q,"name":"test-chat-agent"}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "create_workspace",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Content)
+	require.Equal(t, chatAgentID, connectedAgentID)
+}
+
 func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 	t.Parallel()
 
@@ -253,6 +336,7 @@ func TestCheckExistingWorkspace_ConnectedAgent(t *testing.T) {
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{{
 			ID:               agentID,
+			Name:             "dev",
 			CreatedAt:        now.Add(-time.Minute),
 			FirstConnectedAt: validNullTime(now.Add(-45 * time.Second)),
 			LastConnectedAt:  validNullTime(now.Add(-5 * time.Second)),
@@ -302,6 +386,7 @@ func TestCheckExistingWorkspace_ConnectingAgentWaits(t *testing.T) {
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{{
 			ID:                       agentID,
+			Name:                     "dev",
 			CreatedAt:                now,
 			ConnectionTimeoutSeconds: 60,
 		}}, nil)
@@ -336,6 +421,7 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 			name: "Disconnected",
 			agent: database.WorkspaceAgent{
 				ID:               uuid.New(),
+				Name:             "disconnected",
 				CreatedAt:        time.Now().UTC().Add(-2 * time.Minute),
 				FirstConnectedAt: validNullTime(time.Now().UTC().Add(-2 * time.Minute)),
 				LastConnectedAt:  validNullTime(time.Now().UTC().Add(-time.Minute)),
@@ -345,6 +431,7 @@ func TestCheckExistingWorkspace_DeadAgentAllowsCreation(t *testing.T) {
 			name: "TimedOut",
 			agent: database.WorkspaceAgent{
 				ID:                       uuid.New(),
+				Name:                     "timed-out",
 				CreatedAt:                time.Now().UTC().Add(-2 * time.Second),
 				ConnectionTimeoutSeconds: 1,
 			},
