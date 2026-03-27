@@ -204,10 +204,13 @@ This makes identity separation a natural property of the agent connection
 rather than a per-endpoint check:
 
 - `coder external-auth access-token` called from an automation agent should
-  not return raw human tokens. The endpoint should either return a brokered
-  short-lived credential or fail with guidance to use the delegation layer.
-  An automation agent has no linked external credentials by default — it
-  accesses external providers only through brokered delegated sessions.
+  not return raw human tokens without an active delegated session. The
+  endpoint should check for delegation authorization before returning
+  credentials. An automation agent has no linked external credentials by
+  default — it accesses external providers only through delegated sessions.
+  Workspace-interior credential flows (e.g., `GIT_ASKPASS`) that receive
+  tokens after this check operate within the workspace trust domain (see key
+  decision 11).
 - A human SSHing into the same workspace still connects through their own agent
   with their own identity. No special-case logic needed.
 - Multiple agents per workspace are already supported. The human owner's agent
@@ -219,15 +222,32 @@ presents to the control plane at the agent-to-API boundary.
 
 ### 11. No raw token disclosure through the delegation layer
 
-The control plane must never disclose raw human OAuth tokens to automation
-agents through the delegation layer. Delegated sessions broker actions on
-behalf of the credential owner — the automation agent never sees the token.
+The control plane must never disclose raw human OAuth tokens to the upstream
+LLM provider or expose them in the agent-to-coderd API boundary where they
+could enter an LLM context window. Delegated sessions broker actions on
+behalf of the credential owner — the LLM never sees the token.
 
-If an automation agent needs a raw token for a specific use case, it must be
-provided explicitly by the template author (e.g., via environment variable or
-a command the agent runs), not resolved implicitly from a human's linked
-external identity. This is an intentional template-level decision, not a
-side effect of delegation.
+**Boundary clarification: workspace-side git credentials.** Git operations
+are shell commands executed inside the workspace. The existing `GIT_ASKPASS`
+flow (agent binary → coderd API → OAuth token → stdout → git) operates
+entirely within the workspace's trust domain, the same domain that already
+contains SSH keys, dotfiles, local credentials, and anything else the
+workspace owner has configured. The delegation layer mediates *whether*
+automation can trigger git operations (via the delegated session and provider
+policy), not *how* git authenticates once a permitted operation executes
+inside the workspace. A control-plane git proxy was evaluated and rejected:
+it would require TLS MITM with CA distribution into every workspace, only
+cover HTTPS remotes (not SSH), make coderd a data-path bottleneck for every
+clone, and provide no meaningful security improvement over the existing flow
+given that the workspace interior is already a shared trust domain.
+
+The "no raw token" guarantee therefore applies at the interface between
+coderd and the upstream LLM — preventing token material from entering model
+context — not at the boundary between the workspace agent and git. If an
+automation agent needs a raw token for a non-git use case, it must be
+provided explicitly by the template author (e.g., via environment variable
+or a command the agent runs), not resolved implicitly from a human's linked
+external identity.
 
 ### 12. Revocation does not cancel in-flight operations
 
@@ -273,9 +293,12 @@ and audit model, not grafted onto the delegation layer.
 
 ## Design principles
 
-- **Human-linked authority is brokered, never disclosed.** The delegation layer
-  brokers actions on behalf of the credential owner. Raw human tokens are never
-  exposed to automation agents through this layer.
+- **Human-linked authority is brokered, never disclosed to the LLM.** The
+  delegation layer brokers actions on behalf of the credential owner. Raw human
+  tokens are never exposed at the coderd-to-LLM-provider boundary or allowed
+  to enter an LLM context window. Workspace-interior credential flows (e.g.,
+  `GIT_ASKPASS`) operate within the workspace's existing trust domain and are
+  gated by delegation policy, not proxied.
 - **Execution consent and credential consent are separate sovereign decisions.**
 - **The default automation identity is not a human identity.**
 - **Delegated authority is additive to the base principal, but policies
@@ -640,16 +663,21 @@ agent's bound principal determines the resolution path.
 ### 4. Brokered credentials
 
 The control plane brokers external actions on behalf of the credential owner.
-Raw human OAuth tokens are never disclosed to automation agents through the
-delegation layer.
+Raw human OAuth tokens are never disclosed at the coderd-to-LLM-provider
+boundary (see key decision 11).
 
-- The automation agent calls the control plane (e.g., Git credential helper,
+- The automation agent calls the control plane (e.g., chat-side Git action,
   external auth endpoint).
 - The control plane verifies an active delegated session exists. This is the
   "check on entry" point — session validity is evaluated here, not
   continuously during execution.
-- The control plane executes the external action and returns the result, not
-  the token. If the session was revoked after the check but before
+- For chat-side actions (coderd calls the external provider directly), the
+  control plane executes the action and returns the result, not the token.
+- For workspace-side credential flows (`GIT_ASKPASS`, `coder external-auth
+  access-token`), the control plane returns credentials to the workspace
+  agent after the delegation check. These credentials operate within the
+  workspace's trust domain (see key decision 11).
+- If the session was revoked after the check but before
   completion, the in-flight operation is allowed to finish (see key
   decision 12).
 
@@ -757,16 +785,21 @@ listing, agent connections, RBAC role grants).
 
 - stop resolving external auth from `workspace.OwnerID` for automation agents
 - require delegated-session resolution for workspace-agent mediated access
-- `workspaceAgentsExternalAuth` for automation agents returns brokered
-  credentials or brokers the action, never raw human tokens
+- `workspaceAgentsExternalAuth` for automation agents checks for an active
+  delegated session before returning credentials
+- workspace-side git credential flows (`GIT_ASKPASS`) continue to operate
+  within the workspace trust domain — delegation gates *whether* the
+  automation may trigger git operations, not the credential delivery mechanism
 - use `root_chat_id` as the session correlation key
 
 ### Phase 6: remove legacy raw token paths
 
-- remove any remaining code paths that could return raw human tokens to
-  automation agents
-- confirm all automation external auth flows use brokered control-plane
-  execution
+- remove any remaining code paths that resolve human tokens for automation
+  agents without a delegated session check
+- confirm all automation external auth flows require delegation-layer
+  authorization
+- workspace-interior credential flows (git, SSH) remain unchanged — they
+  operate within the workspace trust domain
 - raw tokens for automation agents only available via explicit template-level
   injection (env var, command)
 
@@ -776,23 +809,6 @@ listing, agent connections, RBAC role grants).
 - confirm all automation flows use `workspace.automate` exclusively
 
 ## Open questions
-
-### Brokering mechanism for Git credential helper
-
-The design requires that raw human tokens are never disclosed to automation
-agents through the delegation layer (key decision 11). However, the current
-`GIT_ASKPASS` flow requires the agent binary to print token-shaped material to
-stdout for git to consume. There is no generic "proxy an arbitrary external API
-call" mechanism today — only raw token vending (`workspaceAgentsExternalAuth`)
-and hardcoded server-side actions (`resolveChatGitAccessToken` +
-`FetchBranchDiff`).
-
-The doc needs to specify what "brokering" concretely means for Git. Options
-include: the control plane mints a short-lived scoped token (currently deferred
-to future work), git operations go through a control-plane-hosted git proxy, or
-the `GIT_ASKPASS` flow for automation agents works fundamentally differently
-than for humans. The choice affects the migration sketch and implementation
-complexity.
 
 ### Agent `user_id` binding complexity
 
@@ -971,8 +987,9 @@ A successful design should make the following true:
   the workspace owner's linked external identity
 - an automation can use a human's external identity only through an explicit,
   auditable, revocable delegated session
-- raw human tokens are never disclosed to automation agents through the
-  delegation layer
+- raw human tokens are never disclosed at the coderd-to-LLM-provider boundary;
+  workspace-interior credential flows operate within the workspace trust domain
+  and are gated by delegation policy
 - automation agents are bound to their automation principal at the agent level,
   not the workspace-owner level
 - chat-side and workspace-side provider access are governed by the same
