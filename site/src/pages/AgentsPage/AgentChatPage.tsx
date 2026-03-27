@@ -37,6 +37,7 @@ import {
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -387,35 +388,49 @@ const AgentChatPage: FC = () => {
 		if (!workspaceId) {
 			return;
 		}
-		const socket = watchWorkspace(workspaceId);
-		socket.addEventListener("message", (event) => {
-			if (event.parseError) {
-				return;
-			}
-			if (event.parsedMessage.type === "data") {
-				const next = event.parsedMessage.data as TypesGen.Workspace;
-				queryClient.setQueryData<TypesGen.Workspace | undefined>(
-					workspaceByIdKey(workspaceId),
-					(prev) => {
-						// Return the same reference when nothing the UI
-						// reads has changed. This prevents react-query
-						// from notifying subscribers and avoids a full
-						// AgentChatPage re-render on every heartbeat.
-						if (
-							prev &&
-							prev.latest_build.status === next.latest_build.status &&
-							prev.latest_build.resources === next.latest_build.resources &&
-							prev.name === next.name &&
-							prev.owner_name === next.owner_name
-						) {
-							return prev;
-						}
-						return next;
-					},
-				);
-			}
+		return createReconnectingWebSocket({
+			connect() {
+				const socket = watchWorkspace(workspaceId);
+				socket.addEventListener("message", (event) => {
+					if (event.parseError) {
+						return;
+					}
+					if (event.parsedMessage.type === "data") {
+						const next = event.parsedMessage.data as TypesGen.Workspace;
+						queryClient.setQueryData<TypesGen.Workspace | undefined>(
+							workspaceByIdKey(workspaceId),
+							(prev) => {
+								// Return the same reference when nothing the UI
+								// reads has changed. This prevents react-query
+								// from notifying subscribers and avoids a full
+								// AgentChatPage re-render on every heartbeat.
+								const prevAgent = getWorkspaceAgent(prev, undefined);
+								const nextAgent = getWorkspaceAgent(next, undefined);
+								if (
+									prev &&
+									prev.latest_build.status === next.latest_build.status &&
+									prev.name === next.name &&
+									prev.owner_name === next.owner_name &&
+									prevAgent?.id === nextAgent?.id &&
+									prevAgent?.status === nextAgent?.status &&
+									prevAgent?.name === nextAgent?.name &&
+									prevAgent?.expanded_directory === nextAgent?.expanded_directory
+								) {
+									return prev;
+								}
+								return next;
+							},
+						);
+					}
+				});
+				return socket;
+			},
+			onOpen() {
+				void queryClient.invalidateQueries({
+					queryKey: workspaceByIdKey(workspaceId),
+				});
+			},
 		});
-		return () => socket.close();
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;
