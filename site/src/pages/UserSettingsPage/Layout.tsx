@@ -1,8 +1,8 @@
-import { useAuthenticated } from "hooks";
 import { type FC, Suspense } from "react";
 import { Outlet } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 

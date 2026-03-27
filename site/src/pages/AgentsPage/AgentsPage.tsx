@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -31,6 +30,7 @@ import {
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";

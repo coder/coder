@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
@@ -6,6 +5,7 @@ import { workspacePermissionsByOrganization } from "#/api/queries/organizations"
 import { templateExamples, templates } from "#/api/queries/templates";
 import { type UseFilterResult, useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
