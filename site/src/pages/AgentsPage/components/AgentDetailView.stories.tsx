@@ -692,6 +692,69 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 	},
 };
 
+/** Active touch scrolling is not snapped back to bottom by a viewport
+ *  resize. */
+export const ScrollNotJumpedDuringTouch: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentDetailView
+			store={buildStoreWithMessages(buildLongConversation(30))}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+
+		scrollContainer.dispatchEvent(new Event("touchstart"));
+
+		const touchScrollTop = Math.max(
+			scrollContainer.scrollHeight - scrollContainer.clientHeight - 50,
+			0,
+		);
+		scrollContainer.scrollTop = touchScrollTop;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+
+		const nextHeight = Math.max(scrollContainer.clientHeight - 24, 200);
+		scrollContainer.style.height = `${nextHeight}px`;
+
+		await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
+
+		await waitFor(
+			() => {
+				const bottomTop =
+					scrollContainer.scrollHeight - scrollContainer.clientHeight;
+				expect(
+					Math.abs(scrollContainer.scrollTop - touchScrollTop),
+				).toBeLessThan(2);
+				expect(scrollContainer.scrollTop).toBeLessThan(bottomTop - 10);
+			},
+			{ timeout: 500 },
+		);
+
+		scrollContainer.dispatchEvent(new Event("touchend"));
+	},
+};
+
 const pinnedScrollStore = buildStoreWithMessages(buildLongConversation(30));
 
 /** When at bottom, new content keeps the user pinned to bottom. */

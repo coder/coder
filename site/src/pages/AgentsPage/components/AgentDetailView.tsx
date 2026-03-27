@@ -543,6 +543,8 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
  * - Loading older message pages via an IntersectionObserver sentinel.
  * - ResizeObserver-driven scroll anchoring for transcript and viewport
  *   size changes.
+ * - A touch gesture guard so mobile browser chrome resizes do not
+ *   override active user scrolling.
  * - A floating "Scroll to bottom" button when the user is scrolled
  *   away from the bottom.
  *
@@ -612,6 +614,7 @@ const ScrollAnchoredContainer: FC<{
 	const hasFetchedRef = useRef(false);
 	const onFetchRef = useRef(onFetchMoreMessages);
 	const autoScrollRef = useRef(true);
+	const isTouchingRef = useRef(false);
 	const contentRef = useRef<HTMLDivElement>(null);
 	const pendingPrependRef = useRef<{
 		contentHeight: number;
@@ -850,7 +853,7 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (autoScrollRef.current) {
+			if (autoScrollRef.current && !isTouchingRef.current) {
 				scheduleBottomPin();
 				return;
 			}
@@ -891,6 +894,9 @@ const ScrollAnchoredContainer: FC<{
 			const delta = nextHeight - prevContainerHeight;
 			prevContainerHeight = nextHeight;
 			if (Math.abs(delta) < 1 || !autoScrollRef.current) {
+				return;
+			}
+			if (isTouchingRef.current) {
 				return;
 			}
 
@@ -968,17 +974,40 @@ const ScrollAnchoredContainer: FC<{
 			}
 		};
 
+		const handleTouchStart = () => {
+			isTouchingRef.current = true;
+			handleUserInterrupt();
+		};
+
+		const handleTouchEnd = () => {
+			isTouchingRef.current = false;
+			// Re-evaluate after the gesture ends because momentum scrolling
+			// can carry the transcript farther away from the bottom.
+			if (!isNearBottom(container)) {
+				autoScrollRef.current = false;
+				cancelPendingPinsRef.current?.();
+			}
+		};
+
 		container.addEventListener("scroll", handleScroll, { passive: true });
 		container.addEventListener("wheel", handleUserInterrupt, {
 			passive: true,
 		});
-		container.addEventListener("touchstart", handleUserInterrupt, {
+		container.addEventListener("touchstart", handleTouchStart, {
+			passive: true,
+		});
+		container.addEventListener("touchend", handleTouchEnd, {
+			passive: true,
+		});
+		container.addEventListener("touchcancel", handleTouchEnd, {
 			passive: true,
 		});
 		return () => {
 			container.removeEventListener("scroll", handleScroll);
 			container.removeEventListener("wheel", handleUserInterrupt);
-			container.removeEventListener("touchstart", handleUserInterrupt);
+			container.removeEventListener("touchstart", handleTouchStart);
+			container.removeEventListener("touchend", handleTouchEnd);
+			container.removeEventListener("touchcancel", handleTouchEnd);
 			if (rafId !== null) {
 				cancelAnimationFrame(rafId);
 			}
