@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
-	"io"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -145,8 +145,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	if options.ConnectionLogger == nil {
-		connLogger := connectionlog.NewConnectionLogger(
-			connectionlog.NewDBBackend(ctx, options.Database, options.Logger),
+		connLogger := connectionlog.New(
+			connectionlog.NewDBBatcher(ctx, options.Database, options.Logger),
 			connectionlog.NewSlogBackend(options.Logger),
 		)
 		options.ConnectionLogger = connLogger

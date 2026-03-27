@@ -2,7 +2,6 @@ package connectionlog
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"time"
 
@@ -45,9 +44,9 @@ type ConnectionLogger struct {
 	backends []Backend
 }
 
-// NewConnectionLogger creates a ConnectionLogger that dispatches to
-// the given backends.
-func NewConnectionLogger(backends ...Backend) *ConnectionLogger {
+// New creates a ConnectionLogger that dispatches to the given
+// backends.
+func New(backends ...Backend) *ConnectionLogger {
 	return &ConnectionLogger{
 		backends: backends,
 	}
@@ -77,35 +76,35 @@ func (c *ConnectionLogger) Close() error {
 	return errs
 }
 
-// DBBackendOption is a functional option for configuring a DBBackend.
-type DBBackendOption func(b *DBBackend)
+// DBBatcherOption is a functional option for configuring a DBBatcher.
+type DBBatcherOption func(b *DBBatcher)
 
 // WithBatchSize sets the maximum number of entries to accumulate
 // before forcing a flush.
-func WithBatchSize(size int) DBBackendOption {
-	return func(b *DBBackend) {
+func WithBatchSize(size int) DBBatcherOption {
+	return func(b *DBBatcher) {
 		b.maxBatchSize = size
 	}
 }
 
 // WithFlushInterval sets how frequently the batcher flushes to the
 // database.
-func WithFlushInterval(d time.Duration) DBBackendOption {
-	return func(b *DBBackend) {
+func WithFlushInterval(d time.Duration) DBBatcherOption {
+	return func(b *DBBatcher) {
 		b.interval = d
 	}
 }
 
 // WithClock sets the clock, useful for testing.
-func WithClock(clock quartz.Clock) DBBackendOption {
-	return func(b *DBBackend) {
+func WithClock(clock quartz.Clock) DBBatcherOption {
+	return func(b *DBBatcher) {
 		b.clock = clock
 	}
 }
 
-// DBBackend batches connection log upserts and periodically flushes
+// DBBatcher batches connection log upserts and periodically flushes
 // them to the database to reduce per-event write pressure.
-type DBBackend struct {
+type DBBatcher struct {
 	store database.Store
 	log   slog.Logger
 
@@ -129,11 +128,11 @@ type DBBackend struct {
 	done   chan struct{}
 }
 
-// NewDBBackend creates a DBBackend that batches writes to the database
+// NewDBBatcher creates a DBBatcher that batches writes to the database
 // and starts its background processing loop. Close must be called to
 // flush remaining entries on shutdown.
-func NewDBBackend(ctx context.Context, store database.Store, log slog.Logger, opts ...DBBackendOption) *DBBackend {
-	b := &DBBackend{
+func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, opts ...DBBatcherOption) *DBBatcher {
+	b := &DBBatcher{
 		store: store,
 		log:   log,
 		done:  make(chan struct{}),
@@ -167,7 +166,7 @@ func NewDBBackend(ctx context.Context, store database.Store, log slog.Logger, op
 // Upsert enqueues a connection log entry for batched writing. It
 // blocks if the internal buffer is full, ensuring no logs are dropped.
 // It returns immediately if the batcher's context is done.
-func (b *DBBackend) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
+func (b *DBBatcher) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
 	select {
 	case b.itemCh <- clog:
 		return nil
@@ -180,7 +179,7 @@ func (b *DBBackend) Upsert(ctx context.Context, clog database.UpsertConnectionLo
 
 // Close cancels the batcher context and waits for the final flush to
 // complete.
-func (b *DBBackend) Close() error {
+func (b *DBBatcher) Close() error {
 	b.cancel()
 	if b.timer != nil {
 		b.timer.Stop()
@@ -198,7 +197,7 @@ func (b *DBBackend) Close() error {
 // agent/agent.go and agent/agentssh), so the only duplicate for the
 // same (connection_id, workspace_id, agent_name) is a connect/disconnect
 // pair for the same session. A "reconnect" always uses a new ID.
-func (b *DBBackend) addToBatch(item database.UpsertConnectionLogParams) {
+func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 	if !item.ConnectionID.Valid {
 		b.nullConnIDBatch = append(b.nullConnIDBatch, item)
 		return
@@ -224,14 +223,14 @@ func (b *DBBackend) addToBatch(item database.UpsertConnectionLogParams) {
 }
 
 // batchLen returns the total number of entries currently buffered.
-func (b *DBBackend) batchLen() int {
+func (b *DBBatcher) batchLen() int {
 	return len(b.dedupedBatch) + len(b.nullConnIDBatch)
 }
 
-func (b *DBBackend) run(ctx context.Context) {
+func (b *DBBatcher) run(ctx context.Context) {
 	//nolint:gocritic // System-level batch operation for connection logs.
 	authCtx := dbauthz.AsConnectionLogger(ctx)
-	for {
+	for ctx.Err() == nil {
 		select {
 		case item := <-b.itemCh:
 			b.addToBatch(item)
@@ -246,19 +245,17 @@ func (b *DBBackend) run(ctx context.Context) {
 			b.timer.Reset(b.interval, "connectionLogBatcher", "scheduledFlush")
 
 		case <-ctx.Done():
-			b.log.Debug(ctx, "context done, flushing before exit")
+		}
+	}
 
-			// Drain any remaining items from the channel.
-			for {
-				select {
-				case item := <-b.itemCh:
-					b.addToBatch(item)
-				default:
-					goto drained
-				}
-			}
-		drained:
+	b.log.Debug(ctx, "context done, flushing before exit")
 
+	// Drain any remaining items from the channel.
+	for {
+		select {
+		case item := <-b.itemCh:
+			b.addToBatch(item)
+		default:
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
 			defer cancel() //nolint:revive // Returning after this.
 
@@ -278,7 +275,7 @@ type conflictKey struct {
 	AgentName    string
 }
 
-func (b *DBBackend) flush(ctx context.Context) {
+func (b *DBBatcher) flush(ctx context.Context) {
 	count := b.batchLen()
 	if count == 0 {
 		return
@@ -314,16 +311,16 @@ func (b *DBBackend) flush(ctx context.Context) {
 		workspaceName = append(workspaceName, item.WorkspaceName)
 		agentName = append(agentName, item.AgentName)
 		connType = append(connType, item.Type)
-		code = append(code, nullInt32ToInt32(item.Code))
+		code = append(code, item.Code.Int32)
 		ip = append(ip, item.Ip)
-		userAgent = append(userAgent, nullStringToString(item.UserAgent))
-		userID = append(userID, nullUUIDToUUID(item.UserID))
-		slugOrPort = append(slugOrPort, nullStringToString(item.SlugOrPort))
-		connectionID = append(connectionID, nullUUIDToUUID(item.ConnectionID))
-		disconnectReason = append(disconnectReason, nullStringToString(item.DisconnectReason))
+		userAgent = append(userAgent, item.UserAgent.String)
+		userID = append(userID, item.UserID.UUID)
+		slugOrPort = append(slugOrPort, item.SlugOrPort.String)
+		connectionID = append(connectionID, item.ConnectionID.UUID)
+		disconnectReason = append(disconnectReason, item.DisconnectReason.String)
 		// Pre-compute disconnect_time: if status is "disconnected",
 		// use the event time; otherwise use zero time (epoch) which
-		// the SQL CASE will treat as no disconnect.
+		// the SQL NULLIF will treat as NULL.
 		if item.ConnectionStatus == database.ConnectionStatusDisconnected {
 			disconnectTime = append(disconnectTime, item.Time)
 		} else {
@@ -371,33 +368,6 @@ func (b *DBBackend) flush(ctx context.Context) {
 	}
 
 	b.log.Debug(ctx, "connection log batch flush complete", slog.F("count", count))
-}
-
-// nullStringToString converts a sql.NullString to a string. When the
-// NullString is not valid, an empty string is returned.
-func nullStringToString(ns sql.NullString) string {
-	if ns.Valid {
-		return ns.String
-	}
-	return ""
-}
-
-// nullInt32ToInt32 converts a sql.NullInt32 to an int32. When the
-// NullInt32 is not valid, zero is returned.
-func nullInt32ToInt32(ni sql.NullInt32) int32 {
-	if ni.Valid {
-		return ni.Int32
-	}
-	return 0
-}
-
-// nullUUIDToUUID converts a uuid.NullUUID to a uuid.UUID. When the
-// NullUUID is not valid, uuid.Nil is returned.
-func nullUUIDToUUID(nu uuid.NullUUID) uuid.UUID {
-	if nu.Valid {
-		return nu.UUID
-	}
-	return uuid.Nil
 }
 
 type connectionSlogBackend struct {

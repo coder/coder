@@ -63,7 +63,7 @@ func TestDBBackendIntegration(t *testing.T) {
 		ws := createWorkspace(t, db)
 
 		//nolint:gocritic // Test needs system context for the batcher.
-		backend := connectionlog.NewDBBackend(
+		backend := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
 			connectionlog.WithClock(clock),
 			connectionlog.WithBatchSize(100),
@@ -113,7 +113,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		// First batcher: insert connect, close to flush.
 		//nolint:gocritic // Test needs system context for the batcher.
-		b1 := connectionlog.NewDBBackend(
+		b1 := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
 			connectionlog.WithClock(clock),
 			connectionlog.WithBatchSize(100),
@@ -136,7 +136,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		// Second batcher: insert disconnect, close to flush.
 		//nolint:gocritic // Test needs system context for the batcher.
-		b2 := connectionlog.NewDBBackend(
+		b2 := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
 			connectionlog.WithClock(clock),
 			connectionlog.WithBatchSize(100),
@@ -180,7 +180,7 @@ func TestDBBackendIntegration(t *testing.T) {
 		ws := createWorkspace(t, db)
 
 		//nolint:gocritic // Test needs system context for the batcher.
-		backend := connectionlog.NewDBBackend(
+		backend := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
 			connectionlog.WithClock(clock),
 			connectionlog.WithBatchSize(100),
@@ -247,7 +247,7 @@ func TestDBBackendIntegration(t *testing.T) {
 		ws := createWorkspace(t, db)
 
 		//nolint:gocritic // Test needs system context for the batcher.
-		backend := connectionlog.NewDBBackend(
+		backend := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
 			connectionlog.WithClock(clock),
 			connectionlog.WithBatchSize(100),
@@ -292,7 +292,7 @@ func TestDBBackendIntegration(t *testing.T) {
 		ws := createWorkspace(t, db)
 
 		//nolint:gocritic // Test needs system context for the batcher.
-		backend := connectionlog.NewDBBackend(
+		backend := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
 			connectionlog.WithClock(clock),
 			connectionlog.WithBatchSize(100),
@@ -337,7 +337,7 @@ func TestDBBackendIntegration(t *testing.T) {
 		ws := createWorkspace(t, db)
 
 		//nolint:gocritic // Test needs system context for the batcher.
-		backend := connectionlog.NewDBBackend(
+		backend := connectionlog.NewDBBatcher(
 			dbauthz.AsConnectionLogger(ctx), db, log,
 			connectionlog.WithClock(clock),
 			connectionlog.WithBatchSize(100),
