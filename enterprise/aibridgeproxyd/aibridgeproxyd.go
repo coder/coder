@@ -39,9 +39,6 @@ const (
 )
 
 const (
-	// HeaderAIBridgeRequestID is the header used to correlate requests
-	// between aibridgeproxyd and aibridged.
-	HeaderAIBridgeRequestID = "X-AI-Bridge-Request-Id"
 	// ProxyAuthRealm is the realm used in Proxy-Authenticate challenges.
 	// The realm helps clients identify which credentials to use.
 	ProxyAuthRealm = `"Coder AI Bridge Proxy"`
@@ -960,9 +957,8 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 
 	injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
 
-	// Set custom header for cross-service log correlation.
-	// This allows correlating aibridgeproxyd logs with aibridged logs.
-	req.Header.Set(HeaderAIBridgeRequestID, reqCtx.RequestID.String())
+	// Set request ID header to correlate requests between aibridgeproxyd and aibridged.
+	req.Header.Set(agplaibridge.HeaderCoderRequestID, reqCtx.RequestID.String())
 
 	logger.Info(s.ctx, "routing MITM request to aibridged",
 		slog.F("aibridged_url", aiBridgeParsedURL.String()),
