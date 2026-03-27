@@ -258,21 +258,21 @@ func isMetaTitleOutput(title string, contextText string) bool {
 		return false
 	}
 	normalizedContext := strings.ToLower(normalizeShortTextOutput(contextText))
+	mentionsTitleTopic := strings.Contains(normalizedContext, "generate title") ||
+		strings.Contains(normalizedContext, "title for ") ||
+		strings.Contains(normalizedContext, "title generator") ||
+		strings.Contains(normalizedContext, "title generation")
 
-	if strings.HasPrefix(normalizedTitle, "generate title") &&
-		!strings.Contains(normalizedContext, "generate title") {
+	if strings.HasPrefix(normalizedTitle, "generate title") && !mentionsTitleTopic {
 		return true
 	}
-	if strings.HasPrefix(normalizedTitle, "title for ") &&
-		!strings.Contains(normalizedContext, "title for ") {
+	if strings.HasPrefix(normalizedTitle, "title for ") && !mentionsTitleTopic {
 		return true
 	}
-	if strings.Contains(normalizedTitle, "title generator") &&
-		!strings.Contains(normalizedContext, "title generator") {
+	if strings.Contains(normalizedTitle, "title generator") && !mentionsTitleTopic {
 		return true
 	}
-	if strings.Contains(normalizedTitle, "title generation") &&
-		!strings.Contains(normalizedContext, "title generation") {
+	if strings.Contains(normalizedTitle, "title generation") && !mentionsTitleTopic {
 		return true
 	}
 
