@@ -18,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -38,31 +39,45 @@ import (
 type storeSpy struct {
 	database.Store
 
-	claims           *atomic.Int32
-	claimParams      *atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]
-	claimedWorkspace *atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]
+	claims               *atomic.Int32
+	claimParams          *atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]
+	claimedWorkspace     *atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]
+	insertPrebuildEvents *atomic.Int32
+	insertPrebuildInTx   *atomic.Int32
+	insertPrebuildEvent  *atomic.Pointer[database.InsertPrebuildEventParams]
+	inTx                 bool
 
 	// if claimingErr is not nil - error will be returned when ClaimPrebuiltWorkspace is called
 	claimingErr error
+	// if insertPrebuildEventErr is not nil - error will be returned when InsertPrebuildEvent is called
+	insertPrebuildEventErr error
 }
 
-func newStoreSpy(db database.Store, claimingErr error) *storeSpy {
+func newStoreSpy(db database.Store, claimingErr, insertPrebuildEventErr error) *storeSpy {
 	return &storeSpy{
-		Store:            db,
-		claims:           &atomic.Int32{},
-		claimParams:      &atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]{},
-		claimedWorkspace: &atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]{},
-		claimingErr:      claimingErr,
+		Store:                  db,
+		claims:                 &atomic.Int32{},
+		claimParams:            &atomic.Pointer[database.ClaimPrebuiltWorkspaceParams]{},
+		claimedWorkspace:       &atomic.Pointer[database.ClaimPrebuiltWorkspaceRow]{},
+		insertPrebuildEvents:   &atomic.Int32{},
+		insertPrebuildInTx:     &atomic.Int32{},
+		insertPrebuildEvent:    &atomic.Pointer[database.InsertPrebuildEventParams]{},
+		claimingErr:            claimingErr,
+		insertPrebuildEventErr: insertPrebuildEventErr,
 	}
 }
 
 func (m *storeSpy) InTx(fn func(store database.Store) error, opts *database.TxOptions) error {
 	// Pass spy down into transaction store.
 	return m.Store.InTx(func(store database.Store) error {
-		spy := newStoreSpy(store, m.claimingErr)
+		spy := newStoreSpy(store, m.claimingErr, m.insertPrebuildEventErr)
 		spy.claims = m.claims
 		spy.claimParams = m.claimParams
 		spy.claimedWorkspace = m.claimedWorkspace
+		spy.insertPrebuildEvents = m.insertPrebuildEvents
+		spy.insertPrebuildInTx = m.insertPrebuildInTx
+		spy.insertPrebuildEvent = m.insertPrebuildEvent
+		spy.inTx = true
 
 		return fn(spy)
 	}, opts)
@@ -80,6 +95,19 @@ func (m *storeSpy) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Clai
 		m.claimedWorkspace.Store(&result)
 	}
 	return result, err
+}
+
+func (m *storeSpy) InsertPrebuildEvent(ctx context.Context, arg database.InsertPrebuildEventParams) error {
+	if m.inTx {
+		m.insertPrebuildInTx.Add(1)
+	} else {
+		m.insertPrebuildEvents.Add(1)
+	}
+	m.insertPrebuildEvent.Store(&arg)
+	if m.insertPrebuildEventErr != nil {
+		return m.insertPrebuildEventErr
+	}
+	return m.Store.InsertPrebuildEvent(ctx, arg)
 }
 
 func TestClaimPrebuild(t *testing.T) {
@@ -135,7 +163,7 @@ func TestClaimPrebuild(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitSuperLong)
 				db, pubsub := dbtestutil.NewDB(t)
 
-				spy := newStoreSpy(db, tc.claimingErr)
+				spy := newStoreSpy(db, tc.claimingErr, nil)
 				expectedPrebuildsCount := desiredInstances * presetCount
 
 				logger := testutil.Logger(t)
@@ -386,6 +414,202 @@ func TestClaimPrebuild(t *testing.T) {
 				require.Zero(t, spy.claims.Load())
 			})
 		}
+	}
+}
+
+func prebuildEventsSince(ctx context.Context, t *testing.T, db database.Store, now time.Time) []database.GetPrebuildEventCountsRow {
+	t.Helper()
+
+	// nolint:gocritic // System context is required to read prebuild events.
+	rows, err := db.GetPrebuildEventCounts(dbauthz.AsSystemRestricted(ctx), database.GetPrebuildEventCountsParams{
+		Since5m:   now.Add(-5 * time.Minute),
+		Since10m:  now.Add(-10 * time.Minute),
+		Since30m:  now.Add(-30 * time.Minute),
+		Since60m:  now.Add(-60 * time.Minute),
+		Since120m: now.Add(-120 * time.Minute),
+	})
+	require.NoError(t, err)
+	return rows
+}
+
+func TestClaimPrebuildEventRecording(t *testing.T) {
+	t.Parallel()
+
+	const desiredInstances = 1
+
+	insertErr := xerrors.New("insert prebuild event failed")
+
+	cases := map[string]struct {
+		markPrebuildsClaimable bool
+		claimingErr            error
+		insertPrebuildEventErr error
+		usePresetID            bool
+		richParameterValues    []codersdk.WorkspaceBuildParameter
+		wantEventType          string
+		wantPersistedEventType string
+	}{
+		"claim success": {
+			markPrebuildsClaimable: true,
+			usePresetID:            true,
+			wantEventType:          string(agplprebuilds.PrebuildEventClaimSucceeded),
+			wantPersistedEventType: string(agplprebuilds.PrebuildEventClaimSucceeded),
+		},
+		"claim miss": {
+			markPrebuildsClaimable: true,
+			claimingErr:            agplprebuilds.ErrNoClaimablePrebuiltWorkspaces,
+			usePresetID:            true,
+			wantEventType:          string(agplprebuilds.PrebuildEventClaimMissed),
+			wantPersistedEventType: string(agplprebuilds.PrebuildEventClaimMissed),
+		},
+		"no preset match": {
+			markPrebuildsClaimable: true,
+			richParameterValues: []codersdk.WorkspaceBuildParameter{{
+				Name:  "k1",
+				Value: "no-match",
+			}},
+		},
+		"agpl fallback": {
+			markPrebuildsClaimable: true,
+			claimingErr:            agplprebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces,
+			usePresetID:            true,
+		},
+		"event write is best effort": {
+			markPrebuildsClaimable: true,
+			insertPrebuildEventErr: insertErr,
+			usePresetID:            true,
+			wantEventType:          string(agplprebuilds.PrebuildEventClaimSucceeded),
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			clock.Set(dbtime.Now())
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
+			db, pubsub := dbtestutil.NewDB(t)
+
+			spy := newStoreSpy(db, tc.claimingErr, tc.insertPrebuildEventErr)
+			logger := testutil.Logger(t)
+			client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Database: spy,
+					Pubsub:   pubsub,
+					Clock:    clock,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureExternalProvisionerDaemons: 1,
+					},
+				},
+				EntitlementsUpdateInterval: time.Second,
+			})
+
+			provisionerCloser := coderdenttest.NewExternalProvisionerDaemon(t, client, owner.OrganizationID, map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			})
+			defer provisionerCloser.Close()
+
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			reconciler := prebuilds.NewStoreReconciler(
+				spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger,
+				quartz.NewMock(t),
+				prometheus.NewRegistry(),
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr(),
+				noop.NewTracerProvider(),
+				10,
+				nil,
+			)
+			var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
+			api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(desiredInstances))
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+			presets, err := client.TemplateVersionPresets(ctx, version.ID)
+			require.NoError(t, err)
+			require.Len(t, presets, 2)
+
+			userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+			state, err := reconciler.SnapshotState(ctx, spy)
+			require.NoError(t, err)
+			require.Len(t, state.Presets, len(presets))
+			for _, preset := range presets {
+				ps, err := state.FilterByPreset(preset.ID)
+				require.NoError(t, err)
+				require.NotNil(t, ps)
+				require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+			}
+
+			require.Eventually(t, func() bool {
+				rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
+				if err != nil {
+					return false
+				}
+				for _, row := range rows {
+					if !tc.markPrebuildsClaimable {
+						continue
+					}
+					agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
+					if err != nil {
+						return false
+					}
+					for _, agent := range agents {
+						err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+							ID:             agent.ID,
+							LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+							StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+							ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+						})
+						if err != nil {
+							return false
+						}
+					}
+				}
+				return len(rows) == len(presets)*desiredInstances
+			}, testutil.WaitSuperLong, testutil.IntervalSlow)
+
+			workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+			req := codersdk.CreateWorkspaceRequest{
+				TemplateVersionID:   version.ID,
+				Name:                workspaceName,
+				RichParameterValues: tc.richParameterValues,
+			}
+			if tc.usePresetID {
+				req.TemplateVersionPresetID = presets[0].ID
+			}
+
+			workspace, err := userClient.CreateUserWorkspace(ctx, user.Username, req)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+
+			if tc.wantEventType == "" {
+				require.Zero(t, spy.insertPrebuildEvents.Load())
+				require.Zero(t, spy.insertPrebuildInTx.Load())
+				require.Nil(t, spy.insertPrebuildEvent.Load())
+			} else {
+				require.EqualValues(t, 1, spy.insertPrebuildEvents.Load())
+				require.Zero(t, spy.insertPrebuildInTx.Load())
+				inserted := spy.insertPrebuildEvent.Load()
+				require.NotNil(t, inserted)
+				require.Equal(t, presets[0].ID, inserted.PresetID)
+				require.Equal(t, tc.wantEventType, inserted.EventType)
+				require.WithinDuration(t, clock.Now(), inserted.CreatedAt, time.Second)
+			}
+
+			rows := prebuildEventsSince(ctx, t, db, clock.Now())
+			if tc.wantPersistedEventType == "" {
+				require.Empty(t, rows)
+				return
+			}
+			require.Len(t, rows, 1)
+			require.Equal(t, presets[0].ID, rows[0].PresetID)
+			require.Equal(t, tc.wantPersistedEventType, rows[0].EventType)
+			require.EqualValues(t, 1, rows[0].Count5m)
+		})
 	}
 }
 

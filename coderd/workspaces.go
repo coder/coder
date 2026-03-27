@@ -663,12 +663,18 @@ func createWorkspace(
 	}
 
 	var (
-		provisionerJob     *database.ProvisionerJob
-		workspaceBuild     *database.WorkspaceBuild
-		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+		provisionerJob          *database.ProvisionerJob
+		workspaceBuild          *database.WorkspaceBuild
+		provisionerDaemons      []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+		templateVersionPresetID = req.TemplateVersionPresetID
+		prebuildEvent           prebuilds.PrebuildEventType
+		hasPrebuildEvent        bool
 	)
 
 	err = api.Database.InTx(func(db database.Store) error {
+		templateVersionPresetID = req.TemplateVersionPresetID
+		prebuildEvent = ""
+		hasPrebuildEvent = false
 		var (
 			prebuildsClaimer = *api.PrebuildsClaimer.Load()
 			workspaceID      uuid.UUID
@@ -687,8 +693,6 @@ func createWorkspace(
 
 		// Use injected Clock to allow time mocking in tests
 		now := dbtime.Time(api.Clock.Now())
-
-		templateVersionPresetID := req.TemplateVersionPresetID
 
 		// If no preset was chosen, look for a matching preset by parameter values.
 		if templateVersionPresetID == uuid.Nil {
@@ -720,7 +724,8 @@ func createWorkspace(
 			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
 			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil {
-				isExpectedError := errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces) ||
+				isClaimMiss := errors.Is(err, prebuilds.ErrNoClaimablePrebuiltWorkspaces)
+				isExpectedError := isClaimMiss ||
 					errors.Is(err, prebuilds.ErrAGPLDoesNotSupportPrebuiltWorkspaces)
 				fields := []slog.Field{
 					slog.Error(err),
@@ -737,6 +742,10 @@ func createWorkspace(
 
 				// if it's an expected error - use warn log level
 				api.Logger.Warn(ctx, "failed to claim prebuilt workspace", fields...)
+				if isClaimMiss {
+					prebuildEvent = prebuilds.PrebuildEventClaimMissed
+					hasPrebuildEvent = true
+				}
 
 				// fall back to creating a new workspace
 			}
@@ -768,6 +777,8 @@ func createWorkspace(
 		} else {
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
+			prebuildEvent = prebuilds.PrebuildEventClaimSucceeded
+			hasPrebuildEvent = true
 		}
 
 		// We have to refetch the workspace for the joined in fields.
@@ -818,6 +829,23 @@ func createWorkspace(
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err
+	}
+
+	if hasPrebuildEvent && templateVersionPresetID != uuid.Nil {
+		// Best-effort event recording happens after the main transaction commits.
+		// nolint:gocritic // System context is required for prebuild event recording.
+		eventErr := api.Database.InsertPrebuildEvent(dbauthz.AsSystemRestricted(ctx), database.InsertPrebuildEventParams{
+			PresetID:  templateVersionPresetID,
+			EventType: string(prebuildEvent),
+			CreatedAt: dbtime.Time(api.Clock.Now()),
+		})
+		if eventErr != nil {
+			api.Logger.Warn(ctx, "failed to record prebuild event",
+				slog.F("event_type", string(prebuildEvent)),
+				slog.F("template_version_preset_id", templateVersionPresetID),
+				slog.Error(eventErr),
+			)
+		}
 	}
 
 	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
