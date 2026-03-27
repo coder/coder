@@ -137,6 +137,7 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
+	onEditLastUserMessage?: () => void;
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -547,6 +548,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
+	onEditLastUserMessage,
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -774,11 +776,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
 	);
+	const hasDraftContext =
+		hasContent || attachments.length > 0 || hasFileReferences;
+	const isComposerEffectivelyEmpty = !hasDraftContext;
+	const hasSendableContent =
+		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
 		hasModelOptions &&
-		(hasContent || hasUploadedAttachments || hasFileReferences) &&
+		hasSendableContent &&
 		!isUploading;
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
@@ -836,7 +843,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setPreRecordingValue("");
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
+	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
 			if (editingQueuedMessageID !== null) {
 				e.preventDefault();
@@ -849,6 +856,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				onInterrupt();
 			}
 		}
+	};
+	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+		if (
+			e.key !== "ArrowUp" ||
+			editingQueuedMessageID !== null ||
+			isEditingHistoryMessage ||
+			!onEditLastUserMessage ||
+			!isComposerEffectivelyEmpty
+		) {
+			return;
+		}
+		e.preventDefault();
+		onEditLastUserMessage();
 	};
 
 	const sendButtonLabel =
@@ -892,7 +912,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
-				onKeyDown={handleKeyDown}
+				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
@@ -954,6 +974,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					placeholder={placeholder}
 					initialValue={initialValue}
 					onChange={handleContentChange}
+					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					disabled={isDisabled || isLoading}
 					autoFocus

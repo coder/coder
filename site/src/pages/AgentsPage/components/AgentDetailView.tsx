@@ -340,6 +340,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							onCancelQueueEdit={editing.handleCancelQueueEdit}
 							isEditingHistoryMessage={editing.editingMessageId !== null}
 							onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+							onEditUserMessage={editing.handleEditUserMessage}
 							editingFileBlocks={editing.editingFileBlocks}
 							mcpServers={mcpServers}
 							selectedMCPServerIds={selectedMCPServerIds}

@@ -26,6 +26,7 @@ import { LiveStreamTail } from "./AgentDetail/LiveStreamTail";
 import {
 	buildComputerUseSubagentIds,
 	buildSubagentTitles,
+	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { useOnRenderProfiler } from "./AgentDetail/useOnRenderProfiler";
@@ -135,6 +136,11 @@ interface AgentDetailInputProps {
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
+	onEditUserMessage: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+	) => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
@@ -169,6 +175,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
+	onEditUserMessage,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -184,6 +191,24 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
+	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
+	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {
+		const message = messagesByID.get(orderedMessageIDs[index]);
+		if (message?.role === "user") {
+			lastEditableUserMessage = message;
+			break;
+		}
+	}
+
+	const handleEditLastUserMessage = lastEditableUserMessage
+		? () => {
+				const { text, fileBlocks } = getEditableUserMessagePayload(
+					lastEditableUserMessage,
+				);
+				onEditUserMessage(lastEditableUserMessage.id, text, fileBlocks);
+			}
+		: undefined;
+
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold }
@@ -297,6 +322,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onCancelQueueEdit={onCancelQueueEdit}
 			isEditingHistoryMessage={isEditingHistoryMessage}
 			onCancelHistoryEdit={onCancelHistoryEdit}
+			onEditLastUserMessage={handleEditLastUserMessage}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
