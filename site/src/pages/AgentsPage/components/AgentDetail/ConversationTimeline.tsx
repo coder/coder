@@ -37,7 +37,10 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
-import { buildSubagentTitles } from "./messageParsing";
+import {
+	buildSubagentTitles,
+	getEditableUserMessagePayload,
+} from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -565,24 +568,9 @@ const ChatMessageItem = memo<{
 															className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
 															aria-label="Edit message"
 															onClick={() => {
-																const fileBlocks = parsed.blocks.filter(
-																	(
-																		b,
-																	): b is Extract<
-																		RenderBlock,
-																		{ type: "file" }
-																	> =>
-																		b.type === "file" &&
-																		(b.media_type.startsWith("image/") ||
-																			b.media_type === "text/plain"),
-																);
-																onEditUserMessage(
-																	message.id,
-																	parsed.markdown || "",
-																	fileBlocks.length > 0
-																		? fileBlocks
-																		: undefined,
-																);
+																const { text, fileBlocks } =
+																	getEditableUserMessagePayload(message);
+																onEditUserMessage(message.id, text, fileBlocks);
 															}}
 														>
 															<PencilIcon className="size-3.5" />

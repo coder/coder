@@ -137,6 +137,7 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
+	onEditLastUserMessage?: () => void;
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -547,6 +548,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
+	onEditLastUserMessage,
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -847,6 +849,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
 				e.preventDefault();
 				onInterrupt();
+			}
+		}
+		if (
+			e.key === "ArrowUp" &&
+			editingQueuedMessageID === null &&
+			!isEditingHistoryMessage &&
+			onEditLastUserMessage
+		) {
+			const text = internalRef.current?.getValue()?.trim() ?? "";
+			if (!text) {
+				e.preventDefault();
+				onEditLastUserMessage();
 			}
 		}
 	};

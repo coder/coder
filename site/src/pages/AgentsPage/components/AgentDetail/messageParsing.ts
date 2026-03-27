@@ -224,6 +224,26 @@ export const parseMessageContent = (
 	return parsed;
 };
 
+const isEditableUserMessageFileBlock = (
+	block: RenderBlock,
+): block is TypesGen.ChatFilePart =>
+	block.type === "file" &&
+	(block.media_type.startsWith("image/") || block.media_type === "text/plain");
+
+export const getEditableUserMessagePayload = (
+	message: TypesGen.ChatMessage,
+): {
+	text: string;
+	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+} => {
+	const parsed = parseMessageContent(message.content);
+	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
+	return {
+		text: parsed.markdown || "",
+		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
+	};
+};
+
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
 ): ParsedMessageEntry[] => {
