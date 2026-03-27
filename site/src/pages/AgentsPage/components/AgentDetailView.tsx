@@ -976,15 +976,22 @@ const ScrollAnchoredContainer: FC<{
 			}
 		};
 
-		const handleTouchStart = () => {
-			activeTouchCountRef.current++;
+		const getChangedTouchCount = (event: TouchEvent) => {
+			// A single touch event can add or remove multiple contacts.
+			// Count changed touches so the guard stays active until the
+			// final finger leaves the screen.
+			return Math.max(event.changedTouches.length, 1);
+		};
+
+		const handleTouchStart = (event: TouchEvent) => {
+			activeTouchCountRef.current += getChangedTouchCount(event);
 			handleUserInterrupt();
 		};
 
-		const handleTouchEnd = () => {
+		const handleTouchEnd = (event: TouchEvent) => {
 			activeTouchCountRef.current = Math.max(
 				0,
-				activeTouchCountRef.current - 1,
+				activeTouchCountRef.current - getChangedTouchCount(event),
 			);
 			if (activeTouchCountRef.current === 0) {
 				// Re-evaluate because momentum scrolling may carry the

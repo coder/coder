@@ -752,6 +752,21 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 	},
 };
 
+const dispatchTouchEvent = (
+	scrollContainer: HTMLElement,
+	type: "touchstart" | "touchend",
+	changedTouchesLength: number,
+) => {
+	const event = new Event(type, { bubbles: true });
+	Object.defineProperty(event, "changedTouches", {
+		configurable: true,
+		value: Array.from({ length: changedTouchesLength }, (_, index) => ({
+			identifier: index,
+		})),
+	});
+	scrollContainer.dispatchEvent(event);
+};
+
 const touchGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
 
 /** During an active touch gesture, the container ResizeObserver must not
@@ -780,8 +795,8 @@ export const ScrollNotJumpedDuringTouch: Story = {
 			requestAnimationFrame(() => resolve()),
 		);
 
-		// Simulate a touchstart event (finger down).
-		scrollContainer.dispatchEvent(new Event("touchstart", { bubbles: true }));
+		// Simulate a multi-touch gesture starting with two fingers down.
+		dispatchTouchEvent(scrollContainer, "touchstart", 2);
 
 		// Scroll partway up, within the 100px threshold but not at the
 		// absolute bottom. This simulates the user dragging up slightly
@@ -794,14 +809,16 @@ export const ScrollNotJumpedDuringTouch: Story = {
 		scrollContainer.scrollTop = targetScrollTop;
 		scrollContainer.dispatchEvent(new Event("scroll"));
 
-		// Record the scroll position before the resize.
-		const scrollTopBeforeResize = scrollContainer.scrollTop;
+		const originalHeight = scrollContainer.clientHeight;
+		const shrunkHeight = originalHeight - 10;
+
+		// Record the scroll position before the first resize.
+		const scrollTopBeforeFirstResize = scrollContainer.scrollTop;
 
 		// Simulate a container resize that models the mobile URL bar
 		// appearing. Shrink the container height slightly to trigger
 		// the ResizeObserver.
-		const originalHeight = scrollContainer.style.height;
-		scrollContainer.style.height = `${scrollContainer.clientHeight - 10}px`;
+		scrollContainer.style.height = `${shrunkHeight}px`;
 
 		// Give the ResizeObserver a chance to fire.
 		await new Promise<void>((resolve) =>
@@ -811,12 +828,25 @@ export const ScrollNotJumpedDuringTouch: Story = {
 		// During an active touch, the resize guard should prevent the
 		// container observer from snapping to the absolute bottom.
 		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeResize + 1,
+			scrollTopBeforeFirstResize + 1,
 		);
 
-		// Restore container height and end the touch.
-		scrollContainer.style.height = originalHeight;
-		scrollContainer.dispatchEvent(new Event("touchend", { bubbles: true }));
+		// Lift one finger, leaving a second touch active. The guard should
+		// still block resize snaps until the final finger is lifted.
+		dispatchTouchEvent(scrollContainer, "touchend", 1);
+		const scrollTopBeforeSecondResize = scrollContainer.scrollTop;
+		scrollContainer.style.height = `${originalHeight}px`;
+
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		);
+
+		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
+			scrollTopBeforeSecondResize + 1,
+		);
+
+		// End the remaining touch.
+		dispatchTouchEvent(scrollContainer, "touchend", 1);
 
 		// After touch ends, normal scroll tracking should resume.
 		// Scroll to the very bottom and verify the button disappears.
