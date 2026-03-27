@@ -13,7 +13,7 @@ Prebuilt workspaces are:
 - Created and maintained automatically by Coder to match your specified preset configurations.
 - Claimed transparently when developers create workspaces.
 - Monitored and replaced automatically to maintain your desired pool size.
-- Automatically scaled based on time-based schedules to optimize resource usage.
+- Automatically scaled with time-based schedules or demand-aware expressions to optimize resource usage.
 
 Prebuilt workspaces are a special type of workspace that don't follow the
 [regular workspace scheduling features](../../../user-guides/workspace-scheduling.md) like autostart and autostop. Instead, they have their own reconciliation loop that handles prebuild-specific scheduling features such as TTL and prebuild scheduling.
@@ -167,6 +167,8 @@ data "coder_workspace_preset" "goland" {
 1. The schedule that matches the current time becomes active. Overlapping schedules are disallowed by validation rules.
 1. If no schedules match the current time, the base `instances` count is used.
 1. The reconciliation loop automatically creates or destroys prebuilt workspaces to match the target count.
+
+For demand-aware scaling formulas that use recent claim activity and the schedule baseline together, see [Smart prebuild autoscaling expressions](./prebuilds-autoscaling.md).
 
 **Cron expression format:**
 

@@ -604,6 +604,12 @@
 									"state": ["premium"]
 								},
 								{
+									"title": "Smart prebuild autoscaling",
+									"description": "Scale prebuild pools with Expr formulas based on demand signals and schedules",
+									"path": "./admin/templates/extending-templates/prebuilds-autoscaling.md",
+									"state": ["premium"]
+								},
+								{
 									"title": "Icons",
 									"description": "Customize your template with built-in icons",
 									"path": "./admin/templates/extending-templates/icons.md"
