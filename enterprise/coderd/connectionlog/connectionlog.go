@@ -193,6 +193,11 @@ func (b *DBBackend) Close() error {
 // key on the fly. For entries with the same key, disconnect events are
 // preferred over connect events, and later events are preferred over
 // earlier ones.
+//
+// This is safe because each new connection gets a fresh UUID (see
+// agent/agent.go and agent/agentssh), so the only duplicate for the
+// same (connection_id, workspace_id, agent_name) is a connect/disconnect
+// pair for the same session. A "reconnect" always uses a new ID.
 func (b *DBBackend) addToBatch(item database.UpsertConnectionLogParams) {
 	if !item.ConnectionID.Valid {
 		b.nullConnIDBatch = append(b.nullConnIDBatch, item)
