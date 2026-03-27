@@ -123,7 +123,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 			return (
 				<ProviderForm
 					provider={parentProviderState.provider}
-					providerLabel={parentProviderState.label}
 					providerConfig={selectedConfig}
 					hasManagedAPIKey={selectedConfig.has_api_key}
 					isEnvPreset={parentProviderState.isEnvPreset}
@@ -164,7 +163,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 			return (
 				<ProviderForm
 					provider={addProviderState.provider}
-					providerLabel={addProviderState.label}
 					providerConfig={undefined}
 					hasManagedAPIKey={false}
 					isEnvPreset={addProviderState.isEnvPreset}

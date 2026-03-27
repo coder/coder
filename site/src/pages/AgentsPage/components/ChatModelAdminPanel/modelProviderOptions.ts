@@ -20,7 +20,7 @@ const getQualifyingDatabaseConfigs = (
 ): readonly ChatProviderConfig[] => {
 	return providerState.providerConfigs.filter(
 		(config) =>
-			config.source === "database" &&
+			(config.source === undefined || config.source === "database") &&
 			config.id !== nilUUID &&
 			config.enabled === true &&
 			config.has_api_key === true,

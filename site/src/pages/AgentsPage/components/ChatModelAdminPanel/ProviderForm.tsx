@@ -22,7 +22,6 @@ const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
 interface ProviderFormProps {
 	provider: string;
-	providerLabel: string;
 	providerConfig: TypesGen.ChatProviderConfig | undefined;
 	hasManagedAPIKey: boolean;
 	isEnvPreset: boolean;
@@ -42,7 +41,6 @@ interface ProviderFormProps {
 
 export const ProviderForm: FC<ProviderFormProps> = ({
 	provider,
-	providerLabel,
 	providerConfig,
 	hasManagedAPIKey,
 	isEnvPreset,
@@ -192,13 +190,11 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				<div className="min-w-0 flex-1">
 					<input
 						type="text"
-						value={
-							displayName || providerLabel || formatProviderLabel(provider)
-						}
+						value={displayName || formatProviderLabel(provider)}
 						onChange={(e) => setDisplayName(e.target.value)}
 						disabled={isDisabled || isAPIKeyEnvManaged}
 						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-						placeholder={providerLabel || formatProviderLabel(provider)}
+						placeholder={formatProviderLabel(provider)}
 					/>
 				</div>
 				<Tooltip>
