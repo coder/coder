@@ -100,15 +100,16 @@ func TestBatcher_DB(t *testing.T) {
 		UpdatedAt: later,
 	})
 
-	// Add an update for agent2 to verify the batch query works for
-	// n > 1 agents.
+	// Add an update for agent2 with a distinct timestamp to verify
+	// each agent's values are committed independently.
+	later2 := now.Add(2 * time.Second)
 	b.Add(agentapi.HeartbeatUpdate{
 		ID: agent2.ID,
 		LastConnectedAt: sql.NullTime{
-			Time:  now,
+			Time:  later2,
 			Valid: true,
 		},
-		UpdatedAt: now,
+		UpdatedAt: later2,
 	})
 
 	// Advance past the flush interval to trigger a batch write.
@@ -119,11 +120,11 @@ func TestBatcher_DB(t *testing.T) {
 	got1, err := db.GetWorkspaceAgentByID(ctx, agent1.ID)
 	require.NoError(t, err)
 	require.True(t, got1.LastConnectedAt.Valid)
-	require.WithinDuration(t, later, got1.LastConnectedAt.Time, time.Millisecond)
+	require.Equal(t, later, got1.LastConnectedAt.Time.UTC())
 
 	// Verify agent2 was also updated in the same batch.
 	got2, err := db.GetWorkspaceAgentByID(ctx, agent2.ID)
 	require.NoError(t, err)
 	require.True(t, got2.LastConnectedAt.Valid)
-	require.WithinDuration(t, now, got2.LastConnectedAt.Time, time.Millisecond)
+	require.Equal(t, later2, got2.LastConnectedAt.Time.UTC())
 }
