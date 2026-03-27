@@ -133,8 +133,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					? "desktop"
 					: null;
 
-	const activeTab = tabs.find((t) => t.id === effectiveTabId) ?? null;
-
 	const {
 		ref: tabScrollRef,
 		canScrollLeft,
@@ -313,20 +311,36 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-			{/* Tab content */}
-			<div
-				role="tabpanel"
-				aria-labelledby={
-					effectiveTabId ? `${tabIdPrefix}-tab-${effectiveTabId}` : undefined
-				}
-				className="min-h-0 flex-1"
-			>
-				{effectiveTabId === "desktop" && desktopChatId ? (
-					<DesktopPanel chatId={desktopChatId} />
-				) : (
-					activeTab?.content
-				)}
-			</div>
-		</div>
-	);
-};
+				{/* Tab panels – all stay mounted, only the active one visible. */}
+				{tabs.map((tab) => {
+					const isActive = effectiveTabId === tab.id;
+					return (
+						<div
+							key={tab.id}
+							role="tabpanel"
+							aria-labelledby={`${tabIdPrefix}-tab-${tab.id}`}
+							className={cn("min-h-0 flex-1", !isActive && "hidden")}
+							{...(!isActive && { inert: true as unknown as boolean })}
+						>
+							{tab.content}
+						</div>
+					);
+				})}
+				{desktopChatId && (
+					<div
+						role="tabpanel"
+						aria-labelledby={`${tabIdPrefix}-tab-desktop`}
+						className={cn(
+							"min-h-0 flex-1",
+							effectiveTabId !== "desktop" && "hidden",
+						)}
+						{...(effectiveTabId !== "desktop" && {
+							inert: true as unknown as boolean,
+						})}
+					>
+						<DesktopPanel chatId={desktopChatId} />
+					</div>
+					)}
+				</div>
+			);
+	};
