@@ -7,7 +7,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -15,6 +14,7 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { DesktopPanelContext } from "#/components/ai-elements/tool/DesktopPanelContext";
 import { Button } from "#/components/Button/Button";
+import { buildUrlTransform } from "../AgentDetail";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import type { useChatStore } from "./AgentDetail/ChatContext";
@@ -94,10 +94,8 @@ interface AgentDetailViewProps {
 	// Sidebar content data.
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatus | undefined;
-	gitWatcher: {
-		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
-		refresh: () => void;
-	};
+	gitRepositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+	gitRefresh: () => void;
 
 	// Workspace action handlers.
 	canOpenEditors: boolean;
@@ -130,7 +128,12 @@ interface AgentDetailViewProps {
 	isFetchingMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
 
-	urlTransform?: UrlTransform;
+	urlTransformProps?: {
+		proxyHost: string | undefined;
+		agentName: string | undefined;
+		wsName: string | undefined;
+		wsOwner: string | undefined;
+	};
 
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -168,7 +171,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	onSetShowSidebarPanel,
 	prNumber,
 	diffStatusData,
-	gitWatcher,
+	gitRepositories,
+	gitRefresh,
 	canOpenEditors,
 	canOpenWorkspace,
 	sshCommand,
@@ -190,7 +194,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
-	urlTransform,
+	urlTransformProps,
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
@@ -221,6 +225,15 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	};
 
 	// Compute local diff stats from git watcher unified diffs.
+
+	const urlTransform = urlTransformProps
+		? buildUrlTransform(
+				urlTransformProps.proxyHost,
+				urlTransformProps.agentName,
+				urlTransformProps.wsName,
+				urlTransformProps.wsOwner,
+			)
+		: undefined;
 
 	const titleElement = (
 		<title>
@@ -372,8 +385,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 												? { prNumber, chatId: agentId }
 												: undefined
 										}
-										repositories={gitWatcher.repositories}
-										onRefresh={gitWatcher.refresh}
+										repositories={gitRepositories}
+										onRefresh={gitRefresh}
 										onCommit={handleCommit}
 										isExpanded={visualExpanded}
 										remoteDiffStats={diffStatusData}

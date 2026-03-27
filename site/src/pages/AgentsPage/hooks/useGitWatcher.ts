@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import { watchChatGit } from "#/api/api";
 import type {
 	WorkspaceAgentGitClientMessage,
@@ -28,8 +28,8 @@ interface UseGitWatcherOptions {
 interface UseGitWatcherResult {
 	/** Current repo state, keyed by repo root path. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	/** Whether the WebSocket is currently connected. */
-	isConnected: boolean;
+	/** Ref that always holds the latest repositories value. */
+	repositoriesRef: RefObject<ReadonlyMap<string, WorkspaceAgentRepoChanges>>;
 	/** Send a refresh request. */
 	refresh: () => void;
 }
@@ -43,7 +43,12 @@ export function useGitWatcher({
 	const [repositories, setRepositories] = useState<
 		ReadonlyMap<string, WorkspaceAgentRepoChanges>
 	>(new Map());
-	const [isConnected, setIsConnected] = useState(false);
+	const repositoriesRef =
+		useRef<ReadonlyMap<string, WorkspaceAgentRepoChanges>>(repositories);
+	// isConnected is a ref because no component renders this value.
+	// Using useState would cause unnecessary re-renders of the entire
+	// AgentDetail tree on every WebSocket open/close cycle.
+	const isConnectedRef = useRef(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
 	const reconnectAttemptRef = useRef(0);
@@ -82,7 +87,7 @@ export function useGitWatcher({
 				if (socketRef.current !== socket) {
 					return;
 				}
-				setIsConnected(true);
+				isConnectedRef.current = true;
 				reconnectAttemptRef.current = 0;
 			});
 
@@ -124,6 +129,9 @@ export function useGitWatcher({
 								}
 							}
 						}
+						if (changed) {
+							repositoriesRef.current = next;
+						}
 						return changed ? next : prev;
 					});
 				} else if (data.type === "error") {
@@ -138,7 +146,7 @@ export function useGitWatcher({
 				if (socketRef.current !== socket) {
 					return;
 				}
-				setIsConnected(false);
+				isConnectedRef.current = false;
 				socketRef.current = null;
 
 				if (disposedRef.current) {
@@ -165,11 +173,18 @@ export function useGitWatcher({
 				socketRef.current.close();
 				socketRef.current = null;
 			}
-			setIsConnected(false);
+			isConnectedRef.current = false;
 			setRepositories(new Map());
+			repositoriesRef.current = new Map();
 			reconnectAttemptRef.current = 0;
 		};
 	}, [chatId, agentStatus]);
 
-	return { repositories, isConnected, refresh };
+	return {
+		repositories,
+		repositoriesRef: repositoriesRef as RefObject<
+			ReadonlyMap<string, WorkspaceAgentRepoChanges>
+		>,
+		refresh,
+	};
 }

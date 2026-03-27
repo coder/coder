@@ -283,6 +283,28 @@ function resolveCompactionThreshold(
 	return config.compression_threshold;
 }
 
+/**
+ * Build a stable URL transform from primitive fields. Extracted as a
+ * module-level function so the React Compiler can place a cache guard
+ * around the call site using only the primitive arguments. An inline
+ * closure in the same position is not guarded because hook
+ * interleaving (useProxy, useQuery) prevents the compiler from
+ * grouping the closure with its dependencies.
+ */
+export function buildUrlTransform(
+	proxyHost: string | undefined,
+	agentName: string | undefined,
+	wsName: string | undefined,
+	wsOwner: string | undefined,
+): UrlTransform {
+	return (url) => {
+		if (!proxyHost || !agentName || !wsName || !wsOwner) {
+			return url;
+		}
+		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
+	};
+}
+
 const AgentDetail: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
@@ -429,20 +451,11 @@ const AgentDetail: FC = () => {
 	const proxyHost = proxy.preferredWildcardHostname;
 	const agentName = workspaceAgent?.name;
 	const wsName = workspace?.name;
-	const wsOwner = workspace?.owner_name;
+		const wsOwner = workspace?.owner_name;
 
-	const urlTransform: UrlTransform = (url) => {
-		if (!proxyHost || !agentName || !wsName || !wsOwner) {
-			return url;
-		}
-		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
-	};
-
-	const chatRecord = chatQuery.data;
-
-	// Initialize MCP selection from chat record or defaults.
-	const effectiveMCPServerIds = (() => {
-		if (selectedMCPServerIds !== null) {
+		const chatRecord = chatQuery.data;
+		// Initialize MCP selection from chat record or defaults.
+		const effectiveMCPServerIds = (() => {		if (selectedMCPServerIds !== null) {
 			return selectedMCPServerIds;
 		}
 		// If the chat has MCP server IDs recorded (even empty, meaning
@@ -825,7 +838,9 @@ const AgentDetail: FC = () => {
 		// Prefer the active git repo root so VS Code opens to the
 		// actual project directory, falling back to the agent's
 		// configured directory.
-		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
+		const repoRoots = Array.from(
+			gitWatcher.repositoriesRef.current.keys(),
+		).sort();
 		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
 
 		generateKeyMutation.mutate(undefined, {
@@ -956,7 +971,8 @@ const AgentDetail: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
-			gitWatcher={gitWatcher}
+			gitRepositories={gitWatcher.repositories}
+			gitRefresh={gitWatcher.refresh}
 			canOpenEditors={canOpenEditors}
 			canOpenWorkspace={canOpenWorkspace}
 			sshCommand={sshCommand}
@@ -975,7 +991,12 @@ const AgentDetail: FC = () => {
 			handleRegenerateTitle={handleRegenerateTitle}
 			isRegeneratingTitle={isRegeneratingThisChat}
 			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
-			urlTransform={urlTransform}
+			urlTransformProps={{
+				proxyHost,
+				agentName,
+				wsName,
+				wsOwner,
+			}}
 			scrollContainerRef={scrollContainerRef}
 			scrollToBottomRef={scrollToBottomRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
