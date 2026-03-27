@@ -62,6 +62,7 @@ const AISessionListPage: FC = () => {
 
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
+				isFetching={sessionsQuery.isFetching}
 				isAISessionsEntitled={isEntitled}
 				isAISessionsEnabled={isEnabled}
 				sessions={sessionsQuery.data?.sessions}

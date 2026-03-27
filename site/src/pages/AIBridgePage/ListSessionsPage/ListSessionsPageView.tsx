@@ -30,6 +30,7 @@ import { ListSessionsRow } from "./ListSessionsRow";
 
 interface ListSessionsPageViewProps {
 	isLoading: boolean;
+	isFetching: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
@@ -56,6 +57,7 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 
 export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 	isLoading,
+	isFetching,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
@@ -110,7 +112,7 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading ? (
+						{isLoading || isFetching ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />
