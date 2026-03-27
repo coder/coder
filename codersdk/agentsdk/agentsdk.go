@@ -709,7 +709,7 @@ const (
 type ReinitializationEvent struct {
 	WorkspaceID uuid.UUID              `json:"workspace_id" format:"uuid"`
 	Reason      ReinitializationReason `json:"reason"`
-	UserID      uuid.UUID              `json:"user_id,omitempty" format:"uuid"`
+	OwnerID     uuid.UUID              `json:"owner_id,omitzero" format:"uuid"`
 }
 
 func PrebuildClaimedChannel(id uuid.UUID) string {

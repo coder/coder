@@ -358,18 +358,18 @@ func workspaceAgent() *serpent.Command {
 						reinitEvents = nil
 						<-ctx.Done()
 						mustExit = true
-					case event.UserID != uuid.Nil && event.UserID == lastOwnerID:
+					case event.OwnerID != uuid.Nil && event.OwnerID == lastOwnerID:
 						// Duplicate reinit for same owner — already
 						// reinitialized. Cancel the reinit loop
 						// goroutine and keep the current agent.
 						logger.Info(ctx, "skipping redundant reinit, owner unchanged",
-							slog.F("owner_id", event.UserID))
+							slog.F("owner_id", event.OwnerID))
 						reinitCancel()
 						reinitEvents = nil
 						<-ctx.Done()
 						mustExit = true
 					default:
-						lastOwnerID = event.UserID
+						lastOwnerID = event.OwnerID
 						logger.Info(ctx, "agent received instruction to reinitialize",
 							slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
 					}

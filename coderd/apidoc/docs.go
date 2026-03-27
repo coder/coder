@@ -12661,12 +12661,12 @@ const docTemplate = `{
         "agentsdk.ReinitializationEvent": {
             "type": "object",
             "properties": {
-                "reason": {
-                    "$ref": "#/definitions/agentsdk.ReinitializationReason"
-                },
-                "user_id": {
+                "owner_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "reason": {
+                    "$ref": "#/definitions/agentsdk.ReinitializationReason"
                 },
                 "workspace_id": {
                     "type": "string",
