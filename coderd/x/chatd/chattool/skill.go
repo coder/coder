@@ -214,23 +214,23 @@ func FormatSkillIndex(skills []SkillMeta) string {
 	}
 
 	var b strings.Builder
-	b.WriteString("<available-skills>\n")
-	b.WriteString(
+	_, _ = b.WriteString("<available-skills>\n")
+	_, _ = b.WriteString(
 		"Use read_skill to load a skill's full instructions " +
 			"before following them.\n" +
 			"Use read_skill_file to read supporting files " +
 			"referenced by a skill.\n\n",
 	)
 	for _, s := range skills {
-		b.WriteString("- ")
-		b.WriteString(s.Name)
+		_, _ = b.WriteString("- ")
+		_, _ = b.WriteString(s.Name)
 		if s.Description != "" {
-			b.WriteString(": ")
-			b.WriteString(s.Description)
+			_, _ = b.WriteString(": ")
+			_, _ = b.WriteString(s.Description)
 		}
-		b.WriteString("\n")
+		_, _ = b.WriteString("\n")
 	}
-	b.WriteString("</available-skills>")
+	_, _ = b.WriteString("</available-skills>")
 	return b.String()
 }
 
@@ -452,22 +452,29 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 					"name is required",
 				), nil
 			}
-			if args.Path == "" {
-				return fantasy.NewTextErrorResponse(
-					"path is required",
-				), nil
-			}
+				if args.Path == "" {
+					return fantasy.NewTextErrorResponse(
+						"path is required",
+					), nil
+				}
 
-			skill, ok := findSkill(options.GetSkills, args.Name)
-			if !ok {
-				return fantasy.NewTextErrorResponse(
-					fmt.Sprintf("skill %q not found", args.Name),
-				), nil
-			}
+				skill, ok := findSkill(options.GetSkills, args.Name)
+				if !ok {
+					return fantasy.NewTextErrorResponse(
+						fmt.Sprintf("skill %q not found", args.Name),
+					), nil
+				}
 
-			conn, err := options.GetWorkspaceConn(ctx)
-			if err != nil {
-				return fantasy.NewTextErrorResponse(
+				// Validate the path early so we reject bad
+				// inputs before dialing the workspace agent.
+				if err := validateSkillFilePath(args.Path); err != nil {
+					return fantasy.NewTextErrorResponse(
+						err.Error(),
+					), nil
+				}
+
+					conn, err := options.GetWorkspaceConn(ctx)
+					if err != nil {				return fantasy.NewTextErrorResponse(
 					err.Error(),
 				), nil
 			}

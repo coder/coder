@@ -182,6 +182,54 @@ type cachedSkills struct {
 	skills  []chattool.SkillMeta
 }
 
+// discoverWorkspaceSkills returns cached skill metadata for a chat
+// or discovers them fresh from the workspace agent. The result is
+// cached per chat+agent so subsequent turns skip the filesystem
+// scan.
+func (p *Server) discoverWorkspaceSkills(
+	ctx context.Context,
+	chatID uuid.UUID,
+	wctx *turnWorkspaceContext,
+	logger slog.Logger,
+) []chattool.SkillMeta {
+	// Check cache first.
+	if cached, ok := p.skillsCache.Load(chatID); ok {
+		if entry, ok2 := cached.(*cachedSkills); ok2 {
+			if agent, err := wctx.getWorkspaceAgent(ctx); err == nil && agent.ID == entry.agentID {
+				return entry.skills
+			}
+		}
+	}
+
+	// Cache miss or agent changed — discover fresh.
+	agent, err := wctx.getWorkspaceAgent(ctx)
+	if err != nil {
+		return nil
+	}
+	conn, err := wctx.getWorkspaceConn(ctx)
+	if err != nil {
+		return nil
+	}
+	dir := agent.ExpandedDirectory
+	if dir == "" {
+		dir = agent.Directory
+	}
+	discovered, err := chattool.DiscoverSkills(ctx, conn, dir)
+	if err != nil {
+		logger.Warn(ctx, "failed to discover skills",
+			slog.Error(err))
+		return nil
+	}
+	// Cache the result. Unlike MCP tools, an empty skills
+	// list is a valid stable state (the workspace simply has
+	// no skills), so we always cache.
+	p.skillsCache.Store(chatID, &cachedSkills{
+		agentID: agent.ID,
+		skills:  discovered,
+	})
+	return discovered
+}
+
 type turnWorkspaceContext struct {
 	server           *Server
 	chatStateMu      *sync.Mutex
@@ -3876,49 +3924,15 @@ func (p *Server) runChat(
 			return nil
 		})
 	}
+	// Discover skills from the workspace in parallel with
+	// MCP tools and instructions.
 	if chat.WorkspaceID.Valid {
-		// Discover skills from the workspace in parallel.
 		g2.Go(func() error {
-			// Check cache first.
-			if cached, ok := p.skillsCache.Load(chat.ID); ok {
-				entry, ok2 := cached.(*cachedSkills)
-				if ok2 {
-					if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID == entry.agentID {
-						skills = entry.skills
-						return nil
-					}
-				}
-			}
-
-			// Cache miss or agent changed — discover fresh.
-			agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
-			if agentErr != nil {
-				return nil
-			}
-			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
-			if connErr != nil {
-				return nil
-			}
-			dir := agent.ExpandedDirectory
-			if dir == "" {
-				dir = agent.Directory
-			}
-			discovered, discoverErr := chattool.DiscoverSkills(ctx, conn, dir)
-			if discoverErr != nil {
-				logger.Warn(ctx, "failed to discover skills",
-					slog.Error(discoverErr))
-				return nil
-			}
-			skills = discovered
-			// Cache the result. Unlike MCP tools, an empty
-			// skills list is a valid stable state (the workspace
-			// simply has no skills), so we cache it.
-			p.skillsCache.Store(chat.ID, &cachedSkills{
-				agentID: agent.ID,
-				skills:  discovered,
-			})
+			skills = p.discoverWorkspaceSkills(ctx, chat.ID, &workspaceCtx, logger)
 			return nil
 		})
+	}
+	if chat.WorkspaceID.Valid {
 		g2.Go(func() error {
 			// Fast path: check cache using the in-memory cached
 			// agent (ensureWorkspaceAgent is free when already

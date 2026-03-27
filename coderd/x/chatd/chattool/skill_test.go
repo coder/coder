@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -482,7 +483,8 @@ func TestReadSkillTool(t *testing.T) {
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return nil, nil
+				t.Fatal("unexpected call to GetWorkspaceConn")
+				return nil, xerrors.New("unreachable")
 			},
 			GetSkills: func() []chattool.SkillMeta { return nil },
 		})
@@ -502,7 +504,8 @@ func TestReadSkillTool(t *testing.T) {
 
 		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return nil, nil
+				t.Fatal("unexpected call to GetWorkspaceConn")
+				return nil, xerrors.New("unreachable")
 			},
 			GetSkills: func() []chattool.SkillMeta { return nil },
 		})
@@ -570,7 +573,8 @@ func TestReadSkillFileTool(t *testing.T) {
 
 		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return nil, nil
+				t.Fatal("unexpected call to GetWorkspaceConn")
+				return nil, xerrors.New("unreachable")
 			},
 			GetSkills: func() []chattool.SkillMeta { return skills },
 		})
