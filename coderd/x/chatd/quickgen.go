@@ -70,22 +70,6 @@ var preferredTitleModels = []struct {
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
-var invalidGeneratedTitleToolReplies = []string{
-	"don't have any tools",
-	"dont have any tools",
-	"do not have any tools",
-	"don't have tools",
-	"dont have tools",
-	"do not have tools",
-	"have no tools",
-	"no tools available",
-	"unable to access tools",
-	"cannot access tools",
-	"can't access tools",
-	"cannot use tools",
-	"can't use tools",
-}
-
 func selectPreferredConfiguredShortTextModelConfig(
 	configs []database.ChatModelConfig,
 ) (database.ChatModelConfig, bool) {
@@ -201,7 +185,11 @@ func generateTitle(
 	if err != nil {
 		return "", err
 	}
-	return finalizeGeneratedTitle(title, input)
+	title = normalizeTitleOutput(title)
+	if title == "" {
+		return "", xerrors.New("generated title was empty")
+	}
+	return title, nil
 }
 
 // titleInput returns the first user message text and whether title
@@ -259,55 +247,6 @@ func normalizeTitleOutput(title string) string {
 		return ""
 	}
 	return truncateRunes(title, 80)
-}
-
-// generatedTitleLooksInvalid rejects self-referential or role-parroting
-// outputs that occasionally slip through lightweight title models.
-func generatedTitleLooksInvalid(title string, contextText string) bool {
-	normalizedTitle := strings.ToLower(normalizeShortTextOutput(title))
-	if normalizedTitle == "" {
-		return false
-	}
-	normalizedContext := strings.ToLower(normalizeShortTextOutput(contextText))
-
-	titleWords := strings.Fields(normalizedTitle)
-	if len(titleWords) > 0 {
-		switch titleWords[0] {
-		case "i", "i'm", "im":
-			return true
-		}
-	}
-
-	mentionsTitleGeneration := strings.Contains(normalizedContext, "title generation") ||
-		strings.Contains(normalizedContext, "title generator")
-	if strings.Contains(normalizedTitle, "title generator") && !mentionsTitleGeneration {
-		return true
-	}
-	if strings.Contains(normalizedTitle, "title generation") && !mentionsTitleGeneration {
-		return true
-	}
-
-	for _, invalidToolReply := range invalidGeneratedTitleToolReplies {
-		if strings.Contains(normalizedTitle, invalidToolReply) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// finalizeGeneratedTitle normalizes model output and rejects meta
-// replies. contextText is the first user message for automatic titles
-// and a conversation summary for manual title regeneration.
-func finalizeGeneratedTitle(title string, contextText string) (string, error) {
-	title = normalizeTitleOutput(title)
-	if title == "" {
-		return "", xerrors.New("generated title was empty")
-	}
-	if generatedTitleLooksInvalid(title, contextText) {
-		return "", xerrors.New("generated title was invalid")
-	}
-	return title, nil
 }
 
 func fallbackChatTitle(message string) string {
@@ -535,14 +474,9 @@ func generateManualTitle(
 		return "", fantasy.Usage{}, err
 	}
 
-	validationContext := strings.Join([]string{
-		firstUserText,
-		conversationBlock,
-		latestUserMsg,
-	}, "\n")
-	title, err = finalizeGeneratedTitle(title, validationContext)
-	if err != nil {
-		return "", usage, err
+	title = normalizeTitleOutput(title)
+	if title == "" {
+		return "", usage, xerrors.New("generated title was empty")
 	}
 
 	return title, usage, nil
