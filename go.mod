@@ -126,6 +126,7 @@ require (
 	github.com/elastic/go-sysinfo v1.15.1
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-smtp v0.21.2
+	github.com/expr-lang/expr v1.17.8
 	github.com/fatih/color v1.19.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
