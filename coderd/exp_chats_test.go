@@ -1936,6 +1936,41 @@ func TestGetChat(t *testing.T) {
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
+
+	t.Run("FilesHydrated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "hydrated.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with a text + file part.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "check file hydration"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// GET the chat — files must be hydrated with all metadata fields.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		f := chatResult.Files[0]
+		require.Equal(t, uploadResp.ID, f.ID)
+		require.Equal(t, firstUser.UserID, f.OwnerID)
+		require.NotEqual(t, uuid.Nil, f.OrganizationID)
+		require.Equal(t, "image/png", f.MimeType)
+		require.Equal(t, "hydrated.png", f.Name)
+		require.NotZero(t, f.CreatedAt)
+	})
 }
 
 func TestArchiveChat(t *testing.T) {
@@ -2902,6 +2937,82 @@ func TestChatMessageWithFiles(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid input part.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "does not exist")
+	})
+
+	t.Run("FilesLinkedOnSend", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a text-only chat (no files initially).
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "no files yet"},
+			},
+		})
+		require.NoError(t, err)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "linked.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Send a message with the file.
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "here is a file"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// GET the chat — file should be linked.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		require.Equal(t, uploadResp.ID, chatResult.Files[0].ID)
+		require.Equal(t, "linked.png", chatResult.Files[0].Name)
+	})
+
+	t.Run("DedupFileIDs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "dedup.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with a file.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "first mention"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// Send another message with the SAME file.
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "same file again"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// GET — should have exactly 1 file (deduped by SQL DISTINCT).
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1, "duplicate file IDs should be deduped")
+		require.Equal(t, uploadResp.ID, chatResult.Files[0].ID)
 	})
 }
 
