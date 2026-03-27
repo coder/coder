@@ -84,6 +84,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -1395,14 +1396,9 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const onLoadMoreRef = useRef(onLoadMore);
-
-	// Keep the callback ref in sync so the observer closure
-	// always calls the latest onLoadMore without needing to
-	// tear down and re-create the observer.
-	useEffect(() => {
-		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
+	const onLoadMoreStable = useEffectEvent(() => {
+		onLoadMore?.();
+	});
 
 	useEffect(() => {
 		// Don't observe while a fetch is in progress. When the
@@ -1418,15 +1414,15 @@ const LoadMoreSentinel: FC<{
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries[0]?.isIntersecting && onLoadMoreRef.current) {
-					onLoadMoreRef.current();
+				if (entries[0]?.isIntersecting) {
+					onLoadMoreStable();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [isFetchingNextPage]);
+	}, [isFetchingNextPage, onLoadMoreStable]);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">
