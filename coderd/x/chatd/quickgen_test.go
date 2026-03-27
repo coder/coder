@@ -483,6 +483,28 @@ func Test_generateTitle_AllowsParaphrasedTitleTopic(t *testing.T) {
 	require.Equal(t, "Fix title generation prompts", title)
 }
 
+func Test_generateTitle_AllowsTitleGeneratorVariantWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "I am a title generator prompts"},
+				},
+			}, nil
+		},
+	}
+
+	title, err := generateTitle(
+		context.Background(),
+		model,
+		"debug i'm a title generator reply",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "I am a title generator prompts", title)
+}
+
 func Test_generateTitle_AllowsPromptEchoWhenUserIsDebuggingIt(t *testing.T) {
 	t.Parallel()
 
@@ -513,7 +535,7 @@ func Test_generateManualTitle_AllowsMissingToolsTopicWhenRequested(t *testing.T)
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText("debug don't have any tools response"),
+			codersdk.ChatMessageText("debug do not have any tools response"),
 		),
 	}
 
