@@ -48,6 +48,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
+		tvp.desired_instances_expression AS desired_instances_expression,
 		tvp.scheduling_timezone,
 		tvp.invalidate_after_secs   AS ttl,
 		tvp.prebuild_status,
@@ -58,7 +59,7 @@ FROM templates t
 		INNER JOIN template_versions tv ON tv.template_id = t.id
 		INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
 		INNER JOIN organizations o ON o.id = t.organization_id
-WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL) -- Consider only presets that have a prebuild configuration.
   -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 	AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
@@ -154,13 +155,13 @@ GROUP BY t.id, wpb.template_version_id, wpb.transition, wlb.template_version_pre
 -- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances, tvp.desired_instances_expression
 	FROM template_version_presets tvp
 			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
 			INNER JOIN workspaces w ON wlb.workspace_id = w.id
 			INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
 			INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
-	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+	WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL) -- Consider only presets that have a prebuild configuration.
 		AND wlb.transition = 'start'::workspace_transition
 		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
 		AND NOT t.deleted
@@ -168,6 +169,7 @@ WITH filtered_builds AS (
 time_sorted_builds AS (
 	-- Group builds by preset, then sort each group by created_at.
 	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+		fb.desired_instances_expression,
 		ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 ),
@@ -200,19 +202,20 @@ GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed;
 -- name: GetPresetsAtFailureLimit :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances, tvp.desired_instances_expression
 	FROM template_version_presets tvp
 			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
 			INNER JOIN workspaces w ON wlb.workspace_id = w.id
 			INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
 			INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
-	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+	WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL) -- Consider only presets that have a prebuild configuration.
 		AND wlb.transition = 'start'::workspace_transition
 		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
 ),
 time_sorted_builds AS (
 	-- Group builds by preset, then sort each group by created_at.
 	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+		fb.desired_instances_expression,
 		ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 )
@@ -339,7 +342,7 @@ WITH orgs_with_prebuilds AS (
 	INNER JOIN templates t ON t.organization_id = o.id
 	INNER JOIN template_versions tv ON tv.template_id = t.id
 	INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
-	WHERE tvp.desired_instances IS NOT NULL
+	WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL)
 ),
 prebuild_user_membership AS (
 	-- Check if the user is a member of the organizations

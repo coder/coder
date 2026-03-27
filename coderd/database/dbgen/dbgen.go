@@ -1509,17 +1509,18 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 
 func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
 	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
-		ID:                  takeFirst(seed.ID, uuid.New()),
-		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
-		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
-		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
-		DesiredInstances:    seed.DesiredInstances,
-		InvalidateAfterSecs: seed.InvalidateAfterSecs,
-		SchedulingTimezone:  seed.SchedulingTimezone,
-		IsDefault:           seed.IsDefault,
-		Description:         seed.Description,
-		Icon:                seed.Icon,
-		LastInvalidatedAt:   seed.LastInvalidatedAt,
+		ID:                         takeFirst(seed.ID, uuid.New()),
+		TemplateVersionID:          takeFirst(seed.TemplateVersionID, uuid.New()),
+		Name:                       takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:                  takeFirst(seed.CreatedAt, dbtime.Now()),
+		DesiredInstances:           seed.DesiredInstances,
+		DesiredInstancesExpression: seed.DesiredInstancesExpression,
+		InvalidateAfterSecs:        seed.InvalidateAfterSecs,
+		SchedulingTimezone:         seed.SchedulingTimezone,
+		IsDefault:                  seed.IsDefault,
+		Description:                seed.Description,
+		Icon:                       seed.Icon,
+		LastInvalidatedAt:          seed.LastInvalidatedAt,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset

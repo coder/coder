@@ -14901,7 +14901,7 @@ WITH orgs_with_prebuilds AS (
 	INNER JOIN templates t ON t.organization_id = o.id
 	INNER JOIN template_versions tv ON tv.template_id = t.id
 	INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
-	WHERE tvp.desired_instances IS NOT NULL
+	WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL)
 ),
 prebuild_user_membership AS (
 	-- Check if the user is a member of the organizations
@@ -15043,19 +15043,20 @@ func (q *sqlQuerier) GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetri
 const getPresetsAtFailureLimit = `-- name: GetPresetsAtFailureLimit :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances, tvp.desired_instances_expression
 	FROM template_version_presets tvp
 			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
 			INNER JOIN workspaces w ON wlb.workspace_id = w.id
 			INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
 			INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
-	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+	WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL) -- Consider only presets that have a prebuild configuration.
 		AND wlb.transition = 'start'::workspace_transition
 		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
 ),
 time_sorted_builds AS (
 	-- Group builds by preset, then sort each group by created_at.
 	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+		fb.desired_instances_expression,
 		ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 )
@@ -15108,13 +15109,13 @@ func (q *sqlQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int
 const getPresetsBackoff = `-- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances, tvp.desired_instances_expression
 	FROM template_version_presets tvp
 			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
 			INNER JOIN workspaces w ON wlb.workspace_id = w.id
 			INNER JOIN template_versions tv ON wlb.template_version_id = tv.id
 			INNER JOIN templates t ON tv.template_id = t.id AND t.active_version_id = tv.id
-	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+	WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL) -- Consider only presets that have a prebuild configuration.
 		AND wlb.transition = 'start'::workspace_transition
 		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
 		AND NOT t.deleted
@@ -15122,6 +15123,7 @@ WITH filtered_builds AS (
 time_sorted_builds AS (
 	-- Group builds by preset, then sort each group by created_at.
 	SELECT fb.template_version_id, fb.created_at, fb.preset_id, fb.job_status, fb.desired_instances,
+		fb.desired_instances_expression,
 		ROW_NUMBER() OVER (PARTITION BY fb.preset_id ORDER BY fb.created_at DESC) as rn
 	FROM filtered_builds fb
 ),
@@ -15307,6 +15309,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
+		tvp.desired_instances_expression AS desired_instances_expression,
 		tvp.scheduling_timezone,
 		tvp.invalidate_after_secs   AS ttl,
 		tvp.prebuild_status,
@@ -15317,28 +15320,29 @@ FROM templates t
 		INNER JOIN template_versions tv ON tv.template_id = t.id
 		INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
 		INNER JOIN organizations o ON o.id = t.organization_id
-WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
+WHERE (tvp.desired_instances IS NOT NULL OR tvp.desired_instances_expression IS NOT NULL) -- Consider only presets that have a prebuild configuration.
   -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 	AND (t.id = $1::uuid OR $1 IS NULL)
 `
 
 type GetTemplatePresetsWithPrebuildsRow struct {
-	TemplateID          uuid.UUID      `db:"template_id" json:"template_id"`
-	TemplateName        string         `db:"template_name" json:"template_name"`
-	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
-	OrganizationName    string         `db:"organization_name" json:"organization_name"`
-	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName string         `db:"template_version_name" json:"template_version_name"`
-	UsingActiveVersion  bool           `db:"using_active_version" json:"using_active_version"`
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	Name                string         `db:"name" json:"name"`
-	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
-	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
-	Ttl                 sql.NullInt32  `db:"ttl" json:"ttl"`
-	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
-	LastInvalidatedAt   sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
-	Deleted             bool           `db:"deleted" json:"deleted"`
-	Deprecated          bool           `db:"deprecated" json:"deprecated"`
+	TemplateID                 uuid.UUID      `db:"template_id" json:"template_id"`
+	TemplateName               string         `db:"template_name" json:"template_name"`
+	OrganizationID             uuid.UUID      `db:"organization_id" json:"organization_id"`
+	OrganizationName           string         `db:"organization_name" json:"organization_name"`
+	TemplateVersionID          uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName        string         `db:"template_version_name" json:"template_version_name"`
+	UsingActiveVersion         bool           `db:"using_active_version" json:"using_active_version"`
+	ID                         uuid.UUID      `db:"id" json:"id"`
+	Name                       string         `db:"name" json:"name"`
+	DesiredInstances           sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	DesiredInstancesExpression sql.NullString `db:"desired_instances_expression" json:"desired_instances_expression"`
+	SchedulingTimezone         string         `db:"scheduling_timezone" json:"scheduling_timezone"`
+	Ttl                        sql.NullInt32  `db:"ttl" json:"ttl"`
+	PrebuildStatus             PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	LastInvalidatedAt          sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
+	Deleted                    bool           `db:"deleted" json:"deleted"`
+	Deprecated                 bool           `db:"deprecated" json:"deprecated"`
 }
 
 // GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
@@ -15364,6 +15368,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			&i.ID,
 			&i.Name,
 			&i.DesiredInstances,
+			&i.DesiredInstancesExpression,
 			&i.SchedulingTimezone,
 			&i.Ttl,
 			&i.PrebuildStatus,
@@ -15501,27 +15506,28 @@ func (q *sqlQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]Te
 }
 
 const getPresetByID = `-- name: GetPresetByID :one
-SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tvp.description, tvp.icon, tvp.last_invalidated_at, tv.template_id, tv.organization_id FROM
+SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tvp.description, tvp.icon, tvp.last_invalidated_at, tvp.desired_instances_expression, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = $1
 `
 
 type GetPresetByIDRow struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
-	Name                string         `db:"name" json:"name"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
-	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
-	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
-	IsDefault           bool           `db:"is_default" json:"is_default"`
-	Description         string         `db:"description" json:"description"`
-	Icon                string         `db:"icon" json:"icon"`
-	LastInvalidatedAt   sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
-	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
-	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
+	ID                         uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID          uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                       string         `db:"name" json:"name"`
+	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances           sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs        sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus             PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	SchedulingTimezone         string         `db:"scheduling_timezone" json:"scheduling_timezone"`
+	IsDefault                  bool           `db:"is_default" json:"is_default"`
+	Description                string         `db:"description" json:"description"`
+	Icon                       string         `db:"icon" json:"icon"`
+	LastInvalidatedAt          sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
+	DesiredInstancesExpression sql.NullString `db:"desired_instances_expression" json:"desired_instances_expression"`
+	TemplateID                 uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID             uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error) {
@@ -15540,6 +15546,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 		&i.Description,
 		&i.Icon,
 		&i.LastInvalidatedAt,
+		&i.DesiredInstancesExpression,
 		&i.TemplateID,
 		&i.OrganizationID,
 	)
@@ -15548,7 +15555,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default, template_version_presets.description, template_version_presets.icon, template_version_presets.last_invalidated_at
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default, template_version_presets.description, template_version_presets.icon, template_version_presets.last_invalidated_at, template_version_presets.desired_instances_expression
 FROM
 	template_version_presets
 	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
@@ -15572,6 +15579,7 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 		&i.Description,
 		&i.Icon,
 		&i.LastInvalidatedAt,
+		&i.DesiredInstancesExpression,
 	)
 	return i, err
 }
@@ -15653,7 +15661,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon, last_invalidated_at
+	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon, last_invalidated_at, desired_instances_expression
 FROM
 	template_version_presets
 WHERE
@@ -15682,6 +15690,7 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 			&i.Description,
 			&i.Icon,
 			&i.LastInvalidatedAt,
+			&i.DesiredInstancesExpression,
 		); err != nil {
 			return nil, err
 		}
@@ -15703,6 +15712,7 @@ INSERT INTO template_version_presets (
 	name,
 	created_at,
 	desired_instances,
+	desired_instances_expression,
 	invalidate_after_secs,
 	scheduling_timezone,
 	is_default,
@@ -15721,22 +15731,24 @@ VALUES (
 	$8,
 	$9,
 	$10,
-	$11
-) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon, last_invalidated_at
+	$11,
+	$12
+) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon, last_invalidated_at, desired_instances_expression
 `
 
 type InsertPresetParams struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	TemplateVersionID   uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	Name                string        `db:"name" json:"name"`
-	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
-	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
-	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
-	SchedulingTimezone  string        `db:"scheduling_timezone" json:"scheduling_timezone"`
-	IsDefault           bool          `db:"is_default" json:"is_default"`
-	Description         string        `db:"description" json:"description"`
-	Icon                string        `db:"icon" json:"icon"`
-	LastInvalidatedAt   sql.NullTime  `db:"last_invalidated_at" json:"last_invalidated_at"`
+	ID                         uuid.UUID      `db:"id" json:"id"`
+	TemplateVersionID          uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	Name                       string         `db:"name" json:"name"`
+	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
+	DesiredInstances           sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
+	DesiredInstancesExpression sql.NullString `db:"desired_instances_expression" json:"desired_instances_expression"`
+	InvalidateAfterSecs        sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	SchedulingTimezone         string         `db:"scheduling_timezone" json:"scheduling_timezone"`
+	IsDefault                  bool           `db:"is_default" json:"is_default"`
+	Description                string         `db:"description" json:"description"`
+	Icon                       string         `db:"icon" json:"icon"`
+	LastInvalidatedAt          sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
@@ -15746,6 +15758,7 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		arg.Name,
 		arg.CreatedAt,
 		arg.DesiredInstances,
+		arg.DesiredInstancesExpression,
 		arg.InvalidateAfterSecs,
 		arg.SchedulingTimezone,
 		arg.IsDefault,
@@ -15767,6 +15780,7 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		&i.Description,
 		&i.Icon,
 		&i.LastInvalidatedAt,
+		&i.DesiredInstancesExpression,
 	)
 	return i, err
 }

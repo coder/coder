@@ -5099,8 +5099,9 @@ type TemplateVersionPreset struct {
 	// Short text describing the preset (max 128 characters).
 	Description string `db:"description" json:"description"`
 	// URL or path to an icon representing the preset (max 256 characters).
-	Icon              string       `db:"icon" json:"icon"`
-	LastInvalidatedAt sql.NullTime `db:"last_invalidated_at" json:"last_invalidated_at"`
+	Icon                       string         `db:"icon" json:"icon"`
+	LastInvalidatedAt          sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
+	DesiredInstancesExpression sql.NullString `db:"desired_instances_expression" json:"desired_instances_expression"`
 }
 
 type TemplateVersionPresetParameter struct {

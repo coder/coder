@@ -1,0 +1,1 @@
+ALTER TABLE template_version_presets ADD COLUMN desired_instances_expression TEXT;

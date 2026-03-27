@@ -167,6 +167,7 @@ export interface Prebuild {
   instances: number;
   expirationPolicy: ExpirationPolicy | undefined;
   scheduling: Scheduling | undefined;
+  desiredInstancesExpression: string;
 }
 
 /** Preset represents a set of preset parameters for a template version. */
@@ -775,6 +776,9 @@ export const Prebuild = {
     }
     if (message.scheduling !== undefined) {
       Scheduling.encode(message.scheduling, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.desiredInstancesExpression !== "") {
+      writer.uint32(34).string(message.desiredInstancesExpression);
     }
     return writer;
   },

@@ -93,6 +93,7 @@ message Prebuild {
     int32 instances = 1;
     ExpirationPolicy expiration_policy = 2;
     Scheduling scheduling = 3;
+    string desired_instances_expression = 4;
 }
 
 // Preset represents a set of preset parameters for a template version.

@@ -2701,17 +2701,18 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 		}
 
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
-			ID:                  uuid.New(),
-			TemplateVersionID:   templateVersionID,
-			Name:                protoPreset.Name,
-			CreatedAt:           t,
-			DesiredInstances:    desiredInstances,
-			InvalidateAfterSecs: ttl,
-			SchedulingTimezone:  schedulingTimezone,
-			IsDefault:           protoPreset.GetDefault(),
-			Description:         protoPreset.Description,
-			Icon:                protoPreset.Icon,
-			LastInvalidatedAt:   sql.NullTime{},
+			ID:                         uuid.New(),
+			TemplateVersionID:          templateVersionID,
+			Name:                       protoPreset.Name,
+			CreatedAt:                  t,
+			DesiredInstances:           desiredInstances,
+			DesiredInstancesExpression: sql.NullString{},
+			InvalidateAfterSecs:        ttl,
+			SchedulingTimezone:         schedulingTimezone,
+			IsDefault:                  protoPreset.GetDefault(),
+			Description:                protoPreset.Description,
+			Icon:                       protoPreset.Icon,
+			LastInvalidatedAt:          sql.NullTime{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
