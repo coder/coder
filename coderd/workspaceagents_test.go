@@ -3404,7 +3404,7 @@ func TestReinit(t *testing.T) {
 		require.NotNil(t, reinitEvent)
 		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 		require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
-		require.Equal(t, user.UserID, reinitEvent.UserID)
+		require.Equal(t, user.UserID, reinitEvent.OwnerID)
 	})
 
 	// Verifies that when the claim build completed with an error,

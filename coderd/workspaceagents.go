@@ -1565,7 +1565,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			case reinitEvents <- agentsdk.ReinitializationEvent{
 				WorkspaceID: workspace.ID,
 				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
-				UserID:      workspace.OwnerID,
+				OwnerID:     workspace.OwnerID,
 			}:
 			default:
 				// Pubsub already delivered the event.
