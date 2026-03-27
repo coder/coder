@@ -857,7 +857,6 @@ const ScrollAnchoredContainer: FC<{
 
 			// In normal flow, appends grow below the viewport, so users reading
 			// history do not need scroll compensation.
-			compensateScroll(delta);
 		});
 		observer.observe(content);
 
