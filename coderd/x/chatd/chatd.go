@@ -3701,7 +3701,8 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
-				// Best-effort: link the file to the chat.
+				// Best-effort: link the file to the chat. Failures here should not block
+				// the tool response, but will result in an orphaned file row.
 				if err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
 					ChatID:  chatSnapshot.ID,
 					FileIds: []uuid.UUID{row.ID},
