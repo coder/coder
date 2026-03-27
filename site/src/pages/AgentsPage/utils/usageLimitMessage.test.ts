@@ -1,5 +1,6 @@
 import {
 	type ChatDetailError,
+	chatDetailErrorsEqual,
 	formatUsageLimitMessage,
 	isUsageLimitData,
 } from "./usageLimitMessage";
@@ -73,14 +74,40 @@ describe("formatUsageLimitMessage", () => {
 	});
 });
 
+describe("chatDetailErrorsEqual", () => {
+	it("compares matching errors by value", () => {
+		const left: ChatDetailError = {
+			kind: "rate_limit",
+			message: "Slow down.",
+			provider: "anthropic",
+			retryable: true,
+			statusCode: 429,
+		};
+
+		expect(chatDetailErrorsEqual(left, { ...left })).toBe(true);
+	});
+
+	it("treats missing and mismatched errors as different", () => {
+		const error: ChatDetailError = {
+			kind: "generic",
+			message: "Provider request failed.",
+		};
+
+		expect(chatDetailErrorsEqual(error, null)).toBe(false);
+		expect(chatDetailErrorsEqual(error, { ...error, statusCode: 500 })).toBe(
+			false,
+		);
+	});
+});
+
 describe("isUsageLimitData", () => {
 	it("accepts a fully populated valid payload", () => {
 		const error: ChatDetailError = {
 			message: "Your usage limit has been reached.",
-			kind: "usage-limit",
+			kind: "usage_limit",
 		};
 
-		expect(error.kind).toBe("usage-limit");
+		expect(error.kind).toBe("usage_limit");
 		expect(
 			isUsageLimitData({
 				spent_micros: 900_000,

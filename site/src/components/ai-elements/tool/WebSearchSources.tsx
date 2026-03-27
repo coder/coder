@@ -1,6 +1,6 @@
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 
 interface WebSearchSourcesProps {

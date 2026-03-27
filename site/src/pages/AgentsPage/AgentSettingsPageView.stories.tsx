@@ -1,11 +1,14 @@
-import { MockUserOwner } from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { userKey } from "api/queries/users";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { userKey } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
+import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { AgentSettingsPageView } from "./AgentSettingsPageView";
 
 // ── Usage mock helpers ─────────────────────────────────────────
@@ -59,6 +62,7 @@ const mockUserProfile: TypesGen.User = {
 	roles: [],
 	last_seen_at: "2026-03-11T10:00:00Z",
 	login_type: "password",
+	has_ai_seat: false,
 };
 
 const mockCostSummary: TypesGen.ChatCostSummary = {
@@ -127,6 +131,7 @@ const getChatCostUsersCalls = () =>
 	).mock.calls;
 
 const fixedNow = dayjs("2026-03-12T00:00:00Z");
+const mockDefaultSystemPrompt = "You are Coder, an AI coding assistant...";
 
 // ── Meta ───────────────────────────────────────────────────────
 
@@ -147,6 +152,8 @@ const meta = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
@@ -170,6 +177,30 @@ const meta = {
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockResolvedValue({
+			template_ids: [],
+		});
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockResolvedValue();
+		spyOn(API, "getTemplates").mockResolvedValue([
+			{
+				...MockTemplate,
+				id: "abc-123",
+				name: "docker-dev",
+				display_name: "Docker Development",
+			},
+			{
+				...MockTemplate,
+				id: "def-456",
+				name: "kubernetes-prod",
+				display_name: "Kubernetes Production",
+			},
+			{
+				...MockTemplate,
+				id: "ghi-789",
+				name: "aws-windows",
+				display_name: "AWS Windows Desktop",
+			},
+		]);
 	},
 } satisfies Meta<typeof AgentSettingsPageView>;
 
@@ -206,24 +237,97 @@ export const TogglesDesktop: Story = {
 	},
 };
 
+export const AdminWithDefaultToggleOn: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "Always use TypeScript for code examples.",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Include Coder Agents default system prompt",
+		});
+		expect(toggle).toBeChecked();
+		expect(
+			await canvas.findByDisplayValue(
+				"Always use TypeScript for code examples.",
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText(/built-in Coder Agents prompt is prepended/i),
+		).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Preview" }));
+		expect(await body.findByText("Default System Prompt")).toBeInTheDocument();
+		expect(body.getByText(mockDefaultSystemPrompt)).toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(body.queryByText("Default System Prompt")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(toggle);
+		const promptForm = canvas
+			.getByDisplayValue("Always use TypeScript for code examples.")
+			.closest("form")!;
+		const saveButton = within(promptForm).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(API.experimental.updateChatSystemPrompt).toHaveBeenCalledWith({
+				system_prompt: "Always use TypeScript for code examples.",
+				include_default_system_prompt: false,
+			});
+		});
+	},
+};
+
+export const AdminWithDefaultToggleOff: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "You are a custom assistant.",
+			include_default_system_prompt: false,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Include Coder Agents default system prompt",
+		});
+		expect(toggle).not.toBeChecked();
+		expect(
+			await canvas.findByDisplayValue("You are a custom assistant."),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText(/only the additional instructions below are used/i),
+		).toBeInTheDocument();
+	},
+};
+
 export const DefaultAutostopDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Default Autostop");
-		// When disabled (0s), shows template-default copy.
-		await canvas.findByText(/stopped as configured by their templates/i);
+		await canvas.findByText("Workspace Autostop Fallback");
+		// Description is always visible.
+		await canvas.findByText(
+			/set a default autostop for agent-created workspaces/i,
+		);
 
-		// DurationField renders a text input labeled "Default autostop".
-		const durationInput = await canvas.findByLabelText("Default autostop");
+		// Toggle should be OFF when TTL is 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).not.toBeChecked();
 
-		// Default is "0s" → 0 hours (disabled).
-		expect(durationInput).toHaveValue("0");
-
-		// Save button should be disabled (no local change).
-		const ttlForm = durationInput.closest("form")!;
-		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
-		expect(saveButton).toBeDisabled();
+		// Duration field should not be visible when disabled.
+		expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
 	},
 };
 
@@ -237,29 +341,54 @@ export const DefaultAutostopCustomValue: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const durationInput = await canvas.findByLabelText("Default autostop");
+		// Toggle should be ON when TTL > 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).toBeChecked();
 
-		// Shows 2 hours from the mock.
+		// Duration field should be visible with 2 hours.
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
 		expect(durationInput).toHaveValue("2");
-
-		// When non-zero, shows the duration in the description.
-		await canvas.findByText(/stopped after 2 hours of inactivity/i);
 	},
 };
 
 export const DefaultAutostopSave: Story = {
+	beforeEach: () => {
+		let currentTTL = 0;
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockImplementation(
+			async () => ({ workspace_ttl_ms: currentTTL }),
+		);
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockImplementation(
+			async (req) => {
+				currentTTL = req.workspace_ttl_ms;
+			},
+		);
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const durationInput = await canvas.findByLabelText("Default autostop");
-		const ttlForm = durationInput.closest("form")!;
-		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+		// Toggle ON — should auto-save with 1-hour default.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		await userEvent.click(toggle);
 
-		// Change to 3 hours.
+		await waitFor(() => {
+			expect(API.experimental.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl_ms: 3_600_000,
+			});
+		});
+
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		expect(durationInput).toHaveValue("1");
+
+		// Change to 3 hours — Save button should appear.
 		await userEvent.clear(durationInput);
 		await userEvent.type(durationInput, "3");
 
-		// Save button should now be enabled.
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(saveButton).toBeEnabled();
 		});
@@ -270,16 +399,39 @@ export const DefaultAutostopSave: Story = {
 				workspace_ttl_ms: 10_800_000,
 			});
 		});
+
+		// Verify the isTTLZero guard: clearing to 0 should disable Save
+		// because the toggle is still ON.
+		await userEvent.clear(durationInput);
+		await waitFor(() => {
+			expect(saveButton).toBeDisabled();
+		});
 	},
 };
 
 export const DefaultAutostopExceedsMax: Story = {
+	beforeEach: () => {
+		let currentTTL = 0;
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockImplementation(
+			async () => ({ workspace_ttl_ms: currentTTL }),
+		);
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockImplementation(
+			async (req) => {
+				currentTTL = req.workspace_ttl_ms;
+			},
+		);
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const durationInput = await canvas.findByLabelText("Default autostop");
+		// Toggle ON to reveal the duration field.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		await userEvent.click(toggle);
+
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
 		const ttlForm = durationInput.closest("form")!;
-		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
 
 		// Enter 721 hours (exceeds 30-day / 720h limit).
 		await userEvent.clear(durationInput);
@@ -291,7 +443,161 @@ export const DefaultAutostopExceedsMax: Story = {
 		});
 
 		// Save button should be disabled despite the field being dirty.
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
 		expect(saveButton).toBeDisabled();
+	},
+};
+
+export const DefaultAutostopToggleOff: Story = {
+	beforeEach: () => {
+		let currentTTL = 7_200_000;
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockImplementation(
+			async () => ({ workspace_ttl_ms: currentTTL }),
+		);
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockImplementation(
+			async (req) => {
+				currentTTL = req.workspace_ttl_ms;
+			},
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Toggle should start ON since TTL > 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).toBeChecked();
+
+		// Click toggle OFF.
+		await userEvent.click(toggle);
+
+		await waitFor(() => {
+			expect(API.experimental.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl_ms: 0,
+			});
+		});
+
+		// Duration field should no longer be visible.
+		await waitFor(() => {
+			expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
+		});
+	},
+};
+
+export const DefaultAutostopSaveDisabled: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 7_200_000,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Toggle should be ON since TTL > 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).toBeChecked();
+
+		// Duration field should show 2 hours.
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		expect(durationInput).toHaveValue("2");
+
+		// Save button should exist but be disabled (no changes made).
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+		expect(saveButton).toBeDisabled();
+	},
+};
+
+export const DefaultAutostopToggleFailure: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 0,
+		});
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockRejectedValue(
+			new Error("Server error"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Toggle starts OFF since TTL is 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).not.toBeChecked();
+
+		// Click toggle ON.
+		await userEvent.click(toggle);
+
+		// Verify the mutation was called with the 1-hour default.
+		await waitFor(() => {
+			expect(API.experimental.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl_ms: 3_600_000,
+			});
+		});
+
+		// The onError handler resets state, reverting the toggle.
+		await waitFor(() => {
+			expect(toggle).not.toBeChecked();
+		});
+
+		// Error message should be visible.
+		expect(
+			canvas.getByText("Failed to save autostop setting."),
+		).toBeInTheDocument();
+
+		// DurationField should not be visible since toggle reverted to OFF.
+		expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
+	},
+};
+
+export const DefaultAutostopToggleOffFailure: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 7_200_000,
+		});
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockRejectedValue(
+			new Error("Server error"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Toggle starts ON since TTL > 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).toBeChecked();
+
+		// Duration should show 2 hours initially.
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		expect(durationInput).toHaveValue("2");
+
+		// Click toggle OFF.
+		await userEvent.click(toggle);
+
+		// Verify the mutation was called with 0 to disable.
+		await waitFor(() => {
+			expect(API.experimental.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl_ms: 0,
+			});
+		});
+
+		// The onError handler resets state, reverting the toggle to ON.
+		await waitFor(() => {
+			expect(toggle).toBeChecked();
+		});
+
+		// Error message should be visible.
+		expect(
+			canvas.getByText("Failed to save autostop setting."),
+		).toBeInTheDocument();
+
+		// DurationField should still be visible with 2 hours.
+		expect(canvas.getByLabelText("Autostop Fallback")).toHaveValue("2");
 	},
 };
 
@@ -306,11 +612,12 @@ export const DefaultAutostopNotVisibleToNonAdmin: Story = {
 		await canvas.findByText("Personal Instructions");
 
 		// Admin-only sections should not be present.
-		const ttlHeading = canvas.queryByText("Default Autostop");
+		const ttlHeading = canvas.queryByText("Workspace Autostop Fallback");
 		expect(ttlHeading).toBeNull();
 
 		const desktopHeading = canvas.queryByText("Virtual Desktop");
 		expect(desktopHeading).toBeNull();
+		expect(API.experimental.getChatSystemPrompt).not.toHaveBeenCalled();
 	},
 };
 
@@ -549,5 +856,216 @@ export const UsageUserDrillInAndBack: Story = {
 		await expect(
 			body.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
+	},
+};
+
+// ── Invisible Unicode warning stories ──────────────────────────
+
+export const InvisibleUnicodeWarningSystemPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt:
+				"Normal prompt text\u200b\u200b\u200b\u200bhidden instruction",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the System Instructions section to render.
+		await canvas.findByText("System Instructions");
+
+		// The warning alert should appear with the correct count.
+		const alert = await canvas.findByText(/invisible Unicode/);
+		expect(alert).toBeInTheDocument();
+		expect(alert.textContent).toContain("4");
+	},
+};
+
+export const InvisibleUnicodeWarningUserPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "My custom prompt\u200b\u200c\u200dhidden",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Personal Instructions section to render.
+		await canvas.findByText("Personal Instructions");
+
+		// The warning alert should appear.
+		const alert = await canvas.findByText(/invisible Unicode/);
+		expect(alert).toBeInTheDocument();
+		expect(alert.textContent).toContain("2");
+	},
+};
+
+export const InvisibleUnicodeWarningOnType: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the Personal Instructions textarea to render.
+		const textarea = await canvas.findByPlaceholderText(
+			"Additional behavior, style, and tone preferences",
+		);
+
+		// No warning should be present initially.
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+
+		// Type a string containing a ZWS character.
+		await userEvent.type(textarea, "hello\u200bworld");
+
+		// The warning alert should appear dynamically.
+		await waitFor(() => {
+			expect(canvas.getByText(/invisible Unicode/)).toBeInTheDocument();
+		});
+	},
+};
+
+export const NoWarningForCleanPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "You are a helpful coding assistant.",
+			include_default_system_prompt: true,
+			default_system_prompt: mockDefaultSystemPrompt,
+		});
+		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "Be concise and use TypeScript.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for both sections to render.
+		await canvas.findByText("Personal Instructions");
+		await canvas.findByText("System Instructions");
+
+		// No invisible Unicode warning should be present.
+		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+	},
+};
+
+// ── Templates tab stories ──────────────────────────────────────
+
+const manyTemplates = [
+	{ id: "t-01", name: "docker-dev", display_name: "Docker Development" },
+	{
+		id: "t-02",
+		name: "kubernetes-prod",
+		display_name: "Kubernetes Production",
+	},
+	{ id: "t-03", name: "aws-windows", display_name: "AWS Windows Desktop" },
+	{ id: "t-04", name: "gcp-linux", display_name: "GCP Linux Workspace" },
+	{ id: "t-05", name: "azure-dotnet", display_name: "Azure .NET Environment" },
+	{ id: "t-06", name: "ml-jupyter", display_name: "ML Jupyter Notebook" },
+	{
+		id: "t-07",
+		name: "data-eng-spark",
+		display_name: "Data Engineering (Spark)",
+	},
+	{
+		id: "t-08",
+		name: "frontend-vite",
+		display_name: "Frontend (Vite + React)",
+	},
+].map((t) => ({ ...MockTemplate, ...t }));
+
+export const TemplateAllowlist: Story = {
+	args: {
+		activeSection: "templates",
+		canManageChatModelConfigs: true,
+		canSetSystemPrompt: true,
+	},
+	beforeEach: () => {
+		// Track saved allowlist state across mock calls so the
+		// refetch after save returns the updated value.
+		let savedIDs: string[] = [];
+
+		spyOn(API, "getTemplates").mockResolvedValue(manyTemplates);
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockImplementation(
+			async () => ({ template_ids: savedIDs }),
+		);
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockImplementation(
+			async (req) => {
+				savedIDs = [...req.template_ids];
+			},
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("starts empty", async () => {
+			// Status text confirms no restrictions.
+			await canvas.findByText(/no templates selected/i);
+			// Save is disabled — nothing to save.
+			const saveBtn = await canvas.findByRole("button", { name: "Save" });
+			expect(saveBtn).toBeDisabled();
+		});
+
+		await step("select one template and save", async () => {
+			// Open the combobox.
+			const input = canvas.getByPlaceholderText("Select templates...");
+			await userEvent.click(input);
+			// Pick the first template from the dropdown.
+			await userEvent.click(
+				await canvas.findByRole("option", { name: "Docker Development" }),
+			);
+			// Badge pill should appear and status should update.
+			await waitFor(() => {
+				expect(canvas.getByText("1 template selected")).toBeInTheDocument();
+			});
+			// Save should now be enabled.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			expect(saveBtn).toBeEnabled();
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenCalledWith({ template_ids: ["t-01"] });
+			});
+		});
+
+		await step("add the remaining seven and save", async () => {
+			// Open the combobox again.
+			const input = canvas.getByLabelText("Select allowed templates");
+			await userEvent.click(input);
+			// Select the other seven templates one by one.
+			for (const name of [
+				"Kubernetes Production",
+				"AWS Windows Desktop",
+				"GCP Linux Workspace",
+				"Azure .NET Environment",
+				"ML Jupyter Notebook",
+				"Data Engineering (Spark)",
+				"Frontend (Vite + React)",
+			]) {
+				await userEvent.click(await canvas.findByRole("option", { name }));
+			}
+			// All eight should now be selected.
+			await waitFor(() => {
+				expect(canvas.getByText("8 templates selected")).toBeInTheDocument();
+			});
+			// Save.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenLastCalledWith({
+					template_ids: expect.arrayContaining([
+						"t-01",
+						"t-02",
+						"t-03",
+						"t-04",
+						"t-05",
+						"t-06",
+						"t-07",
+						"t-08",
+					]),
+				});
+			});
+		});
 	},
 };

@@ -1,7 +1,7 @@
-import { MockEntitlements, MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, within } from "storybook/test";
+import { MockEntitlements, MockLicenseResponse } from "#/testHelpers/entities";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
 const meta: Meta<typeof LicensesSettingsPage> = {
@@ -22,6 +22,8 @@ const USER_STATUS_COUNTS_QUERY = {
 	key: ["insights", "userStatusCounts"],
 	data: { active: [] },
 };
+
+const STORY_NOW = dayjs("2099-01-01T12:00:00Z");
 
 const withBaseQueries = ({
 	entitlements = MockEntitlements,
@@ -89,8 +91,8 @@ const createLicense = ({
 	addons?: string[];
 }) => ({
 	id,
-	uploaded_at: String(dayjs().subtract(uploadedDaysAgo, "day").unix()),
-	expires_at: String(dayjs().add(expiresInDays, "day").unix()),
+	uploaded_at: String(STORY_NOW.subtract(uploadedDaysAgo, "day").unix()),
+	expires_at: String(STORY_NOW.add(expiresInDays, "day").unix()),
 	uuid,
 	claims: {
 		trial: false,
@@ -102,8 +104,8 @@ const createLicense = ({
 			user_limit: userLimit,
 		},
 		addons,
-		license_expires: dayjs().add(licenseExpiresInDays, "day").unix(),
-		nbf: dayjs().add(nbfOffsetDays, "day").unix(),
+		license_expires: STORY_NOW.add(licenseExpiresInDays, "day").unix(),
+		nbf: STORY_NOW.add(nbfOffsetDays, "day").unix(),
 	},
 });
 

@@ -1,47 +1,6 @@
-import { getErrorMessage } from "api/errors";
-import {
-	chatCostSummary,
-	chatCostUsers,
-	chatDesktopEnabled,
-	chatModelConfigs,
-	chatSystemPrompt,
-	chatUserCustomPrompt,
-	chatWorkspaceTTL,
-	updateChatDesktopEnabled,
-	updateChatSystemPrompt,
-	updateChatWorkspaceTTL,
-	updateUserChatCustomPrompt,
-} from "api/queries/chats";
-import { user } from "api/queries/users";
-import type * as TypesGen from "api/typesGenerated";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { DurationField } from "components/DurationField/DurationField";
-import { Link } from "components/Link/Link";
-import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { SearchField } from "components/SearchField/SearchField";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
-import { useDebouncedValue } from "hooks/debounce";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useState } from "react";
+import { type FC, type FormEvent, useMemo, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -50,26 +9,77 @@ import {
 } from "react-query";
 import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
-import { formatTokenCount } from "utils/analytics";
-import { formatCostMicros } from "utils/currency";
-import { humanDuration } from "utils/time";
+import { getErrorMessage } from "#/api/errors";
 import {
-	DateRange,
-	type DateRangeValue,
-} from "../TemplatePage/TemplateInsightsPage/DateRange";
+	chatCostSummary,
+	chatCostUsers,
+	chatDesktopEnabled,
+	chatModelConfigs,
+	chatSystemPrompt,
+	chatTemplateAllowlist,
+	chatUserCustomPrompt,
+	chatWorkspaceTTL,
+	updateChatDesktopEnabled,
+	updateChatSystemPrompt,
+	updateChatTemplateAllowlist,
+	updateChatWorkspaceTTL,
+	updateUserChatCustomPrompt,
+} from "#/api/queries/chats";
+import { templates } from "#/api/queries/templates";
+import { user } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
+import {
+	MultiSelectCombobox,
+	type Option,
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
+import { SearchField } from "#/components/SearchField/SearchField";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useDebouncedValue } from "#/hooks/debounce";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { formatTokenCount } from "#/utils/analytics";
+import { cn } from "#/utils/cn";
+import { formatCostMicros } from "#/utils/currency";
+import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
+import {
+	DateRangePicker,
+	type DateRangeValue,
+} from "./components/DateRangePicker/DateRangePicker";
+import { DurationField } from "./components/DurationField/DurationField";
 import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
 import { SectionHeader } from "./components/SectionHeader";
+import { TextPreviewDialog } from "./components/TextPreviewDialog";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
+				<span className="ml-auto inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-2 py-1 text-[11px] leading-none font-medium text-content-secondary">
 					<ShieldIcon className="h-3 w-3" />
 					Admin
 				</span>
@@ -261,7 +271,11 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				<DateRange value={displayDateRange} onChange={onDateRangeChange} />
+				<DateRangePicker
+					value={displayDateRange}
+					onChange={onDateRangeChange}
+					now={now?.toDate()}
+				/>
 			}
 		/>
 	);
@@ -486,8 +500,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	);
 };
 
-const textareaClassName =
-	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
+const textareaMaxHeight = 240;
+const textareaBaseClassName =
+	"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30";
+const textareaOverflowClassName = "overflow-y-auto [scrollbar-width:thin]";
 
 interface AgentSettingsPageViewProps {
 	activeSection: string;
@@ -506,7 +522,10 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 
-	const systemPromptQuery = useQuery(chatSystemPrompt());
+	const systemPromptQuery = useQuery({
+		...chatSystemPrompt(),
+		enabled: canSetSystemPrompt,
+	});
 	const {
 		mutate: saveSystemPrompt,
 		isPending: isSavingSystemPrompt,
@@ -538,37 +557,75 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		isError: isSaveWorkspaceTTLError,
 	} = useMutation(updateChatWorkspaceTTL(queryClient));
 
+	const hasLoadedSystemPrompt = systemPromptQuery.isSuccess;
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
+	const serverIncludeDefault =
+		systemPromptQuery.data?.include_default_system_prompt;
+	const defaultSystemPrompt =
+		systemPromptQuery.data?.default_system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
+	const [localIncludeDefault, setLocalIncludeDefault] = useState<
+		boolean | null
+	>(null);
+	const [showDefaultPromptPreview, setShowDefaultPromptPreview] =
+		useState(false);
 	const systemPromptDraft = localEdit ?? serverPrompt;
+	const includeDefaultDraft =
+		localIncludeDefault ?? serverIncludeDefault ?? false;
 
 	const serverUserPrompt = userPromptQuery.data?.custom_prompt ?? "";
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 
-	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
+	const systemInvisibleCharCount = useMemo(
+		() => countInvisibleCharacters(systemPromptDraft),
+		[systemPromptDraft],
+	);
+	const userInvisibleCharCount = useMemo(
+		() => countInvisibleCharacters(userPromptDraft),
+		[userPromptDraft],
+	);
+
+	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
+	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
+		useState(false);
+	const isSystemPromptDirty =
+		hasLoadedSystemPrompt &&
+		((localEdit !== null && localEdit !== serverPrompt) ||
+			(localIncludeDefault !== null &&
+				localIncludeDefault !== serverIncludeDefault));
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const serverTTLMs = workspaceTTLQuery.data?.workspace_ttl_ms ?? 0;
 	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	const [autostopToggled, setAutostopToggled] = useState<boolean | null>(null);
 	const ttlMs = localTTLMs ?? serverTTLMs;
+	const isAutostopEnabled = autostopToggled ?? serverTTLMs > 0;
 	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
 	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
 	const isTTLOverMax = ttlMs > maxTTLMs;
-	const isDisabled =
-		isSavingSystemPrompt ||
-		isSavingUserPrompt ||
-		isSavingDesktopEnabled ||
-		isSavingWorkspaceTTL;
+	const isTTLZero = isAutostopEnabled && ttlMs === 0;
+	const isPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
+	const isSystemPromptDisabled = isPromptSaving || !hasLoadedSystemPrompt;
+	const isDesktopSaving = isSavingDesktopEnabled;
+	const isTTLSaving = isSavingWorkspaceTTL;
 	const isTTLLoading = workspaceTTLQuery.isLoading;
 
 	const handleSaveSystemPrompt = (event: FormEvent) => {
 		event.preventDefault();
-		if (!isSystemPromptDirty) return;
+		if (!hasLoadedSystemPrompt || !isSystemPromptDirty) return;
 		saveSystemPrompt(
-			{ system_prompt: systemPromptDraft },
-			{ onSuccess: () => setLocalEdit(null) },
+			{
+				system_prompt: systemPromptDraft,
+				include_default_system_prompt: includeDefaultDraft,
+			},
+			{
+				onSuccess: () => {
+					setLocalEdit(null);
+					setLocalIncludeDefault(null);
+				},
+			},
 		);
 	};
 
@@ -581,12 +638,41 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		);
 	};
 
+	const resetAutostopState = () => {
+		setLocalTTLMs(null);
+		setAutostopToggled(null);
+	};
+
+	const handleToggleAutostop = (checked: boolean) => {
+		if (checked) {
+			// Defensive: restore server value if query cache is
+			// stale; otherwise default to 1 hour.
+			const defaultTTL = serverTTLMs > 0 ? serverTTLMs : 3_600_000;
+			setAutostopToggled(true);
+			setLocalTTLMs(defaultTTL);
+			saveWorkspaceTTL(
+				{ workspace_ttl_ms: defaultTTL },
+				{ onSuccess: resetAutostopState, onError: resetAutostopState },
+			);
+		} else {
+			setAutostopToggled(false);
+			setLocalTTLMs(0);
+			saveWorkspaceTTL(
+				{ workspace_ttl_ms: 0 },
+				{ onSuccess: resetAutostopState, onError: resetAutostopState },
+			);
+		}
+	};
+
 	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
 		event.preventDefault();
-		if (!isTTLDirty) return;
+		if (!isTTLDirty || isTTLSaving) return;
 		saveWorkspaceTTL(
 			{ workspace_ttl_ms: localTTLMs ?? 0 },
-			{ onSuccess: () => setLocalTTLMs(null) },
+			{
+				onSuccess: resetAutostopState,
+				onError: () => setAutostopToggled(null),
+			},
 		);
 	};
 	return (
@@ -610,27 +696,40 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								Applied to all your chats. Only visible to you.
 							</p>
 							<TextareaAutosize
-								className={textareaClassName}
+								className={cn(
+									textareaBaseClassName,
+									isUserPromptOverflowing && textareaOverflowClassName,
+								)}
 								placeholder="Additional behavior, style, and tone preferences"
 								value={userPromptDraft}
 								onChange={(event) => setLocalUserEdit(event.target.value)}
-								disabled={isDisabled}
+								onHeightChange={(height) =>
+									setIsUserPromptOverflowing(height >= textareaMaxHeight)
+								}
+								disabled={isPromptSaving}
 								minRows={1}
 							/>
+							{userInvisibleCharCount > 0 && (
+								<Alert severity="warning">
+									This text contains {userInvisibleCharCount} invisible Unicode{" "}
+									{userInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
+									that could hide content. These will be stripped on save.
+								</Alert>
+							)}
 							<div className="flex justify-end gap-2">
 								<Button
 									size="sm"
 									variant="outline"
 									type="button"
 									onClick={() => setLocalUserEdit("")}
-									disabled={isDisabled || !userPromptDraft}
+									disabled={isPromptSaving || !userPromptDraft}
 								>
 									Clear
 								</Button>
 								<Button
 									size="sm"
 									type="submit"
-									disabled={isDisabled || !isUserPromptDirty}
+									disabled={isPromptSaving || !isUserPromptDirty}
 								>
 									Save
 								</Button>
@@ -663,32 +762,70 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										</h3>
 										<AdminBadge />
 									</div>
+									<div className="flex items-center justify-between gap-4">
+										<div className="flex min-w-0 items-center gap-2 text-xs font-medium text-content-primary">
+											<span>Include Coder Agents default system prompt</span>
+											<Button
+												size="xs"
+												variant="subtle"
+												type="button"
+												onClick={() => setShowDefaultPromptPreview(true)}
+												disabled={!hasLoadedSystemPrompt}
+												className="min-w-0 px-0 text-content-link hover:text-content-link"
+											>
+												Preview
+											</Button>
+										</div>
+										<Switch
+											checked={includeDefaultDraft}
+											onCheckedChange={setLocalIncludeDefault}
+											aria-label="Include Coder Agents default system prompt"
+											disabled={isSystemPromptDisabled}
+										/>
+									</div>
 									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										Applied to all chats for every user. When empty, the
-										built-in default is used.
+										{includeDefaultDraft
+											? "The built-in Coder Agents prompt is prepended. Additional instructions below are appended."
+											: "Only the additional instructions below are used. When empty, no deployment-wide system prompt is sent."}
 									</p>
 									<TextareaAutosize
-										className={textareaClassName}
-										placeholder="Additional behavior, style, and tone preferences for all users"
+										className={cn(
+											textareaBaseClassName,
+											isSystemPromptOverflowing && textareaOverflowClassName,
+										)}
+										placeholder="Additional instructions for all users"
 										value={systemPromptDraft}
 										onChange={(event) => setLocalEdit(event.target.value)}
-										disabled={isDisabled}
+										onHeightChange={(height) =>
+											setIsSystemPromptOverflowing(height >= textareaMaxHeight)
+										}
+										disabled={isSystemPromptDisabled}
 										minRows={1}
 									/>
+									{systemInvisibleCharCount > 0 && (
+										<Alert severity="warning">
+											This text contains {systemInvisibleCharCount} invisible
+											Unicode{" "}
+											{systemInvisibleCharCount !== 1
+												? "characters"
+												: "character"}{" "}
+											that could hide content. These will be stripped on save.
+										</Alert>
+									)}
 									<div className="flex justify-end gap-2">
 										<Button
 											size="sm"
 											variant="outline"
 											type="button"
 											onClick={() => setLocalEdit("")}
-											disabled={isDisabled || !systemPromptDraft}
+											disabled={isSystemPromptDisabled || !systemPromptDraft}
 										>
 											Clear
 										</Button>
 										<Button
 											size="sm"
 											type="submit"
-											disabled={isDisabled || !isSystemPromptDirty}
+											disabled={isSystemPromptDisabled || !isSystemPromptDirty}
 										>
 											Save
 										</Button>
@@ -733,7 +870,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 												saveDesktopEnabled({ enable_desktop: checked })
 											}
 											aria-label="Enable"
-											disabled={isDisabled}
+											disabled={isDesktopSaving}
 										/>
 									</div>
 									{isSaveDesktopEnabledError && (
@@ -749,36 +886,63 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								>
 									<div className="flex items-center gap-2">
 										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-											Default Autostop
+											Workspace Autostop Fallback
 										</h3>
 										<AdminBadge />
 									</div>
-									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										{ttlMs === 0
-											? "Workspaces linked to chats will be stopped as configured by their templates. Active chats continuously extend the deadline."
-											: `Workspaces linked to chats will be stopped after ${humanDuration(ttlMs)} of inactivity. Active chats continuously extend the deadline.`}
-									</p>
-									<DurationField
-										label="Default autostop"
-										valueMs={ttlMs}
-										onChange={(v) => setLocalTTLMs(v)}
-										disabled={isDisabled || isTTLLoading}
-										error={isTTLOverMax}
-										helperText={
-											isTTLOverMax
-												? "Must not exceed 30 days (720 hours)."
-												: undefined
-										}
-									/>
-									<div className="flex justify-end">
-										<Button
-											size="sm"
-											type="submit"
-											disabled={isDisabled || !isTTLDirty || isTTLOverMax}
-										>
-											Save
-										</Button>
+									<div className="flex items-center justify-between gap-4">
+										<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+											Set a default autostop for agent-created workspaces that
+											don't have one defined in their template. Template-defined
+											autostop rules always take precedence. Active chats will
+											extend the stop time.
+										</p>
+										<Switch
+											checked={isAutostopEnabled}
+											onCheckedChange={handleToggleAutostop}
+											aria-label="Enable default autostop"
+											disabled={isTTLSaving || isTTLLoading}
+										/>{" "}
 									</div>
+									{isAutostopEnabled && (
+										<DurationField
+											valueMs={ttlMs}
+											onChange={(v) => {
+												setLocalTTLMs(v);
+												// Latch the toggle open while the user is editing
+												// so a background refetch cannot unmount the field.
+												if (autostopToggled === null) {
+													setAutostopToggled(true);
+												}
+											}}
+											label="Autostop Fallback"
+											disabled={isTTLSaving || isTTLLoading}
+											error={isTTLOverMax || isTTLZero}
+											helperText={
+												isTTLZero
+													? "Duration must be greater than zero."
+													: isTTLOverMax
+														? "Must not exceed 30 days (720 hours)."
+														: undefined
+											}
+										/>
+									)}
+									{isAutostopEnabled && (
+										<div className="flex justify-end">
+											<Button
+												size="sm"
+												type="submit"
+												disabled={
+													isTTLSaving ||
+													!isTTLDirty ||
+													isTTLOverMax ||
+													isTTLZero
+												}
+											>
+												Save
+											</Button>
+										</div>
+									)}
 									{isSaveWorkspaceTTLError && (
 										<p className="m-0 text-xs text-content-destructive">
 											Failed to save autostop setting.
@@ -826,7 +990,154 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 				{activeSection === "insights" && canManageChatModelConfigs && (
 					<InsightsContent />
 				)}
+				{activeSection === "templates" && canManageChatModelConfigs && (
+					<TemplateAllowlistSection />
+				)}
 			</div>
+			{showDefaultPromptPreview && (
+				<TextPreviewDialog
+					content={defaultSystemPrompt}
+					fileName="Default System Prompt"
+					onClose={() => setShowDefaultPromptPreview(false)}
+				/>
+			)}
+		</div>
+	);
+};
+
+const TemplateAllowlistSection: FC = () => {
+	const queryClient = useQueryClient();
+
+	// Fetch all available templates.
+	const templatesQuery = useQuery(templates());
+
+	// Fetch current allowlist.
+	const allowlistQuery = useQuery(chatTemplateAllowlist());
+
+	const {
+		mutate: saveAllowlist,
+		isPending: isSaving,
+		isError: isSaveError,
+	} = useMutation(updateChatTemplateAllowlist(queryClient));
+
+	const [localSelection, setLocalSelection] = useState<Option[] | null>(null);
+
+	// Map all templates to MultiSelectCombobox options.
+	const allOptions: Option[] = (templatesQuery.data ?? []).map((t) => ({
+		value: t.id,
+		label: t.display_name || t.name,
+		icon: t.icon,
+	}));
+
+	// Build a lookup from template ID to Option for resolving server IDs.
+	const optionsByID = new Map(allOptions.map((o) => [o.value, o]));
+
+	// Resolve the server-side allowlist IDs into Option objects.
+	const serverSelection: Option[] = (allowlistQuery.data?.template_ids ?? [])
+		.map((id) => optionsByID.get(id))
+		.filter((o) => o !== undefined);
+
+	const currentSelection = localSelection ?? serverSelection;
+
+	const serverSet = new Set(serverSelection.map((o) => o.value));
+	const isDirty =
+		localSelection !== null &&
+		(localSelection.length !== serverSet.size ||
+			localSelection.some((o) => !serverSet.has(o.value)));
+
+	const handleSave = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isDirty) return;
+		saveAllowlist(
+			{ template_ids: currentSelection.map((o) => o.value) },
+			{ onSuccess: () => setLocalSelection(null) },
+		);
+	};
+
+	const isLoading = templatesQuery.isLoading || allowlistQuery.isLoading;
+
+	return (
+		<div className="space-y-6">
+			<SectionHeader
+				label="Templates"
+				description="Restrict which templates agents can use to create workspaces. When no templates are selected, all templates are available."
+				badge={<AdminBadge />}
+			/>
+
+			{isLoading && (
+				<div
+					role="status"
+					aria-label="Loading templates"
+					className="flex min-h-[120px] items-center justify-center"
+				>
+					<Spinner size="lg" loading className="text-content-secondary" />
+				</div>
+			)}
+
+			{!isLoading && (templatesQuery.error || allowlistQuery.error) && (
+				<div className="flex min-h-[120px] flex-col items-center justify-center gap-4 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						Failed to load template data.
+					</p>
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => {
+							void templatesQuery.refetch();
+							void allowlistQuery.refetch();
+						}}
+					>
+						Retry
+					</Button>
+				</div>
+			)}
+
+			{!isLoading && !templatesQuery.error && !allowlistQuery.error && (
+				<form
+					className="space-y-3"
+					onSubmit={(event) => void handleSave(event)}
+				>
+					<MultiSelectCombobox
+						key={serverSelection.map((o) => o.value).join(",")}
+						inputProps={{ "aria-label": "Select allowed templates" }}
+						options={allOptions}
+						defaultOptions={currentSelection}
+						value={currentSelection}
+						onChange={setLocalSelection}
+						placeholder="Select templates..."
+						emptyIndicator={
+							<p className="text-center text-sm text-content-secondary">
+								No templates found.
+							</p>
+						}
+						disabled={isSaving}
+						hidePlaceholderWhenSelected
+						data-testid="template-allowlist-select"
+					/>
+					<p
+						aria-live="polite"
+						role="status"
+						className="m-0 text-xs text-content-secondary"
+					>
+						{currentSelection.length > 0
+							? `${currentSelection.length} template${currentSelection.length !== 1 ? "s" : ""} selected`
+							: "No templates selected \u2014 all templates are available"}
+					</p>
+
+					<div className="flex justify-end">
+						<Button size="sm" type="submit" disabled={isSaving || !isDirty}>
+							Save
+						</Button>
+					</div>
+
+					{isSaveError && (
+						<p role="alert" className="m-0 text-xs text-content-destructive">
+							Failed to save template allowlist.
+						</p>
+					)}
+				</form>
+			)}
 		</div>
 	);
 };

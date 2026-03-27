@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { useState } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { type PRInsightsTimeRange, PRInsightsView } from "./PRInsightsView";
 
 // ---------------------------------------------------------------------------

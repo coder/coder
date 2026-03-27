@@ -4170,6 +4170,11 @@ type Chat struct {
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
 	Mode              NullChatMode   `db:"mode" json:"mode"`
 	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels            StringMap      `db:"labels" json:"labels"`
+	BuildID           uuid.NullUUID  `db:"build_id" json:"build_id"`
+	AgentID           uuid.NullUUID  `db:"agent_id" json:"agent_id"`
+	PinOrder          int32          `db:"pin_order" json:"pin_order"`
+	LastReadMessageID sql.NullInt64  `db:"last_read_message_id" json:"last_read_message_id"`
 }
 
 type ChatDiffStatus struct {
@@ -4229,6 +4234,7 @@ type ChatMessage struct {
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 }
 
 type ChatModelConfig struct {
@@ -4483,6 +4489,7 @@ type MCPServerConfig struct {
 	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
+	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 }
 
 type MCPServerUserToken struct {

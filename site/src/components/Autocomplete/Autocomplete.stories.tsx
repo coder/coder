@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
 import { Check } from "lucide-react";
 import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Autocomplete } from "./Autocomplete";
 
 const meta: Meta<typeof Autocomplete> = {

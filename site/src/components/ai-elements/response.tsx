@@ -10,11 +10,15 @@ import {
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
 	urlTransform?: UrlTransform;
+	/** Enable streaming-mode Streamdown with incomplete-markdown
+	 * preprocessing (remend) and useTransition-based render
+	 * scheduling. Pass true only for live-streaming output. */
+	streaming?: boolean;
 }
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -226,18 +230,27 @@ const createComponents = (
 	};
 };
 
+// Precompute component maps for both themes at module scope so
+// every Response instance shares the same stable references.
+// This prevents Streamdown from discarding its cached render
+// tree on each parent re-render.
+const componentsByTheme: Record<FileViewerThemeType, Components> = {
+	light: createComponents("light", fileViewerTheme.light),
+	dark: createComponents("dark", fileViewerTheme.dark),
+};
+
 export const Response = ({
 	className,
 	children,
 	ref,
 	urlTransform,
+	streaming,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
-	const viewerTheme = fileViewerTheme[fileViewerThemeType];
-	const components = createComponents(fileViewerThemeType, viewerTheme);
+	const components = componentsByTheme[fileViewerThemeType];
 
 	return (
 		<div
@@ -253,6 +266,8 @@ export const Response = ({
 				components={components}
 				urlTransform={urlTransform}
 				rehypePlugins={chatRehypePlugins}
+				mode={streaming ? "streaming" : "static"}
+				parseIncompleteMarkdown={streaming}
 			>
 				{children}
 			</Streamdown>

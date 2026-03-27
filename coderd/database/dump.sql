@@ -1294,7 +1294,8 @@ CREATE TABLE chat_messages (
     content_version smallint NOT NULL,
     total_cost_micros bigint,
     runtime_ms bigint,
-    deleted boolean DEFAULT false NOT NULL
+    deleted boolean DEFAULT false NOT NULL,
+    provider_response_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1397,7 +1398,12 @@ CREATE TABLE chats (
     archived boolean DEFAULT false NOT NULL,
     last_error text,
     mode chat_mode,
-    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL,
+    build_id uuid,
+    agent_id uuid,
+    pin_order integer DEFAULT 0 NOT NULL,
+    last_read_message_id bigint
 );
 
 CREATE TABLE connection_logs (
@@ -1701,6 +1707,7 @@ CREATE TABLE mcp_server_configs (
     updated_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_intent boolean DEFAULT false NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -3725,6 +3732,8 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
+CREATE INDEX idx_chats_labels ON chats USING gin (labels);
+
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
@@ -4028,6 +4037,12 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_build_id_fkey FOREIGN KEY (build_id) REFERENCES workspace_builds(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);

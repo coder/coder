@@ -1,10 +1,10 @@
 import { AppProviders } from "App";
-import { MockTemplate } from "testHelpers/entities";
-import { server } from "testHelpers/server";
 import { render, screen } from "@testing-library/react";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
+import { MockTemplate } from "#/testHelpers/entities";
+import { server } from "#/testHelpers/server";
 import { TemplateLayout } from "../TemplateLayout";
 import TemplateFilesPage from "./TemplateFilesPage";
 

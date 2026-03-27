@@ -1,7 +1,7 @@
-import { MockTemplate, mockApiError } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { MockTemplate, mockApiError } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 const meta: Meta<typeof TemplateSettingsPageView> = {

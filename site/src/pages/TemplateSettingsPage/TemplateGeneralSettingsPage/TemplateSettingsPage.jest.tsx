@@ -1,18 +1,18 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { API, withDefaultFeatures } from "#/api/api";
+import type { UpdateTemplateMeta } from "#/api/typesGenerated";
 import {
 	MockEntitlements,
 	MockTemplate,
 	mockApiError,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API, withDefaultFeatures } from "api/api";
-import type { UpdateTemplateMeta } from "api/typesGenerated";
-import { HttpResponse, http } from "msw";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { validationSchema } from "./TemplateSettingsForm";
 import TemplateSettingsPage from "./TemplateSettingsPage";
 

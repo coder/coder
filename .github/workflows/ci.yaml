@@ -1217,6 +1217,12 @@ jobs:
           EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
+          # Enable React profiling build and discoverable source maps
+          # for the dogfood deployment (dev.coder.com). This also
+          # applies to release/* branch builds, but those still
+          # produce coder-preview images, not release images.
+          # Release images are built by release.yaml (no profiling).
+          CODER_REACT_PROFILING: "true"
 
       # Free up disk space before building Docker images. The preceding
       # Build step produces ~2 GB of binaries and packages, the Go build

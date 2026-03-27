@@ -59,6 +59,7 @@ type AgentConn interface {
 	SetExtraHeaders(h http.Header)
 
 	AwaitReachable(ctx context.Context) bool
+	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	DebugLogs(ctx context.Context) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
@@ -66,6 +67,7 @@ type AgentConn interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
+	ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error)
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
@@ -923,6 +925,50 @@ type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
 }
 
+// ListMCPToolsResponse is the response from the agent's
+// MCP tool discovery endpoint.
+type ListMCPToolsResponse struct {
+	Tools []MCPToolInfo `json:"tools"`
+}
+
+// MCPToolInfo describes a single tool discovered from an MCP
+// server configured in the workspace's .mcp.json file.
+type MCPToolInfo struct {
+	// ServerName is the key from .mcp.json (e.g. "github").
+	ServerName string `json:"server_name"`
+	// Name is the prefixed tool name: "serverName__toolName".
+	Name string `json:"name"`
+	// Description is the tool's human-readable description.
+	Description string `json:"description"`
+	// Schema is the JSON Schema for the tool's input parameters.
+	Schema map[string]any `json:"schema"`
+	// Required lists required parameter names.
+	Required []string `json:"required"`
+}
+
+// CallMCPToolRequest is the request body for proxying an MCP
+// tool call through the workspace agent.
+type CallMCPToolRequest struct {
+	// ToolName is the prefixed tool name (e.g. "github__create_issue").
+	ToolName string `json:"tool_name"`
+	// Arguments is the tool input as key-value pairs.
+	Arguments map[string]any `json:"arguments"`
+}
+
+// CallMCPToolResponse is the response from a proxied MCP tool call.
+type CallMCPToolResponse struct {
+	Content []MCPToolContent `json:"content"`
+	IsError bool             `json:"is_error"`
+}
+
+// MCPToolContent is a single content block in an MCP tool response.
+type MCPToolContent struct {
+	Type      string `json:"type"` // "text", "image", "audio", "resource"
+	Text      string `json:"text,omitempty"`
+	Data      string `json:"data,omitempty"` // base64 for binary
+	MediaType string `json:"media_type,omitempty"`
+}
+
 // StartProcess starts a new process on the workspace agent.
 func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
@@ -952,6 +998,40 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListProcessesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ListMCPTools returns tools discovered from MCP servers configured
+// in the workspace.
+func (c *agentConn) ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/mcp/tools", nil)
+	if err != nil {
+		return ListMCPToolsResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListMCPToolsResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ListMCPToolsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// CallMCPTool proxies a tool call to an MCP server running in
+// the workspace.
+func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/mcp/call-tool", req)
+	if err != nil {
+		return CallMCPToolResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp CallMCPToolResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

@@ -13,9 +13,11 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
@@ -23,15 +25,24 @@ import (
 
 const (
 	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
-
 	// maxCompactionRetries limits how many times the post-run
 	// compaction safety net can re-enter the step loop. This
 	// prevents infinite compaction loops when the model keeps
 	// hitting the context limit after summarization.
 	maxCompactionRetries = 3
+	// defaultStartupTimeout bounds how long an individual
+	// model attempt may spend starting to respond before
+	// the attempt is canceled and retried.
+	defaultStartupTimeout = 60 * time.Second
 )
 
-var ErrInterrupted = xerrors.New("chat interrupted")
+var (
+	ErrInterrupted = xerrors.New("chat interrupted")
+
+	errStartupTimeout = xerrors.New(
+		"chat response did not start before the startup timeout",
+	)
+)
 
 // PersistedStep contains the full content of a completed or
 // interrupted agent step. Content includes both assistant blocks
@@ -39,9 +50,10 @@ var ErrInterrupted = xerrors.New("chat interrupted")
 // persistence layer is responsible for splitting these into
 // separate database messages by role.
 type PersistedStep struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
+	Content            []fantasy.Content
+	Usage              fantasy.Usage
+	ContextLimit       sql.NullInt64
+	ProviderResponseID string
 	// Runtime is the wall-clock duration of this step,
 	// covering LLM streaming, tool execution, and retries.
 	// Zero indicates the duration was not measured (e.g.
@@ -55,6 +67,11 @@ type RunOptions struct {
 	Messages []fantasy.Message
 	Tools    []fantasy.AgentTool
 	MaxSteps int
+	// StartupTimeout bounds how long each model attempt may
+	// spend opening the provider stream and waiting for its
+	// first stream part before the attempt is canceled and
+	// retried. Zero uses the production default.
+	StartupTimeout time.Duration
 
 	ActiveTools          []string
 	ContextLimitFallback int64
@@ -80,15 +97,17 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
-	Compaction     *CompactionOptions
-	ReloadMessages func(context.Context) ([]fantasy.Message, error)
+	Compaction       *CompactionOptions
+	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
+	DisableChainMode func()
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
-	// number, error, and backoff delay so callers can publish status
-	// events to connected clients. Callers should also clear any
-	// buffered stream state from the failed attempt in this callback
-	// to avoid sending duplicated content.
+	// number, raw error, normalized classification, and backoff
+	// delay so callers can publish status events to connected
+	// clients. Callers should also clear any buffered stream state
+	// from the failed attempt in this callback to avoid sending
+	// duplicated content.
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
@@ -231,6 +250,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
 	}
+	if opts.StartupTimeout <= 0 {
+		opts.StartupTimeout = defaultStartupTimeout
+	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -245,6 +267,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 	messages := opts.Messages
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
+	needsFullHistoryReload := false
+	reloadFullHistory := func(stage string) error {
+		if opts.ReloadMessages == nil {
+			return nil
+		}
+		reloaded, err := opts.ReloadMessages(ctx)
+		if err != nil {
+			return xerrors.Errorf("reload messages %s: %w", stage, err)
+		}
+		messages = reloaded
+		return nil
+	}
 
 	totalSteps := 0
 	// When totalSteps reaches MaxSteps the inner loop exits immediately
@@ -291,19 +325,37 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 			var result stepResult
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-				stream, streamErr := opts.Model.Stream(retryCtx, call)
+				attempt, streamErr := guardedStream(
+					retryCtx,
+					opts.Model.Provider(),
+					opts.StartupTimeout,
+					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
+						return opts.Model.Stream(attemptCtx, call)
+					},
+				)
 				if streamErr != nil {
 					return streamErr
 				}
+				defer attempt.release()
 				var processErr error
-				result, processErr = processStepStream(retryCtx, stream, publishMessagePart)
-				return processErr
-			}, func(attempt int, retryErr error, delay time.Duration) {
+				result, processErr = processStepStream(
+					attempt.ctx,
+					attempt.stream,
+					publishMessagePart,
+				)
+				return attempt.finish(processErr)
+			}, func(
+				attempt int,
+				retryErr error,
+				classified chatretry.ClassifiedError,
+				delay time.Duration,
+			) {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
 				if opts.OnRetry != nil {
-					opts.OnRetry(attempt, retryErr, delay)
+					classified = classified.WithProvider(opts.Model.Provider())
+					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
 			})
 			if err != nil {
@@ -368,10 +420,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// check and here, fall back to the interrupt-safe
 			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:      result.content,
-				Usage:        result.usage,
-				ContextLimit: contextLimit,
-				Runtime:      time.Since(stepStart),
+				Content:            result.content,
+				Usage:              result.usage,
+				ContextLimit:       contextLimit,
+				ProviderResponseID: extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+				Runtime:            time.Since(stepStart),
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
@@ -382,14 +435,41 @@ func Run(ctx context.Context, opts RunOptions) error {
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
-			// Append the step's response messages so that both
-			// inline and post-loop compaction see the full
-			// conversation including the latest assistant reply.
+			// When chain mode is active (PreviousResponseID set), exit
+			// it after persisting the first chained step. Continuation
+			// steps include tool-result messages, which fantasy rejects
+			// when previous_response_id is set, so we must leave chain
+			// mode and reload the full history before the next call.
 			stepMessages := result.toResponseMessages()
-			messages = append(messages, stepMessages...)
+			if hasPreviousResponseID(opts.ProviderOptions) {
+				clearPreviousResponseID(opts.ProviderOptions)
+				if opts.DisableChainMode != nil {
+					opts.DisableChainMode()
+				}
+				switch {
+				case opts.ReloadMessages != nil:
+					if err := reloadFullHistory("after chain mode exit"); err != nil {
+						return err
+					}
+					needsFullHistoryReload = false
+				default:
+					messages = append(messages, stepMessages...)
+					needsFullHistoryReload = false
+				}
+			} else {
+				messages = append(messages, stepMessages...)
+			}
+
+			if needsFullHistoryReload && !result.shouldContinue &&
+				opts.ReloadMessages != nil {
+				if err := reloadFullHistory("before final compaction after chain mode exit"); err != nil {
+					return err
+				}
+				needsFullHistoryReload = false
+			}
 
 			// Inline compaction.
-			if opts.Compaction != nil && opts.ReloadMessages != nil {
+			if !needsFullHistoryReload && opts.Compaction != nil && opts.ReloadMessages != nil {
 				did, compactErr := tryCompact(
 					ctx,
 					opts.Model,
@@ -405,14 +485,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if did {
 					alreadyCompacted = true
 					compactedOnFinalStep = true
-					reloaded, reloadErr := opts.ReloadMessages(ctx)
-					if reloadErr != nil {
-						return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
+					if err := reloadFullHistory("after compaction"); err != nil {
+						return err
 					}
-					messages = reloaded
 				}
 			}
-
 			if !result.shouldContinue {
 				stoppedByModel = true
 				break
@@ -423,9 +500,16 @@ func Run(ctx context.Context, opts RunOptions) error {
 			compactedOnFinalStep = false
 		}
 
+		if needsFullHistoryReload && stoppedByModel && opts.ReloadMessages != nil {
+			if err := reloadFullHistory("before post-run compaction after chain mode exit"); err != nil {
+				return err
+			}
+			needsFullHistoryReload = false
+		}
+
 		// Post-run compaction safety net: if we never compacted
 		// during the loop, try once at the end.
-		if !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
+		if !needsFullHistoryReload && !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
 			did, err := tryCompact(
 				ctx,
 				opts.Model,
@@ -465,6 +549,105 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	return nil
+}
+
+// guardedAttempt owns an attempt-scoped context and startup guard
+// around a provider stream. release is idempotent and frees the
+// attempt-scoped timer/context. finish canonicalizes startup timeout
+// errors before the retry loop classifies them.
+type guardedAttempt struct {
+	ctx     context.Context
+	stream  fantasy.StreamResponse
+	release func()
+	finish  func(error) error
+}
+
+// startupGuard arbitrates whether an attempt times out during
+// stream startup. Exactly one outcome wins: the timer cancels
+// the attempt, or the first-part path disarms the timer.
+type startupGuard struct {
+	timer  *time.Timer
+	cancel context.CancelCauseFunc
+	once   sync.Once
+}
+
+func newStartupGuard(
+	timeout time.Duration,
+	cancel context.CancelCauseFunc,
+) *startupGuard {
+	guard := &startupGuard{cancel: cancel}
+	guard.timer = time.AfterFunc(timeout, guard.onTimeout)
+	return guard
+}
+
+func (g *startupGuard) onTimeout() {
+	g.once.Do(func() {
+		g.cancel(errStartupTimeout)
+	})
+}
+
+func (g *startupGuard) Disarm() {
+	g.once.Do(func() {
+		g.timer.Stop()
+	})
+}
+
+func classifyStartupTimeout(
+	attemptCtx context.Context,
+	provider string,
+	err error,
+) error {
+	if !errors.Is(context.Cause(attemptCtx), errStartupTimeout) {
+		return err
+	}
+	if err == nil {
+		err = errStartupTimeout
+	}
+	return chaterror.WithClassification(err, chaterror.ClassifiedError{
+		Kind:      chaterror.KindStartupTimeout,
+		Provider:  provider,
+		Retryable: true,
+	})
+}
+
+func guardedStream(
+	parent context.Context,
+	provider string,
+	timeout time.Duration,
+	openStream func(context.Context) (fantasy.StreamResponse, error),
+) (guardedAttempt, error) {
+	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+	guard := newStartupGuard(timeout, cancelAttempt)
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			guard.Disarm()
+			cancelAttempt(nil)
+		})
+	}
+
+	stream, err := openStream(attemptCtx)
+	if err != nil {
+		err = classifyStartupTimeout(attemptCtx, provider, err)
+		release()
+		return guardedAttempt{}, err
+	}
+
+	return guardedAttempt{
+		ctx: attemptCtx,
+		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
+			for part := range stream {
+				guard.Disarm()
+				if !yield(part) {
+					return
+				}
+			}
+		}),
+		release: release,
+		finish: func(err error) error {
+			return classifyStartupTimeout(attemptCtx, provider, err)
+		},
+	}, nil
 }
 
 // processStepStream consumes a fantasy StreamResponse and
@@ -656,7 +839,6 @@ func processStepStream(
 		)
 		return result, ErrInterrupted
 	}
-
 	hasLocalToolCalls := false
 	for _, tc := range result.toolCalls {
 		if !tc.ProviderExecuted {
@@ -921,7 +1103,11 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		inputSchema := map[string]any{
 			"type":       "object",
 			"properties": info.Parameters,
-			"required":   info.Required,
+		}
+		// Only include "required" when non-empty so that a nil slice
+		// never serializes to null, which OpenAI rejects.
+		if len(info.Required) > 0 {
+			inputSchema["required"] = info.Required
 		}
 		schema.Normalize(inputSchema)
 		prepared = append(prepared, fantasy.FunctionTool{
@@ -971,6 +1157,85 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
+}
+
+// hasPreviousResponseID checks whether the provider options contain
+// an OpenAI Responses entry with a non-empty PreviousResponseID.
+func hasPreviousResponseID(providerOptions fantasy.ProviderOptions) bool {
+	if providerOptions == nil {
+		return false
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			return options.PreviousResponseID != nil &&
+				*options.PreviousResponseID != ""
+		}
+	}
+
+	return false
+}
+
+// clearPreviousResponseID removes PreviousResponseID from the OpenAI
+// Responses provider options entry, if present.
+func clearPreviousResponseID(providerOptions fantasy.ProviderOptions) {
+	if providerOptions == nil {
+		return
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			options.PreviousResponseID = nil
+		}
+	}
+}
+
+// extractOpenAIResponseID extracts the OpenAI Responses API response
+// ID from provider metadata. Returns an empty string if no OpenAI
+// Responses metadata is present.
+func extractOpenAIResponseID(metadata fantasy.ProviderMetadata) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+
+	for _, entry := range metadata {
+		if providerMetadata, ok := entry.(*fantasyopenai.ResponsesProviderMetadata); ok && providerMetadata != nil {
+			return providerMetadata.ResponseID
+		}
+	}
+
+	return ""
+}
+
+// extractOpenAIResponseIDIfStored returns the OpenAI response ID
+// only when the provider options indicate store=true. Response IDs
+// from store=false turns are not persisted server-side and cannot
+// be used for chaining.
+func extractOpenAIResponseIDIfStored(
+	providerOptions fantasy.ProviderOptions,
+	metadata fantasy.ProviderMetadata,
+) string {
+	if !isResponsesStoreEnabled(providerOptions) {
+		return ""
+	}
+
+	return extractOpenAIResponseID(metadata)
+}
+
+// isResponsesStoreEnabled checks whether the OpenAI Responses
+// provider options explicitly enable store=true.
+func isResponsesStoreEnabled(providerOptions fantasy.ProviderOptions) bool {
+	if providerOptions == nil {
+		return false
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			return options.Store != nil && *options.Store
+		}
+	}
+
+	return false
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {

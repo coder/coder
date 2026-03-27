@@ -1,11 +1,13 @@
 package mcpclient
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -16,6 +18,7 @@ import (
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -194,7 +197,7 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.Slug, mcpTool, mcpClient),
+			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, mcpClient, cfg.ModelIntent),
 		)
 	}
 
@@ -214,17 +217,30 @@ func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 ) (transport.Interface, error) {
+	// Each connection gets its own HTTP client with a dedicated
+	// transport so that httptest.Server.Close() (which calls
+	// CloseIdleConnections on http.DefaultTransport) does not
+	// disrupt unrelated connections during parallel tests.
+	var httpClient *http.Client
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		httpClient = &http.Client{Transport: dt.Clone()}
+	} else {
+		httpClient = &http.Client{}
+	}
+
 	switch cfg.Transport {
 	case "sse":
 		return transport.NewSSE(
 			cfg.Url,
 			transport.WithHeaders(headers),
+			transport.WithHTTPClient(httpClient),
 		)
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
 		return transport.NewStreamableHTTP(
 			cfg.Url,
 			transport.WithHTTPHeaders(headers),
+			transport.WithHTTPBasicClient(httpClient),
 		)
 	default:
 		return nil, xerrors.Errorf(
@@ -272,6 +288,12 @@ func buildAuthHeaders(
 		}
 		tokenType := tok.TokenType
 		if tokenType == "" {
+			tokenType = "Bearer"
+		}
+		// RFC 6750 says the scheme is case-insensitive, but
+		// some servers (e.g. Linear) reject lowercase
+		// "bearer". Normalize to the canonical form.
+		if strings.EqualFold(tokenType, "bearer") {
 			tokenType = "Bearer"
 		}
 		headers["Authorization"] = tokenType + " " + tok.AccessToken
@@ -363,42 +385,96 @@ func redactErrorURL(err error) string {
 	return err.Error()
 }
 
+// MCPToolIdentifier is implemented by tools that originate from
+// an MCP server config and can report the config's database ID.
+type MCPToolIdentifier interface {
+	MCPServerConfigID() uuid.UUID
+}
+
 // mcpToolWrapper adapts a single MCP tool into a
 // fantasy.AgentTool. It stores the prefixed name for Info() but
 // strips the prefix when forwarding calls to the remote server.
 type mcpToolWrapper struct {
+	configID        uuid.UUID
 	prefixedName    string
 	originalName    string
 	description     string
 	parameters      map[string]any
 	required        []string
+	modelIntent     bool
 	client          *client.Client
 	providerOptions fantasy.ProviderOptions
+}
+
+// MCPServerConfigID returns the database ID of the MCP server
+// config that this tool originates from.
+func (t *mcpToolWrapper) MCPServerConfigID() uuid.UUID {
+	return t.configID
 }
 
 // newMCPTool creates an mcpToolWrapper from an mcp.Tool
 // discovered on a remote server.
 func newMCPTool(
+	configID uuid.UUID,
 	serverSlug string,
 	tool mcp.Tool,
 	mcpClient *client.Client,
+	modelIntent bool,
 ) *mcpToolWrapper {
 	return &mcpToolWrapper{
+		configID:     configID,
 		prefixedName: serverSlug + toolNameSep + tool.Name,
 		originalName: tool.Name,
 		description:  tool.Description,
 		parameters:   tool.InputSchema.Properties,
 		required:     tool.InputSchema.Required,
+		modelIntent:  modelIntent,
 		client:       mcpClient,
 	}
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
+	required := t.required
+	if required == nil {
+		required = []string{}
+	}
+
+	if !t.modelIntent {
+		return fantasy.ToolInfo{
+			Name:        t.prefixedName,
+			Description: t.description,
+			Parameters:  t.parameters,
+			Required:    required,
+			Parallel:    true,
+		}
+	}
+
+	// Wrap original parameters under "properties" and add
+	// "model_intent" so the LLM provides a human-readable
+	// description of each tool call.
+	wrapped := map[string]any{
+		"model_intent": map[string]any{
+			"type": "string",
+			"description": "A short, natural-language, present-participle " +
+				"phrase describing why you are calling this tool. " +
+				"This is shown to the user as a status label while " +
+				"the tool runs. Use plain English with no underscores " +
+				"or technical jargon. Keep it under 100 characters. " +
+				"Good examples: \"Reading the authentication module\", " +
+				"\"Searching for configuration files\", " +
+				"\"Creating a new workspace\".",
+		},
+		"properties": map[string]any{
+			"type":       "object",
+			"properties": t.parameters,
+			"required":   required,
+		},
+	}
 	return fantasy.ToolInfo{
 		Name:        t.prefixedName,
 		Description: t.description,
-		Parameters:  t.parameters,
-		Required:    t.required,
+		Parameters:  wrapped,
+		Required:    []string{"model_intent", "properties"},
 		Parallel:    true,
 	}
 }
@@ -407,10 +483,15 @@ func (t *mcpToolWrapper) Run(
 	ctx context.Context,
 	params fantasy.ToolCall,
 ) (fantasy.ToolResponse, error) {
+	input := params.Input
+	if t.modelIntent {
+		input = unwrapModelIntent(input)
+	}
+
 	var args map[string]any
-	if params.Input != "" {
+	if input != "" {
 		if err := json.Unmarshal(
-			[]byte(params.Input), &args,
+			[]byte(input), &args,
 		); err != nil {
 			return fantasy.NewTextErrorResponse(
 				"invalid JSON input: " + err.Error(),
@@ -447,11 +528,42 @@ func (t *mcpToolWrapper) SetProviderOptions(
 	t.providerOptions = opts
 }
 
+// unwrapModelIntent strips the model_intent wrapper from tool
+// call input so the remote MCP server receives only the original
+// arguments. It handles three shapes the model may produce:
+//
+//  1. { model_intent, properties: {...} } — correct format
+//  2. { model_intent, key: val, ... } — flat, no properties wrapper
+//  3. Anything else — returned as-is
+func unwrapModelIntent(input string) string {
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(input), &parsed); err != nil {
+		return input
+	}
+
+	delete(parsed, "model_intent")
+
+	// Case 1: correct { model_intent, properties: {...} } format.
+	if props, ok := parsed["properties"]; ok {
+		if b, err := json.Marshal(props); err == nil {
+			return string(b)
+		}
+	}
+
+	// Case 2: flat { model_intent, key: val, ... } without wrapper.
+	if b, err := json.Marshal(parsed); err == nil {
+		return string(b)
+	}
+
+	return input
+}
+
 // convertCallResult translates an MCP CallToolResult into a
 // fantasy.ToolResponse. The fantasy response model supports a
 // single content type per response, so we prioritize text. All
-// text items are collected first. Binary items (image or audio)
-// are only returned when no text content is available.
+// text items are collected first. Binary items (image, audio,
+// or embedded blob) are only returned when no text content is
+// available.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -505,6 +617,59 @@ func convertCallResult(
 				}
 				binaryResult = &r
 			}
+		case mcp.EmbeddedResource:
+			// Embedded resources wrap either text or blob
+			// content from an MCP resource. We handle each
+			// variant so the LLM receives the content
+			// regardless of form.
+			switch r := c.Resource.(type) {
+			case mcp.TextResourceContents:
+				textParts = append(textParts, r.Text)
+			case mcp.BlobResourceContents:
+				data, err := base64.StdEncoding.DecodeString(
+					r.Blob,
+				)
+				if err != nil {
+					textParts = append(textParts,
+						"[blob decode error: "+err.Error()+"]",
+					)
+					continue
+				}
+				if binaryResult == nil {
+					blobType := "media"
+					if strings.HasPrefix(r.MIMEType, "image/") {
+						blobType = "image"
+					}
+					res := fantasy.ToolResponse{
+						Type:      blobType,
+						Data:      data,
+						MediaType: r.MIMEType,
+						IsError:   result.IsError,
+					}
+					binaryResult = &res
+				}
+			default:
+				textParts = append(textParts,
+					fmt.Sprintf(
+						"[unsupported embedded resource type: %T]",
+						c.Resource,
+					),
+				)
+			}
+		case mcp.ResourceLink:
+			// Resource links point to content the LLM can
+			// reference by URI. Surface the URI so the model
+			// can use it in follow-ups.
+			label := c.URI
+			if c.Name != "" {
+				label = fmt.Sprintf("%s (%s)", c.Name, c.URI)
+			}
+			if c.Description != "" {
+				label += ": " + c.Description
+			}
+			textParts = append(textParts,
+				fmt.Sprintf("[resource: %s]", label),
+			)
 		default:
 			textParts = append(textParts,
 				fmt.Sprintf("[unsupported content type: %T]", c),
@@ -539,4 +704,82 @@ func convertCallResult(
 		return *binaryResult
 	}
 	return fantasy.NewTextResponse("")
+}
+
+// RefreshResult contains the outcome of an OAuth2 token refresh
+// attempt.
+type RefreshResult struct {
+	// AccessToken is the new (or unchanged) access token.
+	AccessToken string
+	// RefreshToken is the new (or preserved original) refresh
+	// token. Providers that don't rotate refresh tokens return
+	// an empty value; in that case the original is kept.
+	RefreshToken string
+	// TokenType is the token type (usually "Bearer").
+	TokenType string
+	// Expiry is the new token expiry. Zero value means no expiry
+	// was provided by the provider.
+	Expiry time.Time
+	// Refreshed is true when the access token actually changed,
+	// meaning a refresh occurred. When false the token was still
+	// valid and no network call was made.
+	Refreshed bool
+}
+
+// RefreshOAuth2Token checks whether the given MCP user token is
+// expired (or within 10 seconds of expiry) and refreshes it using
+// the OAuth2 credentials from the server config. If the token is
+// still valid, no network call is made and Refreshed is false.
+//
+// The caller is responsible for persisting the result when
+// Refreshed is true.
+func RefreshOAuth2Token(
+	ctx context.Context,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (RefreshResult, error) {
+	oauth2Cfg := &oauth2.Config{
+		ClientID:     cfg.OAuth2ClientID,
+		ClientSecret: cfg.OAuth2ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			TokenURL: cfg.OAuth2TokenURL,
+		},
+	}
+
+	oldToken := &oauth2.Token{
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		TokenType:    tok.TokenType,
+	}
+	if tok.Expiry.Valid {
+		oldToken.Expiry = tok.Expiry.Time
+	}
+
+	// Cap the refresh HTTP call so a stalled token endpoint
+	// cannot block the entire MCP connection phase. The timeout
+	// matches connectTimeout used for MCP server connections.
+	refreshCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	defer cancel()
+
+	// TokenSource automatically refreshes expired tokens. It
+	// uses a 10-second expiry window, so tokens about to expire
+	// are also refreshed proactively.
+	newToken, err := oauth2Cfg.TokenSource(refreshCtx, oldToken).Token()
+	if err != nil {
+		return RefreshResult{}, xerrors.Errorf("refresh oauth2 token: %w", err)
+	}
+
+	refreshed := newToken.AccessToken != tok.AccessToken
+
+	// Preserve the old refresh token when the provider doesn't
+	// rotate (returns empty).
+	refreshToken := cmp.Or(newToken.RefreshToken, tok.RefreshToken)
+
+	return RefreshResult{
+		AccessToken:  newToken.AccessToken,
+		RefreshToken: refreshToken,
+		TokenType:    newToken.TokenType,
+		Expiry:       newToken.Expiry,
+		Refreshed:    refreshed,
+	}, nil
 }

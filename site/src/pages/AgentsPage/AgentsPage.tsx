@@ -1,23 +1,4 @@
-import { API, watchChats } from "api/api";
-import { getErrorMessage } from "api/errors";
-import {
-	archiveChat,
-	chatDiffContentsKey,
-	chatKey,
-	chatModelConfigs,
-	chatModels,
-	infiniteChats,
-	invalidateChatListQueries,
-	prependToInfiniteChatsCache,
-	readInfiniteChatsCache,
-	unarchiveChat,
-	updateInfiniteChatsCache,
-} from "api/queries/chats";
-import { workspaceById } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
@@ -27,7 +8,31 @@ import {
 } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import { API, watchChats } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
+import {
+	archiveChat,
+	cancelChatListQueries,
+	chatDiffContentsKey,
+	chatKey,
+	chatModelConfigs,
+	chatModels,
+	infiniteChats,
+	invalidateChatListQueries,
+	pinChat,
+	prependToInfiniteChatsCache,
+	readInfiniteChatsCache,
+	regenerateChatTitle,
+	reorderPinnedChat,
+	unarchiveChat,
+	unpinChat,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
+import { workspaceById } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
@@ -37,8 +42,11 @@ import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
-import { getModelOptionsFromCatalog } from "./utils/modelOptions";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
+import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./utils/usageLimitMessage";
 
 // Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
@@ -191,31 +199,59 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 		},
 	});
+	const pinChatBase = pinChat(queryClient);
+	const pinAgentMutation = useMutation({
+		...pinChatBase,
+		onError: (error, chatId, context) => {
+			pinChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinChatBase = unpinChat(queryClient);
+	const unpinAgentMutation = useMutation({
+		...unpinChatBase,
+		onError: (error, chatId, context) => {
+			unpinChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+	const reorderPinnedChatMutation = useMutation({
+		...reorderPinnedChat(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
+	const regenerateTitleMutation = useMutation({
+		...regenerateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to generate new title."));
+		},
+	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
-	const catalogModelOptions = getModelOptionsFromCatalog(
-		chatModelsQuery.data,
+	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
+		chatModelsQuery.data,
 	);
 	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
 		const trimmedMessage = reason.message.trim();
 		if (!chatId || !trimmedMessage) {
 			return;
 		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
-			if (
-				existing &&
-				existing.kind === reason.kind &&
-				existing.message === trimmedMessage
-			) {
+			if (chatDetailErrorsEqual(existing, nextReason)) {
 				return current;
 			}
 			return {
 				...current,
-				[chatId]: { kind: reason.kind, message: trimmedMessage },
+				[chatId]: nextReason,
 			};
 		});
 	};
@@ -321,6 +357,21 @@ const AgentsPage: FC = () => {
 	const requestUnarchiveAgent = (chatId: string) => {
 		unarchiveAgentMutation.mutate(chatId);
 	};
+	const requestPinAgent = (chatId: string) => {
+		pinAgentMutation.mutate(chatId);
+	};
+	const requestUnpinAgent = (chatId: string) => {
+		unpinAgentMutation.mutate(chatId);
+	};
+	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
+		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
+	};
+	const requestRegenerateTitle = (chatId: string) => {
+		if (regenerateTitleMutation.isPending) {
+			return;
+		}
+		regenerateTitleMutation.mutate(chatId);
+	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
 
@@ -328,7 +379,7 @@ const AgentsPage: FC = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
-		if (typeof window !== "undefined" && !agentId) {
+		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate("/agents");
@@ -342,6 +393,25 @@ const AgentsPage: FC = () => {
 		activeChatIDRef.current = agentId;
 	});
 
+	// Optimistically clear the unread indicator for the active
+	// chat. The server marks chats as read on stream connect
+	// and disconnect, but the list cache is not refetched until
+	// window focus. Without this, navigating away from a chat
+	// causes its cached has_unread to reappear as a stale dot.
+	useEffect(() => {
+		if (!agentId) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) => {
+			let changed = false;
+			const next = chats.map((c) => {
+				if (c.id !== agentId || !c.has_unread) return c;
+				changed = true;
+				return { ...c, has_unread: false };
+			});
+			return changed ? next : chats;
+		});
+	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
 			connect() {
@@ -411,6 +481,27 @@ const AgentsPage: FC = () => {
 					const isStatusEvent = chatEvent.kind === "status_change";
 					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
 
+					// Cancel in-flight list and per-chat refetches so
+					// they cannot overwrite the cache update below with
+					// stale server data. This matters when a title_change
+					// event races with a refetch triggered by
+					// createChat.onSuccess or the onOpen invalidation:
+					// the refetch may have been issued before the async
+					// title generation finished, so its response carries
+					// the fallback title.
+					void cancelChatListQueries(queryClient);
+					// Only cancel a per-chat refetch when the cache
+					// already has data. Cancelling a first-time fetch
+					// reverts the query to pending/idle with no data
+					// and no retry, which AgentDetail shows as
+					// "Chat not found".
+					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
+						void queryClient.cancelQueries({
+							queryKey: chatKey(updatedChat.id),
+							exact: true,
+						});
+					}
+
 					// For "created" events, use a cross-page existence
 					// check and prepend only to the first page.
 					// updateInfiniteChatsCache runs the updater per
@@ -436,11 +527,21 @@ const AgentsPage: FC = () => {
 									c.updated_at > updatedChat.updated_at
 										? c.updated_at
 										: updatedChat.updated_at;
+								// The server's pubsub path does not compute
+								// has_unread (it always sends false). For
+								// status_change events on non-active chats,
+								// optimistically mark as unread since the
+								// assistant produced new output.
+								const nextHasUnread =
+									isStatusEvent && updatedChat.id !== activeChatIDRef.current
+										? true
+										: c.has_unread;
 								if (
 									nextStatus === c.status &&
 									nextTitle === c.title &&
 									diffStatusEqual(nextDiffStatus, c.diff_status) &&
-									nextWorkspaceId === c.workspace_id
+									nextWorkspaceId === c.workspace_id &&
+									nextHasUnread === c.has_unread
 								) {
 									return c;
 								}
@@ -452,6 +553,7 @@ const AgentsPage: FC = () => {
 									diff_status: nextDiffStatus,
 									workspace_id: nextWorkspaceId,
 									updated_at: nextUpdatedAt,
+									has_unread: nextHasUnread,
 								};
 							});
 							return didUpdate ? nextChats : chats;
@@ -554,6 +656,12 @@ const AgentsPage: FC = () => {
 				requestArchiveAgent={requestArchiveAgent}
 				requestUnarchiveAgent={requestUnarchiveAgent}
 				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+				requestPinAgent={requestPinAgent}
+				requestUnpinAgent={requestUnpinAgent}
+				requestReorderPinnedAgent={requestReorderPinnedAgent}
+				onRegenerateTitle={requestRegenerateTitle}
+				isRegeneratingTitle={regenerateTitleMutation.isPending}
+				regeneratingTitleChatId={regenerateTitleMutation.variables ?? null}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}

@@ -1,13 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
-import { DropdownMenuItem } from "components/DropdownMenu/DropdownMenu";
-import { Link } from "components/Link/Link";
-import { Markdown } from "components/Markdown/Markdown";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	Building2Icon,
@@ -17,9 +7,20 @@ import {
 	SquareArrowOutUpRightIcon,
 	UsersIcon,
 } from "lucide-react";
-import { isExternalApp, needsSessionToken } from "modules/apps/apps";
-import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, type ReactNode, useState } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
+import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
+import { Link } from "#/components/Link/Link";
+import { Markdown } from "#/components/Markdown/Markdown";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { isExternalApp, needsSessionToken } from "#/modules/apps/apps";
+import { useAppLink } from "#/modules/apps/useAppLink";
+import { docs } from "#/utils/docs";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 
@@ -98,7 +99,7 @@ export const AppLink: FC<AppLinkProps> = ({
 			<>
 				Port forwarding will not work because hostname is too long, see the{" "}
 				<Link
-					href="https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard"
+					href={docs("/user-guides/workspace-access/port-forwarding#dashboard")}
 					target="_blank"
 					size="sm"
 				>

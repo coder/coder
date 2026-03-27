@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { Response } from "./response";
 
 const sampleMarkdown = `
@@ -101,5 +101,47 @@ export const JsxInProse: Story = {
 		expect(marker).toBeInTheDocument();
 		const marker2 = await canvas.findByText(/commentBox=\{commentBox\}/);
 		expect(marker2).toBeInTheDocument();
+	},
+};
+
+// Verifies that streaming mode closes incomplete inline markdown via
+// remend so the user never sees raw syntax during the reveal animation.
+export const StreamingInlineMarkdown: Story = {
+	args: {
+		children: "This is **bold text that has not been close",
+		streaming: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// remend should close the unclosed ** so the text renders
+		// as <strong>, not as a raw "**" literal.
+		const el = await canvas.findByText(/bold text/);
+		expect(el).toBeInTheDocument();
+		// The raw double-asterisk should not appear as visible text.
+		const bodyText = canvasElement.textContent ?? "";
+		expect(bodyText).not.toContain("**");
+	},
+};
+
+// Verifies that an incomplete fenced code block in streaming mode
+// renders inside a code element rather than showing raw backticks.
+// The FileViewer renders a <diffs-container> web component whose
+// content lives in Shadow DOM, so we assert on DOM structure rather
+// than text content inside the web component.
+export const StreamingCodeFence: Story = {
+	args: {
+		children: "```ts\nconst x = 1",
+		streaming: true,
+	},
+	play: async ({ canvasElement }) => {
+		// The code fence should be parsed into a FileViewer (web component),
+		// not rendered as raw backtick text.
+		await waitFor(() => {
+			const viewer = canvasElement.querySelector("diffs-container");
+			expect(viewer).toBeInTheDocument();
+		});
+		// The raw triple-backtick should not appear as visible text.
+		const bodyText = canvasElement.textContent ?? "";
+		expect(bodyText).not.toContain("```");
 	},
 };

@@ -1,5 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
-import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
+import type * as TypesGen from "#/api/typesGenerated";
+import { asRecord, asString } from "#/components/ai-elements/runtimeTypeUtils";
 import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
@@ -19,7 +19,10 @@ const appendText = (current: string, next: string): string => {
 };
 
 const isSubagentToolName = (name: string): boolean =>
-	name === "spawn_agent" || name === "wait_agent" || name === "message_agent";
+	name === "spawn_agent" ||
+	name === "spawn_computer_use_agent" ||
+	name === "wait_agent" ||
+	name === "message_agent";
 
 const isCompletedSubagentResult = (
 	toolName: string,
@@ -90,6 +93,12 @@ export const mergeTools = (
 	for (const call of calls) {
 		seen.add(call.id);
 		const result = resultById.get(call.id);
+		// Extract model_intent from the tool call args if present.
+		const callArgs = call.args as Record<string, unknown> | undefined;
+		const modelIntent =
+			typeof callArgs?.model_intent === "string"
+				? callArgs.model_intent
+				: undefined;
 		merged.push({
 			id: call.id,
 			name: call.name,
@@ -97,6 +106,8 @@ export const mergeTools = (
 			result: result?.result,
 			isError: result?.isError ?? false,
 			status: result ? (result.isError ? "error" : "completed") : "completed",
+			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			modelIntent,
 		});
 	}
 
@@ -108,6 +119,7 @@ export const mergeTools = (
 				result: result.result,
 				isError: result.isError,
 				status: result.isError ? "error" : "completed",
+				mcpServerConfigId: result.mcpServerConfigId,
 			});
 		}
 	}
@@ -148,6 +160,7 @@ export const parseMessageContent = (
 					id,
 					name: part.tool_name || "Tool",
 					args: part.args,
+					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -168,6 +181,7 @@ export const parseMessageContent = (
 					name,
 					result: part.result,
 					isError: parseToolResultIsError(name, part, part.result),
+					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -203,6 +217,11 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "context-file": {
+				// Context files are metadata for the context indicator;
+				// they are not rendered in the conversation timeline.
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;
@@ -210,6 +229,26 @@ export const parseMessageContent = (
 		}
 	}
 	return parsed;
+};
+
+const isEditableUserMessageFileBlock = (
+	block: RenderBlock,
+): block is TypesGen.ChatFilePart =>
+	block.type === "file" &&
+	(block.media_type.startsWith("image/") || block.media_type === "text/plain");
+
+export const getEditableUserMessagePayload = (
+	message: TypesGen.ChatMessage,
+): {
+	text: string;
+	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+} => {
+	const parsed = parseMessageContent(message.content);
+	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
+	return {
+		text: parsed.markdown || "",
+		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
+	};
 };
 
 export const parseMessagesWithMergedTools = (
@@ -255,7 +294,10 @@ export const buildSubagentTitles = (
 	const map = new Map<string, string>();
 	for (const { parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
-			if (tool.name !== "spawn_agent") {
+			if (
+				tool.name !== "spawn_agent" &&
+				tool.name !== "spawn_computer_use_agent"
+			) {
 				continue;
 			}
 			const rec = asRecord(tool.result);
@@ -270,4 +312,26 @@ export const buildSubagentTitles = (
 		}
 	}
 	return map;
+};
+
+export const buildComputerUseSubagentIds = (
+	parsedMessages: readonly ParsedMessageEntry[],
+): Set<string> => {
+	const ids = new Set<string>();
+	for (const { parsed } of parsedMessages) {
+		for (const tool of parsed.tools) {
+			if (tool.name !== "spawn_computer_use_agent") {
+				continue;
+			}
+			const rec = asRecord(tool.result);
+			if (!rec) {
+				continue;
+			}
+			const chatId = asString(rec.chat_id);
+			if (chatId) {
+				ids.add(chatId);
+			}
+		}
+	}
+	return ids;
 };

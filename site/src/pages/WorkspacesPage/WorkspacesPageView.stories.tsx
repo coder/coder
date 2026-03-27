@@ -1,3 +1,17 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import { expect, within } from "storybook/test";
+import {
+	type Workspace,
+	type WorkspaceStatus,
+	WorkspaceStatuses,
+} from "#/api/typesGenerated";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "#/components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
 	MockBuildInfo,
 	MockOrganization,
@@ -8,26 +22,12 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	mockApiError,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	type Workspace,
-	type WorkspaceStatus,
-	WorkspaceStatuses,
-} from "api/typesGenerated";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "components/Filter/storyHelpers";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import { expect, within } from "storybook/test";
+} from "#/testHelpers/storybook";
 import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
@@ -394,6 +394,23 @@ export const ShowWorkspaceTasks: Story = {
 				name: "task-workspace",
 			},
 		],
+	},
+};
+
+export const ShowWorkspaceChats: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "regular-workspace",
+			},
+			{
+				...MockWorkspace,
+				id: "ws-with-agent",
+				name: "agent-workspace",
+			},
+		],
+		chatsByWorkspace: { "ws-with-agent": "some-chat-id" },
 	},
 };
 

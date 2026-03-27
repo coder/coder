@@ -1,13 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 import { AgentChatInput, type UploadState } from "./AgentChatInput";
+
+const defaultModelConfigID = "model-config-1";
 
 const defaultModelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -28,8 +30,6 @@ const meta: Meta<typeof AgentChatInput> = {
 		modelOptions: [...defaultModelOptions],
 		modelSelectorPlaceholder: "Select model",
 		hasModelOptions: true,
-		inputStatusText: null,
-		modelCatalogStatusMessage: null,
 	},
 };
 
@@ -345,6 +345,113 @@ export const AttachmentsOnly: Story = {
 	})(),
 };
 
+const LARGE_PASTE_MARKER = "__PASTE_MARKER_TEST__";
+
+const largePasteText = Array.from({ length: 12 }, (_, i) =>
+	i === 6 ? LARGE_PASTE_MARKER : `line ${i + 1} of pasted content`,
+).join("\n");
+
+function dispatchPasteWithText(element: HTMLElement, text: string): void {
+	const dt = new DataTransfer();
+	dt.setData("text/plain", text);
+	const event = new ClipboardEvent("paste", {
+		bubbles: true,
+		cancelable: true,
+	});
+	Object.defineProperty(event, "clipboardData", {
+		value: dt,
+		writable: false,
+	});
+	element.dispatchEvent(event);
+}
+
+function getPasteTarget(container: HTMLElement): HTMLElement {
+	const element = container.querySelector(
+		'[data-testid="chat-message-input"]',
+	) as HTMLElement;
+	if (element?.getAttribute("contenteditable") === "true") {
+		return element;
+	}
+
+	const contentEditable = element?.querySelector(
+		'[contenteditable="true"]',
+	) as HTMLElement;
+	return contentEditable ?? element;
+}
+
+export const LargePasteCreatesAttachmentPreview: Story = {
+	args: {
+		attachments: [],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		chromatic: {
+			disableSnapshot: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const target = getPasteTarget(canvasElement);
+		await waitFor(() => {
+			expect(target.getAttribute("contenteditable")).toBe("true");
+		});
+		target.focus();
+
+		dispatchPasteWithText(target, largePasteText);
+
+		await waitFor(() => {
+			expect(args.onAttach).toHaveBeenCalledTimes(1);
+		});
+
+		const callArgs = (args.onAttach as ReturnType<typeof fn>).mock.calls[0];
+		const files = callArgs[0] as File[];
+		expect(files).toHaveLength(1);
+		expect(files[0].type).toBe("text/plain");
+		expect(files[0].name).toMatch(
+			/^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$/,
+		);
+		expect(target.textContent).not.toContain(LARGE_PASTE_MARKER);
+	},
+};
+
+export const CtrlShiftVBypassesAttachmentCollapse: Story = {
+	args: {
+		attachments: [],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		chromatic: {
+			disableSnapshot: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const target = getPasteTarget(canvasElement);
+		await waitFor(() => {
+			expect(target.getAttribute("contenteditable")).toBe("true");
+		});
+		target.focus();
+
+		const keyDown = new KeyboardEvent("keydown", {
+			key: "v",
+			code: "KeyV",
+			shiftKey: true,
+			ctrlKey: true,
+			metaKey: false,
+			bubbles: true,
+			cancelable: true,
+		});
+		target.dispatchEvent(keyDown);
+		dispatchPasteWithText(target, largePasteText);
+
+		await waitFor(() => {
+			expect(target.textContent).toContain(LARGE_PASTE_MARKER);
+		});
+
+		expect(args.onAttach).not.toHaveBeenCalled();
+	},
+};
+
 // ── MCP server fixtures ────────────────────────────────────────
 
 const now = "2026-03-19T12:00:00.000Z";
@@ -373,6 +480,7 @@ const makeMCPServer = (
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
+	model_intent: overrides.model_intent ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -454,5 +562,94 @@ export const WithMCPNoneActive: Story = {
 			},
 		],
 		selectedMCPServerIds: [],
+	},
+};
+
+/** Plus menu open showing attach, MCP servers, and workspace placeholder. */
+export const PlusMenuOpen: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+const confluenceMCP = makeMCPServer({
+	id: "mcp-confluence",
+	display_name: "Confluence Cloud",
+	slug: "confluence",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogMCP = makeMCPServer({
+	id: "mcp-datadog",
+	display_name: "Datadog Monitoring",
+	slug: "datadog",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const pagerdutyMCP = makeMCPServer({
+	id: "mcp-pagerduty",
+	display_name: "PagerDuty",
+	slug: "pagerduty",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
+export const OverflowBadges: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			confluenceMCP,
+			datadogMCP,
+			pagerdutyMCP,
+		],
+		selectedMCPServerIds: [
+			sentryMCP.id,
+			linearMCP.id,
+			githubMCPConnected.id,
+			confluenceMCP.id,
+			datadogMCP.id,
+			pagerdutyMCP.id,
+		],
+		workspaceOptions: [
+			{ id: "ws-1", name: "my-long-workspace-name", owner_name: "admin" },
+		],
+		selectedWorkspaceId: "ws-1",
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		chromatic: { viewports: [414] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Wait for the overflow hook to measure and show the pill.
+		const pill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(pill).toBeVisible();
+		});
+		await userEvent.click(pill);
+		// The popover renders via a Radix portal outside the
+		// canvas. Find it by role, then assert content within it.
+		const popover = await within(document.body).findByRole("dialog");
+		expect(within(popover).getByText("Confluence Cloud")).toBeInTheDocument();
 	},
 };

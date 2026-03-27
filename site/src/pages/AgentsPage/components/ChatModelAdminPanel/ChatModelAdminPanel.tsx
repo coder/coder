@@ -1,3 +1,5 @@
+import { type FC, type ReactNode, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModelConfigs,
 	chatModels,
@@ -8,14 +10,12 @@ import {
 	deleteChatProviderConfig as deleteChatProviderConfigMutation,
 	updateChatModelConfig as updateChatModelConfigMutation,
 	updateChatProviderConfig as updateChatProviderConfigMutation,
-} from "api/queries/chats";
-import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Spinner } from "components/Spinner/Spinner";
-import { type FC, type ReactNode, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { cn } from "utils/cn";
+} from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { normalizeProvider, readOptionalString } from "./helpers";
 import { ModelsSection } from "./ModelsSection";

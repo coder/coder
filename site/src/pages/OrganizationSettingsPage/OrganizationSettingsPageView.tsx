@@ -1,38 +1,38 @@
 import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
+import { useFormik } from "formik";
+import { type FC, useState } from "react";
+import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
 import type {
 	Organization,
 	ShareableWorkspaceOwners,
 	UpdateOrganizationRequest,
-} from "api/typesGenerated";
-import { Alert, AlertTitle } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+} from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { useFormik } from "formik";
-import { type FC, useState } from "react";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	displayNameValidator,
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/utils/formUtils";
 import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 

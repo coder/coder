@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
-import { expect, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 
@@ -16,17 +16,54 @@ const baseMessage = {
 	created_at: "2026-03-10T00:00:00.000Z",
 } as const;
 
+const TEXT_ATTACHMENT_RESPONSES = new Map<string, string>([
+	[
+		"storybook-test-text",
+		"Quarterly revenue increased 18% year over year after the new pricing rollout stabilized customer expansion.",
+	],
+	[
+		"storybook-text-only",
+		"Runbook note: restart the worker after updating the queue configuration to pick up the new concurrency limits.",
+	],
+	[
+		"storybook-text-1",
+		"First context file: deployment checklist and rollback instructions for the release candidate.",
+	],
+	[
+		"storybook-text-2",
+		"Second context file: service logs showing a transient timeout while the cache warmed up.",
+	],
+	[
+		"storybook-text-3",
+		"Third context file: local development configuration overrides for reproducing the issue.",
+	],
+]);
+
+const mockTextAttachmentFetch = () => {
+	const originalFetch = globalThis.fetch;
+	spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+		const url =
+			typeof input === "string"
+				? input
+				: input instanceof URL
+					? input.toString()
+					: input.url;
+
+		for (const [fileId, content] of TEXT_ATTACHMENT_RESPONSES) {
+			if (url.endsWith(fileId)) {
+				return new Response(content, { status: 200 });
+			}
+		}
+
+		return originalFetch(input, init);
+	});
+};
+
 const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
 	"parsedMessages"
 > = {
-	isEmpty: false,
-	hasStreamOutput: false,
-	streamState: null,
-	streamTools: [],
 	subagentTitles: new Map(),
-	subagentStatusOverrides: new Map(),
-	isAwaitingFirstStreamChunk: false,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -39,6 +76,9 @@ const meta: Meta<typeof ConversationTimeline> = {
 			</div>
 		),
 	],
+	beforeEach: () => {
+		mockTextAttachmentFetch();
+	},
 };
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
@@ -150,6 +190,145 @@ export const UserMessageWithFileIdImage: Story = {
 	},
 };
 
+export const UserMessageWithTextAttachment: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Here is some context from our docs:" },
+					{
+						type: "file",
+						file_id: "storybook-test-text",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButton).toBeInTheDocument();
+		expect(textButton).toHaveTextContent(/Pasted text/i);
+		await userEvent.click(textButton);
+		expect(
+			await canvas.findByText(/Quarterly revenue increased 18%/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const UserMessageWithMultipleTextAttachments: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				created_at: "2025-01-15T10:00:00Z",
+				role: "user",
+				content: [
+					{ type: "text", text: "Here are several context files:" },
+					{
+						type: "file",
+						file_id: "storybook-text-1",
+						media_type: "text/plain",
+					},
+					{
+						type: "file",
+						file_id: "storybook-text-2",
+						media_type: "text/plain",
+					},
+					{
+						type: "file",
+						file_id: "storybook-text-3",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButtons = await canvas.findAllByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButtons).toHaveLength(3);
+	},
+};
+
+export const UserMessageWithTextAttachmentOnly: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{
+						type: "file",
+						file_id: "storybook-text-only",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButton).toHaveTextContent(/Pasted text/i);
+		await userEvent.click(textButton);
+		expect(
+			await canvas.findByText(/Runbook note: restart the worker/i),
+		).toBeInTheDocument();
+	},
+};
+
+/** Visual regression: text and image attachments render at the same height. */
+export const UserMessageWithMixedAttachments: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Here is a screenshot and some context" },
+					{
+						type: "file",
+						media_type: "image/png",
+						data: TEST_PNG_B64,
+					},
+					{
+						type: "file",
+						file_id: "storybook-test-text",
+						media_type: "text/plain",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(1);
+		const textButtons = await canvas.findAllByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButtons).toHaveLength(1);
+	},
+};
+
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
@@ -171,7 +350,7 @@ export const UserMessageTextOnly: Story = {
 	},
 };
 
-/** Assistant-side images go through renderBlockList, not the user path. */
+/** Assistant-side images go through BlockList, not the user path. */
 export const AssistantMessageWithImage: Story = {
 	args: {
 		...defaultArgs,
@@ -236,47 +415,6 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
 		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
-	},
-};
-
-/** Usage-limit errors render as an info alert with analytics access. */
-export const UsageLimitExceeded: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: [],
-		detailError: {
-			kind: "usage-limit",
-			message:
-				"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
-		},
-
-		subagentTitles: new Map(),
-		subagentStatusOverrides: new Map(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/spend limit/i)).toBeVisible();
-		const link = canvas.getByRole("link", { name: /view usage/i });
-		expect(link).toBeVisible();
-		expect(link).toHaveAttribute("href", "/agents/analytics");
-	},
-};
-
-/** Non-usage errors must not show the usage CTA. */
-export const GenericErrorDoesNotShowUsageAction: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: [],
-		detailError: { kind: "generic", message: "Provider request failed." },
-		subagentTitles: new Map(),
-		subagentStatusOverrides: new Map(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
-		expect(
-			canvas.queryByRole("link", { name: /view usage/i }),
-		).not.toBeInTheDocument();
 	},
 };
 

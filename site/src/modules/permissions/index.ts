@@ -1,4 +1,4 @@
-import type { AuthorizationCheck } from "api/typesGenerated";
+import type { AuthorizationCheck } from "#/api/typesGenerated";
 import permissionChecksData from "../../../permissions.json";
 
 export type Permissions = {

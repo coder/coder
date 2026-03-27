@@ -1,9 +1,9 @@
+import { toast } from "sonner";
 import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
-import { toast } from "sonner";
+} from "#/api/typesGenerated";
 
 // This is a magic undocumented string that is replaced
 // with a brand-new session token from the backend.

@@ -1,9 +1,13 @@
-import { MockUserOwner, MockWorkspace } from "testHelpers/entities";
-import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceBuild,
+} from "#/testHelpers/entities";
+import { renderWithWorkspaceSettingsLayout } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
@@ -299,6 +303,41 @@ describe("WorkspaceSchedulePage", () => {
 
 			const dialog = await screen.findByText("Restart workspace?");
 			expect(dialog).toBeInTheDocument();
+		});
+
+		it("doesn't show if workspace is stopped", async () => {
+			server.use(
+				http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
+					return HttpResponse.json({
+						...MockWorkspace,
+						latest_build: { ...MockWorkspaceBuild, status: "stopped" },
+					});
+				}),
+			);
+			renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
+				route: `/@${MockUserOwner.username}/${MockWorkspace.name}/schedule`,
+				path: "/:username/:workspace/schedule",
+				extraRoutes: [
+					{ path: "/:username/:workspace", element: <div>Workspace</div> },
+				],
+			});
+			const user = userEvent.setup();
+			const autostopToggle = await screen.findByLabelText(
+				FormLanguage.stopSwitch,
+			);
+			await user.click(autostopToggle);
+			const submitButton = await screen.findByRole("button", {
+				name: /save/i,
+			});
+			await user.click(submitButton);
+
+			const notification = await screen.findByText(
+				`Schedule for workspace "Test-Workspace" updated successfully.`,
+			);
+			expect(notification).toBeInTheDocument();
+
+			const dialog = screen.queryByText("Restart workspace?");
+			expect(dialog).not.toBeInTheDocument();
 		});
 
 		it("doesn't show if autostop is not changed", async () => {

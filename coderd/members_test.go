@@ -190,11 +190,12 @@ func orgMemberToReducedUser(user codersdk.OrganizationMemberWithUserData) coders
 			Name:      user.Name,
 			AvatarURL: user.AvatarURL,
 		},
-		Email:      user.Email,
-		CreatedAt:  user.UserCreatedAt,
-		UpdatedAt:  user.UserUpdatedAt,
-		LastSeenAt: user.LastSeenAt,
-		Status:     user.Status,
-		LoginType:  user.LoginType,
+		Email:            user.Email,
+		CreatedAt:        user.UserCreatedAt,
+		UpdatedAt:        user.UserUpdatedAt,
+		LastSeenAt:       user.LastSeenAt,
+		Status:           user.Status,
+		IsServiceAccount: user.IsServiceAccount,
+		LoginType:        user.LoginType,
 	}
 }

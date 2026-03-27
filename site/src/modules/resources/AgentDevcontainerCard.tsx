@@ -1,18 +1,24 @@
 import Skeleton from "@mui/material/Skeleton";
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { useProxy } from "contexts/ProxyContext";
+import { Container, ExternalLinkIcon } from "lucide-react";
+import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
+import type { FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteWorkspaceAgentDevcontainer,
 	workspaceAgentContainersKey,
-} from "api/queries/workspaces";
+} from "#/api/queries/workspaces";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogClose,
@@ -21,22 +27,16 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { Spinner } from "components/Spinner/Spinner";
+} from "#/components/Dialog/Dialog";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useProxy } from "contexts/ProxyContext";
-import { Container, ExternalLinkIcon } from "lucide-react";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
-import { cn } from "utils/cn";
-import { portForwardURL } from "utils/portForward";
+} from "#/components/Tooltip/Tooltip";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { cn } from "#/utils/cn";
+import { portForwardURL } from "#/utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";

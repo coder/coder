@@ -1,12 +1,12 @@
+import { ExternalLinkIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import type React from "react";
+import { Link } from "react-router";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, ExternalLinkIcon, LoaderIcon } from "lucide-react";
-import type React from "react";
-import { Link } from "react-router";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import { asRecord, asString, type ToolStatus } from "./utils";
 
@@ -37,18 +37,13 @@ export const ListTemplatesTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							isError ? "text-content-destructive" : "text-content-secondary",
-						)}
-					>
+					<span className={cn("text-sm", "text-content-secondary")}>
 						{label}
 					</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to list templates"}

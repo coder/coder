@@ -170,9 +170,13 @@ export class SmoothTextEngine {
 	 * Advance the presentation clock by a timestep.
 	 */
 	tick(dtMs: number): number {
-		if (dtMs <= 0) {
+		if (dtMs <= 0 || Number.isNaN(dtMs)) {
 			return this.visibleLengthValue;
 		}
+
+		// Clamp to prevent charBudget inflation after long
+		// background periods where RAF was paused by the browser.
+		dtMs = Math.min(100, dtMs);
 
 		if (!this.isStreaming || this.bypassSmoothing) {
 			return this.visibleLengthValue;
@@ -323,9 +327,12 @@ function sliceAtGraphemeBoundary(
 
 	if (graphemeSegmenter) {
 		let safeEnd = 0;
-		const segments = Array.from(graphemeSegmenter.segment(text));
-
-		for (const segment of segments) {
+		// Iterate the segmenter lazily instead of materializing
+		// with Array.from(). The early break makes this O(prefix)
+		// instead of O(full text), which matters at 60fps during
+		// streaming where the visible prefix is much shorter than
+		// the full accumulated text.
+		for (const segment of graphemeSegmenter.segment(text)) {
 			const segmentEnd = segment.index + segment.segment.length;
 			if (segmentEnd > maxCodeUnitLength) {
 				break;
@@ -338,9 +345,10 @@ function sliceAtGraphemeBoundary(
 
 	// Fallback: iterate by codepoint to avoid splitting surrogate
 	// pairs. This is less precise than grapheme segmentation but
-	// still safe for rendering.
+	// still safe for rendering. Iterating the string directly with
+	// for...of is lazy and avoids the O(n) Array.from() cost.
 	let safeEnd = 0;
-	for (const codePoint of Array.from(text)) {
+	for (const codePoint of text) {
 		const codePointEnd = safeEnd + codePoint.length;
 		if (codePointEnd > maxCodeUnitLength) {
 			break;

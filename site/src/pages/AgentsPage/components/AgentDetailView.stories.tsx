@@ -1,12 +1,17 @@
-import { MockUserOwner } from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps, FC } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
+import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
@@ -19,9 +24,11 @@ import {
 // ---------------------------------------------------------------------------
 const AGENT_ID = "agent-detail-view-1";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -35,19 +42,24 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	owner_id: "owner-1",
 	title: "Help me refactor",
 	status: "completed",
-	last_model_config_id: "model-config-1",
+	last_model_config_id: defaultModelConfigID,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 	...overrides,
 });
 
-const defaultEditing = {
+const buildEditing = (
+	overrides: Partial<ComponentProps<typeof AgentDetailView>["editing"]> = {},
+) => ({
 	chatInputRef: { current: null },
 	editorInitialValue: "",
-	editingMessageId: null,
+	editingMessageId: null as number | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
@@ -56,15 +68,15 @@ const defaultEditing = {
 	handleCancelQueueEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
-};
+	...overrides,
+});
 
-const defaultGitWatcher: {
-	repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
-	refresh: () => void;
-} = {
+const buildGitWatcher = (): ComponentProps<
+	typeof AgentDetailView
+>["gitWatcher"] => ({
 	repositories: new Map(),
 	refresh: fn(),
-};
+});
 
 const agentsRouting = [
 	{ path: "/agents/:agentId", useStoryElement: true },
@@ -73,6 +85,80 @@ const agentsRouting = [
 	{ path: string; useStoryElement: boolean },
 	...{ path: string; useStoryElement: boolean }[],
 ];
+
+// ---------------------------------------------------------------------------
+// Wrapper component.
+//
+// Storybook's composeStory deep-merges meta.args into every story.
+// When meta.args contains many fn() mocks, Maps, and closure-bound
+// stores the merge hangs the browser. This wrapper builds fresh
+// default props on each render, accepting only the overrides each
+// story cares about.
+// ---------------------------------------------------------------------------
+type StoryProps = Omit<
+	Partial<ComponentProps<typeof AgentDetailView>>,
+	"editing"
+> & {
+	editing?: Partial<ComponentProps<typeof AgentDetailView>["editing"]>;
+};
+
+const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
+	const props = {
+		agentId: AGENT_ID,
+		chatTitle: "Help me refactor",
+		persistedError: undefined as ChatDetailError | undefined,
+		parentChat: undefined as TypesGen.Chat | undefined,
+		isArchived: false,
+		hasWorkspace: true,
+		store: createChatStore(),
+		pendingEditMessageId: null as number | null,
+		effectiveSelectedModel: defaultModelConfigID,
+		setSelectedModel: fn(),
+		modelOptions: defaultModelOptions,
+		modelSelectorPlaceholder: "Select a model",
+		hasModelOptions: true,
+		compressionThreshold: undefined as number | undefined,
+		isInputDisabled: false,
+		isSubmissionPending: false,
+		isInterruptPending: false,
+		isSidebarCollapsed: false,
+		onToggleSidebarCollapsed: fn(),
+		showSidebarPanel: false,
+		onSetShowSidebarPanel: fn(),
+		prNumber: undefined as number | undefined,
+		diffStatusData: undefined as ComponentProps<
+			typeof AgentDetailView
+		>["diffStatusData"],
+		gitWatcher: buildGitWatcher(),
+		canOpenEditors: false,
+		canOpenWorkspace: false,
+		sshCommand: undefined as string | undefined,
+		handleOpenInEditor: fn(),
+		handleViewWorkspace: fn(),
+		handleOpenTerminal: fn(),
+		handleCommit: fn(),
+		handleInterrupt: fn(),
+		handleDeleteQueuedMessage: fn(),
+		handlePromoteQueuedMessage: fn(),
+		handleArchiveAgentAction: fn(),
+		handleUnarchiveAgentAction: fn(),
+		handleArchiveAndDeleteWorkspaceAction: fn(),
+		handleRegenerateTitle: fn(),
+		scrollContainerRef: { current: null },
+		hasMoreMessages: false,
+		isFetchingMoreMessages: false,
+		onFetchMoreMessages: fn(),
+		mcpServers: [] as ComponentProps<typeof AgentDetailView>["mcpServers"],
+		selectedMCPServerIds: [] as ComponentProps<
+			typeof AgentDetailView
+		>["selectedMCPServerIds"],
+		onMCPSelectionChange: fn(),
+		onMCPAuthComplete: fn(),
+		...overrides,
+		editing: buildEditing(editing),
+	};
+	return <AgentDetailView {...props} />;
+};
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -92,54 +178,6 @@ const meta: Meta<typeof AgentDetailView> = {
 			routing: agentsRouting,
 		}),
 	},
-	args: {
-		agentId: AGENT_ID,
-		chatTitle: "Help me refactor",
-		parentChat: undefined,
-		chatErrorReasons: {},
-		chatRecord: buildChat(),
-		isArchived: false,
-		hasWorkspace: true,
-		store: createChatStore(),
-		editing: defaultEditing,
-		pendingEditMessageId: null,
-		effectiveSelectedModel: "openai:gpt-4o",
-		setSelectedModel: fn(),
-		modelOptions: defaultModelOptions,
-		modelSelectorPlaceholder: "Select a model",
-		hasModelOptions: true,
-		inputStatusText: null,
-		modelCatalogStatusMessage: null,
-		compressionThreshold: undefined,
-		isInputDisabled: false,
-		isSubmissionPending: false,
-		isInterruptPending: false,
-		isSidebarCollapsed: false,
-		onToggleSidebarCollapsed: fn(),
-		showSidebarPanel: false,
-		onSetShowSidebarPanel: fn(),
-		prNumber: undefined,
-		diffStatusData: undefined,
-		gitWatcher: defaultGitWatcher,
-		canOpenEditors: false,
-		canOpenWorkspace: false,
-		sshCommand: undefined,
-		handleOpenInEditor: fn(),
-		handleViewWorkspace: fn(),
-		handleOpenTerminal: fn(),
-		handleCommit: fn(),
-		handleInterrupt: fn(),
-		handleDeleteQueuedMessage: fn(),
-		handlePromoteQueuedMessage: fn(),
-		handleArchiveAgentAction: fn(),
-		handleUnarchiveAgentAction: fn(),
-		handleArchiveAndDeleteWorkspaceAction: fn(),
-		scrollContainerRef: { current: null },
-		mcpServers: [],
-		selectedMCPServerIds: [],
-		onMCPSelectionChange: fn(),
-		onMCPAuthComplete: fn(),
-	},
 };
 
 export default meta;
@@ -150,66 +188,81 @@ type Story = StoryObj<typeof AgentDetailView>;
 // ---------------------------------------------------------------------------
 
 /** Basic conversation view with a chat title, workspace, and no archive. */
-export const Default: Story = {};
+export const Default: Story = {
+	render: () => <StoryAgentDetailView />,
+};
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
-	args: {
-		isArchived: true,
-		chatRecord: buildChat({ archived: true }),
-		isInputDisabled: true,
-	},
+	render: () => <StoryAgentDetailView isArchived isInputDisabled />,
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
 export const WithParentChat: Story = {
-	args: {
-		parentChat: buildChat({
-			id: "parent-chat-1",
-			title: "Root agent",
-		}),
-	},
+	render: () => (
+		<StoryAgentDetailView
+			parentChat={buildChat({ id: "parent-chat-1", title: "Root agent" })}
+		/>
+	),
 };
 
 /** Persisted error reason shown in the timeline area. */
 export const WithError: Story = {
-	args: {
-		chatErrorReasons: {
-			[AGENT_ID]: { kind: "generic", message: "Model rate limited" },
-		},
+	render: () => (
+		<StoryAgentDetailView
+			persistedError={{
+				kind: "overloaded",
+				message: "Anthropic is currently overloaded.",
+				provider: "anthropic",
+				retryable: true,
+				statusCode: 529,
+			}}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /service overloaded/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is currently overloaded\./i),
+		).toBeVisible();
+		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
+		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
+		expect(canvas.getByText(/http 529/i)).toBeVisible();
 	},
 };
 
 /** Input area appears disabled when `isInputDisabled` is true. */
 export const InputDisabled: Story = {
-	args: {
-		isInputDisabled: true,
-	},
+	render: () => <StoryAgentDetailView isInputDisabled />,
 };
 
 /** Shows a sending/pending state for the input. */
 export const SubmissionPending: Story = {
-	args: {
-		isSubmissionPending: true,
-	},
+	render: () => <StoryAgentDetailView isSubmissionPending />,
 };
 
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
-	args: {
-		showSidebarPanel: true,
-		prNumber: 123,
-		diffStatusData: {
-			chat_id: AGENT_ID,
-			url: "https://github.com/coder/coder/pull/123",
-			pull_request_title: "fix: resolve race condition in workspace builds",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: 42,
-			deletions: 7,
-			changed_files: 5,
-		} satisfies ChatDiffStatus,
-	},
+	render: () => (
+		<StoryAgentDetailView
+			showSidebarPanel
+			prNumber={123}
+			diffStatusData={
+				{
+					chat_id: AGENT_ID,
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				} satisfies ChatDiffStatus
+			}
+		/>
+	),
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
 			chat_id: AGENT_ID,
@@ -229,28 +282,29 @@ index abc1234..def5678 100644
 
 /** Left sidebar is collapsed. */
 export const SidebarCollapsed: Story = {
-	args: {
-		isSidebarCollapsed: true,
-	},
+	render: () => <StoryAgentDetailView isSidebarCollapsed />,
 };
 
 /** No model options available — shows a disabled status message. */
 export const NoModelOptions: Story = {
-	args: {
-		hasModelOptions: false,
-		modelOptions: [],
-		inputStatusText: "No models configured. Ask an admin.",
-		isInputDisabled: true,
-	},
+	render: () => (
+		<StoryAgentDetailView
+			hasModelOptions={false}
+			modelOptions={[]}
+			isInputDisabled
+		/>
+	),
 };
 
 /** Top bar has workspace action buttons visible. */
 export const WithWorkspaceActions: Story = {
-	args: {
-		canOpenEditors: true,
-		canOpenWorkspace: true,
-		sshCommand: "ssh coder.workspace",
-	},
+	render: () => (
+		<StoryAgentDetailView
+			canOpenEditors
+			canOpenWorkspace
+			sshCommand="ssh coder.workspace"
+		/>
+	),
 };
 
 // ---------------------------------------------------------------------------
@@ -263,13 +317,11 @@ export const Loading: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
@@ -283,13 +335,11 @@ export const LoadingWithModelOptions: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled={false}
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
@@ -302,13 +352,11 @@ export const LoadingWithRightPanel: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel
@@ -322,13 +370,11 @@ export const LoadingSidebarCollapsed: Story = {
 		<AgentDetailLoadingView
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
-			effectiveSelectedModel="openai:gpt-4o"
+			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
-			inputStatusText={null}
-			modelCatalogStatusMessage={null}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 			showRightPanel={false}
@@ -382,29 +428,31 @@ const editingMessages = [
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */
 export const EditingMessage: Story = {
-	args: {
-		store: buildStoreWithMessages(editingMessages),
-		editing: {
-			...defaultEditing,
-			editingMessageId: 3,
-			editorInitialValue: "Now tell me a joke",
-		},
-	},
+	render: () => (
+		<StoryAgentDetailView
+			store={buildStoreWithMessages(editingMessages)}
+			editing={{
+				editingMessageId: 3,
+				editorInitialValue: "Now tell me a joke",
+			}}
+		/>
+	),
 };
 
 /** The saving state while an edit is in progress — shows the pending
  *  indicator on the message being saved. */
 export const EditingSaving: Story = {
-	args: {
-		store: buildStoreWithMessages(editingMessages),
-		editing: {
-			...defaultEditing,
-			editingMessageId: 3,
-			editorInitialValue: "Now tell me a better joke",
-		},
-		pendingEditMessageId: 3,
-		isSubmissionPending: true,
-	},
+	render: () => (
+		<StoryAgentDetailView
+			store={buildStoreWithMessages(editingMessages)}
+			editing={{
+				editingMessageId: 3,
+				editorInitialValue: "Now tell me a better joke",
+			}}
+			pendingEditMessageId={3}
+			isSubmissionPending
+		/>
+	),
 };
 
 // ---------------------------------------------------------------------------
@@ -453,25 +501,57 @@ const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
 	return messages;
 };
 
+const scrollStoryDecorators: Decorator[] = [
+	(Story) => (
+		<div
+			style={{
+				height: "600px",
+				display: "flex",
+				flexDirection: "column",
+			}}
+		>
+			<Story />
+		</div>
+	),
+];
+
+const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
+	await waitFor(() => {
+		expect(scrollContainer.scrollHeight).toBeGreaterThan(
+			scrollContainer.clientHeight,
+		);
+	});
+};
+
+const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
+	scrollContainer.scrollTop = 0;
+	scrollContainer.dispatchEvent(new Event("scroll"));
+};
+
+/** Helper that extracts the current messages array from a store. */
+const getStoreMessages = (
+	store: ReturnType<typeof createChatStore>,
+): TypesGen.ChatMessage[] => {
+	const snapshot = store.getSnapshot();
+	const messages: TypesGen.ChatMessage[] = [];
+	for (const id of snapshot.orderedMessageIDs) {
+		const message = snapshot.messagesByID.get(id);
+		if (message) {
+			messages.push(message);
+		}
+	}
+	return messages;
+};
+
 /** Scroll-to-bottom button appears after scrolling up in a long
  *  conversation, and clicking it returns to the bottom. */
 export const ScrollToBottomButton: Story = {
-	args: {
-		store: buildStoreWithMessages(buildLongConversation(40)),
-	},
-	decorators: [
-		(Story) => (
-			<div
-				style={{
-					height: "600px",
-					display: "flex",
-					flexDirection: "column",
-				}}
-			>
-				<Story />
-			</div>
-		),
-	],
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentDetailView
+			store={buildStoreWithMessages(buildLongConversation(40))}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
@@ -485,23 +565,27 @@ export const ScrollToBottomButton: Story = {
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
 		// Wait for content to render and create overflow.
-		await waitFor(() => {
-			expect(scrollContainer.scrollHeight).toBeGreaterThan(
-				scrollContainer.clientHeight,
-			);
-		});
+		await waitForScrollOverflow(scrollContainer);
 
-		// Scroll up. In flex-col-reverse containers, Chrome uses
-		// negative scrollTop values when scrolled away from the
-		// bottom. Try negative first, fall back to positive for
-		// other engines.
-		const maxScroll =
-			scrollContainer.scrollHeight - scrollContainer.clientHeight;
-		scrollContainer.scrollTop = -maxScroll;
-		if (Math.abs(scrollContainer.scrollTop) < 100) {
-			scrollContainer.scrollTop = maxScroll;
-		}
-		scrollContainer.dispatchEvent(new Event("scroll"));
+		// Wait for the initial bottom pin to settle before scrolling away.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
+		// Scroll to the top (away from bottom). In normal top-to-bottom
+		// flow, scrollTop = 0 is at the top and the user is farthest
+		// from the bottom of the conversation.
+		scrollAwayFromBottom(scrollContainer);
 
 		// Button should become visible (enters the accessibility tree).
 		const button = await waitFor(() => {
@@ -520,5 +604,150 @@ export const ScrollToBottomButton: Story = {
 				canvas.queryByRole("button", { name: "Scroll to bottom" }),
 			).toBeNull();
 		});
+	},
+};
+
+// Each scroll story that mutates the store in its play function
+// creates the store at module scope so the play closure can reach
+// it. Stories in a file execute sequentially, so there is no
+// cross-contamination.
+const preservedScrollStore = buildStoreWithMessages(buildLongConversation(30));
+
+/** When scrolled away from bottom, new content preserves scroll position. */
+export const ScrollPositionPreservedOnNewContent: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentDetailView store={preservedScrollStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Wait for the initial bottom pin to settle before scrolling away.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
+		// Scroll away from bottom.
+		scrollAwayFromBottom(scrollContainer);
+
+		// Wait for the button to confirm we are away from the bottom.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: "Scroll to bottom" }),
+				).toBeVisible();
+			},
+			{ timeout: 2000 },
+		);
+
+		// Record position while clearly away from the bottom.
+		const distFromBottom =
+			scrollContainer.scrollHeight -
+			scrollContainer.scrollTop -
+			scrollContainer.clientHeight;
+		expect(distFromBottom).toBeGreaterThan(50);
+
+		const existing = getStoreMessages(preservedScrollStore);
+		preservedScrollStore.replaceMessages(
+			existing.concat([
+				buildMessage(
+					31,
+					"user",
+					"Follow-up question about the implementation.",
+				),
+				buildMessage(
+					32,
+					"assistant",
+					"Here is a detailed response about the implementation details you asked about.",
+				),
+			]),
+		);
+
+		// Wait for ResizeObserver + RAF compensation to settle.
+		// We should remain significantly away from the bottom.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeGreaterThan(50);
+			},
+			{ timeout: 2000 },
+		);
+
+		expect(
+			canvas.getByRole("button", { name: "Scroll to bottom" }),
+		).toBeVisible();
+	},
+};
+
+const pinnedScrollStore = buildStoreWithMessages(buildLongConversation(30));
+
+/** When at bottom, new content keeps the user pinned to bottom. */
+export const ScrollPinnedToBottomOnNewContent: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentDetailView store={pinnedScrollStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Wait for the initial bottom pin (double-RAF) to settle.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+
+		const existing = getStoreMessages(pinnedScrollStore);
+		pinnedScrollStore.replaceMessages(
+			existing.concat([
+				buildMessage(31, "user", "Another question."),
+				buildMessage(32, "assistant", "Here is the answer with full details."),
+				buildMessage(33, "user", "Thanks, one more thing."),
+				buildMessage(
+					34,
+					"assistant",
+					"Sure, here is the additional information you requested.",
+				),
+			]),
+		);
+
+		// Wait for the double-RAF pin to complete.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
 	},
 };

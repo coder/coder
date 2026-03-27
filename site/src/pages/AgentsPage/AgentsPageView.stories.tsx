@@ -1,15 +1,4 @@
-import {
-	MockNoPermissions,
-	MockPermissions,
-	MockUserOwner,
-} from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { Chat } from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import dayjs from "dayjs";
 import { useState } from "react";
 import {
@@ -22,14 +11,30 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	MockNoPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import { AgentsPageView } from "./AgentsPageView";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -38,7 +43,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
-		id: "config-openai-gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -63,7 +68,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	total_cache_creation_tokens: 5_432,
 	by_model: [
 		{
-			model_config_id: "model-config-1",
+			model_config_id: defaultModelConfigID,
 			display_name: "GPT-4.1",
 			provider: "OpenAI",
 			model: "gpt-4.1",
@@ -120,9 +125,12 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
 	mcp_server_ids: [],
+	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 	...overrides,
 });
@@ -199,6 +207,8 @@ const meta: Meta<typeof AgentsPageView> = {
 		);
 		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
+			include_default_system_prompt: true,
+			default_system_prompt: "You are Coder, an AI coding assistant...",
 		});
 		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
 		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
@@ -226,7 +236,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
-				id: "config-openai-gpt-4o",
+				id: defaultModelConfigID,
 				provider: "openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
@@ -238,6 +248,7 @@ const meta: Meta<typeof AgentsPageView> = {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 		]);
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
 			enable_desktop: false,
 		});
@@ -486,11 +497,6 @@ export const WithErrorReasons: Story = {
 	},
 };
 
-const openAnalyticsView = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("link", { name: "Analytics" }));
-};
-
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	const link = await waitFor(() =>
@@ -503,9 +509,13 @@ export const OpensAnalyticsForAdmins: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
-	play: async ({ canvasElement }) => {
-		await openAnalyticsView(canvasElement);
-
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/analytics" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
@@ -522,10 +532,12 @@ export const OpensAnalyticsForNonAdmins: Story = {
 	},
 	parameters: {
 		permissions: MockNoPermissions,
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/analytics" },
+			routing: agentsRouting,
+		}),
 	},
-	play: async ({ canvasElement }) => {
-		await openAnalyticsView(canvasElement);
-
+	play: async () => {
 		await waitFor(() => {
 			expect(
 				screen.getByText(

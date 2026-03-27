@@ -1,9 +1,12 @@
-import type * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ReconnectSchedule } from "#/utils/reconnectingWebSocket";
+import type { ChatProviderFailureKind } from "../../utils/usageLimitMessage";
 
 export type ParsedToolCall = {
 	id: string;
 	name: string;
 	args?: unknown;
+	mcpServerConfigId?: string;
 };
 
 export type ParsedToolResult = {
@@ -11,6 +14,7 @@ export type ParsedToolResult = {
 	name: string;
 	result?: unknown;
 	isError: boolean;
+	mcpServerConfigId?: string;
 };
 
 export type MergedTool = {
@@ -20,6 +24,8 @@ export type MergedTool = {
 	result?: unknown;
 	isError: boolean;
 	status: "completed" | "error" | "running";
+	mcpServerConfigId?: string;
+	modelIntent?: string;
 };
 
 export type RenderBlock =
@@ -57,11 +63,24 @@ export type ParsedMessageEntry = {
 	parsed: ParsedMessageContent;
 };
 
+export type ReconnectState = ReconnectSchedule;
+
+export type RetryState = {
+	attempt: number;
+	error: string;
+	kind: ChatProviderFailureKind | (string & {});
+	provider?: string;
+	delayMs?: number;
+	retryingAt?: string;
+};
+
 type StreamToolCall = {
 	id: string;
 	name: string;
 	args?: unknown;
 	argsRaw?: string;
+	mcpServerConfigId?: string;
+	modelIntent?: string;
 };
 
 type StreamToolResult = {
@@ -70,6 +89,7 @@ type StreamToolResult = {
 	result?: unknown;
 	resultRaw?: string;
 	isError: boolean;
+	mcpServerConfigId?: string;
 };
 
 export type StreamState = {

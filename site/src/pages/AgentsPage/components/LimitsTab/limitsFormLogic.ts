@@ -1,4 +1,4 @@
-import type { ChatUsageLimitPeriod } from "api/typesGenerated";
+import type { ChatUsageLimitPeriod } from "#/api/typesGenerated";
 
 export const normalizeChatUsageLimitPeriod = (
 	period: string | null | undefined,

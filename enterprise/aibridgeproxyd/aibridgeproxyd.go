@@ -714,6 +714,17 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
+// extractCoderTokenFromBearerAuth extracts the bearer token from an
+// Authorization header. Returns empty string if the header is not a
+// valid "Bearer <token>" value.
+func extractCoderTokenFromBearerAuth(auth string) string {
+	parts := strings.Fields(auth)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return parts[1]
+}
+
 // newProxyAuthRequiredResponse creates a 407 Proxy Authentication Required
 // response with the appropriate challenge header. This is used both during
 // CONNECT handling and for decrypted requests missing authentication.
@@ -866,8 +877,10 @@ func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string
 }
 
 // handleRequest intercepts HTTP requests after MITM decryption.
-//   - Requests to known AI providers are rewritten to aibridged, with the Coder token
-//     (from ctx.UserData, set during CONNECT) set in the X-Coder-Token header.
+//   - Requests to known AI providers are rewritten to point at aibridged.
+//     In centralized mode the Coder token is already in the
+//     Authorization header. For BYOK clients that cannot set custom
+//     headers, the proxy injects the BYOK header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -945,10 +958,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = aiBridgeParsedURL
 	req.Host = aiBridgeParsedURL.Host
 
-	// Set X-Coder-Token header for aibridged authentication.
-	// Using a separate header preserves the original request headers,
-	// which are forwarded to upstream providers.
-	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
+	injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
 
 	// Set custom header for cross-service log correlation.
 	// This allows correlating aibridgeproxyd logs with aibridged logs.
@@ -965,6 +975,27 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 
 	return req, nil
+}
+
+// injectBYOKHeaderIfNeeded sets HeaderCoderToken when the
+// Authorization header carries a bearer token that differs from the
+// Coder token, indicating the client is using its own LLM
+// credentials. Clients that can set custom headers
+// do this themselves; this handles clients that cannot.
+//
+// In centralized mode, Authorization carries the Coder token
+// itself, so aibridged discovers it via ExtractAuthToken
+// without any extra header.
+func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
+	// Don’t overwrite the header if it’s already set.
+	if header.Get(agplaibridge.HeaderCoderToken) != "" {
+		return
+	}
+
+	bearer := extractCoderTokenFromBearerAuth(header.Get("Authorization"))
+	if bearer != "" && bearer != coderToken {
+		header.Set(agplaibridge.HeaderCoderToken, coderToken)
+	}
 }
 
 // handleResponse handles responses received from aibridged.

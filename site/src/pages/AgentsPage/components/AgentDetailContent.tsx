@@ -1,9 +1,9 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect } from "react";
+import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -17,21 +17,19 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
-	selectRetryState,
-	selectStreamError,
-	selectStreamState,
-	selectSubagentStatusOverrides,
 	useChatSelector,
 	type useChatStore,
 } from "./AgentDetail/ChatContext";
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import { getLatestContextUsage } from "./AgentDetail/chatHelpers";
+import { LiveStreamTail } from "./AgentDetail/LiveStreamTail";
 import {
+	buildComputerUseSubagentIds,
 	buildSubagentTitles,
+	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
-import { buildStreamTools } from "./AgentDetail/streamState";
-import type { ParsedMessageEntry } from "./AgentDetail/types";
+import { useOnRenderProfiler } from "./AgentDetail/useOnRenderProfiler";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -40,8 +38,9 @@ const isChatMessage = (
 ): message is TypesGen.ChatMessage => Boolean(message);
 
 interface AgentDetailTimelineProps {
+	chatID?: string;
 	store: ChatStoreHandle;
-	persistedErrorReason: ChatDetailError | undefined;
+	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -50,129 +49,62 @@ interface AgentDetailTimelineProps {
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
-// Reads only message-related store state (stable during streaming).
-// Computes parsedMessages once and passes them to ConversationTimeline
-// via a memo boundary so that streaming ticks don't re-parse history.
-const MessageListProvider: FC<AgentDetailTimelineProps> = ({
+export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
+	chatID,
 	store,
-	persistedErrorReason,
+	persistedError,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
+	mcpServers,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const chatStatus = useChatSelector(store, selectChatStatus);
-	const streamError = useChatSelector(store, selectStreamError);
-	const subagentStatusOverrides = useChatSelector(
-		store,
-		selectSubagentStatusOverrides,
-	);
-	const retryState = useChatSelector(store, selectRetryState);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
-	const detailError: ChatDetailError | undefined =
-		(persistedErrorReason?.kind === "usage-limit" || chatStatus === "error"
-			? persistedErrorReason
-			: undefined) ??
-		(streamError
-			? { kind: "generic" as const, message: streamError }
-			: undefined);
-	const latestMessage = messages[messages.length - 1];
-	const latestMessageNeedsAssistantResponse =
-		!latestMessage || latestMessage.role !== "assistant";
+	const computerUseSubagentIds = buildComputerUseSubagentIds(parsedMessages);
+	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
-		<StreamingBridge
-			store={store}
-			isEmpty={messages.length === 0}
-			parsedMessages={parsedMessages}
-			subagentTitles={subagentTitles}
-			subagentStatusOverrides={subagentStatusOverrides}
-			retryState={retryState}
-			detailError={detailError}
-			latestMessageNeedsAssistantResponse={latestMessageNeedsAssistantResponse}
-			chatStatus={chatStatus}
-			onEditUserMessage={onEditUserMessage}
-			editingMessageId={editingMessageId}
-			savingMessageId={savingMessageId}
-			urlTransform={urlTransform}
-		/>
+		<Profiler id="AgentChat" onRender={onRenderProfiler}>
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-6">
+				{/* VNC sessions for completed agents may already be
+					   terminated, so inline desktop previews are disabled
+					   via showDesktopPreviews={false} to avoid a perpetual
+					   "disconnected" state. The MonitorIcon variant still
+					   renders correctly. */}
+				<ConversationTimeline
+					parsedMessages={parsedMessages}
+					subagentTitles={subagentTitles}
+					onEditUserMessage={onEditUserMessage}
+					editingMessageId={editingMessageId}
+					savingMessageId={savingMessageId}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+					computerUseSubagentIds={computerUseSubagentIds}
+					showDesktopPreviews={false}
+				/>
+				<LiveStreamTail
+					store={store}
+					persistedError={persistedError}
+					startingResetKey={chatID}
+					isTranscriptEmpty={parsedMessages.length === 0}
+					subagentTitles={subagentTitles}
+					computerUseSubagentIds={computerUseSubagentIds}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+				/>
+			</div>
+		</Profiler>
 	);
-};
-
-// Reads stream-specific store state (changes every token). Isolated
-// so that streamState changes don't invalidate parsedMessages above.
-const StreamingBridge: FC<{
-	store: ChatStoreHandle;
-	isEmpty: boolean;
-	parsedMessages: ParsedMessageEntry[];
-	subagentTitles: Map<string, string>;
-	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
-	retryState: { attempt: number; error: string } | null;
-	detailError: ChatDetailError | undefined;
-	latestMessageNeedsAssistantResponse: boolean;
-	chatStatus: TypesGen.ChatStatus | null;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
-	editingMessageId?: number | null;
-	savingMessageId?: number | null;
-	urlTransform?: UrlTransform;
-}> = ({
-	store,
-	isEmpty,
-	parsedMessages,
-	subagentTitles,
-	subagentStatusOverrides,
-	retryState,
-	detailError,
-	latestMessageNeedsAssistantResponse,
-	chatStatus,
-	onEditUserMessage,
-	editingMessageId,
-	savingMessageId,
-	urlTransform,
-}) => {
-	const streamState = useChatSelector(store, selectStreamState);
-	const streamTools = buildStreamTools(streamState);
-	const isAwaitingFirstStreamChunk =
-		!streamState &&
-		(chatStatus === "running" || chatStatus === "pending") &&
-		latestMessageNeedsAssistantResponse;
-	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
-
-	return (
-		<ConversationTimeline
-			isEmpty={isEmpty}
-			parsedMessages={parsedMessages}
-			hasStreamOutput={hasStreamOutput}
-			streamState={streamState}
-			streamTools={streamTools}
-			subagentTitles={subagentTitles}
-			subagentStatusOverrides={subagentStatusOverrides}
-			retryState={retryState}
-			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-			detailError={detailError}
-			onEditUserMessage={onEditUserMessage}
-			editingMessageId={editingMessageId}
-			savingMessageId={savingMessageId}
-			urlTransform={urlTransform}
-		/>
-	);
-};
-
-export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = (props) => {
-	return <MessageListProvider {...props} />;
 };
 
 interface AgentDetailInputProps {
@@ -190,8 +122,7 @@ interface AgentDetailInputProps {
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	// Controlled input value and editing state, owned by the
 	// conversation component.
 	inputRef?: React.Ref<ChatMessageInputRef>;
@@ -206,9 +137,15 @@ interface AgentDetailInputProps {
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
+	onEditUserMessage: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+	) => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	// MCP server picker state.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
@@ -230,8 +167,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onModelChange,
 	modelOptions,
 	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
 	onContentChange,
@@ -240,6 +176,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
+	onEditUserMessage,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -255,17 +192,33 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
+	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
+	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {
+		const message = messagesByID.get(orderedMessageIDs[index]);
+		if (message?.role === "user") {
+			lastEditableUserMessage = message;
+			break;
+		}
+	}
+
+	const handleEditLastUserMessage = lastEditableUserMessage
+		? () => {
+				const { text, fileBlocks } = getEditableUserMessagePayload(
+					lastEditableUserMessage,
+				);
+				onEditUserMessage(lastEditableUserMessage.id, text, fileBlocks);
+			}
+		: undefined;
+
+	const rawUsage = getLatestContextUsage(messages);
+	const latestContextUsage = rawUsage
+		? { ...rawUsage, compressionThreshold }
+		: rawUsage;
 	const { organizations } = useDashboard();
 	const organizationId = organizations[0]?.id;
-	const latestContextUsage = (() => {
-		const usage = getLatestContextUsage(messages);
-		if (!usage) {
-			return usage;
-		}
-		return { ...usage, compressionThreshold };
-	})();
 	const {
 		attachments,
+		textContents,
 		uploadStates,
 		previewUrls,
 		handleAttach,
@@ -290,7 +243,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		);
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type ?? "application/octet-stream";
-			const ext = mt.split("/")[1] ?? "png";
+			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			// Empty File used as a Map key only, its content is never
 			// read because the existing file_id is reused at send time.
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
@@ -358,6 +311,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
+			textContents={textContents}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			onContentChange={onContentChange}
@@ -369,6 +323,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onCancelQueueEdit={onCancelQueueEdit}
 			isEditingHistoryMessage={isEditingHistoryMessage}
 			onCancelHistoryEdit={onCancelHistoryEdit}
+			onEditLastUserMessage={handleEditLastUserMessage}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
@@ -380,8 +335,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			inputStatusText={inputStatusText}
-			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			isModelCatalogLoading={isModelCatalogLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}

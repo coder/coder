@@ -2,7 +2,7 @@
  * Copied from shadc/ui on 11/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/input}
  */
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 export const Input: React.FC<React.ComponentPropsWithRef<"input">> = ({
 	className,

@@ -1,4 +1,4 @@
-import type * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
 import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -60,6 +60,13 @@ export const applyMessagePartToStreamState = (
 				part.args_delta,
 			);
 
+			// Extract model_intent from the incrementally parsed args.
+			const merged = nextArgs.value as Record<string, unknown> | undefined;
+			const modelIntent =
+				typeof merged?.model_intent === "string"
+					? merged.model_intent
+					: existing?.modelIntent;
+
 			return {
 				...nextState,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
@@ -70,6 +77,9 @@ export const applyMessagePartToStreamState = (
 						name: part.tool_name || existing?.name || "Tool",
 						args: nextArgs.value,
 						argsRaw: nextArgs.rawText,
+						mcpServerConfigId:
+							part.mcp_server_config_id || existing?.mcpServerConfigId,
+						modelIntent,
 					},
 				},
 			};
@@ -115,6 +125,8 @@ export const applyMessagePartToStreamState = (
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
 						isError: nextIsError,
+						mcpServerConfigId:
+							part.mcp_server_config_id || existing?.mcpServerConfigId,
 					},
 				},
 			};
@@ -164,6 +176,9 @@ export const applyMessagePartToStreamState = (
 		// file-reference parts only appear in persisted messages
 		// from user input, never via SSE streaming.
 		case "file-reference":
+		// context-file parts are metadata-only; no streaming
+		// render needed.
+		case "context-file":
 			return prev;
 		default: {
 			const _exhaustive: never = part;
@@ -173,18 +188,19 @@ export const applyMessagePartToStreamState = (
 };
 
 export const buildStreamTools = (
-	streamState: StreamState | null,
+	toolCalls: StreamState["toolCalls"] | null | undefined,
+	toolResults: StreamState["toolResults"] | null | undefined,
 ): MergedTool[] => {
-	if (!streamState) {
+	if (!toolCalls) {
 		return [];
 	}
-	const calls = Object.values(streamState.toolCalls);
+	const calls = Object.values(toolCalls);
 	const seen = new Set<string>();
 	const merged: MergedTool[] = [];
 
 	for (const call of calls) {
 		seen.add(call.id);
-		const result = streamState.toolResults[call.id];
+		const result = toolResults?.[call.id];
 		merged.push({
 			id: call.id,
 			name: call.name,
@@ -192,18 +208,23 @@ export const buildStreamTools = (
 			result: result?.result,
 			isError: result?.isError ?? false,
 			status: result ? (result.isError ? "error" : "completed") : "running",
+			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			modelIntent: call.modelIntent,
 		});
 	}
 
-	for (const result of Object.values(streamState.toolResults)) {
-		if (!seen.has(result.id)) {
-			merged.push({
-				id: result.id,
-				name: result.name,
-				result: result.result,
-				isError: result.isError,
-				status: result.isError ? "error" : "completed",
-			});
+	if (toolResults) {
+		for (const result of Object.values(toolResults)) {
+			if (!seen.has(result.id)) {
+				merged.push({
+					id: result.id,
+					name: result.name,
+					result: result.result,
+					isError: result.isError,
+					status: result.isError ? "error" : "completed",
+					mcpServerConfigId: result.mcpServerConfigId,
+				});
+			}
 		}
 	}
 

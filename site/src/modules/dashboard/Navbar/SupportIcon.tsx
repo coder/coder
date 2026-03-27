@@ -1,7 +1,7 @@
 import type { SvgIconProps } from "@mui/material/SvgIcon";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { BookOpenTextIcon, BugIcon, MessageSquareIcon } from "lucide-react";
 import type { FC } from "react";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 interface SupportIconProps {
 	icon: string;

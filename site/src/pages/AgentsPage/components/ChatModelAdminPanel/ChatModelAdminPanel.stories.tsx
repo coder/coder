@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
@@ -123,6 +123,7 @@ const setupChatSpies = (state: {
 				provider: req.provider,
 				model: req.model,
 				display_name: req.display_name || req.model,
+				enabled: req.enabled ?? true,
 				context_limit:
 					typeof req.context_limit === "number" &&
 					Number.isFinite(req.context_limit)
@@ -152,12 +153,29 @@ const setupChatSpies = (state: {
 	spyOn(API.experimental, "deleteChatProviderConfig").mockResolvedValue(
 		undefined,
 	);
-	spyOn(API.experimental, "updateChatModelConfig").mockResolvedValue(
-		createModelConfig({
-			id: "stub",
-			provider: "stub",
-			model: "stub",
-		}),
+	spyOn(API.experimental, "updateChatModelConfig").mockImplementation(
+		async (modelConfigId, req) => {
+			const idx = state.modelConfigs.findIndex((m) => m.id === modelConfigId);
+			if (idx < 0) {
+				throw new Error("Model config not found.");
+			}
+
+			const current = state.modelConfigs[idx];
+			const updated = createModelConfig({
+				...current,
+				...req,
+				id: current.id,
+				provider: current.provider,
+				model: current.model,
+				updated_at: now,
+			});
+
+			state.modelConfigs = state.modelConfigs.map((modelConfig, i) =>
+				i === idx ? updated : modelConfig,
+			);
+
+			return updated;
+		},
 	);
 };
 
@@ -507,6 +525,58 @@ export const SubmitModelConfigExplicitly: Story = {
 	},
 };
 
+export const UpdateModelEnabledToggle: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-enabled",
+					provider: "openai",
+					model: "gpt-test-enabled",
+					display_name: "GPT Test Enabled",
+					enabled: true,
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByText("GPT Test Enabled"));
+
+		const enabledSwitch = await body.findByRole("switch", { name: "Enabled" });
+		await expect(enabledSwitch).toBeChecked();
+		await userEvent.click(enabledSwitch);
+		await expect(enabledSwitch).not.toBeChecked();
+
+		await userEvent.click(body.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(API.experimental.updateChatModelConfig).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.updateChatModelConfig).toHaveBeenCalledWith(
+			"model-enabled",
+			expect.objectContaining({ enabled: false }),
+		);
+
+		const modelRow = await body.findByRole("button", {
+			name: /gpt test enabled/i,
+		});
+		await expect(within(modelRow).getByText("disabled")).toBeVisible();
+	},
+};
+
 // ── Per-provider model form stories ────────────────────────────
 // Each story opens the "Add model" form for a specific provider
 // so you can visually verify the schema-driven fields render.
@@ -706,14 +776,15 @@ export const ModelDeleteConfirmation: Story = {
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
 		await expect(deleteButton).toBeInTheDocument();
 
-		// Click Delete to show the inline confirmation.
+		// Click Delete to show the confirmation dialog.
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear — leave it visible
+		// The confirmation dialog should appear — leave it visible
 		// so the Chromatic snapshot captures this state.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this model/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete model" }),
 		).toBeInTheDocument();
@@ -750,19 +821,16 @@ export const ModelDeleteCancelled: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to edit form, trigger confirmation, then cancel.
+		// Navigate to edit form, open delete dialog, then cancel.
 		await userEvent.click(await body.findByText("GPT-4o"));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
-		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByRole("button", { name: "Save" }),
-		).toBeInTheDocument();
+		// The dialog should be closed.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 	},
 };
 
@@ -793,7 +861,7 @@ export const ModelDeleteConfirmed: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to edit form, trigger delete confirmation, then confirm.
+		// Navigate to edit form, open delete dialog, then confirm.
 		await userEvent.click(await body.findByText("GPT-4o"));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await userEvent.click(
@@ -833,15 +901,16 @@ export const ProviderDeleteConfirmation: Story = {
 		// Navigate to the provider detail view.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 
-		// Click Delete to show the inline confirmation.
+		// Click Delete to show the confirmation dialog.
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear — leave it visible
+		// The confirmation dialog should appear — leave it visible
 		// so the Chromatic snapshot captures this state.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this provider/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete provider" }),
 		).toBeInTheDocument();
@@ -871,19 +940,16 @@ export const ProviderDeleteCancelled: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to provider detail, trigger confirmation, then cancel.
+		// Navigate to provider detail, open delete dialog, then cancel.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
-		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByRole("button", { name: "Save changes" }),
-		).toBeInTheDocument();
+		// The dialog should be closed.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 	},
 };
 
@@ -907,7 +973,7 @@ export const ProviderDeleteConfirmed: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to provider detail, trigger delete, then confirm.
+		// Navigate to provider detail, open delete dialog, then confirm.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await userEvent.click(

@@ -1,27 +1,60 @@
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	BotIcon,
 	ChevronDownIcon,
-	CircleAlertIcon,
+	CircleXIcon,
+	ClockIcon,
 	ExternalLinkIcon,
 	LoaderIcon,
+	MonitorIcon,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { Link } from "react-router";
-import { cn } from "utils/cn";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { cn } from "#/utils/cn";
 import { Response } from "../response";
+import { useDesktopPanel } from "./DesktopPanelContext";
+import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import {
 	isSubagentSuccessStatus,
 	shortDurationMs,
 	type ToolStatus,
 } from "./utils";
 
-const SUBAGENT_VERBS: Record<string, { completed: string; running: string }> = {
-	spawn_agent: { completed: "Spawned ", running: "Spawning " },
-	wait_agent: { completed: "Waited for ", running: "Waiting for " },
-	message_agent: { completed: "Messaged ", running: "Messaging " },
-	close_agent: { completed: "Terminated ", running: "Terminating " },
+const SUBAGENT_VERBS: Record<
+	string,
+	{ completed: string; running: string; error: string; timeout: string }
+> = {
+	spawn_agent: {
+		completed: "Spawned ",
+		running: "Spawning ",
+		error: "Failed to spawn ",
+		timeout: "Timed out spawning ",
+	},
+	wait_agent: {
+		completed: "Waited for ",
+		running: "Waiting for ",
+		error: "Failed waiting for ",
+		timeout: "Timed out waiting for ",
+	},
+	message_agent: {
+		completed: "Messaged ",
+		running: "Messaging ",
+		error: "Failed to message ",
+		timeout: "Timed out messaging ",
+	},
+	close_agent: {
+		completed: "Terminated ",
+		running: "Terminating ",
+		error: "Failed to terminate ",
+		timeout: "Timed out terminating ",
+	},
+	spawn_computer_use_agent: {
+		completed: "Spawned ",
+		running: "Spawning ",
+		error: "Failed to spawn ",
+		timeout: "Timed out spawning ",
+	},
 };
 
 /**
@@ -35,24 +68,29 @@ const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
-}> = ({ subagentStatus, toolStatus, isError }) => {
+	isTimeout: boolean;
+	variant?: "default" | "computer-use";
+}> = ({
+	subagentStatus,
+	toolStatus,
+	isError,
+	isTimeout,
+	variant = "default",
+}) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-	if (isError && !subagentCompleted) {
-		return (
-			<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-destructive" />
-		);
+	const DefaultIcon = variant === "computer-use" ? MonitorIcon : BotIcon;
+	if (isTimeout && !subagentCompleted) {
+		return <ClockIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
-	if (toolStatus === "error") {
-		return (
-			<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-destructive" />
-		);
+	if ((isError && !subagentCompleted) || toolStatus === "error") {
+		return <CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
 	if (toolStatus === "running") {
 		return (
 			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
 	}
-	return <BotIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
+	return <DefaultIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 };
 
 /**
@@ -72,6 +110,10 @@ export const SubagentTool: React.FC<{
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
+	isTimeout?: boolean;
+	/** Show an inline VNC desktop preview (for computer-use subagents). */
+	showDesktopPreview?: boolean;
+	variant?: "default" | "computer-use";
 }> = ({
 	toolName,
 	title,
@@ -83,8 +125,12 @@ export const SubagentTool: React.FC<{
 	report,
 	toolStatus,
 	isError,
+	isTimeout = false,
+	showDesktopPreview,
+	variant = "default",
 }) => {
 	const [expanded, setExpanded] = useState(false);
+	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
 	const hasPrompt = Boolean(prompt?.trim());
 	const hasMessage = Boolean(message?.trim());
 	const hasReport = Boolean(report?.trim());
@@ -95,7 +141,7 @@ export const SubagentTool: React.FC<{
 		<div className="w-full">
 			<button
 				type="button"
-				aria-expanded={expanded}
+				aria-expanded={hasExpandableContent ? expanded : undefined}
 				onClick={() => hasExpandableContent && setExpanded((v) => !v)}
 				className={cn(
 					"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
@@ -107,10 +153,18 @@ export const SubagentTool: React.FC<{
 					subagentStatus={subagentStatus}
 					toolStatus={toolStatus}
 					isError={isError}
+					isTimeout={isTimeout}
+					variant={variant}
 				/>
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
 					{SUBAGENT_VERBS[toolName]?.[
-						toolStatus === "completed" ? "completed" : "running"
+						isTimeout
+							? "timeout"
+							: toolStatus === "completed"
+								? "completed"
+								: toolStatus === "error"
+									? "error"
+									: "running"
 					] ?? ""}
 					<span className="text-content-secondary opacity-60">{title}</span>
 					{chatId && (
@@ -126,7 +180,7 @@ export const SubagentTool: React.FC<{
 				</span>
 				{durationLabel && (
 					<span className="shrink-0 text-xs text-content-secondary">
-						Worked for {durationLabel}
+						{`Worked for ${durationLabel}`}
 					</span>
 				)}
 				{hasExpandableContent && (
@@ -138,6 +192,15 @@ export const SubagentTool: React.FC<{
 					/>
 				)}
 			</button>
+
+			{showDesktopPreview && desktopChatId && (
+				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
+					<InlineDesktopPreview
+						chatId={desktopChatId}
+						onClick={onOpenDesktop}
+					/>
+				</div>
+			)}
 
 			{expanded && hasPrompt && (
 				<ScrollArea

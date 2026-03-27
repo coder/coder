@@ -1,26 +1,27 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { AgentDetailTopBar } from "./TopBar";
 
 const defaultProps = {
 	chatTitle: "Build authentication feature",
 	panel: {
 		showSidebarPanel: false,
-		onToggleSidebar: () => {},
+		onToggleSidebar: fn(),
 	},
 	workspace: {
 		canOpenEditors: true,
 		canOpenWorkspace: true,
-		onOpenInEditor: () => {},
-		onViewWorkspace: () => {},
-		onOpenTerminal: () => {},
+		onOpenInEditor: fn(),
+		onViewWorkspace: fn(),
+		onOpenTerminal: fn(),
 		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
-	onArchiveAgent: () => {},
-	onArchiveAndDeleteWorkspace: () => {},
-	onUnarchiveAgent: () => {},
+	onArchiveAgent: fn(),
+	onArchiveAndDeleteWorkspace: fn(),
+	onRegenerateTitle: fn(),
+	onUnarchiveAgent: fn(),
 	isSidebarCollapsed: false,
-	onToggleSidebarCollapsed: () => {},
+	onToggleSidebarCollapsed: fn(),
 } satisfies React.ComponentProps<typeof AgentDetailTopBar>;
 
 const meta: Meta<typeof AgentDetailTopBar> = {
@@ -35,6 +36,13 @@ export default meta;
 type Story = StoryObj<typeof AgentDetailTopBar>;
 
 export const Default: Story = {};
+
+export const RegeneratingTitle: Story = {
+	args: {
+		...Default.args,
+		isRegeneratingTitle: true,
+	},
+};
 
 export const WithPanelOpen: Story = {
 	args: {
@@ -52,12 +60,15 @@ export const WithParentChat: Story = {
 			owner_id: "owner-id",
 			last_model_config_id: "model-config-1",
 			mcp_server_ids: [],
+			labels: {},
 			title: "Set up CI/CD pipeline",
 			status: "completed",
 			last_error: null,
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
+			pin_order: 0,
+			has_unread: false,
 		},
 	},
 };
@@ -225,10 +236,22 @@ export const MobileWithClosedPR: Story = {
 	},
 };
 
+export const GenerateTitle: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Generate new title")).toBeInTheDocument();
+		});
+	},
+};
+
 export const ArchivedWithUnarchive: Story = {
 	args: {
 		isArchived: true,
-		onUnarchiveAgent: () => {},
+		onUnarchiveAgent: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -241,6 +264,7 @@ export const ArchivedWithUnarchive: Story = {
 			expect(body.getByText("Unarchive Agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
+		expect(body.queryByText("Generate new title")).not.toBeInTheDocument();
 		expect(body.queryByText("Archive Agent")).not.toBeInTheDocument();
 		expect(
 			body.queryByText("Archive & Delete Workspace"),

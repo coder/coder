@@ -1,9 +1,9 @@
-import { API } from "api/api";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { meKey } from "api/queries/users";
-import type { AuthorizationRequest } from "api/typesGenerated";
 import { createContext, useContext } from "react";
 import type { QueryClient } from "react-query";
+import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { meKey } from "#/api/queries/users";
+import type { AuthorizationRequest } from "#/api/typesGenerated";
 
 interface EmbedContextValue {
 	isEmbedded: boolean;
@@ -13,7 +13,7 @@ const EmbedContext = createContext<EmbedContextValue>({
 	isEmbedded: false,
 });
 
-export const EmbedProvider = EmbedContext.Provider;
+export { EmbedContext };
 
 export const useEmbedContext = () => useContext(EmbedContext);
 

@@ -6,12 +6,12 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openai/openai-go/v3/responses"
 )
 
 // OpenAIHandler handles OpenAI API requests and returns a response.
@@ -22,17 +22,37 @@ type OpenAIHandler func(req *OpenAIRequest) OpenAIResponse
 type OpenAIResponse struct {
 	StreamingChunks <-chan OpenAIChunk
 	Response        *OpenAICompletion
+	Reasoning       *OpenAIReasoningItem
+	WebSearch       *OpenAIWebSearchCall
+	ResponseID      string         // If set, used as the response ID in streamed events; otherwise auto-generated.
 	Error           *ErrorResponse // If set, server returns this HTTP error instead of streaming/JSON.
+}
+
+// OpenAIReasoningItem configures a streamed reasoning output item for the
+// Responses API test server.
+type OpenAIReasoningItem struct {
+	ID               string `json:"id,omitempty"`
+	Summary          string `json:"summary,omitempty"`
+	EncryptedContent string `json:"encrypted_content,omitempty"`
+}
+
+// OpenAIWebSearchCall configures a streamed web_search_call output item for the
+// Responses API test server.
+type OpenAIWebSearchCall struct {
+	ID    string `json:"id,omitempty"`
+	Query string `json:"query,omitempty"`
 }
 
 // OpenAIRequest represents an OpenAI chat completion request.
 type OpenAIRequest struct {
 	*http.Request
-	Model    string          `json:"model"`
-	Messages []OpenAIMessage `json:"messages"`
-	Stream   bool            `json:"stream,omitempty"`
-	Tools    []OpenAITool    `json:"tools,omitempty"`
-	Prompt   []interface{}   `json:"prompt,omitempty"` // For responses API
+	Model              string          `json:"model"`
+	Messages           []OpenAIMessage `json:"messages"`
+	Stream             bool            `json:"stream,omitempty"`
+	Tools              []OpenAITool    `json:"tools,omitempty"`
+	Prompt             []interface{}   `json:"prompt,omitempty"` // For responses API
+	Store              *bool           `json:"store,omitempty"`
+	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
@@ -228,7 +248,7 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
 		return
 	case hasStreaming:
-		writeResponsesAPIStreaming(s.t, w, req.Request, resp.StreamingChunks)
+		writeResponsesAPIStreaming(s.t, w, req.Request, resp)
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
@@ -309,18 +329,19 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 	}
 }
 
-// writeSSEEvent marshals v as JSON and writes it as an SSE data
-// frame. Returns any write error.
-func writeSSEEvent(w http.ResponseWriter, v interface{}) error {
+func writeNamedSSEEvent(w http.ResponseWriter, eventType string, v interface{}) error {
 	data, err := json.Marshal(v)
 	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "event: %s\n", eventType); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(w, "data: %s\n\n", data)
 	return err
 }
 
-func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
+func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Request, resp OpenAIResponse) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -332,7 +353,170 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	responseID := resp.ResponseID
+	if responseID == "" {
+		responseID = fmt.Sprintf("resp_%s", uuid.New().String()[:8])
+	}
+	responseModel := "gpt-4"
+	sequenceNumber := int64(0)
+	textOffset := 0
 	itemIDs := make(map[int]string)
+	itemTexts := make(map[int]string)
+
+	writeEvent := func(eventType string, payload map[string]interface{}) bool {
+		payload["type"] = eventType
+		payload["sequence_number"] = sequenceNumber
+		sequenceNumber++
+		if err := writeNamedSSEEvent(w, eventType, payload); err != nil {
+			t.Logf("writeResponsesAPIStreaming: failed to write %s: %v", eventType, err)
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	if !writeEvent("response.created", map[string]interface{}{
+		"response": map[string]interface{}{
+			"id":     responseID,
+			"object": "response",
+			"model":  responseModel,
+			"status": "in_progress",
+			"output": []interface{}{},
+		},
+	}) {
+		return
+	}
+
+	if resp.Reasoning != nil {
+		outputIndex := textOffset
+		reasoningID := resp.Reasoning.ID
+		if reasoningID == "" {
+			reasoningID = fmt.Sprintf("rs_%s", uuid.New().String()[:8])
+		}
+		summary := resp.Reasoning.Summary
+		encryptedContent := resp.Reasoning.EncryptedContent
+		if encryptedContent == "" {
+			encryptedContent = "encrypted_data_here"
+		}
+
+		if !writeEvent("response.output_item.added", map[string]interface{}{
+			"output_index": outputIndex,
+			"item": map[string]interface{}{
+				"type":              "reasoning",
+				"id":                reasoningID,
+				"summary":           []interface{}{},
+				"encrypted_content": "",
+			},
+		}) {
+			return
+		}
+
+		if summary != "" {
+			if !writeEvent("response.reasoning_summary_part.added", map[string]interface{}{
+				"item_id":       reasoningID,
+				"output_index":  outputIndex,
+				"summary_index": 0,
+				"part": map[string]interface{}{
+					"type": "summary_text",
+					"text": "",
+				},
+			}) {
+				return
+			}
+			if !writeEvent("response.reasoning_summary_text.added", map[string]interface{}{
+				"item_id":       reasoningID,
+				"output_index":  outputIndex,
+				"summary_index": 0,
+			}) {
+				return
+			}
+			if !writeEvent("response.reasoning_summary_text.delta", map[string]interface{}{
+				"item_id":       reasoningID,
+				"output_index":  outputIndex,
+				"summary_index": 0,
+				"delta":         summary,
+			}) {
+				return
+			}
+			if !writeEvent("response.reasoning_summary_text.done", map[string]interface{}{
+				"item_id":       reasoningID,
+				"output_index":  outputIndex,
+				"summary_index": 0,
+				"text":          summary,
+			}) {
+				return
+			}
+			if !writeEvent("response.reasoning_summary_part.done", map[string]interface{}{
+				"item_id":       reasoningID,
+				"output_index":  outputIndex,
+				"summary_index": 0,
+				"part": map[string]interface{}{
+					"type": "summary_text",
+					"text": summary,
+				},
+			}) {
+				return
+			}
+		}
+
+		summaryItems := []interface{}{}
+		if summary != "" {
+			summaryItems = append(summaryItems, map[string]interface{}{
+				"type": "summary_text",
+				"text": summary,
+			})
+		}
+		if !writeEvent("response.output_item.done", map[string]interface{}{
+			"output_index": outputIndex,
+			"item": map[string]interface{}{
+				"type":              "reasoning",
+				"id":                reasoningID,
+				"summary":           summaryItems,
+				"encrypted_content": encryptedContent,
+			},
+		}) {
+			return
+		}
+		textOffset++
+	}
+
+	if resp.WebSearch != nil {
+		outputIndex := textOffset
+		itemID := resp.WebSearch.ID
+		if itemID == "" {
+			itemID = fmt.Sprintf("ws_%s", uuid.New().String()[:8])
+		}
+		query := resp.WebSearch.Query
+		if query == "" {
+			query = "latest AI news"
+		}
+
+		if !writeEvent("response.output_item.added", map[string]interface{}{
+			"output_index": outputIndex,
+			"item": map[string]interface{}{
+				"type":   "web_search_call",
+				"id":     itemID,
+				"status": "in_progress",
+			},
+		}) {
+			return
+		}
+		if !writeEvent("response.output_item.done", map[string]interface{}{
+			"output_index": outputIndex,
+			"item": map[string]interface{}{
+				"type":   "web_search_call",
+				"id":     itemID,
+				"status": "completed",
+				"action": map[string]interface{}{
+					"type":  "search",
+					"query": query,
+				},
+			},
+		}) {
+			return
+		}
+		textOffset++
+	}
 
 	for {
 		var chunk OpenAIChunk
@@ -341,85 +525,117 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 		case <-r.Context().Done():
 			log.Printf("writeResponsesAPIStreaming: request context canceled, stopping stream")
 			return
-		case chunk, ok = <-chunks:
+		case chunk, ok = <-resp.StreamingChunks:
 			if !ok {
-				// Emit Responses API lifecycle events so
-				// the fantasy client closes open text
-				// blocks and persists the step content.
-				for outputIndex, itemID := range itemIDs {
-					if err := writeSSEEvent(w, responses.ResponseTextDoneEvent{
-						ItemID:      itemID,
-						OutputIndex: int64(outputIndex),
-					}); err != nil {
-						t.Logf("writeResponsesAPIStreaming: failed to write ResponseTextDoneEvent: %v", err)
+				indices := make([]int, 0, len(itemIDs))
+				for outputIndex := range itemIDs {
+					indices = append(indices, outputIndex)
+				}
+				sort.Ints(indices)
+				for _, outputIndex := range indices {
+					itemID := itemIDs[outputIndex]
+					text := itemTexts[outputIndex]
+					if !writeEvent("response.output_text.done", map[string]interface{}{
+						"item_id":       itemID,
+						"output_index":  outputIndex,
+						"content_index": 0,
+						"text":          text,
+						"logprobs":      []interface{}{},
+					}) {
 						return
 					}
-					if err := writeSSEEvent(w, responses.ResponseOutputItemDoneEvent{
-						OutputIndex: int64(outputIndex),
-						Item: responses.ResponseOutputItemUnion{
-							ID:   itemID,
-							Type: "message",
+					if !writeEvent("response.content_part.done", map[string]interface{}{
+						"item_id":       itemID,
+						"output_index":  outputIndex,
+						"content_index": 0,
+						"part": map[string]interface{}{
+							"type": "output_text",
+							"text": text,
 						},
-					}); err != nil {
-						t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemDoneEvent: %v", err)
+					}) {
+						return
+					}
+					if !writeEvent("response.output_item.done", map[string]interface{}{
+						"output_index": outputIndex,
+						"item": map[string]interface{}{
+							"type":   "message",
+							"id":     itemID,
+							"role":   "assistant",
+							"status": "completed",
+							"content": []interface{}{
+								map[string]interface{}{
+									"type": "output_text",
+									"text": text,
+								},
+							},
+						},
+					}) {
 						return
 					}
 				}
-				if err := writeSSEEvent(w, responses.ResponseCompletedEvent{}); err != nil {
-					t.Logf("writeResponsesAPIStreaming: failed to write ResponseCompletedEvent: %v", err)
+				if !writeEvent("response.completed", map[string]interface{}{
+					"response": map[string]interface{}{
+						"id":     responseID,
+						"object": "response",
+						"model":  responseModel,
+						"status": "completed",
+						"output": []interface{}{},
+						"usage":  map[string]interface{}{},
+					},
+				}) {
 					return
 				}
-				flusher.Flush()
 				return
 			}
 		}
 
-		// Responses API sends one event per choice
+		if chunk.Model != "" {
+			responseModel = chunk.Model
+		}
+
 		for outputIndex, choice := range chunk.Choices {
 			if choice.Index != 0 {
 				outputIndex = choice.Index
 			}
+			outputIndex += textOffset
 			itemID, found := itemIDs[outputIndex]
 			if !found {
 				itemID = fmt.Sprintf("msg_%s", uuid.New().String()[:8])
 				itemIDs[outputIndex] = itemID
-
-				// Emit response.output_item.added so the
-				// fantasy client triggers TextStart.
-				if err := writeSSEEvent(w, responses.ResponseOutputItemAddedEvent{
-					OutputIndex: int64(outputIndex),
-					Item: responses.ResponseOutputItemUnion{
-						ID:   itemID,
-						Type: "message",
+				if !writeEvent("response.output_item.added", map[string]interface{}{
+					"output_index": outputIndex,
+					"item": map[string]interface{}{
+						"type":    "message",
+						"id":      itemID,
+						"role":    "assistant",
+						"status":  "in_progress",
+						"content": []interface{}{},
 					},
-				}); err != nil {
-					t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemAddedEvent: %v", err)
+				}) {
 					return
 				}
-				flusher.Flush()
+				if !writeEvent("response.content_part.added", map[string]interface{}{
+					"item_id":       itemID,
+					"output_index":  outputIndex,
+					"content_index": 0,
+					"part": map[string]interface{}{
+						"type": "output_text",
+						"text": "",
+					},
+				}) {
+					return
+				}
 			}
 
-			chunkData := map[string]interface{}{
-				"type":          "response.output_text.delta",
+			itemTexts[outputIndex] += choice.Delta
+			if !writeEvent("response.output_text.delta", map[string]interface{}{
 				"item_id":       itemID,
 				"output_index":  outputIndex,
-				"created":       chunk.Created,
-				"model":         chunk.Model,
 				"content_index": 0,
 				"delta":         choice.Delta,
-			}
-
-			chunkBytes, err := json.Marshal(chunkData)
-			if err != nil {
-				t.Logf("writeResponsesAPIStreaming: failed to marshal chunk data: %v", err)
+			}) {
 				return
 			}
-
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", chunkBytes); err != nil {
-				t.Logf("writeResponsesAPIStreaming: failed to write chunk data: %v", err)
-				return
-			}
-			flusher.Flush()
 		}
 	}
 }

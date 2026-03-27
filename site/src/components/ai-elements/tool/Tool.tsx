@@ -1,8 +1,15 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
-import { cn } from "utils/cn";
+import type * as TypesGen from "#/api/typesGenerated";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -14,9 +21,11 @@ import {
 } from "./ExecuteTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
+import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
+import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
 import {
@@ -49,8 +58,19 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	isError?: boolean;
 	/** Maps sub-agent chat IDs to their titles, built from spawn tool results. */
 	subagentTitles?: Map<string, string>;
+	/** Set of chat IDs spawned by `spawn_computer_use_agent`. */
+	computerUseSubagentIds?: Set<string>;
+	/** When false, suppresses inline VNC previews while still
+	 * allowing the MonitorIcon variant to render. */
+	showDesktopPreviews?: boolean;
 	/** Maps sub-agent chat IDs to real-time status updates from stream events. */
 	subagentStatusOverrides?: Map<string, string>;
+	/** MCP server config ID associated with this tool call. */
+	mcpServerConfigId?: string;
+	/** Available MCP server configs for icon/name lookup. */
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	/** Human-readable intent extracted from the model's tool-call args. */
+	modelIntent?: string;
 }
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -62,7 +82,12 @@ type ToolRendererProps = {
 	result: unknown;
 	isError: boolean;
 	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, string>;
+	mcpServerConfigId?: string;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	modelIntent?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -253,6 +278,8 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	subagentTitles,
+	computerUseSubagentIds,
+	showDesktopPreviews = true,
 	subagentStatusOverrides,
 }) => {
 	const parsedArgs = parseArgs(args);
@@ -278,7 +305,9 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		(rec ? asString(rec.title) : "") ||
 		(parsedArgs ? asString(parsedArgs.title) : "") ||
 		(chatId && subagentTitles?.get(chatId)) ||
-		"Sub-agent";
+		(name === "spawn_computer_use_agent"
+			? "Computer use sub-agent"
+			: "Sub-agent");
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
@@ -288,6 +317,20 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		subagentToolStatus === "error" ||
 		((status === "error" || isError) && !subagentCompleted);
 
+	// Detect timeout from the result. A timed-out wait_agent
+	// typically returns an error string or an object with an
+	// error field containing "timed out".
+	const resultStr = typeof result === "string" ? result : "";
+	const errorStr = rec ? asString(rec.error) : "";
+	const isTimeout =
+		subagentIsError &&
+		(resultStr.toLowerCase().includes("timed out") ||
+			errorStr.toLowerCase().includes("timed out"));
+
+	const variant =
+		name === "spawn_computer_use_agent" || computerUseSubagentIds?.has(chatId)
+			? "computer-use"
+			: "default";
 	return (
 		<SubagentTool
 			toolName={name}
@@ -300,6 +343,11 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
+			isTimeout={isTimeout}
+			showDesktopPreview={
+				showDesktopPreviews && computerUseSubagentIds?.has(chatId)
+			}
+			variant={variant}
 		/>
 	);
 };
@@ -367,6 +415,34 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ProposePlanRenderer: FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const path = parsedArgs ? asString(parsedArgs.path) || "PLAN.md" : "PLAN.md";
+	const rec = asRecord(result);
+	const content = rec && "content" in rec ? asString(rec.content) : undefined;
+	const fileID = rec && "file_id" in rec ? asString(rec.file_id) : undefined;
+	const errorMessage = isError
+		? (rec ? asString(rec.error || rec.message) : undefined) ||
+			(typeof result === "string" ? result : undefined)
+		: undefined;
+
+	return (
+		<ProposePlanTool
+			content={content}
+			fileID={fileID}
+			path={path}
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage}
+		/>
+	);
+};
+
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -422,6 +498,9 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	mcpServerConfigId,
+	mcpServers,
+	modelIntent,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -437,15 +516,59 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			}
 		: fileViewerOpts;
 
+	// Look up MCP server config for icon and slug.
+	const mcpServer = mcpServerConfigId
+		? mcpServers?.find((s) => s.id === mcpServerConfigId)
+		: undefined;
+
+	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
+	const isRunning = status === "running";
+	const rec = asRecord(result);
+	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+
 	return (
-		<>
-			<div className="flex items-center gap-2">
-				<ToolIcon name={name} isError={status === "error" || isError} />
-				<ToolLabel name={name} args={args} result={result} />
-			</div>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={
+				<>
+					<ToolIcon
+						name={name}
+						isError={status === "error" || isError}
+						iconUrl={mcpServer?.icon_url}
+						isRunning={isRunning}
+						serverName={mcpServer?.display_name}
+					/>
+					{modelIntent ? (
+						<span className="truncate text-sm text-content-secondary">
+							{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+						</span>
+					) : (
+						<ToolLabel
+							name={name}
+							args={args}
+							result={result}
+							mcpSlug={mcpServer?.slug}
+						/>
+					)}
+					{isError && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{errorMessage || "Tool call failed"}
+							</TooltipContent>
+						</Tooltip>
+					)}
+					{isRunning && (
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
+				</>
+			}
+		>
 			{writeFileDiff ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
@@ -457,7 +580,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 				</ScrollArea>
 			) : fileContent ? (
 				<ScrollArea
-					className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
@@ -472,7 +595,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			) : (
 				resultOutput && (
 					<ScrollArea
-						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 						viewportClassName="max-h-64"
 						scrollBarClassName="w-1.5"
 					>
@@ -487,7 +610,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					</ScrollArea>
 				)
 			)}
-		</>
+		</ToolCollapsible>
 	);
 };
 
@@ -509,7 +632,9 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	wait_agent: SubagentRenderer,
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,
+	spawn_computer_use_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	propose_plan: ProposePlanRenderer,
 	computer: ComputerRenderer,
 };
 
@@ -526,7 +651,12 @@ export const Tool = memo(
 		result,
 		isError = false,
 		subagentTitles,
+		computerUseSubagentIds,
+		showDesktopPreviews,
 		subagentStatusOverrides,
+		mcpServerConfigId,
+		mcpServers,
+		modelIntent,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -536,7 +666,9 @@ export const Tool = memo(
 			<div
 				ref={ref}
 				className={cn(
-					name === "execute" || name === "process_output"
+					name === "execute" ||
+						name === "process_output" ||
+						name === "propose_plan"
 						? "w-full py-0.5"
 						: "py-0.5",
 					className,
@@ -550,7 +682,12 @@ export const Tool = memo(
 					result={result}
 					isError={isError}
 					subagentTitles={subagentTitles}
+					computerUseSubagentIds={computerUseSubagentIds}
+					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={subagentStatusOverrides}
+					mcpServerConfigId={mcpServerConfigId}
+					mcpServers={mcpServers}
+					modelIntent={modelIntent}
 				/>
 			</div>
 		);
