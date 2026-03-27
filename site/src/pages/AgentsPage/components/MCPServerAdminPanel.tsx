@@ -20,6 +20,14 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
@@ -37,14 +45,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { cn } from "#/utils/cn";
 import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
 import { SectionHeader } from "./SectionHeader";
@@ -365,7 +365,6 @@ const ServerForm: FC<ServerFormProps> = ({
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
 			</button>
-
 			{/* Header with icon + editable name + enabled toggle */}
 			<div className="flex items-center gap-3">
 				<MCPServerIcon
@@ -406,7 +405,6 @@ const ServerForm: FC<ServerFormProps> = ({
 				</Tooltip>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
-
 			<form
 				id={formId}
 				onSubmit={form.handleSubmit}
@@ -835,40 +833,39 @@ const ServerForm: FC<ServerFormProps> = ({
 					</div>
 				</div>
 			</form>
-
-			<Dialog
-				open={confirmingDelete}
-				onOpenChange={(open) => !open && setConfirmingDelete(false)}
-			>
-				<DialogContent variant="destructive">
-					<DialogHeader>
-						<DialogTitle>Delete server</DialogTitle>
-						<DialogDescription>
-							Are you sure you want to delete this MCP server? This action is
-							irreversible.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setConfirmingDelete(false)}
-							disabled={isDisabled}
-						>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={() => {
-								if (server) void onDelete(server.id);
-							}}
-							disabled={isDisabled}
-						>
-							{isDeleting && <Spinner className="h-4 w-4" loading />}
-							Delete server
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			{server && (
+				<Dialog
+					open={confirmingDelete}
+					onOpenChange={(open) => !open && setConfirmingDelete(false)}
+				>
+					<DialogContent variant="destructive">
+						<DialogHeader>
+							<DialogTitle>Delete server</DialogTitle>
+							<DialogDescription>
+								Are you sure you want to delete this MCP server? This action is
+								irreversible.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setConfirmingDelete(false)}
+								disabled={isDisabled}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => void onDelete(server.id)}
+								disabled={isDisabled}
+							>
+								{isDeleting && <Spinner className="h-4 w-4" loading />}
+								Delete server
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}{" "}
 		</div>
 	);
 };
