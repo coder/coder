@@ -22784,10 +22784,10 @@ WITH agents AS (
 UPDATE
 	workspace_agents wa
 SET
-	first_connected_at = a.first_connected_at,
-	last_connected_at = a.last_connected_at,
-	last_connected_replica_id = a.last_connected_replica_id,
-	disconnected_at = a.disconnected_at,
+	first_connected_at = NULLIF(a.first_connected_at, '0001-01-01T00:00:00Z'::timestamptz),
+	last_connected_at = NULLIF(a.last_connected_at, '0001-01-01T00:00:00Z'::timestamptz),
+	last_connected_replica_id = NULLIF(a.last_connected_replica_id, '00000000-0000-0000-0000-000000000000'::uuid),
+	disconnected_at = NULLIF(a.disconnected_at, '0001-01-01T00:00:00Z'::timestamptz),
 	updated_at = a.updated_at
 FROM
 	agents a

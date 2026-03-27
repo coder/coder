@@ -125,10 +125,16 @@ func TestBatcher_DB(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, got1.LastConnectedAt.Valid)
 	require.Equal(t, later, got1.LastConnectedAt.Time.UTC())
+	// DisconnectedAt was not set (invalid NullTime), so it must
+	// remain NULL — not be overwritten with the epoch sentinel.
+	require.False(t, got1.DisconnectedAt.Valid,
+		"disconnected_at should remain NULL when not set in the update")
 
 	// Verify agent2 was also updated in the same batch.
 	got2, err := db.GetWorkspaceAgentByID(ctx, agent2.ID)
 	require.NoError(t, err)
 	require.True(t, got2.LastConnectedAt.Valid)
 	require.Equal(t, later2, got2.LastConnectedAt.Time.UTC())
+	require.False(t, got2.DisconnectedAt.Valid,
+		"disconnected_at should remain NULL when not set in the update")
 }
