@@ -1881,8 +1881,8 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				hashBytes := sha256.Sum256(moduleFiles)
 				hash := hex.EncodeToString(hashBytes[:])
 
-				// nolint:gocritic // Requires reading "system" files
-				file, err := db.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
+				//nolint:gocritic // Acting as provisionerd
+				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
 				switch {
 				case err == nil:
 					// This set of modules is already cached, which means we can reuse them
@@ -1893,8 +1893,8 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				case !xerrors.Is(err, sql.ErrNoRows):
 					return xerrors.Errorf("check for cached modules: %w", err)
 				default:
-					// nolint:gocritic // Requires creating a "system" file
-					file, err = db.InsertFile(dbauthz.AsSystemRestricted(ctx), database.InsertFileParams{
+					//nolint:gocritic // Acting as provisionerd
+					file, err = db.InsertFile(dbauthz.AsProvisionerd(ctx), database.InsertFileParams{
 						ID:        uuid.New(),
 						Hash:      hash,
 						CreatedBy: uuid.Nil,
