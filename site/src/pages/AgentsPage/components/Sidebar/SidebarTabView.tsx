@@ -320,7 +320,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							role="tabpanel"
 							aria-labelledby={`${tabIdPrefix}-tab-${tab.id}`}
 							className={cn("min-h-0 flex-1", !isActive && "hidden")}
-							{...(!isActive && { inert: true as unknown as boolean })}
+							inert={!isActive}
 						>
 							{tab.content}
 						</div>
@@ -334,9 +334,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							"min-h-0 flex-1",
 							effectiveTabId !== "desktop" && "hidden",
 						)}
-						{...(effectiveTabId !== "desktop" && {
-							inert: true as unknown as boolean,
-						})}
+						inert={effectiveTabId !== "desktop"}
 					>
 						<DesktopPanel chatId={desktopChatId} />
 					</div>
