@@ -329,12 +329,11 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			prompt := renderManualTitlePrompt(tt.conversationBlock, tt.firstUserText, tt.latestUserMsg)
 
-			require.Contains(t, prompt, "The user's primary objective was:")
+			require.Contains(t, prompt, "Primary user objective:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Output a short title of 2-8 words.")
-			require.Contains(t, prompt, "Never describe your role, title generation itself")
-			require.Contains(t, prompt, `Bad outputs: "I am a title generator", "Testing title generation", "I am a title generator I don't have any tools", "Generate title for test message".`)
-			require.Contains(t, prompt, "- Output ONLY the title, nothing else.")
+			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
+			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
+			require.Contains(t, prompt, "stay close to the user's wording")
 
 			if tt.wantConversationSample {
 				require.Contains(t, prompt, "Conversation sample:")
@@ -355,225 +354,13 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 	}
 }
 
-func Test_titleGenerationPrompt_IncludesMetaBadExamples(t *testing.T) {
+func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, titleGenerationPrompt, "Never describe your role, title generation itself")
-	require.Contains(t, titleGenerationPrompt, "\"I am a title generator\"")
-	require.Contains(t, titleGenerationPrompt, "\"Testing title generation\"")
-	require.Contains(t, titleGenerationPrompt, "\"I am a title generator I don't have any tools\"")
-	require.Contains(t, titleGenerationPrompt, "\"Generate title for test message\"")
-}
-
-func Test_generateTitle_RejectsMetaOutput(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name   string
-		input  string
-		output string
-	}{
-		{name: "rejects prompt echo", input: "test", output: "Generate title for test message"},
-		{name: "rejects tool disclaimer", input: "what tools do you have", output: "I am a title generator I don't have any tools"},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			model := &stubModel{
-				generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-					return &fantasy.Response{
-						Content: fantasy.ResponseContent{
-							fantasy.TextContent{Text: tt.output},
-						},
-					}, nil
-				},
-			}
-
-			_, err := generateTitle(context.Background(), model, tt.input)
-			require.ErrorContains(t, err, "generated title was invalid")
-		})
-	}
-}
-
-func Test_generateTitle_AllowsTitleGeneratorTopicWhenRequested(t *testing.T) {
-	t.Parallel()
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Fix title generator prompts"},
-				},
-			}, nil
-		},
-	}
-
-	title, err := generateTitle(
-		context.Background(),
-		model,
-		"fix title generator prompt handling",
-	)
-	require.NoError(t, err)
-	require.Equal(t, "Fix title generator prompts", title)
-}
-
-func Test_generateManualTitle_RejectsMetaOutput(t *testing.T) {
-	t.Parallel()
-
-	messages := []database.ChatMessage{
-		mustChatMessage(
-			t,
-			database.ChatMessageRoleUser,
-			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText("test"),
-		),
-	}
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Generate title for test message"},
-				},
-			}, nil
-		},
-	}
-
-	_, _, err := generateManualTitle(context.Background(), messages, model)
-	require.ErrorContains(t, err, "generated title was invalid")
-}
-
-func Test_generateTitle_RejectsTitleGenerationMetaPhrase(t *testing.T) {
-	t.Parallel()
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Testing title generation"},
-				},
-			}, nil
-		},
-	}
-
-	_, err := generateTitle(context.Background(), model, "test")
-	require.ErrorContains(t, err, "generated title was invalid")
-}
-
-func Test_generateTitle_AllowsParaphrasedTitleTopic(t *testing.T) {
-	t.Parallel()
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Fix title generation prompts"},
-				},
-			}, nil
-		},
-	}
-
-	title, err := generateTitle(
-		context.Background(),
-		model,
-		"fix title generator prompt handling",
-	)
-	require.NoError(t, err)
-	require.Equal(t, "Fix title generation prompts", title)
-}
-
-func Test_generateTitle_AllowsTestingTitleGenerationWhenRequested(t *testing.T) {
-	t.Parallel()
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Testing title generation prompts"},
-				},
-			}, nil
-		},
-	}
-
-	title, err := generateTitle(
-		context.Background(),
-		model,
-		"add tests for title generation prompts",
-	)
-	require.NoError(t, err)
-	require.Equal(t, "Testing title generation prompts", title)
-}
-
-func Test_generateTitle_AllowsTitleGeneratorVariantWhenRequested(t *testing.T) {
-	t.Parallel()
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "I am a title generator prompts"},
-				},
-			}, nil
-		},
-	}
-
-	title, err := generateTitle(
-		context.Background(),
-		model,
-		"debug i'm a title generator reply",
-	)
-	require.NoError(t, err)
-	require.Equal(t, "I am a title generator prompts", title)
-}
-
-func Test_generateTitle_AllowsPromptEchoWhenUserIsDebuggingIt(t *testing.T) {
-	t.Parallel()
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Generate title prompt handling"},
-				},
-			}, nil
-		},
-	}
-
-	title, err := generateTitle(
-		context.Background(),
-		model,
-		"fix generate title prompt handling",
-	)
-	require.NoError(t, err)
-	require.Equal(t, "Generate title prompt handling", title)
-}
-
-func Test_generateManualTitle_AllowsMissingToolsTopicWhenRequested(t *testing.T) {
-	t.Parallel()
-
-	messages := []database.ChatMessage{
-		mustChatMessage(
-			t,
-			database.ChatMessageRoleUser,
-			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText("why can't I use tools in this workspace?"),
-		),
-	}
-
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Don't have any tools in workspace"},
-				},
-			}, nil
-		},
-	}
-
-	title, _, err := generateManualTitle(context.Background(), messages, model)
-	require.NoError(t, err)
-	require.Equal(t, "Don't have any tools in workspace", title)
+	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
+	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
+	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
+	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
 }
 
 func Test_generateManualTitle_UsesTimeout(t *testing.T) {
@@ -638,7 +425,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 
 			userText, ok := call.Prompt[1].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
-			require.Equal(t, "Generate the title.", userText.Text)
+			require.Equal(t, truncateRunes(longFirstUserText, 1000), userText.Text)
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
 					fantasy.TextContent{Text: "Refresh title"},
