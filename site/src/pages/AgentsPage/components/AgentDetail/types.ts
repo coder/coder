@@ -25,6 +25,7 @@ export type MergedTool = {
 	isError: boolean;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
+	modelIntent?: string;
 };
 
 export type RenderBlock =
@@ -79,6 +80,7 @@ type StreamToolCall = {
 	args?: unknown;
 	argsRaw?: string;
 	mcpServerConfigId?: string;
+	modelIntent?: string;
 };
 
 type StreamToolResult = {

@@ -60,6 +60,13 @@ export const applyMessagePartToStreamState = (
 				part.args_delta,
 			);
 
+			// Extract model_intent from the incrementally parsed args.
+			const merged = nextArgs.value as Record<string, unknown> | undefined;
+			const modelIntent =
+				typeof merged?.model_intent === "string"
+					? merged.model_intent
+					: existing?.modelIntent;
+
 			return {
 				...nextState,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
@@ -72,6 +79,7 @@ export const applyMessagePartToStreamState = (
 						argsRaw: nextArgs.rawText,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
+						modelIntent,
 					},
 				},
 			};
@@ -201,6 +209,7 @@ export const buildStreamTools = (
 			isError: result?.isError ?? false,
 			status: result ? (result.isError ? "error" : "completed") : "running",
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			modelIntent: call.modelIntent,
 		});
 	}
 

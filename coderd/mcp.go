@@ -170,6 +170,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
 				Availability:            strings.TrimSpace(req.Availability),
 				Enabled:                 req.Enabled,
+				ModelIntent:             req.ModelIntent,
 				CreatedBy:               apiKey.UserID,
 				UpdatedBy:               apiKey.UserID,
 			})
@@ -256,6 +257,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ToolDenyList:            inserted.ToolDenyList,
 				Availability:            inserted.Availability,
 				Enabled:                 inserted.Enabled,
+				ModelIntent:             inserted.ModelIntent,
 				UpdatedBy:               apiKey.UserID,
 			})
 			if err != nil {
@@ -323,6 +325,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
 		Availability:            strings.TrimSpace(req.Availability),
 		Enabled:                 req.Enabled,
+		ModelIntent:             req.ModelIntent,
 		CreatedBy:               apiKey.UserID,
 		UpdatedBy:               apiKey.UserID,
 	})
@@ -572,6 +575,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			enabled = *req.Enabled
 		}
 
+		modelIntent := existing.ModelIntent
+		if req.ModelIntent != nil {
+			modelIntent = *req.ModelIntent
+		}
+
 		// When auth_type changes, clear fields belonging to the
 		// previous auth type so stale secrets don't persist.
 		if authType != existing.AuthType {
@@ -639,6 +647,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			ToolDenyList:            toolDenyList,
 			Availability:            availability,
 			Enabled:                 enabled,
+			ModelIntent:             modelIntent,
 			UpdatedBy:               apiKey.UserID,
 			ID:                      existing.ID,
 		})
@@ -1120,9 +1129,10 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 
 		Availability: config.Availability,
 
-		Enabled:   config.Enabled,
-		CreatedAt: config.CreatedAt,
-		UpdatedAt: config.UpdatedAt,
+		Enabled:     config.Enabled,
+		ModelIntent: config.ModelIntent,
+		CreatedAt:   config.CreatedAt,
+		UpdatedAt:   config.UpdatedAt,
 	}
 }
 

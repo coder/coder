@@ -2406,6 +2406,7 @@ export interface CreateMCPServerConfigRequest {
 	readonly tool_deny_list?: readonly string[];
 	readonly availability: string;
 	readonly enabled: boolean;
+	readonly model_intent: boolean;
 }
 
 // From codersdk/organizations.go
@@ -4001,6 +4002,7 @@ export interface MCPServerConfig {
 	 */
 	readonly availability: string; // "force_on", "default_on", "default_off"
 	readonly enabled: boolean;
+	readonly model_intent: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -7232,6 +7234,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly tool_deny_list?: string[];
 	readonly availability?: string;
 	readonly enabled?: boolean;
+	readonly model_intent?: boolean;
 }
 
 // From codersdk/notifications.go

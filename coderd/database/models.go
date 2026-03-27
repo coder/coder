@@ -4488,6 +4488,7 @@ type MCPServerConfig struct {
 	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
 	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
+	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 }
 
 type MCPServerUserToken struct {

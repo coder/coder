@@ -23,6 +23,7 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import {
 	Select,
 	SelectContent,
@@ -231,6 +232,7 @@ interface MCPServerFormValues {
 	apiKeyTouched: boolean;
 	availability: string;
 	enabled: boolean;
+	modelIntent: boolean;
 	toolAllowList: string;
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
@@ -259,6 +261,7 @@ const buildInitialValues = (
 	apiKeyTouched: false,
 	availability: server?.availability ?? "default_off",
 	enabled: server?.enabled ?? true,
+	modelIntent: server?.model_intent ?? false,
 	toolAllowList: joinList(server?.tool_allow_list),
 	toolDenyList: joinList(server?.tool_deny_list),
 	customHeaders: [],
@@ -312,6 +315,7 @@ const ServerForm: FC<ServerFormProps> = ({
 				auth_type: values.authType,
 				availability: values.availability,
 				enabled: values.enabled,
+				model_intent: values.modelIntent,
 				...(values.authType === "oauth2" && {
 					oauth2_client_id: values.oauth2ClientID.trim(),
 					oauth2_client_secret: effectiveOAuth2Secret,
@@ -771,7 +775,25 @@ const ServerForm: FC<ServerFormProps> = ({
 					</Field>{" "}
 					{/* ── Tool governance row ── */}
 					<hr className="!my-2 border-0 border-t border-solid border-border" />
+					<div className="flex items-center justify-between">
+						<div>
+							<Label htmlFor={`${formId}-model-intent`}>Model intent</Label>
+							<p className="text-sm text-content-secondary">
+								Require the model to describe each tool call's purpose in
+								natural language, shown as a status label in the UI.
+							</p>
+						</div>
+						<Switch
+							id={`${formId}-model-intent`}
+							checked={form.values.modelIntent}
+							onCheckedChange={(v) => {
+								form.setFieldValue("modelIntent", v);
+							}}
+							disabled={isDisabled}
+						/>
+					</div>
 					<div className="grid items-start gap-5 sm:grid-cols-2">
+						{" "}
 						<Field
 							label="Tool Allow List"
 							htmlFor={`${formId}-allow-list`}
@@ -785,7 +807,6 @@ const ServerForm: FC<ServerFormProps> = ({
 								disabled={isDisabled}
 							/>
 						</Field>
-
 						<Field
 							label="Tool Deny List"
 							htmlFor={`${formId}-deny-list`}
