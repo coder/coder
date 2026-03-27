@@ -37,10 +37,8 @@ class MockIntersectionObserver {
 
 // ---- Auth mock ----
 
-vi.mock("hooks", async () => {
-	const actual = await vi.importActual("hooks");
+vi.mock("#/hooks/useAuthenticated", async () => {
 	return {
-		...actual,
 		useAuthenticated: () => ({
 			user: MockUserOwner,
 			permissions: {},
