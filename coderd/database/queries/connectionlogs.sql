@@ -319,14 +319,15 @@ SELECT
     unnest(sqlc.arg('workspace_name')::text[]),
     unnest(sqlc.arg('agent_name')::text[]),
     unnest(sqlc.arg('type')::connection_type[]),
-    unnest(sqlc.arg('code')::int4[]),
+    -- Zero values from Go are treated as NULL for nullable columns.
+    NULLIF(unnest(sqlc.arg('code')::int4[]), 0),
     unnest(sqlc.arg('ip')::inet[]),
-    unnest(sqlc.arg('user_agent')::text[]),
-    unnest(sqlc.arg('user_id')::uuid[]),
-    unnest(sqlc.arg('slug_or_port')::text[]),
-    unnest(sqlc.arg('connection_id')::uuid[]),
-    unnest(sqlc.arg('disconnect_reason')::text[]),
-    unnest(sqlc.arg('disconnect_time')::timestamptz[])
+    NULLIF(unnest(sqlc.arg('user_agent')::text[]), ''),
+    NULLIF(unnest(sqlc.arg('user_id')::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(unnest(sqlc.arg('slug_or_port')::text[]), ''),
+    NULLIF(unnest(sqlc.arg('connection_id')::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(unnest(sqlc.arg('disconnect_reason')::text[]), ''),
+    NULLIF(unnest(sqlc.arg('disconnect_time')::timestamptz[]), '0001-01-01 00:00:00Z'::timestamptz)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
     disconnect_time = CASE

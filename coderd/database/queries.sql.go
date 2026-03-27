@@ -6862,14 +6862,15 @@ SELECT
     unnest($6::text[]),
     unnest($7::text[]),
     unnest($8::connection_type[]),
-    unnest($9::int4[]),
+    -- Zero values from Go are treated as NULL for nullable columns.
+    NULLIF(unnest($9::int4[]), 0),
     unnest($10::inet[]),
-    unnest($11::text[]),
-    unnest($12::uuid[]),
-    unnest($13::text[]),
-    unnest($14::uuid[]),
-    unnest($15::text[]),
-    unnest($16::timestamptz[])
+    NULLIF(unnest($11::text[]), ''),
+    NULLIF(unnest($12::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(unnest($13::text[]), ''),
+    NULLIF(unnest($14::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(unnest($15::text[]), ''),
+    NULLIF(unnest($16::timestamptz[]), '0001-01-01 00:00:00Z'::timestamptz)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
     disconnect_time = CASE
