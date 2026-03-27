@@ -77,6 +77,8 @@ func DiscoverSkills(
 	if err != nil {
 		// The skills directory is entirely optional. A 404
 		// just means the workspace has no skills configured.
+		// Any other error (connection issue, timeout) is also
+		// non-fatal — we simply return no skills.
 		if isNotFound(err) {
 			return nil, nil
 		}
@@ -100,19 +102,13 @@ func DiscoverSkills(
 		if err != nil {
 			// The directory may have been removed between the
 			// LS and this read, or it simply lacks a SKILL.md.
-			if isNotFound(err) {
-				continue
-			}
-			return nil, xerrors.Errorf(
-				"read %s: %w", metaPath, err,
-			)
+			// Any error is non-fatal.
+			continue
 		}
 		raw, err := io.ReadAll(reader)
 		reader.Close()
 		if err != nil {
-			return nil, xerrors.Errorf(
-				"read %s bytes: %w", metaPath, err,
-			)
+			continue
 		}
 
 		// Silently truncate oversized metadata files so a

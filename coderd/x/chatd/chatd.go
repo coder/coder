@@ -183,33 +183,25 @@ type cachedSkills struct {
 }
 
 // discoverWorkspaceSkills returns cached skill metadata for a chat
-// or discovers them fresh from the workspace agent. The result is
-// cached per chat+agent so subsequent turns skip the filesystem
-// scan.
+// or discovers them fresh using the provided agent connection. The
+// result is cached per chat+agent so subsequent turns skip the
+// filesystem scan.
 func (p *Server) discoverWorkspaceSkills(
 	ctx context.Context,
 	chatID uuid.UUID,
-	wctx *turnWorkspaceContext,
+	agent database.WorkspaceAgent,
+	conn workspacesdk.AgentConn,
 	logger slog.Logger,
 ) []chattool.SkillMeta {
 	// Check cache first.
 	if cached, ok := p.skillsCache.Load(chatID); ok {
 		if entry, ok2 := cached.(*cachedSkills); ok2 {
-			if agent, err := wctx.getWorkspaceAgent(ctx); err == nil && agent.ID == entry.agentID {
+			if entry.agentID == agent.ID {
 				return entry.skills
 			}
 		}
 	}
 
-	// Cache miss or agent changed — discover fresh.
-	agent, err := wctx.getWorkspaceAgent(ctx)
-	if err != nil {
-		return nil
-	}
-	conn, err := wctx.getWorkspaceConn(ctx)
-	if err != nil {
-		return nil
-	}
 	dir := agent.ExpandedDirectory
 	if dir == "" {
 		dir = agent.Directory
@@ -3924,14 +3916,6 @@ func (p *Server) runChat(
 			return nil
 		})
 	}
-	// Discover skills from the workspace in parallel with
-	// MCP tools and instructions.
-	if chat.WorkspaceID.Valid {
-		g2.Go(func() error {
-			skills = p.discoverWorkspaceSkills(ctx, chat.ID, &workspaceCtx, logger)
-			return nil
-		})
-	}
 	if chat.WorkspaceID.Valid {
 		g2.Go(func() error {
 			// Fast path: check cache using the in-memory cached
@@ -3981,17 +3965,20 @@ func (p *Server) runChat(
 
 			// Discover skills and MCP tools using the
 			// same conn to avoid a second dial attempt.
-			skills = p.discoverWorkspaceSkills(
-				ctx, chat.ID, &workspaceCtx, logger,
-			)
-
-			// Fetch fresh tools from the workspace agent.
 			conn, connErr := workspaceCtx.getWorkspaceConn(workspaceMCPCtx)
 			if connErr != nil {
 				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
 					slog.Error(connErr))
 				return nil
 			}
+
+			agent, agentErr := workspaceCtx.getWorkspaceAgent(workspaceMCPCtx)
+			if agentErr == nil {
+				skills = p.discoverWorkspaceSkills(
+					workspaceMCPCtx, chat.ID, agent, conn, logger,
+				)
+			}
+
 			toolsResp, listErr := conn.ListMCPTools(workspaceMCPCtx)
 			if listErr != nil {
 				logger.Warn(ctx, "failed to list workspace MCP tools",
