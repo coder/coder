@@ -1966,6 +1966,156 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions[0].BackoffUntil).Truncate(backoffInterval))
 }
 
+func TestReconciliationWithExpressionTarget(t *testing.T) {
+	t.Parallel()
+
+	newPreset := func(desiredInstances int32, expression sql.NullString) database.GetTemplatePresetsWithPrebuildsRow {
+		return database.GetTemplatePresetsWithPrebuildsRow{
+			TemplateID:                 uuid.New(),
+			TemplateVersionID:          uuid.New(),
+			ID:                         uuid.New(),
+			Name:                       uuid.NewString(),
+			DesiredInstances:           sql.NullInt32{Int32: desiredInstances, Valid: true},
+			DesiredInstancesExpression: expression,
+			SchedulingTimezone:         "UTC",
+			UsingActiveVersion:         true,
+			Deleted:                    false,
+			Deprecated:                 false,
+		}
+	}
+
+	newRunningPrebuilds := func(clock quartz.Clock, preset database.GetTemplatePresetsWithPrebuildsRow, count int) []database.GetRunningPrebuiltWorkspacesRow {
+		rows := make([]database.GetRunningPrebuiltWorkspacesRow, 0, count)
+		for i := 0; i < count; i++ {
+			rows = append(rows, database.GetRunningPrebuiltWorkspacesRow{
+				ID:                uuid.New(),
+				Name:              fmt.Sprintf("prebuild-%d", i),
+				TemplateID:        preset.TemplateID,
+				TemplateVersionID: preset.TemplateVersionID,
+				CurrentPresetID:   uuid.NullUUID{UUID: preset.ID, Valid: true},
+				Ready:             true,
+				CreatedAt:         clock.Now().Add(time.Duration(i-count) * time.Minute),
+			})
+		}
+		return rows
+	}
+
+	newPresetSnapshot := func(
+		preset database.GetTemplatePresetsWithPrebuildsRow,
+		running []database.GetRunningPrebuiltWorkspacesRow,
+		logger slog.Logger,
+		clock quartz.Clock,
+	) coreprebuilds.PresetSnapshot {
+		return coreprebuilds.NewPresetSnapshot(
+			preset,
+			nil,
+			running,
+			nil,
+			nil,
+			0,
+			nil,
+			coreprebuilds.PrebuildEventCounts{},
+			false,
+			nil,
+			clock,
+			logger,
+		)
+	}
+
+	t.Run("create path uses resolved expression target", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		preset := newPreset(2, sql.NullString{String: "scheduled_target + 3", Valid: true})
+		snapshot := newPresetSnapshot(preset, nil, testutil.Logger(t), clock)
+
+		state := snapshot.CalculateState()
+		actions, err := snapshot.CalculateActions(time.Minute)
+		require.NoError(t, err)
+		require.Len(t, actions, 1)
+
+		require.EqualValues(t, 2, state.ScheduledTarget)
+		require.EqualValues(t, 5, state.Desired)
+		require.Equal(t, "expression", state.TargetSource)
+		require.True(t, state.ExpressionConfigured)
+		require.Equal(t, coreprebuilds.ActionTypeCreate, actions[0].ActionType)
+		require.EqualValues(t, 5, actions[0].Create)
+		require.NotEqualValues(t, state.ScheduledTarget, actions[0].Create)
+	})
+
+	t.Run("delete path uses resolved expression target", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		preset := newPreset(10, sql.NullString{String: "2", Valid: true})
+		running := newRunningPrebuilds(clock, preset, 5)
+		snapshot := newPresetSnapshot(preset, running, testutil.Logger(t), clock)
+
+		state := snapshot.CalculateState()
+		actions, err := snapshot.CalculateActions(time.Minute)
+		require.NoError(t, err)
+		require.Len(t, actions, 1)
+
+		require.EqualValues(t, 10, state.ScheduledTarget)
+		require.EqualValues(t, 2, state.Desired)
+		require.EqualValues(t, 3, state.Extraneous)
+		require.Equal(t, "expression", state.TargetSource)
+		require.Equal(t, coreprebuilds.ActionTypeDelete, actions[0].ActionType)
+		require.Len(t, actions[0].DeleteIDs, 3)
+	})
+
+	t.Run("fallback path remains non-blocking", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		preset := newPreset(4, sql.NullString{String: "invalid!!!", Valid: true})
+		snapshot := newPresetSnapshot(preset, nil, logger, clock)
+
+		state := snapshot.CalculateState()
+		actions, err := snapshot.CalculateActions(time.Minute)
+		require.NoError(t, err)
+		require.Len(t, actions, 1)
+
+		require.EqualValues(t, 4, state.ScheduledTarget)
+		require.EqualValues(t, 4, state.Desired)
+		require.Equal(t, "expression_fallback", state.TargetSource)
+		require.True(t, state.ExpressionConfigured)
+		require.NotEmpty(t, state.ExpressionError)
+		require.Equal(t, coreprebuilds.ActionTypeCreate, actions[0].ActionType)
+		require.EqualValues(t, 4, actions[0].Create)
+	})
+
+	t.Run("global snapshot filter uses default evaluator plumbing", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		preset := newPreset(6, sql.NullString{String: "scheduled_target + 1", Valid: true})
+		snapshot := coreprebuilds.NewGlobalSnapshot(
+			[]database.GetTemplatePresetsWithPrebuildsRow{preset},
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			clock,
+			testutil.Logger(t),
+		)
+
+		presetSnapshot, err := snapshot.FilterByPreset(preset.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 7, presetSnapshot.CalculateDesiredInstances(clock.Now()))
+
+		state := presetSnapshot.CalculateState()
+		require.EqualValues(t, 6, state.ScheduledTarget)
+		require.EqualValues(t, 7, state.Desired)
+		require.Equal(t, "expression", state.TargetSource)
+	})
+}
+
 func TestSnapshotStateLoadsPrebuildEventCounts(t *testing.T) {
 	t.Parallel()
 
