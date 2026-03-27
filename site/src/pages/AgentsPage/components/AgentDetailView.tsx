@@ -264,7 +264,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							}}
 							onArchiveAgent={handleArchiveAgentAction}
 							onUnarchiveAgent={handleUnarchiveAgentAction}
-							onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
+							onArchiveAndDeleteWorkspace={
+								handleArchiveAndDeleteWorkspaceAction
+							}
 							{...(handleRegenerateTitle
 								? { onRegenerateTitle: handleRegenerateTitle }
 								: {})}

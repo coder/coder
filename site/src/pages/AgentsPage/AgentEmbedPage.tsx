@@ -236,7 +236,6 @@ const AgentEmbedPage: FC = () => {
 		// Title regeneration is not supported in embed mode.
 		isRegeneratingTitle: false,
 		regeneratingTitleChatId: null,
->>>>>>> 75ef33a9b1 (feat(site/src): add regenerate chat title actions)
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
