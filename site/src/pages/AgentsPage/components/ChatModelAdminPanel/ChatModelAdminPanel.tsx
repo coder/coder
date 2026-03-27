@@ -184,9 +184,11 @@ const useProviderStates = (
 			catalogModelCount: getProviderModels(catalogProvider).length,
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
-			hasEffectiveAPIKey: firstProviderEntry
-				? hasProviderEntryAPIKey
-				: hasManagedAPIKey || hasCatalogAPIKey,
+			hasEffectiveAPIKey: effectiveProviderConfig
+				? hasManagedAPIKey
+				: firstProviderEntry
+					? hasProviderEntryAPIKey
+					: hasCatalogAPIKey,
 			isEnvPreset,
 			baseURL: getProviderBaseURL(effectiveProviderConfig),
 		};
