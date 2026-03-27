@@ -526,6 +526,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	database.SortChatProvidersByFamilyPrecedence(enabledProviders)
 	enabledModels, err := api.Database.GetEnabledChatModelConfigs(
 		systemCtx,
 	)
@@ -3876,6 +3877,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	database.SortChatProvidersByFamilyPrecedence(enabledProviders)
 
 	enabledConfiguredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
@@ -3905,7 +3907,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 			resp,
 			convertChatProviderConfig(
 				provider,
-				effectiveKeys.APIKey(provider.Provider) != "",
+				chatProviderConfigHasAPIKey(provider),
 				codersdk.ChatProviderConfigSourceDatabase,
 			),
 		)
@@ -4006,7 +4008,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		http.StatusCreated,
 		convertChatProviderConfig(
 			inserted,
-			api.hasEffectiveProviderAPIKey(ctx, inserted),
+			chatProviderConfigHasAPIKey(inserted),
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
 	)
@@ -4094,7 +4096,7 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 		http.StatusOK,
 		convertChatProviderConfig(
 			updated,
-			api.hasEffectiveProviderAPIKey(ctx, updated),
+			chatProviderConfigHasAPIKey(updated),
 			codersdk.ChatProviderConfigSourceDatabase,
 		),
 	)
@@ -4870,45 +4872,8 @@ func chatProviderAPIKeysFromDeploymentValues(
 	}
 }
 
-func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
-	if strings.TrimSpace(provider.APIKey) != "" {
-		return true
-	}
-	if api.chatDaemon == nil {
-		return false
-	}
-	//nolint:gocritic // System context required to read enabled chat providers.
-	systemCtx := dbauthz.AsSystemRestricted(ctx)
-
-	enabledProviders, err := api.Database.GetEnabledChatProviders(
-		systemCtx,
-	)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to resolve provider API keys",
-			slog.F("provider", provider.Provider),
-			slog.Error(err),
-		)
-		return false
-	}
-
-	enabledConfiguredProviders := make(
-		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
-	)
-	for _, configured := range enabledProviders {
-		enabledConfiguredProviders = append(
-			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
-				Provider: configured.Provider,
-				APIKey:   configured.APIKey,
-				BaseURL:  configured.BaseUrl,
-			},
-		)
-	}
-
-	effectiveKeys := chatprovider.MergeProviderAPIKeys(
-		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
-		enabledConfiguredProviders,
-	)
-	return effectiveKeys.APIKey(provider.Provider) != ""
+func chatProviderConfigHasAPIKey(provider database.ChatProvider) bool {
+	return strings.TrimSpace(provider.APIKey) != ""
 }
 
 // @Summary Get PR insights
