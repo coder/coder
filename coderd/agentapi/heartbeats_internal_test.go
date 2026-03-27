@@ -251,7 +251,7 @@ func (m connectionParamsMatcher) Matches(x interface{}) bool {
 	return true
 }
 
-func (m connectionParamsMatcher) String() string {
+func (connectionParamsMatcher) String() string {
 	return "matches expected connection params"
 }
 
