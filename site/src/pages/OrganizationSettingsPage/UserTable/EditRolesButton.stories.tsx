@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import {
+	MockChatAccessRole,
 	MockOwnerRole,
 	MockSiteRoles,
 	MockUserAdminRole,
@@ -13,7 +14,11 @@ const meta: Meta<typeof EditRolesButton> = {
 	title: "pages/UsersPage/EditRolesButton",
 	component: EditRolesButton,
 	args: {
-		selectedRoleNames: new Set([MockUserAdminRole.name, MockOwnerRole.name]),
+		selectedRoleNames: new Set([
+			MockUserAdminRole.name,
+			MockOwnerRole.name,
+			MockChatAccessRole.name,
+		]),
 		roles: MockSiteRoles,
 	},
 	decorators: [withDesktopViewport],

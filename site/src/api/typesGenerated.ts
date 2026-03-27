@@ -5926,6 +5926,12 @@ export const RoleAuditor = "auditor";
 /**
  * Ideally this roles would be generated from the rbac/roles.go package.
  */
+export const RoleChatAccess = "chat-access";
+
+// From codersdk/rbacroles.go
+/**
+ * Ideally this roles would be generated from the rbac/roles.go package.
+ */
 export const RoleMember = "member";
 
 // From codersdk/rbacroles.go

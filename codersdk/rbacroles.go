@@ -7,6 +7,7 @@ const (
 	RoleTemplateAdmin string = "template-admin"
 	RoleUserAdmin     string = "user-admin"
 	RoleAuditor       string = "auditor"
+	RoleChatAccess    string = "chat-access"
 
 	RoleOrganizationAdmin                string = "organization-admin"
 	RoleOrganizationMember               string = "organization-member"
