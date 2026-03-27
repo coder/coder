@@ -6,16 +6,16 @@ import (
 )
 
 // SortChatProvidersByFamilyPrecedence orders provider configs by family and
-// then by creation time so callers resolve duplicate enabled configs
-// deterministically.
+// then by reverse creation order so overwrite-based key merges leave the
+// oldest config as the effective winner for each family.
 func SortChatProvidersByFamilyPrecedence(providers []ChatProvider) {
 	slices.SortStableFunc(providers, func(a, b ChatProvider) int {
 		if byProvider := cmp.Compare(a.Provider, b.Provider); byProvider != 0 {
 			return byProvider
 		}
-		if byCreatedAt := a.CreatedAt.Compare(b.CreatedAt); byCreatedAt != 0 {
+		if byCreatedAt := b.CreatedAt.Compare(a.CreatedAt); byCreatedAt != 0 {
 			return byCreatedAt
 		}
-		return cmp.Compare(a.ID.String(), b.ID.String())
+		return cmp.Compare(b.ID.String(), a.ID.String())
 	})
 }

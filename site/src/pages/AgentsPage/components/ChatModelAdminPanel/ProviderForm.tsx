@@ -212,9 +212,14 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				{providerConfig && (
 					<Switch
 						checked={providerConfig.enabled}
-						onCheckedChange={(nextValue) =>
-							onUpdateProvider(providerConfig.id, { enabled: nextValue })
-						}
+						onCheckedChange={(nextValue) => {
+							void onUpdateProvider(providerConfig.id, {
+								enabled: nextValue,
+							}).catch(() => {
+								// Error is surfaced via the mutation's error state
+								// in ChatModelAdminPanel, no toast needed.
+							});
+						}}
 						disabled={isProviderMutationPending || providerConfigsUnavailable}
 					/>
 				)}

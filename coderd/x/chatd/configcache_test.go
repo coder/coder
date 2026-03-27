@@ -113,7 +113,7 @@ func TestConfigCache_EnabledProviders_SortsByFamilyPrecedence(t *testing.T) {
 
 	providers, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []database.ChatProvider{anthropic, olderOpenAI, newerOpenAI}, providers)
+	require.Equal(t, []database.ChatProvider{anthropic, newerOpenAI, olderOpenAI}, providers)
 }
 
 func TestConfigCache_EnabledProviders_TTLExpiry(t *testing.T) {
