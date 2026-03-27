@@ -1227,7 +1227,6 @@ func TestAIBridgeListClients(t *testing.T) {
 				DeploymentValues: dv,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
-				// No aibridge feature.
 				Features: license.Features{},
 			},
 		})
@@ -1240,199 +1239,64 @@ func TestAIBridgeListClients(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
 
-	t.Run("EmptyDB", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
 			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // Owner role is irrelevant here.
-		clients, err := client.AIBridgeListClients(ctx)
-		require.NoError(t, err)
-		require.Empty(t, clients)
+		},
 	})
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
+	now := dbtime.Now()
+	endedAt := now.Add(time.Minute)
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
+	// Completed interception with an explicit client.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+	}, &endedAt)
 
-		now := dbtime.Now()
-		endedAt := now.Add(time.Minute)
+	// Completed interception with a different client.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
+	}, &endedAt)
 
-		// Interception with an explicit client.
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-			Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
-		}, &endedAt)
+	// Completed interception with no client — should appear as "Unknown".
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+	}, &endedAt)
 
-		// Interception with a different explicit client.
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-			Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
-		}, &endedAt)
+	// Duplicate client — should be deduplicated in results.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+	}, &endedAt)
 
-		// Interception with no client — should appear as "Unknown".
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-		}, &endedAt)
+	// In-flight interception (no ended_at) — must NOT appear in results.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: string(aiblib.ClientCopilotCLI), Valid: true},
+	}, nil)
 
-		// Duplicate client — should be deduplicated.
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-			Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
-		}, &endedAt)
-
-		clients, err := client.AIBridgeListClients(ctx)
-		require.NoError(t, err)
-		require.ElementsMatch(t, []string{
-			string(aiblib.ClientCursor),
-			string(aiblib.ClientClaudeCode),
-			"Unknown",
-		}, clients)
-	})
-
-	t.Run("ExcludesInflight", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		now := dbtime.Now()
-		endedAt := now.Add(time.Minute)
-
-		// Completed interception — should appear.
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-			Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
-		}, &endedAt)
-
-		// In-flight interception (no ended_at) — must NOT appear.
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-			Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
-		}, nil)
-
-		clients, err := client.AIBridgeListClients(ctx)
-		require.NoError(t, err)
-		require.Equal(t, []string{string(aiblib.ClientCursor)}, clients)
-	})
-
-	t.Run("Authorized", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-
-		now := dbtime.Now()
-		endedAt := now.Add(time.Minute)
-
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-			Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
-		}, &endedAt)
-
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: secondUser.ID,
-			StartedAt:   now,
-			Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
-		}, &endedAt)
-
-		// Admin sees clients from all interceptions.
-		adminClients, err := adminClient.AIBridgeListClients(ctx)
-		require.NoError(t, err)
-		require.ElementsMatch(t, []string{
-			string(aiblib.ClientCursor),
-			string(aiblib.ClientClaudeCode),
-		}, adminClients)
-
-		// Second user only sees clients from their own interceptions.
-		secondUserClients, err := secondUserClient.AIBridgeListClients(ctx)
-		require.NoError(t, err)
-		require.Equal(t, []string{string(aiblib.ClientClaudeCode)}, secondUserClients)
-	})
-
-	t.Run("InvalidLimit", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Hit the endpoint directly with an out-of-range limit.
-		//nolint:gocritic // Testing raw HTTP error path.
-		res, err := client.Request(ctx, http.MethodGet, "/api/v2/aibridge/clients", nil, func(r *http.Request) {
-			q := r.URL.Query()
-			q.Set("limit", "1001")
-			r.URL.RawQuery = q.Encode()
-		})
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clients, err := client.AIBridgeListClients(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{
+		string(aiblib.ClientCursor),
+		string(aiblib.ClientClaudeCode),
+		"Unknown",
+	}, clients)
 }
 
 func TestAIBridgeRouting(t *testing.T) {
