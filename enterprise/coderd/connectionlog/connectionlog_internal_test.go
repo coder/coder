@@ -24,6 +24,7 @@ func Test_addToBatch(t *testing.T) {
 		t.Parallel()
 
 		b := &DBBatcher{
+			maxBatchSize: 100,
 			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
 		}
 
@@ -47,6 +48,7 @@ func Test_addToBatch(t *testing.T) {
 		t.Parallel()
 
 		b := &DBBatcher{
+			maxBatchSize: 100,
 			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
 		}
 
@@ -72,6 +74,7 @@ func Test_addToBatch(t *testing.T) {
 		t.Parallel()
 
 		b := &DBBatcher{
+			maxBatchSize: 100,
 			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
 		}
 
@@ -94,6 +97,7 @@ func Test_addToBatch(t *testing.T) {
 		t.Parallel()
 
 		b := &DBBatcher{
+			maxBatchSize: 100,
 			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
 		}
 
@@ -117,6 +121,7 @@ func Test_addToBatch(t *testing.T) {
 		t.Parallel()
 
 		b := &DBBatcher{
+			maxBatchSize: 100,
 			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
 		}
 
@@ -137,6 +142,7 @@ func Test_addToBatch(t *testing.T) {
 		t.Parallel()
 
 		b := &DBBatcher{
+			maxBatchSize: 100,
 			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
 		}
 

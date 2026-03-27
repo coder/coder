@@ -204,6 +204,12 @@ func (b *DBBatcher) Close() error {
 // same (connection_id, workspace_id, agent_name) is a connect/disconnect
 // pair for the same session. A "reconnect" always uses a new ID.
 func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
+	if b.batchLen() >= b.maxBatchSize {
+		b.log.Warn(b.ctx, "connection log batch full, rejecting entry",
+			slog.F("batch_size", b.batchLen()),
+		)
+		return
+	}
 	if !item.ConnectionID.Valid {
 		b.nullConnIDBatch = append(b.nullConnIDBatch, item)
 		return
