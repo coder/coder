@@ -33,7 +33,7 @@ func TestDiscoverSkills(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
 
-		// List the skills directory — returns two skill dirs.
+		// List the skills directory: returns two skill dirs.
 		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).DoAndReturn(
 			func(_ context.Context, _ string, req workspacesdk.LSRequest) (workspacesdk.LSResponse, error) {
 				require.Equal(t, []string{"/work/.agents/skills"}, req.Path)
@@ -255,6 +255,70 @@ func TestDiscoverSkills(t *testing.T) {
 		require.Len(t, skills, 1)
 		assert.Equal(t, "A quoted description", skills[0].Description)
 	})
+
+	t.Run("OversizedSKILLmdTruncated", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+
+		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
+			workspacesdk.LSResponse{
+				Contents: []workspacesdk.LSFile{
+					{Name: "big-skill", IsDir: true, AbsolutePathString: "/work/.agents/skills/big-skill"},
+				},
+			}, nil,
+		)
+
+		// Build a SKILL.md larger than 64KB. The frontmatter is
+		// at the start so it survives truncation.
+		bigBody := strings.Repeat("x", 70*1024)
+		md := "---\nname: big-skill\ndescription: large\n---\n" + bigBody
+		conn.EXPECT().ReadFile(
+			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
+		).Return(
+			io.NopCloser(strings.NewReader(md)),
+			"text/markdown",
+			nil,
+		)
+
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		require.NoError(t, err)
+		// The skill should still be discovered since the
+		// frontmatter fits within the truncation limit.
+		require.Len(t, skills, 1)
+		assert.Equal(t, "big-skill", skills[0].Name)
+	})
+
+	t.Run("BOMHandled", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+
+		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
+			workspacesdk.LSResponse{
+				Contents: []workspacesdk.LSFile{
+					{Name: "bom-skill", IsDir: true, AbsolutePathString: "/work/.agents/skills/bom-skill"},
+				},
+			}, nil,
+		)
+
+		// UTF-8 BOM prefix before the frontmatter.
+		md := "\xef\xbb\xbf---\nname: bom-skill\ndescription: has BOM\n---\n\nBody.\n"
+		conn.EXPECT().ReadFile(
+			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
+		).Return(
+			io.NopCloser(strings.NewReader(md)),
+			"text/markdown",
+			nil,
+		)
+
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		require.NoError(t, err)
+		require.Len(t, skills, 1)
+		assert.Equal(t, "bom-skill", skills[0].Name)
+	})
 }
 
 func TestFormatSkillIndex(t *testing.T) {
@@ -322,7 +386,7 @@ func TestLoadSkillBody(t *testing.T) {
 		content, err := chattool.LoadSkillBody(context.Background(), conn, skill)
 		require.NoError(t, err)
 		assert.Contains(t, content.Body, "Do the thing.")
-		assert.Equal(t, []string{"helper.md", "roles"}, content.Files)
+		assert.Equal(t, []string{"helper.md", "roles/"}, content.Files)
 	})
 }
 

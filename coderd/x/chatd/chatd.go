@@ -3962,7 +3962,7 @@ func (p *Server) runChat(
 				); workspaceMCPTools != nil {
 					return nil
 				}
-			} // Cache miss, agent changed, or no cache — validate
+			} // Cache miss, agent changed, or no cache: validate
 			// that the workspace still has a live agent before
 			// attempting a dial.
 			workspaceMCPCtx, cancel := context.WithTimeout(
@@ -3975,6 +3975,7 @@ func (p *Server) runChat(
 			if agentErr != nil {
 				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
 					p.workspaceMCPToolsCache.Delete(chat.ID)
+					p.skillsCache.Delete(chat.ID)
 					return nil
 				}
 				logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"path"
 	"regexp"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -75,16 +73,10 @@ func DiscoverSkills(
 		Relativity: workspacesdk.LSRelativityRoot,
 	})
 	if err != nil {
-		// The skills directory is entirely optional. A 404
-		// just means the workspace has no skills configured.
-		// Any other error (connection issue, timeout) is also
-		// non-fatal — we simply return no skills.
-		if isNotFound(err) {
-			return nil, nil
-		}
-		return nil, xerrors.Errorf(
-			"list skills directory: %w", err,
-		)
+		// The skills directory is entirely optional. Return
+		// nil for any error so skill discovery never blocks
+		// the conversation.
+		return nil, nil
 	}
 
 	var skills []SkillMeta
@@ -105,7 +97,7 @@ func DiscoverSkills(
 			// Any error is non-fatal.
 			continue
 		}
-		raw, err := io.ReadAll(reader)
+		raw, err := io.ReadAll(io.LimitReader(reader, maxSkillMetaBytes+1))
 		reader.Close()
 		if err != nil {
 			continue
@@ -145,11 +137,12 @@ func DiscoverSkills(
 
 // parseSkillFrontmatter extracts name, description, and the
 // markdown body from a SKILL.md file. The frontmatter uses a
-// simple `key: value` format between `---` delimiters — no
+// simple `key: value` format between `---` delimiters, and no
 // full YAML parser is needed.
 func parseSkillFrontmatter(
 	content string,
 ) (name, description, body string, err error) {
+	content = strings.TrimPrefix(content, "\xef\xbb\xbf")
 	lines := strings.Split(content, "\n")
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
 		return "", "", "", xerrors.New(
@@ -178,7 +171,12 @@ func parseSkillFrontmatter(
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
 		// Strip surrounding quotes from YAML string values.
-		value = strings.Trim(value, `"'`)
+		if len(value) >= 2 {
+			if (value[0] == '"' && value[len(value)-1] == '"') ||
+				(value[0] == '\'' && value[len(value)-1] == '\'') {
+				value = value[1 : len(value)-1]
+			}
+		}
 		switch strings.ToLower(key) {
 		case "name":
 			name = value
@@ -248,7 +246,7 @@ func LoadSkillBody(
 			"read skill body: %w", err,
 		)
 	}
-	raw, err := io.ReadAll(reader)
+	raw, err := io.ReadAll(io.LimitReader(reader, maxSkillMetaBytes+1))
 	reader.Close()
 	if err != nil {
 		return SkillContent{}, xerrors.Errorf(
@@ -284,7 +282,11 @@ func LoadSkillBody(
 		if entry.Name == skillMetaFile {
 			continue
 		}
-		files = append(files, entry.Name)
+		name := entry.Name
+		if entry.IsDir {
+			name += "/"
+		}
+		files = append(files, name)
 	}
 
 	return SkillContent{
@@ -317,7 +319,7 @@ func LoadSkillFile(
 			"read skill file: %w", err,
 		)
 	}
-	raw, err := io.ReadAll(reader)
+	raw, err := io.ReadAll(io.LimitReader(reader, maxSkillFileBytes+1))
 	reader.Close()
 	if err != nil {
 		return "", xerrors.Errorf(
@@ -506,15 +508,4 @@ func findSkill(
 		}
 	}
 	return SkillMeta{}, false
-}
-
-// isNotFound returns true when the error is a codersdk.Error with
-// a 404 status code. This is used to silently skip missing files
-// and directories during skill discovery.
-func isNotFound(err error) bool {
-	var sdkErr *codersdk.Error
-	if !xerrors.As(err, &sdkErr) {
-		return false
-	}
-	return sdkErr.StatusCode() == http.StatusNotFound
 }
