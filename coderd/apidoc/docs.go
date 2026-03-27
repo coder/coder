@@ -13114,6 +13114,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionThreadsTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13129,6 +13135,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionTokenUsageSummary": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -13175,6 +13187,12 @@ const docTemplate = `{
         "codersdk.AIBridgeTokenUsage": {
             "type": "object",
             "properties": {
+                "cache_read_input_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_input_tokens": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"

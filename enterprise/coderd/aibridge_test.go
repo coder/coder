@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"database/sql"
-	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -1885,15 +1884,16 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			CreatedAt:      now,
 		})
 
-		// Add token usage on root with metadata.
+		// Add token usage on root.
 		providerRespID := "resp-1"
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID:     root.ID,
-			ProviderResponseID: providerRespID,
-			InputTokens:        100,
-			OutputTokens:       50,
-			Metadata:           json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 10}`),
-			CreatedAt:          now,
+			InterceptionID:        root.ID,
+			ProviderResponseID:    providerRespID,
+			InputTokens:           100,
+			OutputTokens:          50,
+			CacheReadInputTokens:  20,
+			CacheWriteInputTokens: 10,
+			CreatedAt:             now,
 		})
 
 		// Add two tool usages on root (demonstrates multiple tools per action).
@@ -1921,12 +1921,12 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 		// Add token usage on child.
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID:     child.ID,
-			ProviderResponseID: "resp-2",
-			InputTokens:        200,
-			OutputTokens:       100,
-			Metadata:           json.RawMessage(`{"cache_read_input": 30}`),
-			CreatedAt:          now.Add(time.Minute),
+			InterceptionID:       child.ID,
+			ProviderResponseID:   "resp-2",
+			InputTokens:          200,
+			OutputTokens:         100,
+			CacheReadInputTokens: 30,
+			CreatedAt:            now.Add(time.Minute),
 		})
 
 		// Add another tool usage on child.
@@ -1956,12 +1956,11 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "claude-4", thread.Model)
 		require.Equal(t, "anthropic", thread.Provider)
 
-		// Thread-level token aggregation.
+		// Thread-level token aggregation: root(20+10) + child(30+0).
 		require.EqualValues(t, 300, thread.TokenUsage.InputTokens)
 		require.EqualValues(t, 150, thread.TokenUsage.OutputTokens)
-		require.NotEmpty(t, thread.TokenUsage.Metadata)
-		require.EqualValues(t, int64(50), thread.TokenUsage.Metadata["cache_read_input"])
-		require.EqualValues(t, int64(10), thread.TokenUsage.Metadata["cache_creation_input"])
+		require.EqualValues(t, 50, thread.TokenUsage.CacheReadInputTokens)
+		require.EqualValues(t, 10, thread.TokenUsage.CacheWriteInputTokens)
 
 		// Two agentic actions (one per interception with tool calls).
 		require.Len(t, thread.AgenticActions, 2)
@@ -2124,14 +2123,15 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				firstThreadID = root.ID
 			}
 
-			// Token usage on root: 100 input, 50 output, with cache metadata.
+			// Token usage on root: 100 input, 50 output, 20 cache read, 5 cache write.
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-				InterceptionID:     root.ID,
-				ProviderResponseID: "resp-root",
-				InputTokens:        100,
-				OutputTokens:       50,
-				Metadata:           json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 5}`),
-				CreatedAt:          now.Add(offset),
+				InterceptionID:        root.ID,
+				ProviderResponseID:    "resp-root",
+				InputTokens:           100,
+				OutputTokens:          50,
+				CacheReadInputTokens:  20,
+				CacheWriteInputTokens: 5,
+				CreatedAt:             now.Add(offset),
 			})
 
 			// Add a child interception with its own token usage.
@@ -2146,14 +2146,14 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
 			}, &childEndedAt)
 
-			// Token usage on child: 200 input, 100 output, with cache metadata.
+			// Token usage on child: 200 input, 100 output, 30 cache read.
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-				InterceptionID:     child.ID,
-				ProviderResponseID: "resp-child",
-				InputTokens:        200,
-				OutputTokens:       100,
-				Metadata:           json.RawMessage(`{"cache_read_input": 30}`),
-				CreatedAt:          now.Add(offset + 15*time.Minute),
+				InterceptionID:       child.ID,
+				ProviderResponseID:   "resp-child",
+				InputTokens:          200,
+				OutputTokens:         100,
+				CacheReadInputTokens: 30,
+				CreatedAt:            now.Add(offset + 15*time.Minute),
 			})
 		}
 
@@ -2173,12 +2173,10 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.EqualValues(t, 900, res.TokenUsageSummary.InputTokens)
 		require.EqualValues(t, 450, res.TokenUsageSummary.OutputTokens)
 
-		// Session-level metadata must aggregate across all 3 threads:
-		// cache_read_input: 3 * (root 20 + child 30) = 150
-		// cache_creation_input: 3 * (root 5) = 15
-		require.NotEmpty(t, res.TokenUsageSummary.Metadata)
-		require.EqualValues(t, int64(150), res.TokenUsageSummary.Metadata["cache_read_input"])
-		require.EqualValues(t, int64(15), res.TokenUsageSummary.Metadata["cache_creation_input"])
+		// Session-level cache tokens: 3 * (root 20 + child 30) = 150 read,
+		// 3 * root 5 = 15 write.
+		require.EqualValues(t, 150, res.TokenUsageSummary.CacheReadInputTokens)
+		require.EqualValues(t, 15, res.TokenUsageSummary.CacheWriteInputTokens)
 	})
 
 	t.Run("InvalidCursor", func(t *testing.T) {
