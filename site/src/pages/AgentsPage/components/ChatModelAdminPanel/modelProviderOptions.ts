@@ -35,6 +35,10 @@ export function buildModelProviderOptions(
 	const options: ModelProviderOption[] = [];
 
 	for (const providerState of providerStates) {
+		if (!providerState.hasEffectiveAPIKey) {
+			continue;
+		}
+
 		const qualifyingConfigs = getQualifyingDatabaseConfigs(providerState);
 		if (qualifyingConfigs.length > 0) {
 			const baseLabel = formatProviderLabel(providerState.provider);

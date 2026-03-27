@@ -55,6 +55,7 @@ describe("buildModelProviderOptions", () => {
 	it("treats undefined source as a database config", () => {
 		const options = buildModelProviderOptions([
 			providerState({
+				hasEffectiveAPIKey: true,
 				providerConfigs: [
 					providerConfig({
 						id: "provider-config-undefined-source",
