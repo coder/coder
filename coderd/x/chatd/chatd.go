@@ -222,6 +222,39 @@ func (p *Server) discoverWorkspaceSkills(
 	return discovered
 }
 
+// loadCachedWorkspaceContext checks the MCP tools and skills caches
+// for the given chat and agent. Returns non-nil tools when the MCP
+// cache hits, which signals the caller to skip the slow discovery
+// path. Skills may also be populated from the skills cache.
+func (p *Server) loadCachedWorkspaceContext(
+	chatID uuid.UUID,
+	agent database.WorkspaceAgent,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+) ([]fantasy.AgentTool, []chattool.SkillMeta) {
+	cached, ok := p.workspaceMCPToolsCache.Load(chatID)
+	if !ok {
+		return nil, nil
+	}
+	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	if !ok || entry.agentID != agent.ID {
+		return nil, nil
+	}
+
+	var tools []fantasy.AgentTool
+	for _, t := range entry.tools {
+		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn))
+	}
+
+	var skills []chattool.SkillMeta
+	if sc, ok := p.skillsCache.Load(chatID); ok {
+		if se, ok := sc.(*cachedSkills); ok && se.agentID == agent.ID {
+			skills = se.skills
+		}
+	}
+
+	return tools, skills
+}
+
 type turnWorkspaceContext struct {
 	server           *Server
 	chatStateMu      *sync.Mutex
@@ -3922,26 +3955,14 @@ func (p *Server) runChat(
 			// agent (ensureWorkspaceAgent is free when already
 			// loaded). This avoids a per-turn latest-build DB
 			// query on the common subsequent-turn path.
-			if agent, err := workspaceCtx.getWorkspaceAgent(ctx); err == nil {
-				if cached, ok := p.workspaceMCPToolsCache.Load(chat.ID); ok {
-					entry, ok := cached.(*cachedWorkspaceMCPTools)
-					if ok && entry.agentID == agent.ID {
-						for _, t := range entry.tools {
-							workspaceMCPTools = append(workspaceMCPTools,
-								chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
-							)
-						}
-						// Also load cached skills on the fast path.
-						if sc, ok := p.skillsCache.Load(chat.ID); ok {
-							if se, ok := sc.(*cachedSkills); ok && se.agentID == agent.ID {
-								skills = se.skills
-							}
-						}
-						return nil
-					}
+			agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
+			if agentErr == nil {
+				if workspaceMCPTools, skills = p.loadCachedWorkspaceContext(
+					chat.ID, agent, workspaceCtx.getWorkspaceConn,
+				); workspaceMCPTools != nil {
+					return nil
 				}
-			}
-			// Cache miss, agent changed, or no cache — validate
+			} // Cache miss, agent changed, or no cache — validate
 			// that the workspace still has a live agent before
 			// attempting a dial.
 			workspaceMCPCtx, cancel := context.WithTimeout(
@@ -3950,9 +3971,7 @@ func (p *Server) runChat(
 			)
 			defer cancel()
 
-			_, _, agentErr := workspaceCtx.workspaceAgentIDForConn(
-				workspaceMCPCtx,
-			)
+			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(workspaceMCPCtx)
 			if agentErr != nil {
 				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
 					p.workspaceMCPToolsCache.Delete(chat.ID)
@@ -3972,7 +3991,7 @@ func (p *Server) runChat(
 				return nil
 			}
 
-			agent, agentErr := workspaceCtx.getWorkspaceAgent(workspaceMCPCtx)
+			agent, agentErr = workspaceCtx.getWorkspaceAgent(workspaceMCPCtx)
 			if agentErr == nil {
 				skills = p.discoverWorkspaceSkills(
 					workspaceMCPCtx, chat.ID, agent, conn, logger,
