@@ -987,10 +987,6 @@ func TestConnectAll_CallToolError(t *testing.T) {
 	assert.Contains(t, resp.Content, "something broke")
 }
 
-// ---------------------------------------------------------------------------
-// Model intent tests
-// ---------------------------------------------------------------------------
-
 func TestModelIntent_Info_WrapsSchema(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
