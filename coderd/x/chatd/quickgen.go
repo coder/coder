@@ -259,7 +259,6 @@ func isMetaTitleOutput(title string, contextText string) bool {
 	}
 	normalizedContext := strings.ToLower(normalizeShortTextOutput(contextText))
 	mentionsTitleTopic := strings.Contains(normalizedContext, "generate title") ||
-		strings.Contains(normalizedContext, "title for ") ||
 		strings.Contains(normalizedContext, "title generator") ||
 		strings.Contains(normalizedContext, "title generation") ||
 		(strings.Contains(normalizedContext, "title") &&
