@@ -63,7 +63,10 @@ func TestBatcher_DB(t *testing.T) {
 		Transition: database.WorkspaceTransitionStart,
 		JobID:      pj.ID,
 	})
-	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+	agent1 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+	agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: res.ID,
 	})
 
@@ -75,9 +78,9 @@ func TestBatcher_DB(t *testing.T) {
 
 	now := mClock.Now()
 
-	// Add first update.
+	// Add first update for agent1.
 	b.Add(agentapi.HeartbeatUpdate{
-		ID: agent.ID,
+		ID: agent1.ID,
 		LastConnectedAt: sql.NullTime{
 			Time:  now,
 			Valid: true,
@@ -85,11 +88,11 @@ func TestBatcher_DB(t *testing.T) {
 		UpdatedAt: now,
 	})
 
-	// Add a second (later) update for the same agent to test
-	// deduplication — only the latest should be persisted.
+	// Add a second (later) update for agent1 to test deduplication —
+	// only the latest should be persisted.
 	later := now.Add(500 * time.Millisecond)
 	b.Add(agentapi.HeartbeatUpdate{
-		ID: agent.ID,
+		ID: agent1.ID,
 		LastConnectedAt: sql.NullTime{
 			Time:  later,
 			Valid: true,
@@ -97,14 +100,30 @@ func TestBatcher_DB(t *testing.T) {
 		UpdatedAt: later,
 	})
 
+	// Add an update for agent2 to verify the batch query works for
+	// n > 1 agents.
+	b.Add(agentapi.HeartbeatUpdate{
+		ID: agent2.ID,
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+		UpdatedAt: now,
+	})
+
 	// Advance past the flush interval to trigger a batch write.
 	mClock.Advance(time.Second).MustWait(ctx)
 	resetTrap.MustWait(ctx).MustRelease(ctx)
 
-	// Verify the agent was updated in the database with the latest
-	// value (deduplication).
-	got, err := db.GetWorkspaceAgentByID(ctx, agent.ID)
+	// Verify agent1 was updated with the latest value (deduplication).
+	got1, err := db.GetWorkspaceAgentByID(ctx, agent1.ID)
 	require.NoError(t, err)
-	require.True(t, got.LastConnectedAt.Valid)
-	require.WithinDuration(t, later, got.LastConnectedAt.Time, time.Millisecond)
+	require.True(t, got1.LastConnectedAt.Valid)
+	require.WithinDuration(t, later, got1.LastConnectedAt.Time, time.Millisecond)
+
+	// Verify agent2 was also updated in the same batch.
+	got2, err := db.GetWorkspaceAgentByID(ctx, agent2.ID)
+	require.NoError(t, err)
+	require.True(t, got2.LastConnectedAt.Valid)
+	require.WithinDuration(t, now, got2.LastConnectedAt.Time, time.Millisecond)
 }
