@@ -34,12 +34,18 @@ SELECT
     cmc.*
 FROM
     chat_model_configs cmc
-JOIN
-    chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
+    AND EXISTS (
+        SELECT
+            1
+        FROM
+            chat_providers cp
+        WHERE
+            cp.provider = cmc.provider
+            AND cp.enabled = TRUE
+    )
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
