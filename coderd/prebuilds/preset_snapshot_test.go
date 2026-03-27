@@ -1,6 +1,7 @@
 package prebuilds_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"testing"
@@ -10,8 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/prebuilds/targetexpr"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -1664,6 +1668,366 @@ func TestCalculateDesiredInstances(t *testing.T) {
 			t.Parallel()
 			desiredInstances := tc.snapshot.CalculateDesiredInstances(tc.at)
 			require.Equal(t, tc.expectedCalculatedInstances, desiredInstances)
+		})
+	}
+}
+
+type mockTargetEvaluator struct {
+	validateFn func(string) error
+	evaluateFn func(string, targetexpr.TargetEnv) (int32, error)
+}
+
+func (m mockTargetEvaluator) Validate(expression string) error {
+	if m.validateFn == nil {
+		return nil
+	}
+	return m.validateFn(expression)
+}
+
+func (m mockTargetEvaluator) Evaluate(expression string, env targetexpr.TargetEnv) (int32, error) {
+	if m.evaluateFn == nil {
+		return 0, nil
+	}
+	return m.evaluateFn(expression, env)
+}
+
+func TestExpressionTargetResolution(t *testing.T) {
+	t.Parallel()
+
+	type builtSnapshot struct {
+		snapshot prebuilds.PresetSnapshot
+		clock    *quartz.Mock
+		at       time.Time
+	}
+
+	mkPreset := func(active bool, desired int32, timezone string, expression sql.NullString, muts ...func(database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+		baseMuts := []func(database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow{
+			func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+				row.SchedulingTimezone = timezone
+				row.DesiredInstancesExpression = expression
+				return row
+			},
+		}
+		baseMuts = append(baseMuts, muts...)
+		return preset(active, desired, opts[optionSet0], baseMuts...)
+	}
+
+	mkRunning := func(t *testing.T, clock quartz.Clock, count int) []database.GetRunningPrebuiltWorkspacesRow {
+		t.Helper()
+
+		running := make([]database.GetRunningPrebuiltWorkspacesRow, 0, count)
+		for i := 0; i < count; i++ {
+			running = append(running, prebuiltWorkspace(opts[optionSet0], clock, func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesRow {
+				row.ID = uuid.New()
+				row.Name = fmt.Sprintf("expression-prebuild-%d", i)
+				return row
+			}))
+		}
+		return running
+	}
+
+	mkLogger := func(t *testing.T) slog.Logger {
+		t.Helper()
+		return slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	}
+
+	mkPresetSnapshot := func(
+		t *testing.T,
+		clock *quartz.Mock,
+		preset database.GetTemplatePresetsWithPrebuildsRow,
+		running []database.GetRunningPrebuiltWorkspacesRow,
+		eventCounts prebuilds.PrebuildEventCounts,
+		evaluator targetexpr.Evaluator,
+	) prebuilds.PresetSnapshot {
+		t.Helper()
+
+		if clock == nil {
+			clock = quartz.NewMock(t)
+		}
+
+		return prebuilds.NewPresetSnapshot(
+			preset,
+			nil,
+			running,
+			nil,
+			nil,
+			0,
+			nil,
+			eventCounts,
+			false,
+			evaluator,
+			clock,
+			mkLogger(t),
+		)
+	}
+
+	calculateState := func(t *testing.T, built builtSnapshot) *prebuilds.ReconciliationState {
+		t.Helper()
+
+		built.clock.Set(built.at).MustWait(context.Background())
+		return built.snapshot.CalculateState()
+	}
+
+	testCases := []struct {
+		name   string
+		build  func(t *testing.T) builtSnapshot
+		assert func(t *testing.T, built builtSnapshot)
+	}{
+		{
+			name: "valid_expression_using_counts",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				at := mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z")
+				preset := mkPreset(true, 5, "UTC", sql.NullString{String: "running + 2", Valid: true})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, mkRunning(t, clock, 1), prebuilds.PrebuildEventCounts{}, targetexpr.NewEvaluator()),
+					clock:    clock,
+					at:       at,
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(3), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(3), state.Desired)
+				require.Equal(t, int32(5), state.ScheduledTarget)
+				require.Equal(t, "expression", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+				require.Empty(t, state.ExpressionError)
+			},
+		},
+		{
+			name: "fallback_on_invalid_syntax",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(true, 3, "UTC", sql.NullString{String: "invalid!!!", Valid: true})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, targetexpr.NewEvaluator()),
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(3), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(3), state.Desired)
+				require.Equal(t, int32(3), state.ScheduledTarget)
+				require.Equal(t, "expression_fallback", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+				require.NotEmpty(t, state.ExpressionError)
+			},
+		},
+		{
+			name: "fallback_on_runtime_error",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(true, 4, "UTC", sql.NullString{String: "scheduled_target", Valid: true})
+				evaluator := mockTargetEvaluator{
+					evaluateFn: func(string, targetexpr.TargetEnv) (int32, error) {
+						return 0, assert.AnError
+					},
+				}
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, evaluator),
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(4), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(4), state.Desired)
+				require.Equal(t, int32(4), state.ScheduledTarget)
+				require.Equal(t, "expression_fallback", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+				require.NotEmpty(t, state.ExpressionError)
+			},
+		},
+		{
+			name: "clamp_negative_to_zero",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(true, 5, "UTC", sql.NullString{String: "running - 100", Valid: true})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, targetexpr.NewEvaluator()),
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(0), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(0), state.Desired)
+				require.Equal(t, "expression", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+			},
+		},
+		{
+			name: "clamp_to_max",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(true, 5, "UTC", sql.NullString{String: "scheduled_target + 200", Valid: true})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, targetexpr.NewEvaluator()),
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, targetexpr.MaxPrebuildsTarget, built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, targetexpr.MaxPrebuildsTarget, state.Desired)
+				require.Equal(t, int32(5), state.ScheduledTarget)
+				require.Equal(t, "expression", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+			},
+		},
+		{
+			name: "no_expression_uses_scheduled",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(true, 7, "UTC", sql.NullString{})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, targetexpr.NewEvaluator()),
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(7), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(7), state.Desired)
+				require.Equal(t, int32(7), state.ScheduledTarget)
+				require.Equal(t, "scheduled", state.TargetSource)
+				require.False(t, state.ExpressionConfigured)
+				require.Empty(t, state.ExpressionError)
+			},
+		},
+		{
+			name: "event_counts_wiring",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(true, 1, "UTC", sql.NullString{String: "claims_5m + misses_5m", Valid: true})
+				eventRows := []database.GetPrebuildEventCountsRow{
+					{
+						PresetID:  preset.ID,
+						EventType: string(prebuilds.PrebuildEventClaimSucceeded),
+						Count5m:   10,
+					},
+					{
+						PresetID:  preset.ID,
+						EventType: string(prebuilds.PrebuildEventClaimMissed),
+						Count5m:   3,
+					},
+				}
+				global := prebuilds.NewGlobalSnapshot(
+					[]database.GetTemplatePresetsWithPrebuildsRow{preset},
+					nil,
+					nil,
+					nil,
+					nil,
+					nil,
+					eventRows,
+					nil,
+					nil,
+					clock,
+					mkLogger(t),
+				)
+				ps, err := global.FilterByPreset(preset.ID)
+				require.NoError(t, err)
+				return builtSnapshot{
+					snapshot: *ps,
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(13), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(13), state.Desired)
+				require.Equal(t, "expression", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+			},
+		},
+		{
+			name: "hour_weekday_wiring",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				at := mustParseTime(t, time.RFC3339, "2025-06-02T16:00:00Z")
+				preset := mkPreset(true, 1, "America/Los_Angeles", sql.NullString{String: "hour + weekday", Valid: true})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, targetexpr.NewEvaluator()),
+					clock:    clock,
+					at:       at,
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(10), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(10), state.Desired)
+				require.Equal(t, "expression", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+			},
+		},
+		{
+			name: "inactive_preset_ignores_expression",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(false, 5, "UTC", sql.NullString{String: "scheduled_target + 10", Valid: true})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, targetexpr.NewEvaluator()),
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(0), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(0), state.Desired)
+				require.Equal(t, int32(5), state.ScheduledTarget)
+				require.Equal(t, "scheduled", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+			},
+		},
+		{
+			name: "nil_evaluator_defaults_to_real",
+			build: func(t *testing.T) builtSnapshot {
+				clock := quartz.NewMock(t)
+				preset := mkPreset(true, 6, "UTC", sql.NullString{String: "scheduled_target", Valid: true})
+				return builtSnapshot{
+					snapshot: mkPresetSnapshot(t, clock, preset, nil, prebuilds.PrebuildEventCounts{}, nil),
+					clock:    clock,
+					at:       mustParseTime(t, time.RFC3339, "2025-06-02T15:04:05Z"),
+				}
+			},
+			assert: func(t *testing.T, built builtSnapshot) {
+				require.Equal(t, int32(6), built.snapshot.CalculateDesiredInstances(built.at))
+
+				state := calculateState(t, built)
+				require.Equal(t, int32(6), state.Desired)
+				require.Equal(t, int32(6), state.ScheduledTarget)
+				require.Equal(t, "expression", state.TargetSource)
+				require.True(t, state.ExpressionConfigured)
+				require.Empty(t, state.ExpressionError)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			built := tc.build(t)
+			tc.assert(t, built)
 		})
 	}
 }
