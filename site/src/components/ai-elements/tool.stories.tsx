@@ -496,7 +496,7 @@ const sampleMCPServers = [
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
-] satisfies readonly import("api/typesGenerated").MCPServerConfig[];
+] satisfies readonly import("#/api/typesGenerated").MCPServerConfig[];
 
 export const MCPToolRunning: Story = {
 	args: {

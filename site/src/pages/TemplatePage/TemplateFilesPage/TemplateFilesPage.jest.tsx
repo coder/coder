@@ -1,4 +1,4 @@
-import { AppProviders } from "App";
+import { AppProviders } from "#/App";
 import { render, screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";

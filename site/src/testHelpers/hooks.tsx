@@ -1,4 +1,4 @@
-import { AppProviders } from "App";
+import { AppProviders } from "#/App";
 import {
 	act,
 	type RenderHookOptions,

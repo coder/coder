@@ -1,4 +1,4 @@
-import { AppProviders } from "App";
+import { AppProviders } from "#/App";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import WS from "jest-websocket-mock";
