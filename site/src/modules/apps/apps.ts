@@ -95,6 +95,8 @@ export const openAppInNewWindow = (href: string) => {
 		return;
 	}
 	try {
+		// Setting the opener to null persists in the `popup` window over refresh
+		// and navigation. The opening window retains its connection to `popup`
 		popup.opener = null;
 	} catch {
 		// Electron can throw
