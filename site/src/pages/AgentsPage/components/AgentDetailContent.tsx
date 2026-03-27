@@ -83,6 +83,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
+					subagentTitles={subagentTitles}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
 					savingMessageId={savingMessageId}

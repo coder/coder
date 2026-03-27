@@ -38,7 +38,6 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 import {
-	buildSubagentTitles,
 	getEditableUserMessagePayload,
 } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -727,7 +726,7 @@ export const StreamingOutput: FC<{
 	);
 };
 
-const StickyUserMessage: FC<{
+const StickyUserMessage = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	onEditUserMessage?: (
@@ -738,7 +737,7 @@ const StickyUserMessage: FC<{
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
-}> = ({
+}>(({
 	message,
 	parsed,
 	onEditUserMessage,
@@ -1010,10 +1009,11 @@ const StickyUserMessage: FC<{
 			</div>
 		</>
 	);
-};
+});
 
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
+	subagentTitles: Map<string, string>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -1027,8 +1027,9 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 }
 
-export const ConversationTimeline: FC<ConversationTimelineProps> = ({
+export const ConversationTimeline = memo<ConversationTimelineProps>(({
 	parsedMessages,
+	subagentTitles,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -1037,7 +1038,6 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	computerUseSubagentIds,
 	showDesktopPreviews,
 }) => {
-	const subagentTitles = buildSubagentTitles(parsedMessages);
 
 	if (parsedMessages.length === 0) {
 		return null;
@@ -1089,4 +1089,4 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 			)}
 		</div>
 	);
-};
+});
