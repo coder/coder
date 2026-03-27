@@ -22,8 +22,7 @@ const getQualifyingDatabaseConfigs = (
 		(config) =>
 			(config.source === undefined || config.source === "database") &&
 			config.id !== nilUUID &&
-			config.enabled === true &&
-			config.has_api_key === true,
+			config.enabled === true,
 	);
 };
 
