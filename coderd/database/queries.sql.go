@@ -6854,23 +6854,44 @@ INSERT INTO connection_logs (
     slug_or_port, connection_id, disconnect_reason, disconnect_time
 )
 SELECT
-    unnest($1::uuid[]),
-    unnest($2::timestamptz[]),
-    unnest($3::uuid[]),
-    unnest($4::uuid[]),
-    unnest($5::uuid[]),
-    unnest($6::text[]),
-    unnest($7::text[]),
-    unnest($8::connection_type[]),
-    -- Zero values from Go are treated as NULL for nullable columns.
-    NULLIF(unnest($9::int4[]), 0),
-    unnest($10::inet[]),
-    NULLIF(unnest($11::text[]), ''),
-    NULLIF(unnest($12::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(unnest($13::text[]), ''),
-    NULLIF(unnest($14::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(unnest($15::text[]), ''),
-    NULLIF(unnest($16::timestamptz[]), '0001-01-01 00:00:00Z'::timestamptz)
+    u.id,
+    u.connect_time,
+    u.organization_id,
+    u.workspace_owner_id,
+    u.workspace_id,
+    u.workspace_name,
+    u.agent_name,
+    u.type,
+    -- Use the validity flag to distinguish "no code" (NULL) from a
+    -- legitimate zero exit code.
+    CASE WHEN u.code_valid THEN u.code ELSE NULL END,
+    u.ip,
+    NULLIF(u.user_agent, ''),
+    NULLIF(u.user_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(u.slug_or_port, ''),
+    NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(u.disconnect_reason, ''),
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+FROM (
+    SELECT
+        unnest($1::uuid[]) AS id,
+        unnest($2::timestamptz[]) AS connect_time,
+        unnest($3::uuid[]) AS organization_id,
+        unnest($4::uuid[]) AS workspace_owner_id,
+        unnest($5::uuid[]) AS workspace_id,
+        unnest($6::text[]) AS workspace_name,
+        unnest($7::text[]) AS agent_name,
+        unnest($8::connection_type[]) AS type,
+        unnest($9::int4[]) AS code,
+        unnest($10::bool[]) AS code_valid,
+        unnest($11::inet[]) AS ip,
+        unnest($12::text[]) AS user_agent,
+        unnest($13::uuid[]) AS user_id,
+        unnest($14::text[]) AS slug_or_port,
+        unnest($15::uuid[]) AS connection_id,
+        unnest($16::text[]) AS disconnect_reason,
+        unnest($17::timestamptz[]) AS disconnect_time
+) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
     disconnect_time = CASE
@@ -6900,6 +6921,7 @@ type BatchUpsertConnectionLogsParams struct {
 	AgentName        []string         `db:"agent_name" json:"agent_name"`
 	Type             []ConnectionType `db:"type" json:"type"`
 	Code             []int32          `db:"code" json:"code"`
+	CodeValid        []bool           `db:"code_valid" json:"code_valid"`
 	Ip               []pqtype.Inet    `db:"ip" json:"ip"`
 	UserAgent        []string         `db:"user_agent" json:"user_agent"`
 	UserID           []uuid.UUID      `db:"user_id" json:"user_id"`
@@ -6920,6 +6942,7 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.AgentName),
 		pq.Array(arg.Type),
 		pq.Array(arg.Code),
+		pq.Array(arg.CodeValid),
 		pq.Array(arg.Ip),
 		pq.Array(arg.UserAgent),
 		pq.Array(arg.UserID),

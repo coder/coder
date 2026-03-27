@@ -165,8 +165,14 @@ func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, op
 
 // Upsert enqueues a connection log entry for batched writing. It
 // blocks if the internal buffer is full, ensuring no logs are dropped.
-// It returns immediately if the batcher's context is done.
+// It returns an error if the batcher or caller context is canceled.
 func (b *DBBatcher) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
+	// Check cancellation before attempting the send so that
+	// post-Close() calls fail deterministically rather than
+	// racing with channel capacity.
+	if err := b.ctx.Err(); err != nil {
+		return err
+	}
 	select {
 	case b.itemCh <- clog:
 		return nil
@@ -293,6 +299,7 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		agentName        = make([]string, 0, count)
 		connType         = make([]database.ConnectionType, 0, count)
 		code             = make([]int32, 0, count)
+		codeValid        = make([]bool, 0, count)
 		ip               = make([]pqtype.Inet, 0, count)
 		userAgent        = make([]string, 0, count)
 		userID           = make([]uuid.UUID, 0, count)
@@ -312,6 +319,7 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		agentName = append(agentName, item.AgentName)
 		connType = append(connType, item.Type)
 		code = append(code, item.Code.Int32)
+		codeValid = append(codeValid, item.Code.Valid)
 		ip = append(ip, item.Ip)
 		userAgent = append(userAgent, item.UserAgent.String)
 		userID = append(userID, item.UserID.UUID)
@@ -335,11 +343,6 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		appendItem(item)
 	}
 
-	// Clear batches before the DB call so we can start accumulating
-	// new entries immediately.
-	clear(b.dedupedBatch)
-	b.nullConnIDBatch = b.nullConnIDBatch[:0]
-
 	err := b.store.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
 		ID:               ids,
 		ConnectTime:      connectTime,
@@ -350,6 +353,7 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		AgentName:        agentName,
 		Type:             connType,
 		Code:             code,
+		CodeValid:        codeValid,
 		Ip:               ip,
 		UserAgent:        userAgent,
 		UserID:           userID,
@@ -359,13 +363,17 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		DisconnectTime:   disconnectTime,
 	})
 	if err != nil {
-		if database.IsQueryCanceledError(err) {
-			b.log.Debug(ctx, "query canceled, skipping connection log batch update")
-			return
-		}
-		b.log.Error(ctx, "failed to batch upsert connection logs", slog.Error(err))
+		// Retain the batch so it will be retried on the next flush
+		// cycle. The data is still in dedupedBatch/nullConnIDBatch.
+		b.log.Error(ctx, "failed to batch upsert connection logs",
+			slog.Error(err), slog.F("count", count))
 		return
 	}
+
+	// Only clear after a successful write so transient failures
+	// don't silently drop logs.
+	clear(b.dedupedBatch)
+	b.nullConnIDBatch = b.nullConnIDBatch[:0]
 
 	b.log.Debug(ctx, "connection log batch flush complete", slog.F("count", count))
 }

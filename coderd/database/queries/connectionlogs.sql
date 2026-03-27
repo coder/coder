@@ -311,23 +311,44 @@ INSERT INTO connection_logs (
     slug_or_port, connection_id, disconnect_reason, disconnect_time
 )
 SELECT
-    unnest(sqlc.arg('id')::uuid[]),
-    unnest(sqlc.arg('connect_time')::timestamptz[]),
-    unnest(sqlc.arg('organization_id')::uuid[]),
-    unnest(sqlc.arg('workspace_owner_id')::uuid[]),
-    unnest(sqlc.arg('workspace_id')::uuid[]),
-    unnest(sqlc.arg('workspace_name')::text[]),
-    unnest(sqlc.arg('agent_name')::text[]),
-    unnest(sqlc.arg('type')::connection_type[]),
-    -- Zero values from Go are treated as NULL for nullable columns.
-    NULLIF(unnest(sqlc.arg('code')::int4[]), 0),
-    unnest(sqlc.arg('ip')::inet[]),
-    NULLIF(unnest(sqlc.arg('user_agent')::text[]), ''),
-    NULLIF(unnest(sqlc.arg('user_id')::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(unnest(sqlc.arg('slug_or_port')::text[]), ''),
-    NULLIF(unnest(sqlc.arg('connection_id')::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(unnest(sqlc.arg('disconnect_reason')::text[]), ''),
-    NULLIF(unnest(sqlc.arg('disconnect_time')::timestamptz[]), '0001-01-01 00:00:00Z'::timestamptz)
+    u.id,
+    u.connect_time,
+    u.organization_id,
+    u.workspace_owner_id,
+    u.workspace_id,
+    u.workspace_name,
+    u.agent_name,
+    u.type,
+    -- Use the validity flag to distinguish "no code" (NULL) from a
+    -- legitimate zero exit code.
+    CASE WHEN u.code_valid THEN u.code ELSE NULL END,
+    u.ip,
+    NULLIF(u.user_agent, ''),
+    NULLIF(u.user_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(u.slug_or_port, ''),
+    NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(u.disconnect_reason, ''),
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+FROM (
+    SELECT
+        unnest(sqlc.arg('id')::uuid[]) AS id,
+        unnest(sqlc.arg('connect_time')::timestamptz[]) AS connect_time,
+        unnest(sqlc.arg('organization_id')::uuid[]) AS organization_id,
+        unnest(sqlc.arg('workspace_owner_id')::uuid[]) AS workspace_owner_id,
+        unnest(sqlc.arg('workspace_id')::uuid[]) AS workspace_id,
+        unnest(sqlc.arg('workspace_name')::text[]) AS workspace_name,
+        unnest(sqlc.arg('agent_name')::text[]) AS agent_name,
+        unnest(sqlc.arg('type')::connection_type[]) AS type,
+        unnest(sqlc.arg('code')::int4[]) AS code,
+        unnest(sqlc.arg('code_valid')::bool[]) AS code_valid,
+        unnest(sqlc.arg('ip')::inet[]) AS ip,
+        unnest(sqlc.arg('user_agent')::text[]) AS user_agent,
+        unnest(sqlc.arg('user_id')::uuid[]) AS user_id,
+        unnest(sqlc.arg('slug_or_port')::text[]) AS slug_or_port,
+        unnest(sqlc.arg('connection_id')::uuid[]) AS connection_id,
+        unnest(sqlc.arg('disconnect_reason')::text[]) AS disconnect_reason,
+        unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time
+) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
     disconnect_time = CASE
