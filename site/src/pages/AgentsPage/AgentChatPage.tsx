@@ -403,8 +403,7 @@ const AgentChatPage: FC = () => {
 								// Return the same reference when nothing the UI
 								// reads has changed. This prevents react-query
 								// from notifying subscribers and avoids a full
-								// AgentChatPage re-render on every heartbeat.
-								const prevAgent = getWorkspaceAgent(prev, undefined);
+									// AgentChatPage re-render on every heartbeat.								const prevAgent = getWorkspaceAgent(prev, undefined);
 								const nextAgent = getWorkspaceAgent(next, undefined);
 								if (
 									prev &&
@@ -414,8 +413,7 @@ const AgentChatPage: FC = () => {
 									prevAgent?.id === nextAgent?.id &&
 									prevAgent?.status === nextAgent?.status &&
 									prevAgent?.name === nextAgent?.name &&
-									prevAgent?.expanded_directory === nextAgent?.expanded_directory
-								) {
+										prevAgent?.expanded_directory === nextAgent?.expanded_directory								) {
 									return prev;
 								}
 								return next;
