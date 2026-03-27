@@ -286,6 +286,25 @@ func (c *turnWorkspaceContext) ensureWorkspaceAgent(
 	return c.loadWorkspaceAgentLocked(ctx)
 }
 
+// selectPreferredAgent returns the preferred agent for chat operations.
+// In workspaces with devcontainers, sub-agents (parent_id IS NOT NULL) are
+// preferred over the parent (host) agent so that AI chat runs inside the
+// devcontainer rather than on the host. Falls back to agents[0] if no
+// sub-agents are found.
+func selectPreferredAgent(agents []database.WorkspaceAgent) database.WorkspaceAgent {
+	if len(agents) == 0 {
+		return database.WorkspaceAgent{}
+	}
+	// Prefer a sub-agent (one with a parent) over the parent agent.
+	for _, agent := range agents {
+		if agent.ParentID.Valid {
+			return agent
+		}
+	}
+	// Fall back to the first agent (typically the parent/host agent).
+	return agents[0]
+}
+
 func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	ctx context.Context,
 ) (database.Chat, database.WorkspaceAgent, error) {
@@ -345,11 +364,12 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get latest workspace build: %w", err)
 		}
 
+		preferredAgent := selectPreferredAgent(agents)
 		updatedChat, err := c.persistBuildAgentBinding(
 			ctx,
 			chatSnapshot,
 			build.ID,
-			agents[0].ID,
+			preferredAgent.ID,
 		)
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, err
@@ -361,7 +381,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			chatSnapshot = latestChat
 			continue
 		}
-		c.agent = agents[0]
+		c.agent = preferredAgent
 		c.agentLoaded = true
 		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 		return chatSnapshot, c.agent, nil
@@ -426,7 +446,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				if err != nil || len(agents) == 0 {
 					return uuid.Nil, xerrors.New("chat has no workspace agent")
 				}
-				return agents[0].ID, nil
+				return selectPreferredAgent(agents).ID, nil
 			},
 			workspaceDialValidationDelay,
 		)
