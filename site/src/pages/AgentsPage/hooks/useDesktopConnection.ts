@@ -1,8 +1,8 @@
 import RFB from "@novnc/novnc/lib/rfb";
-import { useClipboard } from "hooks/useClipboard";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { watchChatDesktop } from "#/api/api";
+import { useClipboard } from "#/hooks/useClipboard";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;

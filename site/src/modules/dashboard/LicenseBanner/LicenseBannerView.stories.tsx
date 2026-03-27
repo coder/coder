@@ -1,11 +1,3 @@
-import { chromatic } from "testHelpers/chromatic";
-import {
-	MockAppearanceConfig,
-	MockBuildInfo,
-	MockDefaultOrganization,
-	MockEntitlements,
-	MockExperiments,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import {
@@ -13,6 +5,14 @@ import {
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
+import { chromatic } from "#/testHelpers/chromatic";
+import {
+	MockAppearanceConfig,
+	MockBuildInfo,
+	MockDefaultOrganization,
+	MockEntitlements,
+	MockExperiments,
+} from "#/testHelpers/entities";
 import { docs } from "#/utils/docs";
 import { DashboardContext, type DashboardValue } from "../DashboardProvider";
 import { LicenseBanner } from "./LicenseBanner";

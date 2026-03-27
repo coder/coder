@@ -1,12 +1,12 @@
-import { Badge } from "components/Badge/Badge";
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { prettyFormatJSON, roundTokenDisplay } from "./utils";
 
 interface TokenBadgesProps {

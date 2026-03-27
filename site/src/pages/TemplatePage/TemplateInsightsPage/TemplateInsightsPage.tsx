@@ -5,11 +5,6 @@ import {
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import {
-	DateRangePicker as DailyPicker,
-	type DateRangeValue,
-} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import {
 	type FC,
 	Fragment,
 	type HTMLAttributes,
@@ -56,6 +51,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import {
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "#/pages/AgentsPage/components/DateRangePicker/DateRangePicker";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {

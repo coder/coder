@@ -1,5 +1,4 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { DetailedError } from "#/api/errors";
@@ -23,6 +22,7 @@ import {
 	Diagnostics,
 	DynamicParameter,
 } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "#/utils/page";
 
 type ButtonValues = Record<string, string>;

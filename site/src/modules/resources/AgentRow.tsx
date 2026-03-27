@@ -3,7 +3,6 @@ import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import { useProxy } from "contexts/ProxyContext";
 import { SquareCheckBigIcon } from "lucide-react";
-import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
 	type FC,
 	useCallback,
@@ -24,6 +23,7 @@ import type {
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
