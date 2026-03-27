@@ -424,10 +424,17 @@ const AgentsPage: FC = () => {
 					// title generation finished, so its response carries
 					// the fallback title.
 					void cancelChatListQueries(queryClient);
-					void queryClient.cancelQueries({
-						queryKey: chatKey(updatedChat.id),
-						exact: true,
-					});
+					// Only cancel a per-chat refetch when the cache
+					// already has data. Cancelling a first-time fetch
+					// reverts the query to pending/idle with no data
+					// and no retry, which AgentDetail shows as
+					// "Chat not found".
+					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
+						void queryClient.cancelQueries({
+							queryKey: chatKey(updatedChat.id),
+							exact: true,
+						});
+					}
 
 					// For "created" events, use a cross-page existence
 					// check and prepend only to the first page.
