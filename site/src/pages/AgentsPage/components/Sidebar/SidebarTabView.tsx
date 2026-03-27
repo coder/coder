@@ -133,6 +133,19 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					? "desktop"
 					: null;
 
+	// Unified list of panels for rendering. Includes the desktop
+	// tab when available so we don't need to special-case it.
+	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
+		id: t.id,
+		content: t.content,
+	}));
+	if (desktopChatId) {
+		allPanels.push({
+			id: "desktop",
+			content: <DesktopPanel chatId={desktopChatId} />,
+		});
+	}
+
 	const {
 		ref: tabScrollRef,
 		canScrollLeft,
@@ -311,34 +324,20 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-				{/* Tab panels – all stay mounted, only the active one visible. */}
-				{tabs.map((tab) => {
-					const isActive = effectiveTabId === tab.id;
-					return (
-						<div
-							key={tab.id}
-							role="tabpanel"
-							aria-labelledby={`${tabIdPrefix}-tab-${tab.id}`}
-							className={cn("min-h-0 flex-1", !isActive && "hidden")}
-							inert={!isActive}
-						>
-							{tab.content}
-						</div>
-					);
-				})}
-				{desktopChatId && (
-					<div
-						role="tabpanel"
-						aria-labelledby={`${tabIdPrefix}-tab-desktop`}
-						className={cn(
-							"min-h-0 flex-1",
-							effectiveTabId !== "desktop" && "hidden",
-						)}
-						inert={effectiveTabId !== "desktop"}
-					>
-						<DesktopPanel chatId={desktopChatId} />
-					</div>
-					)}
-				</div>
+					{/* Tab panels – all stay mounted, only the active one visible. */}
+					{allPanels.map((panel) => {
+						const isActive = effectiveTabId === panel.id;
+						return (
+							<div
+								key={panel.id}
+								role="tabpanel"
+								aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
+								className={cn("min-h-0 flex-1", !isActive && "hidden")}
+								inert={!isActive}
+							>
+								{panel.content}
+							</div>
+						);
+					})}				</div>
 			);
 	};
