@@ -2986,6 +2986,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
     "default": true,
     "description": "string",
     "desiredPrebuildInstances": 0,
+    "desired_prebuild_instances_expression": "string",
     "icon": "string",
     "id": "string",
     "name": "string",
@@ -3009,18 +3010,19 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 Status Code **200**
 
-| Name                         | Type    | Required | Restrictions | Description |
-|------------------------------|---------|----------|--------------|-------------|
-| `[array item]`               | array   | false    |              |             |
-| `» default`                  | boolean | false    |              |             |
-| `» description`              | string  | false    |              |             |
-| `» desiredPrebuildInstances` | integer | false    |              |             |
-| `» icon`                     | string  | false    |              |             |
-| `» id`                       | string  | false    |              |             |
-| `» name`                     | string  | false    |              |             |
-| `» parameters`               | array   | false    |              |             |
-| `»» name`                    | string  | false    |              |             |
-| `»» value`                   | string  | false    |              |             |
+| Name                                      | Type    | Required | Restrictions | Description |
+|-------------------------------------------|---------|----------|--------------|-------------|
+| `[array item]`                            | array   | false    |              |             |
+| `» default`                               | boolean | false    |              |             |
+| `» description`                           | string  | false    |              |             |
+| `» desiredPrebuildInstances`              | integer | false    |              |             |
+| `» desired_prebuild_instances_expression` | string  | false    |              |             |
+| `» icon`                                  | string  | false    |              |             |
+| `» id`                                    | string  | false    |              |             |
+| `» name`                                  | string  | false    |              |             |
+| `» parameters`                            | array   | false    |              |             |
+| `»» name`                                 | string  | false    |              |             |
+| `»» value`                                | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

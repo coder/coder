@@ -7313,6 +7313,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "default": true,
   "description": "string",
   "desiredPrebuildInstances": 0,
+  "desired_prebuild_instances_expression": "string",
   "icon": "string",
   "id": "string",
   "name": "string",
@@ -7327,15 +7328,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                       | Type                                                          | Required | Restrictions | Description |
-|----------------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `default`                  | boolean                                                       | false    |              |             |
-| `description`              | string                                                        | false    |              |             |
-| `desiredPrebuildInstances` | integer                                                       | false    |              |             |
-| `icon`                     | string                                                        | false    |              |             |
-| `id`                       | string                                                        | false    |              |             |
-| `name`                     | string                                                        | false    |              |             |
-| `parameters`               | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+| Name                                    | Type                                                          | Required | Restrictions | Description |
+|-----------------------------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `default`                               | boolean                                                       | false    |              |             |
+| `description`                           | string                                                        | false    |              |             |
+| `desiredPrebuildInstances`              | integer                                                       | false    |              |             |
+| `desired_prebuild_instances_expression` | string                                                        | false    |              |             |
+| `icon`                                  | string                                                        | false    |              |             |
+| `id`                                    | string                                                        | false    |              |             |
+| `name`                                  | string                                                        | false    |              |             |
+| `parameters`                            | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
 
 ## codersdk.PresetParameter
 

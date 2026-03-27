@@ -18307,6 +18307,9 @@ const docTemplate = `{
                 "desiredPrebuildInstances": {
                     "type": "integer"
                 },
+                "desired_prebuild_instances_expression": {
+                    "type": "string"
+                },
                 "icon": {
                     "type": "string"
                 },

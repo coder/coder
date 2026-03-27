@@ -46,16 +46,24 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 		}
 		return nil
 	}
+	convertDesiredInstancesExpression := func(desiredInstancesExpression sql.NullString) *string {
+		if desiredInstancesExpression.Valid {
+			value := desiredInstancesExpression.String
+			return &value
+		}
+		return nil
+	}
 
 	var res []codersdk.Preset
 	for _, preset := range presets {
 		sdkPreset := codersdk.Preset{
-			ID:                       preset.ID,
-			Name:                     preset.Name,
-			Default:                  preset.IsDefault,
-			DesiredPrebuildInstances: convertPrebuildInstances(preset.DesiredInstances),
-			Description:              preset.Description,
-			Icon:                     preset.Icon,
+			ID:                                 preset.ID,
+			Name:                               preset.Name,
+			Default:                            preset.IsDefault,
+			DesiredPrebuildInstances:           convertPrebuildInstances(preset.DesiredInstances),
+			DesiredPrebuildInstancesExpression: convertDesiredInstancesExpression(preset.DesiredInstancesExpression),
+			Description:                        preset.Description,
+			Icon:                               preset.Icon,
 		}
 		for _, presetParam := range presetParams {
 			if presetParam.TemplateVersionPresetID != preset.ID {

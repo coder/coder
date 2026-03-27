@@ -5193,6 +5193,7 @@ export interface Preset {
 	readonly Parameters: readonly PresetParameter[];
 	readonly Default: boolean;
 	readonly DesiredPrebuildInstances: number | null;
+	readonly desired_prebuild_instances_expression?: string;
 	readonly Description: string;
 	readonly Icon: string;
 }
