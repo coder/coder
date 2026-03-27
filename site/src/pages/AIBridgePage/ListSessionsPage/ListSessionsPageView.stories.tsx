@@ -32,6 +32,7 @@ const meta: Meta<typeof ListSessionsPageView> = {
 	component: ListSessionsPageView,
 	args: {
 		isLoading: false,
+		isFetching: false,
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
 		filterProps: defaultFilterProps,
@@ -73,6 +74,13 @@ export const Empty: Story = {
 
 export const Loaded: Story = {
 	args: {
+		sessions: [MockSession],
+	},
+};
+
+export const Fetching: Story = {
+	args: {
+		isFetching: true,
 		sessions: [MockSession],
 	},
 };
