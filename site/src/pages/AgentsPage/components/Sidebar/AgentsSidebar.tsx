@@ -672,8 +672,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 
 const SortableChatTreeNode: FC<{
 	chat: Chat;
-	recentDragRef: React.RefObject<boolean>;
-}> = ({ chat, recentDragRef }) => {
+}> = ({ chat }) => {
 	const {
 		attributes,
 		listeners,
@@ -707,18 +706,6 @@ const SortableChatTreeNode: FC<{
 			className={cn(isDragging && "opacity-50")}
 			{...attributes}
 			{...listeners}
-			onClickCapture={(e) => {
-				// After a drag, the browser synthesizes a click from
-				// pointerup. dnd-kit's sensor calls stopPropagation
-				// but never preventDefault, so the <a> tag inside
-				// NavLink still fires its default navigation action.
-				// Block it here in React's capture phase instead of
-				// racing with a global document listener + rAF.
-				if (recentDragRef.current) {
-					e.stopPropagation();
-					e.preventDefault();
-				}
-			}}
 		>
 			<ChatTreeNode chat={chat} isChildNode={false} />
 		</div>
@@ -807,11 +794,25 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 
-	// Ref flag set after drag ends. Checked by SortableChatTreeNode's
-	// onClickCapture to block the synthetic click that the browser
-	// fires from the final pointerup. Cleared after 100ms, which
-	// comfortably exceeds dnd-kit's 50ms sensor cleanup window.
-	const recentDragRef = useRef(false);
+	const lastDragEndedAtRef = useRef(0);
+
+	const pinnedContainerRef = useRef<HTMLDivElement | null>(null);
+	useEffect(() => {
+		const handler = (e: MouseEvent) => {
+			const container = pinnedContainerRef.current;
+			const target = e.target;
+			if (
+				container &&
+				target instanceof Node &&
+				container.contains(target) &&
+				performance.now() - lastDragEndedAtRef.current < 300
+			) {
+				e.preventDefault();
+			}
+		};
+		document.addEventListener("click", handler, true);
+		return () => document.removeEventListener("click", handler, true);
+	}, []);
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
@@ -828,11 +829,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
 
-		recentDragRef.current = true;
-		setTimeout(() => {
-			recentDragRef.current = false;
-		}, 100);
-
+		lastDragEndedAtRef.current = performance.now();
 		if (!over || active.id === over.id) return;
 		const activeId = String(active.id);
 		const overId = String(over.id);
@@ -1087,12 +1084,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																items={pinnedChatIds}
 																strategy={verticalListSortingStrategy}
 															>
-																<div className="flex flex-col gap-0.5">
+																<div
+																	ref={pinnedContainerRef}
+																	className="flex flex-col gap-0.5"
+																>
 																	{sortedPinnedChats.map((chat) => (
 																		<SortableChatTreeNode
 																			key={chat.id}
 																			chat={chat}
-																			recentDragRef={recentDragRef}
 																		/>
 																	))}
 																</div>
