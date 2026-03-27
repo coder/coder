@@ -751,3 +751,83 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 		).toBeNull();
 	},
 };
+
+const touchGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
+
+/** During an active touch gesture, the container ResizeObserver must not
+ *  snap scroll to bottom. This prevents the mobile URL bar resize jump. */
+export const ScrollNotJumpedDuringTouch: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentDetailView store={touchGuardScrollStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Wait for the initial bottom pin to settle.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
+		// Simulate a touchstart event (finger down).
+		scrollContainer.dispatchEvent(new Event("touchstart", { bubbles: true }));
+
+		// Scroll partway up, within the 100px threshold but not at the
+		// absolute bottom. This simulates the user dragging up slightly
+		// during a touch.
+		const offsetFromBottom = 50;
+		const targetScrollTop =
+			scrollContainer.scrollHeight -
+			scrollContainer.clientHeight -
+			offsetFromBottom;
+		scrollContainer.scrollTop = targetScrollTop;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		// Record the scroll position before the resize.
+		const scrollTopBeforeResize = scrollContainer.scrollTop;
+
+		// Simulate a container resize that models the mobile URL bar
+		// appearing. Shrink the container height slightly to trigger
+		// the ResizeObserver.
+		const originalHeight = scrollContainer.style.height;
+		scrollContainer.style.height = `${scrollContainer.clientHeight - 10}px`;
+
+		// Give the ResizeObserver a chance to fire.
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		);
+
+		// During an active touch, the resize guard should prevent the
+		// container observer from snapping to the absolute bottom.
+		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
+			scrollTopBeforeResize + 1,
+		);
+
+		// Restore container height and end the touch.
+		scrollContainer.style.height = originalHeight;
+		scrollContainer.dispatchEvent(new Event("touchend", { bubbles: true }));
+
+		// After touch ends, normal scroll tracking should resume.
+		// Scroll to the very bottom and verify the button disappears.
+		scrollContainer.scrollTop =
+			scrollContainer.scrollHeight - scrollContainer.clientHeight;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};
