@@ -1,12 +1,3 @@
-import {
-	MockEntitlements,
-	MockNoPermissions,
-	MockPermissions,
-} from "testHelpers/entities";
-import {
-	renderWithAuth,
-	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -20,7 +11,6 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
 import { DashboardLayout } from "./DashboardLayout";
 
 const renderDashboardLayout = async ({
