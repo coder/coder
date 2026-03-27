@@ -292,6 +292,9 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
+		onRegenerateTitle,
+		isRegeneratingTitle,
+		regeneratingTitleChatId,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
@@ -325,6 +328,9 @@ const AgentDetail: FC = () => {
 			return value;
 		});
 	};
+
+	const isRegeneratingThisChat =
+		isRegeneratingTitle && regeneratingTitleChatId === agentId;
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -480,6 +486,7 @@ const AgentDetail: FC = () => {
 				}
 			: undefined;
 	const isArchived = chatRecord?.archived ?? false;
+	const isRegenerateTitleDisabled = isArchived || isRegeneratingTitle;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const sendMutation = useMutation(
@@ -887,6 +894,13 @@ const AgentDetail: FC = () => {
 		onChatReady();
 	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
 
+	const handleRegenerateTitle = () => {
+		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {
+			return;
+		}
+		onRegenerateTitle(agentId);
+	};
+
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentDetailLoadingView
@@ -958,6 +972,9 @@ const AgentDetail: FC = () => {
 			handleArchiveAndDeleteWorkspaceAction={
 				handleArchiveAndDeleteWorkspaceAction
 			}
+			handleRegenerateTitle={handleRegenerateTitle}
+			isRegeneratingTitle={isRegeneratingThisChat}
+			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
 			scrollToBottomRef={scrollToBottomRef}

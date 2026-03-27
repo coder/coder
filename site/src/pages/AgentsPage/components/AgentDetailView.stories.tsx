@@ -142,6 +142,7 @@ const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleArchiveAgentAction: fn(),
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
+		handleRegenerateTitle: fn(),
 		scrollContainerRef: { current: null },
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,

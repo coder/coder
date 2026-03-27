@@ -233,6 +233,9 @@ const AgentEmbedPage: FC = () => {
 		requestPinAgent: () => {},
 		requestUnpinAgent: () => {},
 		requestArchiveAndDeleteWorkspace,
+		// Title regeneration is not supported in embed mode.
+		isRegeneratingTitle: false,
+		regeneratingTitleChatId: null,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

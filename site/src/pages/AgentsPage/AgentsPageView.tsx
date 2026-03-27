@@ -23,6 +23,9 @@ export interface AgentsOutletContext {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle?: (chatId: string) => void;
+	isRegeneratingTitle: boolean;
+	regeneratingTitleChatId: string | null;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
@@ -59,6 +62,9 @@ interface AgentsPageViewProps {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle: (chatId: string) => void;
+	isRegeneratingTitle: boolean;
+	regeneratingTitleChatId: string | null;
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
@@ -93,6 +99,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestPinAgent,
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
+	onRegenerateTitle,
+	isRegeneratingTitle,
+	regeneratingTitleChatId,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
 	hasNextPage,
@@ -133,6 +142,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
+		onRegenerateTitle,
+		isRegeneratingTitle,
+		regeneratingTitleChatId,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
@@ -166,6 +178,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onPinAgent={requestPinAgent}
 					onUnpinAgent={requestUnpinAgent}
 					onReorderPinnedAgent={requestReorderPinnedAgent}
+					onRegenerateTitle={onRegenerateTitle}
+					isRegeneratingTitle={isRegeneratingTitle}
+					regeneratingTitleChatId={regeneratingTitleChatId}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
 					isArchiving={isArchiving}

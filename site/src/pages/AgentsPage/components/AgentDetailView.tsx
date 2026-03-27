@@ -117,6 +117,9 @@ interface AgentDetailViewProps {
 	handleArchiveAgentAction: () => void;
 	handleUnarchiveAgentAction: () => void;
 	handleArchiveAndDeleteWorkspaceAction: () => void;
+	handleRegenerateTitle?: () => void;
+	isRegeneratingTitle?: boolean;
+	isRegenerateTitleDisabled?: boolean;
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -179,6 +182,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleArchiveAgentAction,
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
+	handleRegenerateTitle,
+	isRegeneratingTitle,
+	isRegenerateTitleDisabled,
 	scrollContainerRef,
 	scrollToBottomRef,
 	hasMoreMessages,
@@ -261,6 +267,11 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							onArchiveAndDeleteWorkspace={
 								handleArchiveAndDeleteWorkspaceAction
 							}
+							{...(handleRegenerateTitle
+								? { onRegenerateTitle: handleRegenerateTitle }
+								: {})}
+							isRegeneratingTitle={isRegeneratingTitle}
+							isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 							hasWorkspace={hasWorkspace}
 							isArchived={isArchived}
 							diffStatusData={diffStatusData}
@@ -435,6 +446,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
+					onRegenerateTitle={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -507,6 +519,7 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
+				onRegenerateTitle={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}
 				hasWorkspace={false}
 				isSidebarCollapsed={isSidebarCollapsed}

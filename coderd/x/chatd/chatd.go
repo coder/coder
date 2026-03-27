@@ -1333,6 +1333,477 @@ func (p *Server) InterruptChat(
 	return updatedChat
 }
 
+const manualTitleMessageWindowLimit = 50
+
+var ErrManualTitleRegenerationInProgress = xerrors.New(
+	"manual title regeneration already in progress",
+)
+
+type manualTitleGenerationError struct {
+	cause       error
+	modelConfig database.ChatModelConfig
+	usage       fantasy.Usage
+}
+
+func (e *manualTitleGenerationError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *manualTitleGenerationError) Unwrap() error {
+	return e.cause
+}
+
+var manualTitleLockWorkerID = uuid.MustParse(
+	"00000000-0000-0000-0000-000000000001",
+)
+
+const manualTitleLockStaleAfter = time.Minute
+
+func isPendingOrRunningChatStatus(status database.ChatStatus) bool {
+	switch status {
+	case database.ChatStatusPending, database.ChatStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+func isFreshManualTitleLock(chat database.Chat, now time.Time) bool {
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != manualTitleLockWorkerID {
+		return false
+	}
+	leaseAt := chat.HeartbeatAt
+	if !leaseAt.Valid {
+		leaseAt = chat.StartedAt
+	}
+	return leaseAt.Valid && leaseAt.Time.After(now.Add(-manualTitleLockStaleAfter))
+}
+
+// updateChatStatusPreserveUpdatedAt applies internal lock transitions without
+// changing chat recency, because chat list ordering uses updated_at.
+func updateChatStatusPreserveUpdatedAt(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	workerID uuid.NullUUID,
+	startedAt sql.NullTime,
+	heartbeatAt sql.NullTime,
+) (database.Chat, error) {
+	return store.UpdateChatStatusPreserveUpdatedAt(
+		ctx,
+		database.UpdateChatStatusPreserveUpdatedAtParams{
+			ID:          chat.ID,
+			Status:      chat.Status,
+			WorkerID:    workerID,
+			StartedAt:   startedAt,
+			HeartbeatAt: heartbeatAt,
+			LastError:   chat.LastError,
+			UpdatedAt:   chat.UpdatedAt,
+		},
+	)
+}
+
+func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) error {
+	now := time.Now()
+	return p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
+		}
+		if isPendingOrRunningChatStatus(lockedChat.Status) ||
+			isFreshManualTitleLock(lockedChat, now) {
+			return ErrManualTitleRegenerationInProgress
+		}
+		_, err = updateChatStatusPreserveUpdatedAt(
+			ctx,
+			tx,
+			lockedChat,
+			uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
+			sql.NullTime{Time: now, Valid: true},
+			sql.NullTime{Time: now, Valid: true},
+		)
+		if err != nil {
+			return xerrors.Errorf("mark chat for manual title regeneration: %w", err)
+		}
+		return nil
+	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
+}
+
+func (p *Server) releaseManualTitleLock(ctx context.Context, chatID uuid.UUID) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+
+	err := p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(cleanupCtx, chatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat to release manual title regeneration: %w", err)
+		}
+		if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != manualTitleLockWorkerID {
+			return nil
+		}
+		_, err = updateChatStatusPreserveUpdatedAt(
+			cleanupCtx,
+			tx,
+			lockedChat,
+			uuid.NullUUID{},
+			sql.NullTime{},
+			sql.NullTime{},
+		)
+		if err != nil {
+			return xerrors.Errorf("clear manual title regeneration marker: %w", err)
+		}
+		return nil
+	}, database.DefaultTXOptions().WithID("chat_title_regenerate_unlock"))
+	if err != nil {
+		p.logger.Warn(cleanupCtx, "failed to release manual title regeneration marker",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+// RegenerateChatTitle regenerates a chat title from the chat's visible
+// messages, persists it when it changes, and broadcasts the update.
+func (p *Server) RegenerateChatTitle(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	// Reuse chatd's scoped auth context for deployment-config lookups while
+	// keeping chat ownership authorization at the HTTP layer.
+	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	keys, err := p.resolveProviderAPIKeys(chatdCtx)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("resolve chat providers: %w", err)
+	}
+	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+		return database.Chat{}, err
+	}
+	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+
+	updatedChat, err := p.regenerateChatTitleWithStore(
+		chatdCtx,
+		p.db,
+		chat,
+		keys,
+	)
+	if err != nil {
+		var generationErr *manualTitleGenerationError
+		if errors.As(err, &generationErr) {
+			// Reuse chatd's scoped auth context for failure accounting while
+			// detaching from request cancellation so usage is still recorded.
+			//nolint:gocritic // Failure accounting still needs chatd-scoped config reads.
+			recordCtx, recordCancel := context.WithTimeout(
+				dbauthz.AsChatd(context.WithoutCancel(ctx)),
+				5*time.Second,
+			)
+			defer recordCancel()
+			if _, recordErr := recordManualTitleUsage(
+				recordCtx,
+				p.db,
+				chat,
+				generationErr.modelConfig,
+				generationErr.usage,
+				"",
+			); recordErr != nil {
+				return database.Chat{}, errors.Join(
+					generationErr,
+					xerrors.Errorf("record manual title usage: %w", recordErr),
+				)
+			}
+			return database.Chat{}, generationErr
+		}
+		return database.Chat{}, err
+	}
+	return updatedChat, nil
+}
+
+func (p *Server) regenerateChatTitleWithStore(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) (database.Chat, error) {
+	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID); limitErr != nil {
+		return database.Chat{}, limitErr
+	}
+
+	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
+		ctx,
+		database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chat.ID,
+			AfterID:  0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get head chat messages: %w", err)
+	}
+	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
+		ctx,
+		database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chat.ID,
+			BeforeID: 0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get tail chat messages: %w", err)
+	}
+	messages := mergeManualTitleMessages(headMessages, tailMessages)
+	if len(messages) == 0 {
+		return chat, nil
+	}
+
+	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, keys)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
+	title, usage, err := generateManualTitle(ctx, messages, model)
+	if err != nil {
+		wrappedErr := xerrors.Errorf("generate manual title: %w", err)
+		if usage == (fantasy.Usage{}) {
+			return database.Chat{}, wrappedErr
+		}
+		return database.Chat{}, &manualTitleGenerationError{
+			cause:       wrappedErr,
+			modelConfig: modelConfig,
+			usage:       usage,
+		}
+	}
+
+	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer recordCancel()
+
+	updatedChat, recordErr := recordManualTitleUsage(
+		recordCtx,
+		store,
+		chat,
+		modelConfig,
+		usage,
+		title,
+	)
+	if recordErr != nil {
+		if title != "" {
+			return database.Chat{}, xerrors.Errorf("record manual title usage and update chat title: %w", recordErr)
+		}
+		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
+	}
+	if updatedChat.Title == chat.Title {
+		return updatedChat, nil
+	}
+
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindTitleChange, nil)
+	return updatedChat, nil
+}
+
+func (p *Server) resolveManualTitleModel(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to list manual title model configs",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
+	}
+
+	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
+	if !ok {
+		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
+	}
+
+	model, err := chatprovider.ModelFromConfig(
+		config.Provider,
+		config.Model,
+		keys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+	)
+	if err != nil {
+		p.logger.Debug(ctx, "manual title preferred model unavailable",
+			slog.F("chat_id", chat.ID),
+			slog.F("provider", config.Provider),
+			slog.F("model", config.Model),
+			slog.Error(err),
+		)
+		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
+	}
+
+	return model, config, nil
+}
+
+func (p *Server) resolveFallbackManualTitleModel(
+	ctx context.Context,
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+	config, err := p.resolveModelConfig(ctx, chat)
+	if err != nil {
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+			"resolve fallback manual title model config: %w",
+			err,
+		)
+	}
+	model, err := chatprovider.ModelFromConfig(
+		config.Provider,
+		config.Model,
+		keys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+	)
+	if err != nil {
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+			"create fallback manual title model: %w",
+			err,
+		)
+	}
+	return model, config, nil
+}
+
+func mergeManualTitleMessages(
+	headMessages []database.ChatMessage,
+	tailMessagesDesc []database.ChatMessage,
+) []database.ChatMessage {
+	merged := make([]database.ChatMessage, 0, len(headMessages)+len(tailMessagesDesc))
+	seen := make(map[int64]struct{}, len(headMessages)+len(tailMessagesDesc))
+	appendUnique := func(message database.ChatMessage) {
+		if _, ok := seen[message.ID]; ok {
+			return
+		}
+		seen[message.ID] = struct{}{}
+		merged = append(merged, message)
+	}
+	for _, message := range headMessages {
+		appendUnique(message)
+	}
+	for i := len(tailMessagesDesc) - 1; i >= 0; i-- {
+		appendUnique(tailMessagesDesc[i])
+	}
+	return merged
+}
+
+func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsage {
+	var chatUsage codersdk.ChatMessageUsage
+	if usage.InputTokens != 0 {
+		chatUsage.InputTokens = ptr.Ref(usage.InputTokens)
+	}
+	if usage.OutputTokens != 0 {
+		chatUsage.OutputTokens = ptr.Ref(usage.OutputTokens)
+	}
+	if usage.ReasoningTokens != 0 {
+		chatUsage.ReasoningTokens = ptr.Ref(usage.ReasoningTokens)
+	}
+	if usage.CacheCreationTokens != 0 {
+		chatUsage.CacheCreationTokens = ptr.Ref(usage.CacheCreationTokens)
+	}
+	if usage.CacheReadTokens != 0 {
+		chatUsage.CacheReadTokens = ptr.Ref(usage.CacheReadTokens)
+	}
+	return chatUsage
+}
+
+func recordManualTitleUsage(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	modelConfig database.ChatModelConfig,
+	usage fantasy.Usage,
+	newTitle string,
+) (database.Chat, error) {
+	hasUsage := usage != (fantasy.Usage{})
+	if !hasUsage && newTitle == "" {
+		return chat, nil
+	}
+
+	var totalCostMicros *int64
+	if hasUsage {
+		callConfig := codersdk.ChatModelCallConfig{}
+		if len(modelConfig.Options) > 0 {
+			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+				return database.Chat{}, xerrors.Errorf("parse model call config: %w", err)
+			}
+		}
+		totalCostMicros = chatcost.CalculateTotalCostMicros(
+			fantasyUsageToChatMessageUsage(usage),
+			callConfig.Cost,
+		)
+	}
+
+	// Use a valid empty JSON array for the content column.
+	// MarshalParts returns a null NullRawMessage for empty
+	// slices, which becomes an empty string that PostgreSQL
+	// rejects as invalid JSON.
+	content := "[]"
+
+	updatedChat := chat
+	err := store.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for manual title usage: %w", err)
+		}
+		updatedChat = lockedChat
+		if hasUsage {
+			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:              chat.ID,
+				CreatedBy:           []uuid.UUID{chat.OwnerID},
+				ModelConfigID:       []uuid.UUID{modelConfig.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+				Content:             []string{content},
+				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
+				InputTokens:         []int64{usage.InputTokens},
+				OutputTokens:        []int64{usage.OutputTokens},
+				TotalTokens:         []int64{usage.TotalTokens},
+				ReasoningTokens:     []int64{usage.ReasoningTokens},
+				CacheCreationTokens: []int64{usage.CacheCreationTokens},
+				CacheReadTokens:     []int64{usage.CacheReadTokens},
+				ContextLimit:        []int64{modelConfig.ContextLimit},
+				Compressed:          []bool{false},
+				TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
+				RuntimeMs:           []int64{0},
+				ProviderResponseID:  []string{""},
+			})
+			if err != nil {
+				return xerrors.Errorf("insert manual title usage message: %w", err)
+			}
+			if len(messages) != 1 {
+				return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
+			}
+			if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+				return xerrors.Errorf("soft delete manual title usage message: %w", err)
+			}
+			if lockedChat.LastModelConfigID != modelConfig.ID {
+				if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+					ID:                chat.ID,
+					LastModelConfigID: lockedChat.LastModelConfigID,
+				}); err != nil {
+					return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
+				}
+			}
+		}
+		if newTitle != "" && lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
+			updatedChat, err = tx.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+				ID:    chat.ID,
+				Title: newTitle,
+			})
+			if err != nil {
+				return xerrors.Errorf("update chat title: %w", err)
+			}
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return updatedChat, nil
+}
+
 // RefreshStatus loads the latest chat status and publishes it to stream subscribers.
 func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
 	if chatID == uuid.Nil {
@@ -3475,24 +3946,7 @@ func (p *Server) runChat(
 		}
 
 		hasUsage := step.Usage != (fantasy.Usage{})
-		var usageForCost codersdk.ChatMessageUsage
-		if hasUsage {
-			if step.Usage.InputTokens != 0 {
-				usageForCost.InputTokens = ptr.Ref(step.Usage.InputTokens)
-			}
-			if step.Usage.OutputTokens != 0 {
-				usageForCost.OutputTokens = ptr.Ref(step.Usage.OutputTokens)
-			}
-			if step.Usage.ReasoningTokens != 0 {
-				usageForCost.ReasoningTokens = ptr.Ref(step.Usage.ReasoningTokens)
-			}
-			if step.Usage.CacheCreationTokens != 0 {
-				usageForCost.CacheCreationTokens = ptr.Ref(step.Usage.CacheCreationTokens)
-			}
-			if step.Usage.CacheReadTokens != 0 {
-				usageForCost.CacheReadTokens = ptr.Ref(step.Usage.CacheReadTokens)
-			}
-		}
+		usageForCost := fantasyUsageToChatMessageUsage(step.Usage)
 		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
 
 		var insertedMessages []database.ChatMessage
@@ -4078,10 +4532,8 @@ func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
 ) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
-	var (
-		dbConfig  database.ChatModelConfig
-		providers []database.ChatProvider
-	)
+	var dbConfig database.ChatModelConfig
+	var keys chatprovider.ProviderAPIKeys
 
 	var g errgroup.Group
 	g.Go(func() error {
@@ -4094,28 +4546,15 @@ func (p *Server) resolveChatModel(
 	})
 	g.Go(func() error {
 		var err error
-		providers, err = p.configCache.EnabledProviders(ctx)
+		keys, err = p.resolveProviderAPIKeys(ctx)
 		if err != nil {
-			return xerrors.Errorf("get enabled chat providers: %w", err)
+			return xerrors.Errorf("resolve provider API keys: %w", err)
 		}
 		return nil
 	})
 	if err := g.Wait(); err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
-	dbProviders := make(
-		[]chatprovider.ConfiguredProvider, 0, len(providers),
-	)
-	for _, provider := range providers {
-		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
-		})
-	}
-	keys := chatprovider.MergeProviderAPIKeys(
-		p.providerAPIKeys, dbProviders,
-	)
 
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
@@ -4127,6 +4566,29 @@ func (p *Server) resolveChatModel(
 		)
 	}
 	return model, dbConfig, keys, nil
+}
+
+func (p *Server) resolveProviderAPIKeys(
+	ctx context.Context,
+) (chatprovider.ProviderAPIKeys, error) {
+	providers, err := p.configCache.EnabledProviders(ctx)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+			"get enabled chat providers: %w",
+			err,
+		)
+	}
+	dbProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(providers),
+	)
+	for _, provider := range providers {
+		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
+		})
+	}
+	return chatprovider.MergeProviderAPIKeys(p.providerAPIKeys, dbProviders), nil
 }
 
 // resolveModelConfig looks up the chat's model config by its

@@ -220,6 +220,21 @@ WHERE
 ORDER BY
     created_at ASC;
 
+-- name: GetChatMessagesByChatIDAscPaginated :many
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND id > @after_id::bigint
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+ORDER BY
+    id ASC
+LIMIT
+    COALESCE(NULLIF(@limit_val::int, 0), 50);
+
 -- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
     *
@@ -466,6 +481,17 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateChatLastModelConfigByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    last_model_config_id = @last_model_config_id::uuid
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: UpdateChatLabelsByID :one
 UPDATE
     chats
@@ -545,6 +571,21 @@ SET
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
     last_error = sqlc.narg('last_error')::text,
     updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatStatusPreserveUpdatedAt :one
+UPDATE
+    chats
+SET
+    status = @status::chat_status,
+    worker_id = sqlc.narg('worker_id')::uuid,
+    started_at = sqlc.narg('started_at')::timestamptz,
+    heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
+    last_error = sqlc.narg('last_error')::text,
+    updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid
 RETURNING
