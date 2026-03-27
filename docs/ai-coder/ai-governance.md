@@ -81,7 +81,7 @@ rates, and usage patterns to inform decisions about AI strategy.
 Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are
 generally available as part of the AI Governance Add-On.
 
-The AI Governance Add-On is required to use AI Bridge and Agent Boundaries.
+The AI Governance add-on is required to use AI Bridge and Agent Boundaries.
 If your deployment does not have the add-on, you'll see a notification banner
 reminding you to enable it.
 
