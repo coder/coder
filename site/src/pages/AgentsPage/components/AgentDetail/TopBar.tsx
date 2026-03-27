@@ -204,7 +204,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="end"
-							className="[&_[role=menuitem]]:text-[13px] [&_[role=menuitem]]:font-normal"
+							className="[&_[role=menuitem]]:text-[13px]"
 						>
 							<DropdownMenuItem
 								disabled={!workspace.canOpenEditors}

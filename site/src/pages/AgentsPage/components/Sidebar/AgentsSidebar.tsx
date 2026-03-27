@@ -588,7 +588,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</DropdownMenuTrigger>
 								<DropdownMenuContent
 									align="end"
-									className="[&_[role=menuitem]]:text-[13px] [&_[role=menuitem]]:font-normal"
+									className="[&_[role=menuitem]]:text-[13px]"
 								>
 									{!chat.archived && !isChildNode && (
 										<DropdownMenuItem
@@ -878,7 +878,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="end"
-				className="[&_[role=menuitem]]:text-[13px] [&_[role=menuitem]]:font-normal"
+				className="[&_[role=menuitem]]:text-[13px]"
 			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
