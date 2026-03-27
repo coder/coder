@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/prebuilds/targetexpr"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -47,6 +48,7 @@ type StoreReconciler struct {
 	fileCache         *files.Cache
 	logger            slog.Logger
 	clock             quartz.Clock
+	evaluator         targetexpr.Evaluator
 	registerer        prometheus.Registerer
 	notifEnq          notifications.Enqueuer
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
@@ -118,6 +120,7 @@ func NewStoreReconciler(store database.Store,
 		clock:                     clock,
 		registerer:                registerer,
 		notifEnq:                  notifEnq,
+		evaluator:                 targetexpr.NewEvaluator(),
 		buildUsageChecker:         buildUsageChecker,
 		tracer:                    tracerProvider.Tracer(tracing.TracerName),
 		done:                      make(chan struct{}, 1),
@@ -635,7 +638,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			presetsBackoff,
 			eventCounts,
 			hardLimitedPresets,
-			nil,
+			c.evaluator,
 			c.clock,
 			c.logger,
 		)
@@ -694,6 +697,12 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("extraneous", state.Extraneous), slog.F("starting", state.Starting),
 		slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
 		slog.F("eligible", state.Eligible),
+		slog.F("scheduled_target", state.ScheduledTarget),
+		slog.F("target_source", state.TargetSource),
+		slog.F("expression_configured", state.ExpressionConfigured),
+	}
+	if state.ExpressionError != "" {
+		fields = append(fields, slog.F("expression_error", state.ExpressionError))
 	}
 
 	levelFn := logger.Debug
@@ -701,7 +710,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 
 	var multiErr multierror.Error
 	for _, action := range actions {
-		err = c.executeReconciliationAction(ctx, logger, ps, action)
+		err = c.executeReconciliationAction(ctx, logger, ps, action, state)
 		if err != nil {
 			logger.Error(ctx, "failed to execute action", slog.F("type", action.ActionType), slog.Error(err))
 			multiErr.Errors = append(multiErr.Errors, err)
@@ -772,7 +781,7 @@ func (c *StoreReconciler) WithReconciliationLock(
 //
 // This method handles logging at appropriate levels and performs the necessary operations
 // according to the action type. It returns an error if any part of the action fails.
-func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logger slog.Logger, ps prebuilds.PresetSnapshot, action *prebuilds.ReconciliationActions) error {
+func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logger slog.Logger, ps prebuilds.PresetSnapshot, action *prebuilds.ReconciliationActions, state *prebuilds.ReconciliationState) error {
 	ctx, span := c.tracer.Start(ctx, "prebuilds.executeReconciliationAction", trace.WithAttributes(
 		attribute.Int("action_type", int(action.ActionType)),
 		attribute.Int("create_count", int(action.Create)),
@@ -827,7 +836,7 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
 		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
-		desired := ps.CalculateDesiredInstances(c.clock.Now())
+		desired := state.Desired
 
 		if action.Create > desired {
 			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
