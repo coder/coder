@@ -259,8 +259,12 @@ func isMetaTitleOutput(title string, contextText string) bool {
 	}
 	normalizedContext := strings.ToLower(normalizeShortTextOutput(contextText))
 
-	if strings.HasPrefix(normalizedTitle, "generate title") ||
-		strings.HasPrefix(normalizedTitle, "title for ") {
+	if strings.HasPrefix(normalizedTitle, "generate title") &&
+		!strings.Contains(normalizedContext, "generate title") {
+		return true
+	}
+	if strings.HasPrefix(normalizedTitle, "title for ") &&
+		!strings.Contains(normalizedContext, "title for ") {
 		return true
 	}
 	if strings.Contains(normalizedTitle, "title generator") &&
@@ -272,9 +276,18 @@ func isMetaTitleOutput(title string, contextText string) bool {
 		return true
 	}
 
-	return strings.Contains(normalizedTitle, "don't have any tools") ||
-		strings.Contains(normalizedTitle, "dont have any tools") ||
-		strings.Contains(normalizedTitle, "do not have any tools")
+	for _, toolPhrase := range []string{
+		"don't have any tools",
+		"dont have any tools",
+		"do not have any tools",
+	} {
+		if strings.Contains(normalizedTitle, toolPhrase) &&
+			!strings.Contains(normalizedContext, toolPhrase) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func fallbackChatTitle(message string) string {

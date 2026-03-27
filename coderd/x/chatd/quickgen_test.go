@@ -444,6 +444,55 @@ func Test_generateManualTitle_RejectsMetaOutput(t *testing.T) {
 	require.ErrorContains(t, err, "generated title was invalid")
 }
 
+func Test_generateTitle_AllowsPromptEchoWhenUserIsDebuggingIt(t *testing.T) {
+	t.Parallel()
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Generate title prompt handling"},
+				},
+			}, nil
+		},
+	}
+
+	title, err := generateTitle(
+		context.Background(),
+		model,
+		"fix generate title prompt handling",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Generate title prompt handling", title)
+}
+
+func Test_generateManualTitle_AllowsMissingToolsTopicWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("debug don't have any tools response"),
+		),
+	}
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Don't have any tools response"},
+				},
+			}, nil
+		},
+	}
+
+	title, _, err := generateManualTitle(context.Background(), messages, model)
+	require.NoError(t, err)
+	require.Equal(t, "Don't have any tools response", title)
+}
+
 func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 	t.Parallel()
 
