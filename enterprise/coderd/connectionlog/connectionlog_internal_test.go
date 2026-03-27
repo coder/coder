@@ -25,7 +25,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
+			dedupedBatch: make(map[conflictKey]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -42,6 +42,11 @@ func Test_addToBatch(t *testing.T) {
 		got := b.dedupedBatch[key]
 		require.Equal(t, disconnect.ID, got.ID)
 		require.Equal(t, database.ConnectionStatusDisconnected, got.ConnectionStatus)
+		// The connect_time should be preserved from the original
+		// connect event, not overwritten by the disconnect's
+		// timestamp.
+		require.Equal(t, connect.Time, got.connectTime)
+		require.Equal(t, disconnect.Time, got.disconnectTime)
 	})
 
 	t.Run("DisconnectThenLaterConnect", func(t *testing.T) {
@@ -49,7 +54,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
+			dedupedBatch: make(map[conflictKey]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -75,7 +80,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
+			dedupedBatch: make(map[conflictKey]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -98,7 +103,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
+			dedupedBatch: make(map[conflictKey]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -122,7 +127,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
+			dedupedBatch: make(map[conflictKey]batchEntry),
 		}
 
 		evt1 := fakeNullConnIDEvent()
@@ -143,7 +148,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]database.UpsertConnectionLogParams),
+			dedupedBatch: make(map[conflictKey]batchEntry),
 		}
 
 		wsID := uuid.New()

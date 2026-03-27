@@ -115,8 +115,8 @@ type DBBatcher struct {
 	// ON CONFLICT DO UPDATE. Entries with a NULL connection_id (web
 	// events) go into nullConnIDBatch instead because NULL != NULL
 	// in SQL unique constraints.
-	dedupedBatch    map[conflictKey]database.UpsertConnectionLogParams
-	nullConnIDBatch []database.UpsertConnectionLogParams
+	dedupedBatch    map[conflictKey]batchEntry
+	nullConnIDBatch []batchEntry
 	maxBatchSize    int
 
 	clock    quartz.Clock
@@ -152,7 +152,7 @@ func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, op
 
 	b.timer = b.clock.NewTimer(b.interval)
 	b.itemCh = make(chan database.UpsertConnectionLogParams, b.maxBatchSize)
-	b.dedupedBatch = make(map[conflictKey]database.UpsertConnectionLogParams, b.maxBatchSize)
+	b.dedupedBatch = make(map[conflictKey]batchEntry, b.maxBatchSize)
 
 	b.ctx, b.cancel = context.WithCancel(ctx)
 	go func() {
@@ -204,14 +204,16 @@ func (b *DBBatcher) Close() error {
 // same (connection_id, workspace_id, agent_name) is a connect/disconnect
 // pair for the same session. A "reconnect" always uses a new ID.
 func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
-	if b.batchLen() >= b.maxBatchSize {
-		b.log.Warn(b.ctx, "connection log batch full, rejecting entry",
-			slog.F("batch_size", b.batchLen()),
-		)
-		return
+	entry := batchEntry{
+		UpsertConnectionLogParams: item,
+		connectTime:               item.Time,
 	}
+	if item.ConnectionStatus == database.ConnectionStatusDisconnected {
+		entry.disconnectTime = item.Time
+	}
+
 	if !item.ConnectionID.Valid {
-		b.nullConnIDBatch = append(b.nullConnIDBatch, item)
+		b.nullConnIDBatch = append(b.nullConnIDBatch, entry)
 		return
 	}
 	key := conflictKey{
@@ -221,16 +223,19 @@ func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 	}
 	existing, ok := b.dedupedBatch[key]
 	if !ok {
-		b.dedupedBatch[key] = item
+		b.dedupedBatch[key] = entry
 		return
 	}
 	// Prefer disconnect over connect (superset of info).
-	// If same status, prefer the later event.
+	// If same status, prefer the later event. When merging,
+	// preserve the earliest connect_time and latest
+	// disconnect_time so the row records the full session span.
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected &&
 		existing.ConnectionStatus != database.ConnectionStatusDisconnected {
-		b.dedupedBatch[key] = item
+		entry.connectTime = existing.connectTime
+		b.dedupedBatch[key] = entry
 	} else if item.Time.After(existing.Time) {
-		b.dedupedBatch[key] = item
+		b.dedupedBatch[key] = entry
 	}
 }
 
@@ -287,6 +292,16 @@ type conflictKey struct {
 	AgentName    string
 }
 
+// batchEntry wraps a connection log event with explicit connect and
+// disconnect times. When a connect and disconnect for the same session
+// are merged into one entry, connectTime preserves the original
+// session start while disconnectTime records when it ended.
+type batchEntry struct {
+	database.UpsertConnectionLogParams
+	connectTime    time.Time
+	disconnectTime time.Time
+}
+
 func (b *DBBatcher) flush(ctx context.Context) {
 	count := b.batchLen()
 	if count == 0 {
@@ -315,38 +330,31 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		disconnectTime   = make([]time.Time, 0, count)
 	)
 
-	appendItem := func(item database.UpsertConnectionLogParams) {
-		ids = append(ids, item.ID)
-		connectTime = append(connectTime, item.Time)
-		organizationID = append(organizationID, item.OrganizationID)
-		workspaceOwnerID = append(workspaceOwnerID, item.WorkspaceOwnerID)
-		workspaceID = append(workspaceID, item.WorkspaceID)
-		workspaceName = append(workspaceName, item.WorkspaceName)
-		agentName = append(agentName, item.AgentName)
-		connType = append(connType, item.Type)
-		code = append(code, item.Code.Int32)
-		codeValid = append(codeValid, item.Code.Valid)
-		ip = append(ip, item.Ip)
-		userAgent = append(userAgent, item.UserAgent.String)
-		userID = append(userID, item.UserID.UUID)
-		slugOrPort = append(slugOrPort, item.SlugOrPort.String)
-		connectionID = append(connectionID, item.ConnectionID.UUID)
-		disconnectReason = append(disconnectReason, item.DisconnectReason.String)
-		// Pre-compute disconnect_time: if status is "disconnected",
-		// use the event time; otherwise use zero time (epoch) which
-		// the SQL NULLIF will treat as NULL.
-		if item.ConnectionStatus == database.ConnectionStatusDisconnected {
-			disconnectTime = append(disconnectTime, item.Time)
-		} else {
-			disconnectTime = append(disconnectTime, time.Time{})
-		}
+	appendEntry := func(e batchEntry) {
+		ids = append(ids, e.ID)
+		connectTime = append(connectTime, e.connectTime)
+		organizationID = append(organizationID, e.OrganizationID)
+		workspaceOwnerID = append(workspaceOwnerID, e.WorkspaceOwnerID)
+		workspaceID = append(workspaceID, e.WorkspaceID)
+		workspaceName = append(workspaceName, e.WorkspaceName)
+		agentName = append(agentName, e.AgentName)
+		connType = append(connType, e.Type)
+		code = append(code, e.Code.Int32)
+		codeValid = append(codeValid, e.Code.Valid)
+		ip = append(ip, e.Ip)
+		userAgent = append(userAgent, e.UserAgent.String)
+		userID = append(userID, e.UserID.UUID)
+		slugOrPort = append(slugOrPort, e.SlugOrPort.String)
+		connectionID = append(connectionID, e.ConnectionID.UUID)
+		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
+		disconnectTime = append(disconnectTime, e.disconnectTime)
 	}
 
-	for _, item := range b.dedupedBatch {
-		appendItem(item)
+	for _, entry := range b.dedupedBatch {
+		appendEntry(entry)
 	}
-	for _, item := range b.nullConnIDBatch {
-		appendItem(item)
+	for _, entry := range b.nullConnIDBatch {
+		appendEntry(entry)
 	}
 
 	err := b.store.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
@@ -368,18 +376,18 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,
 	})
-	if err != nil {
-		// Retain the batch so it will be retried on the next flush
-		// cycle. The data is still in dedupedBatch/nullConnIDBatch.
-		b.log.Error(ctx, "failed to batch upsert connection logs",
-			slog.Error(err), slog.F("count", count))
-		return
-	}
-
-	// Only clear after a successful write so transient failures
-	// don't silently drop logs.
+	// Always clear the batch regardless of success or failure.
+	// Retaining on failure would block all new entries (the
+	// channel-to-batch path has no backpressure) and silently
+	// drop them instead.
 	clear(b.dedupedBatch)
 	b.nullConnIDBatch = b.nullConnIDBatch[:0]
+
+	if err != nil {
+		b.log.Error(ctx, "failed to batch upsert connection logs",
+			slog.Error(err), slog.F("dropped", count))
+		return
+	}
 
 	b.log.Debug(ctx, "connection log batch flush complete", slog.F("count", count))
 }
