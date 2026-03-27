@@ -281,16 +281,19 @@ func isMetaTitleOutput(title string, contextText string) bool {
 		}
 	}
 
-	for _, variants := range [][]string{
-		{"don't have any tools", "dont have any tools", "do not have any tools"},
+	mentionsToolTopic := strings.Contains(normalizedContext, "tool") &&
+		(strings.Contains(normalizedContext, "don't") ||
+			strings.Contains(normalizedContext, "dont") ||
+			strings.Contains(normalizedContext, "do not") ||
+			strings.Contains(normalizedContext, "can't") ||
+			strings.Contains(normalizedContext, "cannot") ||
+			strings.Contains(normalizedContext, "use"))
+	for _, variant := range []string{
+		"don't have any tools",
+		"dont have any tools",
+		"do not have any tools",
 	} {
-		titleMatches := false
-		contextMatches := false
-		for _, variant := range variants {
-			titleMatches = titleMatches || strings.Contains(normalizedTitle, variant)
-			contextMatches = contextMatches || strings.Contains(normalizedContext, variant)
-		}
-		if titleMatches && !contextMatches {
+		if strings.Contains(normalizedTitle, variant) && !mentionsToolTopic {
 			return true
 		}
 	}

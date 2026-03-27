@@ -557,7 +557,7 @@ func Test_generateManualTitle_AllowsMissingToolsTopicWhenRequested(t *testing.T)
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText("debug do not have any tools response"),
+			codersdk.ChatMessageText("why can't I use tools in this workspace?"),
 		),
 	}
 
@@ -565,7 +565,7 @@ func Test_generateManualTitle_AllowsMissingToolsTopicWhenRequested(t *testing.T)
 		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Don't have any tools response"},
+					fantasy.TextContent{Text: "Don't have any tools in workspace"},
 				},
 			}, nil
 		},
@@ -573,7 +573,7 @@ func Test_generateManualTitle_AllowsMissingToolsTopicWhenRequested(t *testing.T)
 
 	title, _, err := generateManualTitle(context.Background(), messages, model)
 	require.NoError(t, err)
-	require.Equal(t, "Don't have any tools response", title)
+	require.Equal(t, "Don't have any tools in workspace", title)
 }
 
 func Test_generateManualTitle_UsesTimeout(t *testing.T) {
