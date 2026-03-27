@@ -324,20 +324,21 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-					{/* Tab panels – all stay mounted, only the active one visible. */}
-					{allPanels.map((panel) => {
-						const isActive = effectiveTabId === panel.id;
-						return (
-							<div
-								key={panel.id}
-								role="tabpanel"
-								aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
-								className={cn("min-h-0 flex-1", !isActive && "hidden")}
-								inert={!isActive}
-							>
-								{panel.content}
-							</div>
-						);
-					})}				</div>
-			);
-	};
+			{/* Tab panels – all stay mounted, only the active one visible. */}
+			{allPanels.map((panel) => {
+				const isActive = effectiveTabId === panel.id;
+				return (
+					<div
+						key={panel.id}
+						role="tabpanel"
+						aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
+						className={cn("min-h-0 flex-1", !isActive && "hidden")}
+						inert={!isActive}
+					>
+						{panel.content}
+					</div>
+				);
+			})}
+		</div>
+	);
+};
