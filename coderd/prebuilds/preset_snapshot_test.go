@@ -1792,7 +1792,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				require.Equal(t, int32(3), state.Desired)
 				require.Equal(t, int32(5), state.ScheduledTarget)
 				require.Equal(t, "expression", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.True(t, state.ExpressionActive)
 				require.Empty(t, state.ExpressionError)
 			},
 		},
@@ -1814,7 +1815,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				require.Equal(t, int32(3), state.Desired)
 				require.Equal(t, int32(3), state.ScheduledTarget)
 				require.Equal(t, "expression_fallback", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.False(t, state.ExpressionActive)
 				require.NotEmpty(t, state.ExpressionError)
 			},
 		},
@@ -1841,7 +1843,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				require.Equal(t, int32(4), state.Desired)
 				require.Equal(t, int32(4), state.ScheduledTarget)
 				require.Equal(t, "expression_fallback", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.False(t, state.ExpressionActive)
 				require.NotEmpty(t, state.ExpressionError)
 			},
 		},
@@ -1862,7 +1865,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				state := calculateState(t, built)
 				require.Equal(t, int32(0), state.Desired)
 				require.Equal(t, "expression", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.True(t, state.ExpressionActive)
 			},
 		},
 		{
@@ -1883,7 +1887,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				require.Equal(t, targetexpr.MaxPrebuildsTarget, state.Desired)
 				require.Equal(t, int32(5), state.ScheduledTarget)
 				require.Equal(t, "expression", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.True(t, state.ExpressionActive)
 			},
 		},
 		{
@@ -1904,7 +1909,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				require.Equal(t, int32(7), state.Desired)
 				require.Equal(t, int32(7), state.ScheduledTarget)
 				require.Equal(t, "scheduled", state.TargetSource)
-				require.False(t, state.ExpressionConfigured)
+				require.False(t, state.ExpressionPresent)
+				require.False(t, state.ExpressionActive)
 				require.Empty(t, state.ExpressionError)
 			},
 		},
@@ -1952,7 +1958,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				state := calculateState(t, built)
 				require.Equal(t, int32(13), state.Desired)
 				require.Equal(t, "expression", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.True(t, state.ExpressionActive)
 			},
 		},
 		{
@@ -1973,7 +1980,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				state := calculateState(t, built)
 				require.Equal(t, int32(10), state.Desired)
 				require.Equal(t, "expression", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.True(t, state.ExpressionActive)
 			},
 		},
 		{
@@ -1994,7 +2002,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				require.Equal(t, int32(0), state.Desired)
 				require.Equal(t, int32(5), state.ScheduledTarget)
 				require.Equal(t, "scheduled", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.False(t, state.ExpressionActive)
 			},
 		},
 		{
@@ -2015,7 +2024,8 @@ func TestExpressionTargetResolution(t *testing.T) {
 				require.Equal(t, int32(6), state.Desired)
 				require.Equal(t, int32(6), state.ScheduledTarget)
 				require.Equal(t, "expression", state.TargetSource)
-				require.True(t, state.ExpressionConfigured)
+				require.True(t, state.ExpressionPresent)
+				require.True(t, state.ExpressionActive)
 				require.Empty(t, state.ExpressionError)
 			},
 		},
@@ -2372,9 +2382,8 @@ func validateState(t *testing.T, expected, actual prebuilds.ReconciliationState)
 	if expected.TargetSource != "" {
 		require.Equal(t, expected.TargetSource, actual.TargetSource)
 	}
-	if expected.ExpressionConfigured {
-		require.Equal(t, expected.ExpressionConfigured, actual.ExpressionConfigured)
-	}
+	require.Equal(t, expected.ExpressionPresent, actual.ExpressionPresent)
+	require.Equal(t, expected.ExpressionActive, actual.ExpressionActive)
 	if expected.ExpressionError != "" {
 		require.Equal(t, expected.ExpressionError, actual.ExpressionError)
 	}

@@ -145,15 +145,16 @@ func (p PresetSnapshot) CanSkipReconciliation() bool {
 // For example, it calculates how many prebuilds are expired, eligible,
 // how many are extraneous, and how many are in various transition states.
 type ReconciliationState struct {
-	Actual               int32  // Number of currently running prebuilds, i.e., non-expired, expired and extraneous prebuilds
-	Expired              int32  // Number of currently running prebuilds that exceeded their allowed time-to-live (TTL)
-	Desired              int32  // Number of prebuilds desired as defined in the preset
-	ScheduledTarget      int32  // Number of prebuilds desired before expression overrides are applied
-	TargetSource         string // Source used to resolve Desired: scheduled, expression, or expression_fallback
-	ExpressionConfigured bool   // Whether the preset has a desired instances expression configured
-	ExpressionError      string // Expression validation, environment, or evaluation error when falling back
-	Eligible             int32  // Number of prebuilds that are ready to be claimed
-	Extraneous           int32  // Number of extra running prebuilds beyond the desired count
+	Actual            int32  // Number of currently running prebuilds, i.e., non-expired, expired and extraneous prebuilds
+	Expired           int32  // Number of currently running prebuilds that exceeded their allowed time-to-live (TTL)
+	Desired           int32  // Number of prebuilds desired as defined in the preset
+	ScheduledTarget   int32  // Number of prebuilds desired before expression overrides are applied
+	TargetSource      string // Source used to resolve Desired: scheduled, expression, or expression_fallback
+	ExpressionPresent bool   // Whether the preset has a non-empty desired instances expression stored in the database
+	ExpressionActive  bool   // Whether Desired was resolved from the desired instances expression
+	ExpressionError   string // Expression validation, environment, or evaluation error when falling back
+	Eligible          int32  // Number of prebuilds that are ready to be claimed
+	Extraneous        int32  // Number of extra running prebuilds beyond the desired count
 
 	// Counts of prebuilds in various transition states.
 	Starting int32
@@ -171,11 +172,12 @@ type baseCounts struct {
 }
 
 type resolvedTarget struct {
-	desired              int32
-	scheduledTarget      int32
-	targetSource         string
-	expressionConfigured bool
-	expressionError      string
+	desired           int32
+	scheduledTarget   int32
+	targetSource      string
+	expressionPresent bool
+	expressionActive  bool
+	expressionError   string
 }
 
 // ReconciliationActions represents actions needed to reconcile the current state with the desired state.
@@ -367,10 +369,10 @@ func (p PresetSnapshot) resolveDesiredTarget(at time.Time) resolvedTarget {
 	scheduledTarget := p.calculateScheduledTarget(at)
 	expression := strings.TrimSpace(p.Preset.DesiredInstancesExpression.String)
 	result := resolvedTarget{
-		desired:              scheduledTarget,
-		scheduledTarget:      scheduledTarget,
-		targetSource:         "scheduled",
-		expressionConfigured: p.Preset.DesiredInstancesExpression.Valid && expression != "",
+		desired:           scheduledTarget,
+		scheduledTarget:   scheduledTarget,
+		targetSource:      "scheduled",
+		expressionPresent: p.Preset.DesiredInstancesExpression.Valid && expression != "",
 	}
 
 	if !p.isActive() {
@@ -378,7 +380,7 @@ func (p PresetSnapshot) resolveDesiredTarget(at time.Time) resolvedTarget {
 		return result
 	}
 
-	if !result.expressionConfigured {
+	if !result.expressionPresent {
 		return result
 	}
 
@@ -430,6 +432,7 @@ func (p PresetSnapshot) resolveDesiredTarget(at time.Time) resolvedTarget {
 
 	result.desired = desiredTarget
 	result.targetSource = "expression"
+	result.expressionActive = true
 	return result
 }
 
@@ -457,15 +460,16 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	}
 
 	return &ReconciliationState{
-		Actual:               actual,
-		Expired:              counts.expired,
-		Desired:              resolvedTarget.desired,
-		ScheduledTarget:      resolvedTarget.scheduledTarget,
-		TargetSource:         resolvedTarget.targetSource,
-		ExpressionConfigured: resolvedTarget.expressionConfigured,
-		ExpressionError:      resolvedTarget.expressionError,
-		Eligible:             eligible,
-		Extraneous:           extraneous,
+		Actual:            actual,
+		Expired:           counts.expired,
+		Desired:           resolvedTarget.desired,
+		ScheduledTarget:   resolvedTarget.scheduledTarget,
+		TargetSource:      resolvedTarget.targetSource,
+		ExpressionPresent: resolvedTarget.expressionPresent,
+		ExpressionActive:  resolvedTarget.expressionActive,
+		ExpressionError:   resolvedTarget.expressionError,
+		Eligible:          eligible,
+		Extraneous:        extraneous,
 
 		Starting: counts.starting,
 		Stopping: counts.stopping,

@@ -120,7 +120,8 @@ The most useful structured log fields are:
 
 - `target_source` — Whether the final target came from the schedule baseline (`scheduled`), the expression (`expression`), or a fallback to the schedule baseline after an error (`expression_fallback`).
 - `scheduled_target` — The baseline target before expression overrides are applied.
-- `expression_configured` — Whether the preset has a non-empty expression configured.
+- `expression_present` — Whether the preset has a non-empty expression stored in the database.
+- `expression_active` — Whether the reconciler successfully used the expression to set the desired target.
 - `expression_error` — The validation, environment, or evaluation error that caused a fallback.
 
 Related documentation:

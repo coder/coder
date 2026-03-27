@@ -840,7 +840,7 @@ func createWorkspace(
 			CreatedAt: dbtime.Time(api.Clock.Now()),
 		})
 		if eventErr != nil {
-			api.Logger.Warn(ctx, "failed to record prebuild event",
+			api.Logger.Error(ctx, "failed to record prebuild event",
 				slog.F("event_type", string(prebuildEvent)),
 				slog.F("template_version_preset_id", templateVersionPresetID),
 				slog.Error(eventErr),

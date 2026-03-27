@@ -188,7 +188,7 @@ SELECT
 		MAX(tsb.created_at)::timestamptz AS last_build_at
 FROM time_sorted_builds tsb
 		LEFT JOIN failed_count fc ON fc.preset_id = tsb.preset_id
-WHERE tsb.rn <= tsb.desired_instances -- Fetch the last N builds, where N is the number of desired instances; if any fail, we backoff
+WHERE tsb.rn <= COALESCE(tsb.desired_instances, 1) -- Fetch the last N builds, where N is the number of desired instances; expression-only presets still examine the last build for backoff.
 		AND tsb.job_status = 'failed'::provisioner_job_status
 		AND created_at >= @lookback::timestamptz
 GROUP BY tsb.template_version_id, tsb.preset_id, fc.num_failed;

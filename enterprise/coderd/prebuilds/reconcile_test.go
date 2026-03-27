@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	coreprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/prebuilds/targetexpr"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -2016,7 +2017,7 @@ func TestReconciliationWithExpressionTarget(t *testing.T) {
 			nil,
 			coreprebuilds.PrebuildEventCounts{},
 			false,
-			nil,
+			targetexpr.NewEvaluator(),
 			clock,
 			logger,
 		)
@@ -2037,7 +2038,8 @@ func TestReconciliationWithExpressionTarget(t *testing.T) {
 		require.EqualValues(t, 2, state.ScheduledTarget)
 		require.EqualValues(t, 5, state.Desired)
 		require.Equal(t, "expression", state.TargetSource)
-		require.True(t, state.ExpressionConfigured)
+		require.True(t, state.ExpressionPresent)
+		require.True(t, state.ExpressionActive)
 		require.Equal(t, coreprebuilds.ActionTypeCreate, actions[0].ActionType)
 		require.EqualValues(t, 5, actions[0].Create)
 		require.NotEqualValues(t, state.ScheduledTarget, actions[0].Create)
@@ -2060,6 +2062,8 @@ func TestReconciliationWithExpressionTarget(t *testing.T) {
 		require.EqualValues(t, 2, state.Desired)
 		require.EqualValues(t, 3, state.Extraneous)
 		require.Equal(t, "expression", state.TargetSource)
+		require.True(t, state.ExpressionPresent)
+		require.True(t, state.ExpressionActive)
 		require.Equal(t, coreprebuilds.ActionTypeDelete, actions[0].ActionType)
 		require.Len(t, actions[0].DeleteIDs, 3)
 	})
@@ -2080,7 +2084,8 @@ func TestReconciliationWithExpressionTarget(t *testing.T) {
 		require.EqualValues(t, 4, state.ScheduledTarget)
 		require.EqualValues(t, 4, state.Desired)
 		require.Equal(t, "expression_fallback", state.TargetSource)
-		require.True(t, state.ExpressionConfigured)
+		require.True(t, state.ExpressionPresent)
+		require.False(t, state.ExpressionActive)
 		require.NotEmpty(t, state.ExpressionError)
 		require.Equal(t, coreprebuilds.ActionTypeCreate, actions[0].ActionType)
 		require.EqualValues(t, 4, actions[0].Create)

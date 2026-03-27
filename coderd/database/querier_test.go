@@ -5562,7 +5562,9 @@ func createTemplate(t *testing.T, db database.Store, orgID uuid.UUID, userID uui
 }
 
 type tmplVersionOpts struct {
-	DesiredInstances int32
+	DesiredInstances           int32
+	OmitDesiredInstances       bool
+	DesiredInstancesExpression sql.NullString
 }
 
 func createTmplVersionAndPreset(
@@ -5585,17 +5587,22 @@ func createTmplVersionAndPreset(
 		UpdatedAt:      now,
 		CreatedBy:      tmpl.CreatedBy,
 	})
-	desiredInstances := int32(1)
+	desiredInstances := sql.NullInt32{Int32: 1, Valid: true}
+	desiredInstancesExpression := sql.NullString{}
 	if opts != nil {
-		desiredInstances = opts.DesiredInstances
+		if opts.DesiredInstances != 0 {
+			desiredInstances.Int32 = opts.DesiredInstances
+		}
+		if opts.OmitDesiredInstances {
+			desiredInstances = sql.NullInt32{}
+		}
+		desiredInstancesExpression = opts.DesiredInstancesExpression
 	}
 	preset := dbgen.Preset(t, db, database.InsertPresetParams{
-		TemplateVersionID: tmplVersion.ID,
-		Name:              "preset",
-		DesiredInstances: sql.NullInt32{
-			Int32: desiredInstances,
-			Valid: true,
-		},
+		TemplateVersionID:          tmplVersion.ID,
+		Name:                       "preset",
+		DesiredInstances:           desiredInstances,
+		DesiredInstancesExpression: desiredInstancesExpression,
 	})
 
 	return templateVersionWithPreset{
@@ -6098,6 +6105,38 @@ func TestGetPresetsBackoff(t *testing.T) {
 		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
 		require.NoError(t, err)
 		require.Nil(t, backoffs)
+	})
+
+	t.Run("Expression-only preset uses last build for backoff", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		dbgen.User(t, db, database.User{
+			ID: userID,
+		})
+
+		tmpl1 := createTemplate(t, db, orgID, userID)
+		tmpl1V1 := createTmplVersionAndPreset(t, db, tmpl1, tmpl1.ActiveVersionID, now, &tmplVersionOpts{
+			OmitDesiredInstances:       true,
+			DesiredInstancesExpression: sql.NullString{String: "scheduled_target + 3", Valid: true},
+		})
+		createPrebuiltWorkspace(ctx, t, db, tmpl1, tmpl1V1, orgID, now, &createPrebuiltWorkspaceOpts{
+			failedJob: true,
+			createdAt: now.Add(-1 * time.Minute),
+		})
+
+		backoffs, err := db.GetPresetsBackoff(ctx, now.Add(-time.Hour))
+		require.NoError(t, err)
+		require.Len(t, backoffs, 1)
+
+		backoff := backoffs[0]
+		require.Equal(t, backoff.TemplateVersionID, tmpl1.ActiveVersionID)
+		require.Equal(t, backoff.PresetID, tmpl1V1.preset.ID)
+		require.Equal(t, int32(1), backoff.NumFailed)
 	})
 
 	t.Run("Last 3 jobs are successful - no backoff", func(t *testing.T) {

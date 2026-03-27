@@ -699,7 +699,8 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		slog.F("eligible", state.Eligible),
 		slog.F("scheduled_target", state.ScheduledTarget),
 		slog.F("target_source", state.TargetSource),
-		slog.F("expression_configured", state.ExpressionConfigured),
+		slog.F("expression_present", state.ExpressionPresent),
+		slog.F("expression_active", state.ExpressionActive),
 	}
 	if state.ExpressionError != "" {
 		fields = append(fields, slog.F("expression_error", state.ExpressionError))
