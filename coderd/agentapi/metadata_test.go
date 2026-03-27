@@ -320,10 +320,12 @@ func TestBatchUpdateMetadata(t *testing.T) {
 						return false
 					}
 					for i, key := range arg.Key {
-						if arg.Value[i] != expectedValues[key] {
+						expVal, ok := expectedValues[key]
+						if !ok || arg.Value[i] != expVal {
 							return false
 						}
-						if arg.Error[i] != expectedErrors[key] {
+						expErr, ok := expectedErrors[key]
+						if !ok || arg.Error[i] != expErr {
 							return false
 						}
 					}
