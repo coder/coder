@@ -483,6 +483,28 @@ func Test_generateTitle_AllowsParaphrasedTitleTopic(t *testing.T) {
 	require.Equal(t, "Fix title generation prompts", title)
 }
 
+func Test_generateTitle_AllowsTestingTitleGenerationWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Testing title generation prompts"},
+				},
+			}, nil
+		},
+	}
+
+	title, err := generateTitle(
+		context.Background(),
+		model,
+		"add tests for title generation prompts",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Testing title generation prompts", title)
+}
+
 func Test_generateTitle_AllowsTitleGeneratorVariantWhenRequested(t *testing.T) {
 	t.Parallel()
 

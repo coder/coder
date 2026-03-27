@@ -261,16 +261,27 @@ func isMetaTitleOutput(title string, contextText string) bool {
 	mentionsTitleTopic := strings.Contains(normalizedContext, "generate title") ||
 		strings.Contains(normalizedContext, "title for ") ||
 		strings.Contains(normalizedContext, "title generator") ||
-		strings.Contains(normalizedContext, "title generation")
+		strings.Contains(normalizedContext, "title generation") ||
+		(strings.Contains(normalizedContext, "title") &&
+			strings.Contains(normalizedContext, "prompt"))
 
 	if (strings.HasPrefix(normalizedTitle, "generate title") ||
 		strings.HasPrefix(normalizedTitle, "title for ")) && !mentionsTitleTopic {
 		return true
 	}
 
+	for _, variant := range []string{
+		"i am a title generator",
+		"i'm a title generator",
+		"im a title generator",
+		"testing title generation",
+	} {
+		if strings.Contains(normalizedTitle, variant) && !mentionsTitleTopic {
+			return true
+		}
+	}
+
 	for _, variants := range [][]string{
-		{"i am a title generator", "i'm a title generator", "im a title generator"},
-		{"testing title generation"},
 		{"don't have any tools", "dont have any tools", "do not have any tools"},
 	} {
 		titleMatches := false
