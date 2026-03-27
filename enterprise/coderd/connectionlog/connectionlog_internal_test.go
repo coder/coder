@@ -307,7 +307,7 @@ func (m batchParamsMatcher) Matches(x interface{}) bool {
 	return true
 }
 
-func (_ batchParamsMatcher) String() string {
+func (batchParamsMatcher) String() string {
 	return "batch upsert params matcher"
 }
 
