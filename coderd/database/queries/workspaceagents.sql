@@ -99,7 +99,8 @@ SET
 FROM
 	agents a
 WHERE
-	wa.id = a.id;
+	wa.id = a.id
+	AND wa.updated_at <= a.updated_at;
 
 -- name: UpdateWorkspaceAgentStartupByID :exec
 UPDATE

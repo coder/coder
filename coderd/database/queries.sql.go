@@ -22793,6 +22793,7 @@ FROM
 	agents a
 WHERE
 	wa.id = a.id
+	AND wa.updated_at <= a.updated_at
 `
 
 type BatchUpdateWorkspaceAgentConnectionsParams struct {

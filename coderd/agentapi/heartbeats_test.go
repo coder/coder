@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -76,7 +77,10 @@ func TestBatcher_DB(t *testing.T) {
 	)
 	t.Cleanup(b.Close)
 
-	now := mClock.Now()
+	// Use real wall-clock timestamps for updates since the DB agent
+	// rows were created with dbtime.Now(). The mock clock only
+	// controls the flush timer.
+	now := dbtime.Now()
 
 	// Add first update for agent1.
 	b.Add(agentapi.HeartbeatUpdate{
