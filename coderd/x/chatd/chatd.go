@@ -124,6 +124,10 @@ type Server struct {
 	// keyed by chat ID and invalidated when the agent changes.
 	workspaceMCPToolsCache sync.Map // uuid.UUID -> *cachedWorkspaceMCPTools
 
+	// skillsCache caches discovered skill metadata per chat so
+	// we avoid re-scanning .agents/skills/ on every turn.
+	skillsCache sync.Map // uuid.UUID -> *cachedSkills
+
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
 
@@ -169,6 +173,13 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 type cachedWorkspaceMCPTools struct {
 	agentID uuid.UUID
 	tools   []workspacesdk.MCPToolInfo
+}
+
+// cachedSkills stores discovered skill metadata from a workspace
+// agent, keyed by the agent ID that provided them.
+type cachedSkills struct {
+	agentID uuid.UUID
+	skills  []chattool.SkillMeta
 }
 
 type turnWorkspaceContext struct {
@@ -2571,6 +2582,7 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	if !state.buffering && len(state.subscribers) == 0 {
 		p.chatStreams.Delete(chatID)
 		p.workspaceMCPToolsCache.Delete(chatID)
+		p.skillsCache.Delete(chatID)
 	}
 }
 
@@ -3803,6 +3815,7 @@ func (p *Server) runChat(
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
+		skills             []chattool.SkillMeta
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3864,6 +3877,48 @@ func (p *Server) runChat(
 		})
 	}
 	if chat.WorkspaceID.Valid {
+		// Discover skills from the workspace in parallel.
+		g2.Go(func() error {
+			// Check cache first.
+			if cached, ok := p.skillsCache.Load(chat.ID); ok {
+				entry, ok2 := cached.(*cachedSkills)
+				if ok2 {
+					if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil && agent.ID == entry.agentID {
+						skills = entry.skills
+						return nil
+					}
+				}
+			}
+
+			// Cache miss or agent changed — discover fresh.
+			agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
+			if agentErr != nil {
+				return nil
+			}
+			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
+			if connErr != nil {
+				return nil
+			}
+			dir := agent.ExpandedDirectory
+			if dir == "" {
+				dir = agent.Directory
+			}
+			discovered, discoverErr := chattool.DiscoverSkills(ctx, conn, dir)
+			if discoverErr != nil {
+				logger.Warn(ctx, "failed to discover skills",
+					slog.Error(discoverErr))
+				return nil
+			}
+			skills = discovered
+			// Cache the result. Unlike MCP tools, an empty
+			// skills list is a valid stable state (the workspace
+			// simply has no skills), so we cache it.
+			p.skillsCache.Store(chat.ID, &cachedSkills{
+				agentID: agent.ID,
+				skills:  discovered,
+			})
+			return nil
+		})
 		g2.Go(func() error {
 			// Fast path: check cache using the in-memory cached
 			// agent (ensureWorkspaceAgent is free when already
@@ -3959,6 +4014,9 @@ func (p *Server) runChat(
 
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
+	}
+	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
 	if resolvedUserPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, resolvedUserPrompt)
@@ -4338,6 +4396,20 @@ func (p *Server) runChat(
 		})...)
 	}
 
+	// Append skill tools when the workspace has skills.
+	if len(skills) > 0 {
+		skillOpts := chattool.ReadSkillOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			GetSkills: func() []chattool.SkillMeta {
+				return skills
+			},
+		}
+		tools = append(tools,
+			chattool.ReadSkill(skillOpts),
+			chattool.ReadSkillFile(skillOpts),
+		)
+	}
+
 	// Append tools from external MCP servers. These appear
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
@@ -4426,6 +4498,9 @@ func (p *Server) runChat(
 			}
 			if instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
 			if reloadUserPrompt != "" {
