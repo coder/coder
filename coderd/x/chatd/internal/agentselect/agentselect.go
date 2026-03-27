@@ -19,7 +19,8 @@ const chatAgentSuffix = "-coderd-chat"
 // SelectChatAgent picks the best workspace agent for a chat session from
 // the provided candidates. It applies these rules in order:
 //  1. Filter to root agents only (ParentID is null).
-//  2. Sort deterministically by DisplayOrder ASC, then Name ASC.
+//  2. Sort stably and deterministically by DisplayOrder ASC, then
+//     Name ASC (case-insensitive).
 //  3. If exactly one root agent name ends with "-coderd-chat"
 //     (case-insensitive), return it.
 //  4. If zero root agents match the suffix, return the first root agent
@@ -44,7 +45,7 @@ func SelectChatAgent(
 		)
 	}
 
-	slices.SortFunc(rootAgents, func(a, b database.WorkspaceAgent) int {
+	slices.SortStableFunc(rootAgents, func(a, b database.WorkspaceAgent) int {
 		if order := cmp.Compare(a.DisplayOrder, b.DisplayOrder); order != 0 {
 			return order
 		}

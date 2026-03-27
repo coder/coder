@@ -167,6 +167,8 @@ func waitForAgentAndRespond(
 
 	selected, err := agentselect.SelectChatAgent(agents)
 	if err != nil {
+		// Agent selection failed, but the workspace started successfully.
+		// Report no_agent so the model can decide what to do next.
 		return toolResponse(map[string]any{
 			"started":        true,
 			"workspace_name": ws.Name,

@@ -337,6 +337,11 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 				for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 					result[k] = v
 				}
+			} else {
+				o.Logger.Debug(ctx, "failed to select chat workspace agent",
+					slog.F("workspace_id", ws.ID),
+					slog.Error(selectErr),
+				)
 			}
 		}
 		return result, true, nil
@@ -385,6 +390,11 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 					// Agent is offline or never became ready - allow
 					// creation.
 				}
+			} else {
+				o.Logger.Debug(ctx, "failed to select chat workspace agent",
+					slog.F("workspace_id", ws.ID),
+					slog.Error(selectErr),
+				)
 			}
 		}
 		// No agent ID or no agent status — allow creation.
