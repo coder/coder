@@ -74,15 +74,13 @@ describe("useGitWatcher", () => {
 	it("connects WebSocket when chatId is provided", () => {
 		const socket = createMockSocket();
 
-		const { result } = renderHook(() =>
+		renderHook(() =>
 			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
 		);
 
 		expect(mockWatchChatGit).toHaveBeenCalledWith("chat-123");
-		expect(result.current.isConnected).toBe(false);
 
 		act(() => socket.simulateOpen());
-		expect(result.current.isConnected).toBe(true);
 	});
 
 	it("does not connect when chatId is undefined", () => {
@@ -91,7 +89,6 @@ describe("useGitWatcher", () => {
 		);
 
 		expect(mockWatchChatGit).not.toHaveBeenCalled();
-		expect(result.current.isConnected).toBe(false);
 		expect(result.current.repositories.size).toBe(0);
 	});
 
@@ -103,7 +100,6 @@ describe("useGitWatcher", () => {
 		);
 
 		expect(mockWatchChatGit).not.toHaveBeenCalled();
-		expect(result.current.isConnected).toBe(false);
 		expect(result.current.repositories.size).toBe(0);
 	});
 
@@ -115,14 +111,13 @@ describe("useGitWatcher", () => {
 		);
 
 		expect(mockWatchChatGit).not.toHaveBeenCalled();
-		expect(result.current.isConnected).toBe(false);
 		expect(result.current.repositories.size).toBe(0);
 	});
 
 	it("connects when agentStatus transitions to connected", () => {
 		const socket = createMockSocket();
 
-		const { result, rerender } = renderHook(
+		const { rerender } = renderHook(
 			({ agentStatus }: { agentStatus: WorkspaceAgentStatus | undefined }) =>
 				useGitWatcher({ chatId: "chat-123", agentStatus }),
 			{
@@ -133,14 +128,12 @@ describe("useGitWatcher", () => {
 		);
 
 		expect(mockWatchChatGit).not.toHaveBeenCalled();
-		expect(result.current.isConnected).toBe(false);
 
 		rerender({ agentStatus: "connected" });
 
 		expect(mockWatchChatGit).toHaveBeenCalledWith("chat-123");
 
 		act(() => socket.simulateOpen());
-		expect(result.current.isConnected).toBe(true);
 	});
 
 	it("disconnects and stops reconnecting when agentStatus leaves connected", () => {
@@ -149,7 +142,7 @@ describe("useGitWatcher", () => {
 		try {
 			const socket = createMockSocket();
 
-			const { result, rerender } = renderHook(
+			const { rerender } = renderHook(
 				({ agentStatus }: { agentStatus: WorkspaceAgentStatus | undefined }) =>
 					useGitWatcher({ chatId: "chat-123", agentStatus }),
 				{
@@ -160,13 +153,11 @@ describe("useGitWatcher", () => {
 			);
 
 			act(() => socket.simulateOpen());
-			expect(result.current.isConnected).toBe(true);
 
 			// Transition agent away from connected.
 			rerender({ agentStatus: "disconnected" });
 
 			expect(socket.close).toHaveBeenCalled();
-			expect(result.current.isConnected).toBe(false);
 
 			// Simulate the browser firing the close event after
 			// socket.close() — the disposedRef guard must prevent
@@ -458,10 +449,9 @@ describe("useGitWatcher", () => {
 			act(() => vi.advanceTimersByTime(60_000));
 			expect(mockWatchChatGit).toHaveBeenCalledTimes(2);
 
-			// socket2 should still work: open sets isConnected,
+			// socket2 should still work: messages are handled.
 			// messages update repositories.
 			act(() => socket2.simulateOpen());
-			expect(result.current.isConnected).toBe(true);
 
 			act(() => {
 				socket2.simulateMessage({

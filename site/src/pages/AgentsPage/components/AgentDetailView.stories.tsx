@@ -70,11 +70,12 @@ const buildEditing = (
 	...overrides,
 });
 
-const buildGitWatcher = (): ComponentProps<
-	typeof AgentDetailView
->["gitWatcher"] => ({
-	repositories: new Map(),
-	refresh: fn(),
+const buildGitWatcherProps = (): Pick<
+	ComponentProps<typeof AgentDetailView>,
+	"gitRepositories" | "gitRefresh"
+> => ({
+	gitRepositories: new Map(),
+	gitRefresh: fn(),
 });
 
 const agentsRouting = [
@@ -128,7 +129,7 @@ const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		diffStatusData: undefined as ComponentProps<
 			typeof AgentDetailView
 		>["diffStatusData"],
-		gitWatcher: buildGitWatcher(),
+		...buildGitWatcherProps(),
 		canOpenEditors: false,
 		canOpenWorkspace: false,
 		sshCommand: undefined as string | undefined,
