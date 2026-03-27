@@ -444,6 +444,23 @@ func Test_generateManualTitle_RejectsMetaOutput(t *testing.T) {
 	require.ErrorContains(t, err, "generated title was invalid")
 }
 
+func Test_generateTitle_RejectsTitleGenerationMetaPhrase(t *testing.T) {
+	t.Parallel()
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Testing title generation"},
+				},
+			}, nil
+		},
+	}
+
+	_, err := generateTitle(context.Background(), model, "test")
+	require.ErrorContains(t, err, "generated title was invalid")
+}
+
 func Test_generateTitle_AllowsParaphrasedTitleTopic(t *testing.T) {
 	t.Parallel()
 

@@ -258,22 +258,27 @@ func isMetaTitleOutput(title string, contextText string) bool {
 		return false
 	}
 	normalizedContext := strings.ToLower(normalizeShortTextOutput(contextText))
-	mentionsTitleTopic := strings.Contains(normalizedContext, "generate title") ||
-		strings.Contains(normalizedContext, "title for ") ||
-		strings.Contains(normalizedContext, "title generator") ||
-		strings.Contains(normalizedContext, "title generation")
 
-	if strings.HasPrefix(normalizedTitle, "generate title") && !mentionsTitleTopic {
-		return true
+	for _, promptEcho := range []string{
+		"generate title",
+		"title for ",
+	} {
+		if strings.HasPrefix(normalizedTitle, promptEcho) &&
+			!strings.Contains(normalizedContext, promptEcho) {
+			return true
+		}
 	}
-	if strings.HasPrefix(normalizedTitle, "title for ") && !mentionsTitleTopic {
-		return true
-	}
-	if strings.Contains(normalizedTitle, "title generator") && !mentionsTitleTopic {
-		return true
-	}
-	if strings.Contains(normalizedTitle, "title generation") && !mentionsTitleTopic {
-		return true
+
+	for _, metaPhrase := range []string{
+		"i am a title generator",
+		"i'm a title generator",
+		"im a title generator",
+		"testing title generation",
+	} {
+		if strings.Contains(normalizedTitle, metaPhrase) &&
+			!strings.Contains(normalizedContext, metaPhrase) {
+			return true
+		}
 	}
 
 	for _, toolPhrase := range []string{
