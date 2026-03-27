@@ -83,14 +83,9 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
-// Opens a workspace app in a slim popup window while severing the
-// opener relationship for security. We use a two-step approach:
-// first open about:blank, then navigate. This is necessary because
-// passing "noopener" to window.open() causes it to return null per
-// the WHATWG spec, which is indistinguishable from the browser
-// blocking the popup. By opening about:blank first we can detect
-// popup blockers, null out the opener reference ourselves, and
-// only then navigate to the target URL.
+// Open `about:blank` first to detect a popup blocker. If it opens, we
+// null out `opener` (durable on the opened window); and navigate `popup`
+// to the target URL. The Coder UI keeps access to `popup`s handle
 export const openAppInNewWindow = (href: string) => {
 	const popup = window.open("about:blank", "_blank", "width=900,height=600");
 	if (!popup) {
@@ -102,7 +97,7 @@ export const openAppInNewWindow = (href: string) => {
 	try {
 		popup.opener = null;
 	} catch {
-		// no-op, Electron can throw
+		// Electron can throw
 	}
 	popup.location.href = href;
 };
