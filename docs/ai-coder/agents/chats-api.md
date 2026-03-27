@@ -156,7 +156,9 @@ Event types inside each batch:
 
 `GET /api/experimental/chats`
 
-Returns all chats owned by the authenticated user.
+Returns all chats owned by the authenticated user. The `files` field is
+only populated on the single-chat detail endpoint, not on the list
+endpoint.
 
 ### Get a chat
 
@@ -164,7 +166,9 @@ Returns all chats owned by the authenticated user.
 
 Returns the `Chat` object (metadata only, no messages). The response
 includes a `files` field (`ChatFileMetadata[]`) containing metadata for
-all files associated with the chat.
+files that have been successfully linked to the chat. File linking is
+best-effort; if linking fails, the file remains in message content but
+will be absent from this field.
 
 ### Get chat messages
 
