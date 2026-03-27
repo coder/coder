@@ -65,6 +65,7 @@ export function useGitWatcher({
 		const dispose = createReconnectingWebSocket({
 			connect() {
 				const socket = watchChatGit(chatId!);
+				socketRef.current = socket;
 
 				socket.addEventListener("message", (event) => {
 					// Ignore messages from superseded connections.
@@ -114,8 +115,7 @@ export function useGitWatcher({
 				return socket;
 			},
 
-			onOpen(socket) {
-				socketRef.current = socket;
+			onOpen() {
 				setIsConnected(true);
 			},
 
@@ -124,10 +124,14 @@ export function useGitWatcher({
 				socketRef.current = null;
 			},
 
+			// 30s cap instead of the utility default 10s. The git
+			// endpoint may be slow to respond after a workspace wakes.
 			maxMs: 30_000,
 		});
 
 		return () => {
+			// dispose() suppresses onDisconnect, so reset state
+			// explicitly.
 			dispose();
 			setIsConnected(false);
 			setRepositories(new Map());
