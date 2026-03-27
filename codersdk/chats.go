@@ -73,7 +73,7 @@ type ChatFileMetadata struct {
 	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	Name           string    `json:"name"`
-	MimeType       string    `json:"mimetype"`
+	MimeType       string    `json:"mime_type"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 

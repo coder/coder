@@ -1389,7 +1389,7 @@ export interface ChatFileMetadata {
 	readonly owner_id: string;
 	readonly organization_id: string;
 	readonly name: string;
-	readonly mimetype: string;
+	readonly mime_type: string;
 	readonly created_at: string;
 }
 
