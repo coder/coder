@@ -333,7 +333,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			require.Contains(t, prompt, "Requirements:")
 			require.Contains(t, prompt, "- Output a short title of 2-8 words.")
 			require.Contains(t, prompt, "Never describe your role, title generation itself")
-			require.Contains(t, prompt, `Bad outputs: "I am a title generator", "Testing title generation", "I am a title generator I don't have any tools".`)
+			require.Contains(t, prompt, `Bad outputs: "I am a title generator", "Testing title generation", "I am a title generator I don't have any tools", "Generate title for test message".`)
 			require.Contains(t, prompt, "- Output ONLY the title, nothing else.")
 
 			if tt.wantConversationSample {
@@ -362,6 +362,86 @@ func Test_titleGenerationPrompt_IncludesMetaBadExamples(t *testing.T) {
 	require.Contains(t, titleGenerationPrompt, "\"I am a title generator\"")
 	require.Contains(t, titleGenerationPrompt, "\"Testing title generation\"")
 	require.Contains(t, titleGenerationPrompt, "\"I am a title generator I don't have any tools\"")
+	require.Contains(t, titleGenerationPrompt, "\"Generate title for test message\"")
+}
+
+func Test_generateTitle_RejectsMetaOutput(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		input  string
+		output string
+	}{
+		{name: "rejects prompt echo", input: "test", output: "Generate title for test message"},
+		{name: "rejects tool disclaimer", input: "what tools do you have", output: "I am a title generator I don't have any tools"},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := &stubModel{
+				generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+					return &fantasy.Response{
+						Content: fantasy.ResponseContent{
+							fantasy.TextContent{Text: tt.output},
+						},
+					}, nil
+				},
+			}
+
+			_, err := generateTitle(context.Background(), model, tt.input)
+			require.ErrorContains(t, err, "generated title was invalid")
+		})
+	}
+}
+
+func Test_generateTitle_AllowsTitleGeneratorTopicWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Fix title generator prompts"},
+				},
+			}, nil
+		},
+	}
+
+	title, err := generateTitle(
+		context.Background(),
+		model,
+		"fix title generator prompt handling",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Fix title generator prompts", title)
+}
+
+func Test_generateManualTitle_RejectsMetaOutput(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("test"),
+		),
+	}
+
+	model := &stubModel{
+		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "Generate title for test message"},
+				},
+			}, nil
+		},
+	}
+
+	_, _, err := generateManualTitle(context.Background(), messages, model)
+	require.ErrorContains(t, err, "generated title was invalid")
 }
 
 func Test_generateManualTitle_UsesTimeout(t *testing.T) {

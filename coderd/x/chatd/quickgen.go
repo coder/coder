@@ -37,7 +37,7 @@ const titleGenerationPrompt = "You are a title generator. Your ONLY job is to ou
 	"BAD (too generic): \"Review pull request changes\", \"Investigate code issues\", " +
 	"\"Fix bug in application\". " +
 	"BAD (meta or role parroting): \"I am a title generator\", \"Testing title generation\", " +
-	"\"I am a title generator I don't have any tools\". " +
+	"\"I am a title generator I don't have any tools\", \"Generate title for test message\". " +
 	"Output ONLY the title: no quotes, no emoji, no markdown, no code fences, " +
 	"no trailing punctuation, no preamble, no explanation. Sentence case."
 
@@ -189,6 +189,9 @@ func generateTitle(
 	if title == "" {
 		return "", xerrors.New("generated title was empty")
 	}
+	if isMetaTitleOutput(title, input) {
+		return "", xerrors.New("generated title was invalid")
+	}
 	return title, nil
 }
 
@@ -247,6 +250,31 @@ func normalizeTitleOutput(title string) string {
 		return ""
 	}
 	return truncateRunes(title, 80)
+}
+
+func isMetaTitleOutput(title string, contextText string) bool {
+	normalizedTitle := strings.ToLower(normalizeShortTextOutput(title))
+	if normalizedTitle == "" {
+		return false
+	}
+	normalizedContext := strings.ToLower(normalizeShortTextOutput(contextText))
+
+	if strings.HasPrefix(normalizedTitle, "generate title") ||
+		strings.HasPrefix(normalizedTitle, "title for ") {
+		return true
+	}
+	if strings.Contains(normalizedTitle, "title generator") &&
+		!strings.Contains(normalizedContext, "title generator") {
+		return true
+	}
+	if strings.Contains(normalizedTitle, "title generation") &&
+		!strings.Contains(normalizedContext, "title generation") {
+		return true
+	}
+
+	return strings.Contains(normalizedTitle, "don't have any tools") ||
+		strings.Contains(normalizedTitle, "dont have any tools") ||
+		strings.Contains(normalizedTitle, "do not have any tools")
 }
 
 func fallbackChatTitle(message string) string {
@@ -431,7 +459,7 @@ func renderManualTitlePrompt(
 	write("- Use verb-noun format in sentence case.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
 	write("- Never describe your role, title generation itself, or your lack of tools unless the conversation is explicitly about those topics.\n")
-	write("- Bad outputs: \"I am a title generator\", \"Testing title generation\", \"I am a title generator I don't have any tools\".\n")
+	write("- Bad outputs: \"I am a title generator\", \"Testing title generation\", \"I am a title generator I don't have any tools\", \"Generate title for test message\".\n")
 	write("- No trailing punctuation, quotes, emoji, or markdown.\n")
 	write("- No temporal phrasing (\"Continue\", \"Follow up on\") or meta phrasing (\"Chat about\").\n")
 	write("- Output ONLY the title, nothing else.\n")
@@ -477,6 +505,14 @@ func generateManualTitle(
 	title = normalizeTitleOutput(title)
 	if title == "" {
 		return "", usage, xerrors.New("generated title was empty")
+	}
+	validationContext := strings.Join([]string{
+		firstUserText,
+		conversationBlock,
+		latestUserMsg,
+	}, "\n")
+	if isMetaTitleOutput(title, validationContext) {
+		return "", usage, xerrors.New("generated title was invalid")
 	}
 
 	return title, usage, nil
