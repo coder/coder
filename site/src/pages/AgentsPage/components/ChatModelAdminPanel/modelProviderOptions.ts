@@ -77,12 +77,7 @@ export function resolveDefaultOption(
 	provider: string | null,
 ): ModelProviderOption | undefined {
 	if (provider !== null) {
-		const providerOption = options.find(
-			(option) => option.provider === provider,
-		);
-		if (providerOption) {
-			return providerOption;
-		}
+		return options.find((option) => option.provider === provider);
 	}
 
 	return options[0];
