@@ -8,6 +8,14 @@ import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -307,7 +315,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
 			</button>
-
 			{/* Header — editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
@@ -352,7 +359,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 				)}
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
-
 			{/* Form body */}
 			<form className="flex flex-1 flex-col" onSubmit={form.handleSubmit}>
 				<div className="space-y-5">
@@ -539,68 +545,72 @@ export const ModelForm: FC<ModelFormProps> = ({
 				{/* Footer — pushed to bottom */}
 				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
-					{confirmingDelete && onDeleteModel && editingModel ? (
-						<div className="flex items-center gap-3">
-							<p className="m-0 flex-1 text-sm text-content-secondary">
-								Are you sure? This action is irreversible.
-							</p>
-							<div className="flex shrink-0 items-center gap-2">
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									onClick={() => setConfirmingDelete(false)}
-									disabled={isDeleting}
-								>
-									Cancel
-								</Button>
-								<Button
-									variant="destructive"
-									size="lg"
-									type="button"
-									disabled={isDeleting}
-									onClick={() => void onDeleteModel(editingModel.id)}
-								>
-									{isDeleting && <Spinner className="h-4 w-4" loading />}
-									Delete model
-								</Button>
-							</div>
-						</div>
-					) : (
-						<div className="flex items-center justify-between">
-							{isEditing && editingModel && onDeleteModel ? (
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-									disabled={isSaving}
-									onClick={() => setConfirmingDelete(true)}
-								>
-									Delete
-								</Button>
-							) : (
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									onClick={onCancel}
-								>
-									Cancel
-								</Button>
-							)}
+					<div className="flex items-center justify-between">
+						{isEditing && editingModel && onDeleteModel ? (
 							<Button
+								variant="outline"
 								size="lg"
-								type="submit"
-								disabled={isSaving || !form.isValid || hasFieldErrors}
+								type="button"
+								className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+								disabled={isSaving}
+								onClick={() => setConfirmingDelete(true)}
 							>
-								{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
-								{isEditing ? "Save" : "Add model"}
+								Delete
 							</Button>
-						</div>
-					)}
+						) : (
+							<Button
+								variant="outline"
+								size="lg"
+								type="button"
+								onClick={onCancel}
+							>
+								Cancel
+							</Button>
+						)}
+						<Button
+							size="lg"
+							type="submit"
+							disabled={isSaving || !form.isValid || hasFieldErrors}
+						>
+							{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
+							{isEditing ? "Save" : "Add model"}
+						</Button>
+					</div>
 				</div>
 			</form>
+			{editingModel && onDeleteModel && (
+				<Dialog
+					open={confirmingDelete}
+					onOpenChange={(open) => !open && setConfirmingDelete(false)}
+				>
+					<DialogContent variant="destructive">
+						<DialogHeader>
+							<DialogTitle>Delete model</DialogTitle>
+							<DialogDescription>
+								Are you sure you want to delete this model? This action is
+								irreversible.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setConfirmingDelete(false)}
+								disabled={isDeleting}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => void onDeleteModel(editingModel.id)}
+								disabled={isDeleting}
+							>
+								{isDeleting && <Spinner className="h-4 w-4" loading />}
+								Delete model
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}{" "}
 		</div>
 	);
 };

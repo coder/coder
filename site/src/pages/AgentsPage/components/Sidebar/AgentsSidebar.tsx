@@ -528,7 +528,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											isActive && "font-medium",
-											chat.has_unread && !isActiveChat && "font-semibold",
 											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
 											isRegeneratingThisChat && "animate-pulse",
 										)}

@@ -125,6 +125,10 @@ type Server struct {
 	// keyed by chat ID and invalidated when the agent changes.
 	workspaceMCPToolsCache sync.Map // uuid.UUID -> *cachedWorkspaceMCPTools
 
+	// skillsCache caches discovered skill metadata per chat so
+	// we avoid re-scanning .agents/skills/ on every turn.
+	skillsCache sync.Map // uuid.UUID -> *cachedSkills
+
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
 
@@ -170,6 +174,86 @@ func (p *Server) chatTemplateAllowlist() map[uuid.UUID]bool {
 type cachedWorkspaceMCPTools struct {
 	agentID uuid.UUID
 	tools   []workspacesdk.MCPToolInfo
+}
+
+// cachedSkills stores discovered skill metadata from a workspace
+// agent, keyed by the agent ID that provided them.
+type cachedSkills struct {
+	agentID uuid.UUID
+	skills  []chattool.SkillMeta
+}
+
+// discoverWorkspaceSkills returns cached skill metadata for a chat
+// or discovers them fresh using the provided agent connection. The
+// result is cached per chat+agent so subsequent turns skip the
+// filesystem scan.
+func (p *Server) discoverWorkspaceSkills(
+	ctx context.Context,
+	chatID uuid.UUID,
+	agent database.WorkspaceAgent,
+	conn workspacesdk.AgentConn,
+	logger slog.Logger,
+) []chattool.SkillMeta {
+	// Check cache first.
+	if cached, ok := p.skillsCache.Load(chatID); ok {
+		if entry, ok2 := cached.(*cachedSkills); ok2 {
+			if entry.agentID == agent.ID {
+				return entry.skills
+			}
+		}
+	}
+
+	dir := agent.ExpandedDirectory
+	if dir == "" {
+		dir = agent.Directory
+	}
+	discovered, err := chattool.DiscoverSkills(ctx, conn, dir)
+	if err != nil {
+		logger.Warn(ctx, "failed to discover skills",
+			slog.Error(err))
+		return nil
+	}
+	// Cache the result. Unlike MCP tools, an empty skills
+	// list is a valid stable state (the workspace simply has
+	// no skills), so we always cache.
+	p.skillsCache.Store(chatID, &cachedSkills{
+		agentID: agent.ID,
+		skills:  discovered,
+	})
+	return discovered
+}
+
+// loadCachedWorkspaceContext checks the MCP tools and skills caches
+// for the given chat and agent. Returns non-nil tools when the MCP
+// cache hits, which signals the caller to skip the slow discovery
+// path. Skills may also be populated from the skills cache.
+func (p *Server) loadCachedWorkspaceContext(
+	chatID uuid.UUID,
+	agent database.WorkspaceAgent,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+) ([]fantasy.AgentTool, []chattool.SkillMeta) {
+	cached, ok := p.workspaceMCPToolsCache.Load(chatID)
+	if !ok {
+		return nil, nil
+	}
+	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	if !ok || entry.agentID != agent.ID {
+		return nil, nil
+	}
+
+	var tools []fantasy.AgentTool
+	for _, t := range entry.tools {
+		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn))
+	}
+
+	var skills []chattool.SkillMeta
+	if sc, ok := p.skillsCache.Load(chatID); ok {
+		if se, ok := sc.(*cachedSkills); ok && se.agentID == agent.ID {
+			skills = se.skills
+		}
+	}
+
+	return tools, skills
 }
 
 type turnWorkspaceContext struct {
@@ -2572,6 +2656,7 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	if !state.buffering && len(state.subscribers) == 0 {
 		p.chatStreams.Delete(chatID)
 		p.workspaceMCPToolsCache.Delete(chatID)
+		p.skillsCache.Delete(chatID)
 	}
 }
 
@@ -3804,6 +3889,7 @@ func (p *Server) runChat(
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
+		skills             []chattool.SkillMeta
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3872,21 +3958,14 @@ func (p *Server) runChat(
 			// agent (ensureWorkspaceAgent is free when already
 			// loaded). This avoids a per-turn latest-build DB
 			// query on the common subsequent-turn path.
-			if agent, err := workspaceCtx.getWorkspaceAgent(ctx); err == nil {
-				if cached, ok := p.workspaceMCPToolsCache.Load(chat.ID); ok {
-					entry, ok := cached.(*cachedWorkspaceMCPTools)
-					if ok && entry.agentID == agent.ID {
-						for _, t := range entry.tools {
-							workspaceMCPTools = append(workspaceMCPTools,
-								chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn),
-							)
-						}
-						return nil
-					}
+			agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
+			if agentErr == nil {
+				if workspaceMCPTools, skills = p.loadCachedWorkspaceContext(
+					chat.ID, agent, workspaceCtx.getWorkspaceConn,
+				); workspaceMCPTools != nil {
+					return nil
 				}
-			}
-
-			// Cache miss, agent changed, or no cache — validate
+			} // Cache miss, agent changed, or no cache: validate
 			// that the workspace still has a live agent before
 			// attempting a dial.
 			workspaceMCPCtx, cancel := context.WithTimeout(
@@ -3895,12 +3974,11 @@ func (p *Server) runChat(
 			)
 			defer cancel()
 
-			_, _, agentErr := workspaceCtx.workspaceAgentIDForConn(
-				workspaceMCPCtx,
-			)
+			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(workspaceMCPCtx)
 			if agentErr != nil {
 				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
 					p.workspaceMCPToolsCache.Delete(chat.ID)
+					p.skillsCache.Delete(chat.ID)
 					return nil
 				}
 				logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
@@ -3908,13 +3986,22 @@ func (p *Server) runChat(
 				return nil
 			}
 
-			// Fetch fresh tools from the workspace agent.
+			// Discover skills and MCP tools using the
+			// same conn to avoid a second dial attempt.
 			conn, connErr := workspaceCtx.getWorkspaceConn(workspaceMCPCtx)
 			if connErr != nil {
 				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
 					slog.Error(connErr))
 				return nil
 			}
+
+			agent, agentErr = workspaceCtx.getWorkspaceAgent(workspaceMCPCtx)
+			if agentErr == nil {
+				skills = p.discoverWorkspaceSkills(
+					workspaceMCPCtx, chat.ID, agent, conn, logger,
+				)
+			}
+
 			toolsResp, listErr := conn.ListMCPTools(workspaceMCPCtx)
 			if listErr != nil {
 				logger.Warn(ctx, "failed to list workspace MCP tools",
@@ -3962,6 +4049,9 @@ func (p *Server) runChat(
 
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
+	}
+	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
 	if resolvedUserPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, resolvedUserPrompt)
@@ -4341,6 +4431,20 @@ func (p *Server) runChat(
 		})...)
 	}
 
+	// Append skill tools when the workspace has skills.
+	if len(skills) > 0 {
+		skillOpts := chattool.ReadSkillOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			GetSkills: func() []chattool.SkillMeta {
+				return skills
+			},
+		}
+		tools = append(tools,
+			chattool.ReadSkill(skillOpts),
+			chattool.ReadSkillFile(skillOpts),
+		)
+	}
+
 	// Append tools from external MCP servers. These appear
 	// after the built-in tools so the LLM sees them as
 	// additional capabilities.
@@ -4429,6 +4533,9 @@ func (p *Server) runChat(
 			}
 			if instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, skillIndex)
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
 			if reloadUserPrompt != "" {
