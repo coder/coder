@@ -92,10 +92,7 @@ const AgentEmbedPage: FC = () => {
 	const embedSessionMutation = useMutation(
 		bootstrapChatEmbedSession({ checks: permissionChecks }, queryClient),
 	);
-	const latestEmbedSessionMutationRef = useRef(embedSessionMutation);
-	useEffect(() => {
-		latestEmbedSessionMutationRef.current = embedSessionMutation;
-	});
+
 	const inFlightBootstrapRef = useRef<Promise<unknown> | null>(null);
 
 	const [chatErrorReasons, setChatErrorReasons] = useState<
@@ -258,7 +255,7 @@ const AgentEmbedPage: FC = () => {
 				return;
 			}
 
-			const bootstrapPromise = latestEmbedSessionMutationRef.current
+			const bootstrapPromise = embedSessionMutation
 				.mutateAsync(token)
 				.catch(() => undefined)
 				.finally(() => {
@@ -277,7 +274,7 @@ const AgentEmbedPage: FC = () => {
 		return () => {
 			window.removeEventListener("message", handleMessage);
 		};
-	}, [agentId, isAwaitingBootstrapMessage]);
+	}, [agentId, isAwaitingBootstrapMessage, embedSessionMutation]);
 
 	const handleBootstrapRetry = () => {
 		inFlightBootstrapRef.current = null;

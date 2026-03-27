@@ -610,7 +610,6 @@ const ScrollAnchoredContainer: FC<{
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	const hasFetchedRef = useRef(false);
-	const onFetchRef = useRef(onFetchMoreMessages);
 	const autoScrollRef = useRef(true);
 	const contentRef = useRef<HTMLDivElement>(null);
 	const pendingPrependRef = useRef<{
@@ -629,8 +628,7 @@ const ScrollAnchoredContainer: FC<{
 		if (isFetchingMoreMessages) {
 			hasFetchedRef.current = true;
 		}
-		onFetchRef.current = onFetchMoreMessages;
-	}, [isFetchingMoreMessages, onFetchMoreMessages]);
+	}, [isFetchingMoreMessages]);
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
 	useEffect(() => {
@@ -672,7 +670,7 @@ const ScrollAnchoredContainer: FC<{
 							contentWidth: contentRect.width,
 						};
 					}
-					onFetchRef.current();
+					onFetchMoreMessages();
 				}
 			},
 			{
@@ -700,7 +698,7 @@ const ScrollAnchoredContainer: FC<{
 			observer.disconnect();
 			observerRef.current = null;
 		};
-	}, [scrollContainerRef]);
+	}, [scrollContainerRef, onFetchMoreMessages]);
 
 	// When a fetch completes, re-observe the sentinel to force
 	// the IntersectionObserver to re-evaluate. The observer only
