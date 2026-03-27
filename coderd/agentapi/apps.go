@@ -168,8 +168,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	cleaned := strutil.UISanitize(req.Message)
 
 	// Get the latest status for the workspace app to detect no-op updates
-	// nolint:gocritic // This is a system restricted operation.
-	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+	// nolint:gocritic // Agent API reads app status for the workspace agent.
+	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsAgentAPI(ctx), app.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get latest workspace app status.",
@@ -178,8 +178,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
 
-	// nolint:gocritic // This is a system restricted operation.
-	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+	// nolint:gocritic // Agent API inserts app status on behalf of the agent.
+	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsAgentAPI(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
 		WorkspaceID: ws.ID,
