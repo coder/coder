@@ -18,7 +18,7 @@ concurrency:
 jobs:
   sync-main:
     name: Sync issues to next Linear release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -54,7 +54,7 @@ jobs:
 
   sync-release-branch:
     name: Sync backports to Linear release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'release/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -64,10 +64,9 @@ jobs:
 
       - name: Extract release version
         id: version
-        # Extract "2.31" from "refs/heads/release/2.31".
+        # The trigger only allows exact release/2.X branch names.
         run: |
-          VERSION="${GITHUB_REF#refs/heads/release/}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#release/}" >> "$GITHUB_OUTPUT"
 
       - name: Sync issues
         id: sync
@@ -83,7 +82,7 @@ jobs:
     needs: sync-release-branch
     if: >
       github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/heads/release/') &&
+      startsWith(github.ref_name, 'release/') &&
       github.event.created == true
     runs-on: ubuntu-latest
     steps:
@@ -94,8 +93,7 @@ jobs:
       - name: Extract release version
         id: version
         run: |
-          VERSION="${GITHUB_REF#refs/heads/release/}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#release/}" >> "$GITHUB_OUTPUT"
 
       - name: Move to Code Freeze
         id: update
