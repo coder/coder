@@ -1,6 +1,7 @@
 package mcpclient
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -634,4 +636,82 @@ func convertCallResult(
 		return *binaryResult
 	}
 	return fantasy.NewTextResponse("")
+}
+
+// RefreshResult contains the outcome of an OAuth2 token refresh
+// attempt.
+type RefreshResult struct {
+	// AccessToken is the new (or unchanged) access token.
+	AccessToken string
+	// RefreshToken is the new (or preserved original) refresh
+	// token. Providers that don't rotate refresh tokens return
+	// an empty value; in that case the original is kept.
+	RefreshToken string
+	// TokenType is the token type (usually "Bearer").
+	TokenType string
+	// Expiry is the new token expiry. Zero value means no expiry
+	// was provided by the provider.
+	Expiry time.Time
+	// Refreshed is true when the access token actually changed,
+	// meaning a refresh occurred. When false the token was still
+	// valid and no network call was made.
+	Refreshed bool
+}
+
+// RefreshOAuth2Token checks whether the given MCP user token is
+// expired (or within 10 seconds of expiry) and refreshes it using
+// the OAuth2 credentials from the server config. If the token is
+// still valid, no network call is made and Refreshed is false.
+//
+// The caller is responsible for persisting the result when
+// Refreshed is true.
+func RefreshOAuth2Token(
+	ctx context.Context,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (RefreshResult, error) {
+	oauth2Cfg := &oauth2.Config{
+		ClientID:     cfg.OAuth2ClientID,
+		ClientSecret: cfg.OAuth2ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			TokenURL: cfg.OAuth2TokenURL,
+		},
+	}
+
+	oldToken := &oauth2.Token{
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		TokenType:    tok.TokenType,
+	}
+	if tok.Expiry.Valid {
+		oldToken.Expiry = tok.Expiry.Time
+	}
+
+	// Cap the refresh HTTP call so a stalled token endpoint
+	// cannot block the entire MCP connection phase. The timeout
+	// matches connectTimeout used for MCP server connections.
+	refreshCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	defer cancel()
+
+	// TokenSource automatically refreshes expired tokens. It
+	// uses a 10-second expiry window, so tokens about to expire
+	// are also refreshed proactively.
+	newToken, err := oauth2Cfg.TokenSource(refreshCtx, oldToken).Token()
+	if err != nil {
+		return RefreshResult{}, xerrors.Errorf("refresh oauth2 token: %w", err)
+	}
+
+	refreshed := newToken.AccessToken != tok.AccessToken
+
+	// Preserve the old refresh token when the provider doesn't
+	// rotate (returns empty).
+	refreshToken := cmp.Or(newToken.RefreshToken, tok.RefreshToken)
+
+	return RefreshResult{
+		AccessToken:  newToken.AccessToken,
+		RefreshToken: refreshToken,
+		TokenType:    newToken.TokenType,
+		Expiry:       newToken.Expiry,
+		Refreshed:    refreshed,
+	}, nil
 }

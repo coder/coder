@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -3857,6 +3858,8 @@ func (p *Server) runChat(
 	})
 	if len(mcpConfigs) > 0 {
 		g2.Go(func() error {
+			// Refresh expired OAuth2 tokens before connecting.
+			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx, logger, mcpConfigs, mcpTokens,
 			)
@@ -5106,4 +5109,112 @@ func (p *Server) Close() error {
 	<-p.closed
 	p.inflight.Wait()
 	return nil
+}
+
+// refreshExpiredMCPTokens checks each MCP OAuth2 token and refreshes
+// any that are expired (or about to expire). Tokens without a
+// refresh_token or that fail to refresh are returned unchanged so the
+// caller can still attempt the connection (which will likely fail with
+// a 401 for the expired ones).
+func (p *Server) refreshExpiredMCPTokens(
+	ctx context.Context,
+	logger slog.Logger,
+	configs []database.MCPServerConfig,
+	tokens []database.MCPServerUserToken,
+) []database.MCPServerUserToken {
+	configsByID := make(map[uuid.UUID]database.MCPServerConfig, len(configs))
+	for _, cfg := range configs {
+		configsByID[cfg.ID] = cfg
+	}
+
+	result := slices.Clone(tokens)
+
+	var eg errgroup.Group
+	for i, tok := range result {
+		cfg, ok := configsByID[tok.MCPServerConfigID]
+		if !ok || cfg.AuthType != "oauth2" {
+			continue
+		}
+		if tok.RefreshToken == "" {
+			continue
+		}
+
+		eg.Go(func() error {
+			refreshed, err := p.refreshMCPTokenIfNeeded(ctx, logger, cfg, tok)
+			if err != nil {
+				logger.Warn(ctx, "failed to refresh MCP oauth2 token",
+					slog.F("server_slug", cfg.Slug),
+					slog.Error(err),
+				)
+				return nil
+			}
+			result[i] = refreshed
+			return nil
+		})
+	}
+	_ = eg.Wait()
+
+	return result
+}
+
+// refreshMCPTokenIfNeeded delegates to mcpclient.RefreshOAuth2Token
+// and persists the result to the database when a refresh occurs.
+// The logger should carry chat-scoped fields so log lines can be
+// correlated with specific chat requests.
+func (p *Server) refreshMCPTokenIfNeeded(
+	ctx context.Context,
+	logger slog.Logger,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (database.MCPServerUserToken, error) {
+	result, err := mcpclient.RefreshOAuth2Token(ctx, cfg, tok)
+	if err != nil {
+		return tok, err
+	}
+
+	if !result.Refreshed {
+		return tok, nil
+	}
+
+	logger.Info(ctx, "refreshed MCP oauth2 token",
+		slog.F("server_slug", cfg.Slug),
+		slog.F("user_id", tok.UserID),
+	)
+
+	var expiry sql.NullTime
+	if !result.Expiry.IsZero() {
+		expiry = sql.NullTime{Time: result.Expiry, Valid: true}
+	}
+
+	//nolint:gocritic // Chatd needs system-level write access to
+	// persist the refreshed OAuth2 token for the user.
+	updated, err := p.db.UpsertMCPServerUserToken(
+		dbauthz.AsSystemRestricted(ctx),
+		database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: tok.MCPServerConfigID,
+			UserID:            tok.UserID,
+			AccessToken:       result.AccessToken,
+			AccessTokenKeyID:  sql.NullString{},
+			RefreshToken:      result.RefreshToken,
+			RefreshTokenKeyID: sql.NullString{},
+			TokenType:         result.TokenType,
+			Expiry:            expiry,
+		},
+	)
+	if err != nil {
+		// The provider may have rotated the refresh token,
+		// invalidating the old one. Use the new token
+		// in-memory so at least this connection succeeds.
+		logger.Warn(ctx, "failed to persist refreshed MCP oauth2 token, using in-memory",
+			slog.F("server_slug", cfg.Slug),
+			slog.Error(err),
+		)
+		tok.AccessToken = result.AccessToken
+		tok.RefreshToken = result.RefreshToken
+		tok.TokenType = result.TokenType
+		tok.Expiry = expiry
+		return tok, nil
+	}
+
+	return updated, nil
 }
