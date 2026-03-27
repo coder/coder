@@ -9,7 +9,7 @@ import {
 	durationInHours,
 	suggestedTimeUnit,
 	type TimeUnit,
-} from "utils/time";
+} from "#/utils/time";
 
 type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
 	valueMs: number;

@@ -348,7 +348,7 @@ export const UserMessageTextOnly: Story = {
 	},
 };
 
-/** Assistant-side images go through renderBlockList, not the user path. */
+/** Assistant-side images go through BlockList, not the user path. */
 export const AssistantMessageWithImage: Story = {
 	args: {
 		...defaultArgs,

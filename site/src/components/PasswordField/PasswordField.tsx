@@ -1,8 +1,8 @@
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { useDebouncedValue } from "hooks/debounce";
 import type { FC } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { API } from "#/api/api";
+import { useDebouncedValue } from "#/hooks/debounce";
 
 // TODO: @BrunoQuaresma: Unable to integrate Yup + Formik for validation. The
 // validation was triggering on the onChange event, but the form.errors were not

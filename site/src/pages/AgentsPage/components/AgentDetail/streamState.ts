@@ -180,18 +180,19 @@ export const applyMessagePartToStreamState = (
 };
 
 export const buildStreamTools = (
-	streamState: StreamState | null,
+	toolCalls: StreamState["toolCalls"] | null | undefined,
+	toolResults: StreamState["toolResults"] | null | undefined,
 ): MergedTool[] => {
-	if (!streamState) {
+	if (!toolCalls) {
 		return [];
 	}
-	const calls = Object.values(streamState.toolCalls);
+	const calls = Object.values(toolCalls);
 	const seen = new Set<string>();
 	const merged: MergedTool[] = [];
 
 	for (const call of calls) {
 		seen.add(call.id);
-		const result = streamState.toolResults[call.id];
+		const result = toolResults?.[call.id];
 		merged.push({
 			id: call.id,
 			name: call.name,
@@ -203,16 +204,18 @@ export const buildStreamTools = (
 		});
 	}
 
-	for (const result of Object.values(streamState.toolResults)) {
-		if (!seen.has(result.id)) {
-			merged.push({
-				id: result.id,
-				name: result.name,
-				result: result.result,
-				isError: result.isError,
-				status: result.isError ? "error" : "completed",
-				mcpServerConfigId: result.mcpServerConfigId,
-			});
+	if (toolResults) {
+		for (const result of Object.values(toolResults)) {
+			if (!seen.has(result.id)) {
+				merged.push({
+					id: result.id,
+					name: result.name,
+					result: result.result,
+					isError: result.isError,
+					status: result.isError ? "error" : "completed",
+					mcpServerConfigId: result.mcpServerConfigId,
+				});
+			}
 		}
 	}
 

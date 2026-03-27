@@ -1,4 +1,8 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getPreferredProxy } from "contexts/ProxyContext";
+import { screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
 	MockPrimaryWorkspaceProxy,
@@ -12,15 +16,11 @@ import {
 	MockWorkspaceProxies,
 	MockWorkspaceSubAgent,
 	mockApiError,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withDashboardProvider,
 	withProxyProvider,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
-import { screen, spyOn, userEvent, within } from "storybook/test";
-import { API } from "#/api/api";
+} from "#/testHelpers/storybook";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const meta: Meta<typeof AgentDevcontainerCard> = {

@@ -1,18 +1,9 @@
 import { useClickableTableRow } from "hooks";
 import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
-import { TaskActionButton } from "modules/tasks/TaskActionButton";
-import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
-import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
-import {
-	canPauseTask,
-	canResumeTask,
-	isPauseDisabled,
-} from "modules/tasks/taskActions";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { relativeTime } from "utils/time";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { pauseTask, resumeTask } from "#/api/queries/tasks";
 import type { Task } from "#/api/typesGenerated";
@@ -40,6 +31,15 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { TaskActionButton } from "#/modules/tasks/TaskActionButton";
+import { TaskDeleteDialog } from "#/modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
+import { TaskStatus } from "#/modules/tasks/TaskStatus/TaskStatus";
+import {
+	canPauseTask,
+	canResumeTask,
+	isPauseDisabled,
+} from "#/modules/tasks/taskActions";
+import { relativeTime } from "#/utils/time";
 
 type TasksTableProps = {
 	tasks: readonly Task[] | undefined;

@@ -1,7 +1,7 @@
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { API } from "#/api/api";
 import type { AuditLogResponse } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
 export function paginatedAudits(
 	searchParams: URLSearchParams,

@@ -1092,6 +1092,45 @@ func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Con
 	return items, nil
 }
 
+const listAIBridgeModelThoughtsByInterceptionIDs = `-- name: ListAIBridgeModelThoughtsByInterceptionIDs :many
+SELECT
+	interception_id, content, metadata, created_at
+FROM
+	aibridge_model_thoughts
+WHERE
+	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC
+`
+
+func (q *sqlQuerier) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeModelThoughtsByInterceptionIDs, pq.Array(interceptionIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeModelThought
+	for rows.Next() {
+		var i AIBridgeModelThought
+		if err := rows.Scan(
+			&i.InterceptionID,
+			&i.Content,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeModels = `-- name: ListAIBridgeModels :many
 SELECT
 	model
@@ -1136,6 +1175,115 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 			return nil, err
 		}
 		items = append(items, model)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
+WITH paginated_threads AS (
+	SELECT
+		-- Find thread root interceptions (thread_root_id IS NULL), apply cursor
+		-- pagination, and return the page.
+		aibridge_interceptions.id AS thread_id,
+		aibridge_interceptions.started_at
+	FROM
+		aibridge_interceptions
+	WHERE
+		aibridge_interceptions.session_id = $1::text
+		AND aibridge_interceptions.ended_at IS NOT NULL
+		AND aibridge_interceptions.thread_root_id IS NULL
+		-- Pagination cursor.
+		AND ($2::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(aibridge_interceptions.started_at, aibridge_interceptions.id) > (
+				(SELECT started_at FROM aibridge_interceptions ai2 WHERE ai2.id = $2),
+				$2::uuid
+			)
+		)
+		AND ($3::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
+				(SELECT started_at FROM aibridge_interceptions ai2 WHERE ai2.id = $3),
+				$3::uuid
+			)
+		)
+		-- @authorize_filter
+	ORDER BY
+		aibridge_interceptions.started_at ASC,
+		aibridge_interceptions.id ASC
+	LIMIT COALESCE(NULLIF($4::integer, 0), 50)
+)
+SELECT
+	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id
+FROM
+	aibridge_interceptions
+JOIN
+	paginated_threads pt
+		ON pt.thread_id = COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id)
+WHERE
+	aibridge_interceptions.session_id = $1::text
+	AND aibridge_interceptions.ended_at IS NOT NULL
+	-- @authorize_filter
+ORDER BY
+	-- Ensure threads and their associated interceptions (agentic loops) are sorted chronologically.
+	pt.started_at ASC,
+	pt.thread_id ASC,
+	aibridge_interceptions.started_at ASC,
+	aibridge_interceptions.id ASC
+`
+
+type ListAIBridgeSessionThreadsParams struct {
+	SessionID string    `db:"session_id" json:"session_id"`
+	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
+	BeforeID  uuid.UUID `db:"before_id" json:"before_id"`
+	Limit     int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAIBridgeSessionThreadsRow struct {
+	ThreadID             uuid.UUID            `db:"thread_id" json:"thread_id"`
+	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+}
+
+// Returns all interceptions belonging to paginated threads within a session.
+// Threads are paginated by (started_at, thread_id) cursor.
+func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionThreads,
+		arg.SessionID,
+		arg.AfterID,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeSessionThreadsRow
+	for rows.Next() {
+		var i ListAIBridgeSessionThreadsRow
+		if err := rows.Scan(
+			&i.ThreadID,
+			&i.AIBridgeInterception.ID,
+			&i.AIBridgeInterception.InitiatorID,
+			&i.AIBridgeInterception.Provider,
+			&i.AIBridgeInterception.Model,
+			&i.AIBridgeInterception.StartedAt,
+			&i.AIBridgeInterception.Metadata,
+			&i.AIBridgeInterception.EndedAt,
+			&i.AIBridgeInterception.APIKeyID,
+			&i.AIBridgeInterception.Client,
+			&i.AIBridgeInterception.ThreadParentID,
+			&i.AIBridgeInterception.ThreadRootID,
+			&i.AIBridgeInterception.ClientSessionID,
+			&i.AIBridgeInterception.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -3865,7 +4013,7 @@ WHERE
             $3::int
     )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type AcquireChatsParams struct {
@@ -3906,6 +4054,7 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.Labels,
 			&i.BuildID,
 			&i.AgentID,
+			&i.PinOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -4040,7 +4189,7 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 }
 
 const archiveChatByID = `-- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, updated_at = NOW()
+UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
 WHERE id = $1 OR root_chat_id = $1
 `
 
@@ -4139,7 +4288,7 @@ func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userI
 
 const getChatByID = `-- name: GetChatByID :one
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 FROM
     chats
 WHERE
@@ -4170,12 +4319,13 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id FROM chats WHERE id = $1::uuid FOR UPDATE
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order FROM chats WHERE id = $1::uuid FOR UPDATE
 `
 
 func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
@@ -4202,6 +4352,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
@@ -4781,6 +4932,73 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 	return items, nil
 }
 
+const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND id > $2::bigint
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+ORDER BY
+    id ASC
+LIMIT
+    COALESCE(NULLIF($3::int, 0), 50)
+`
+
+type GetChatMessagesByChatIDAscPaginatedParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterID  int64     `db:"after_id" json:"after_id"`
+	LimitVal int32     `db:"limit_val" json:"limit_val"`
+}
+
+func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, arg GetChatMessagesByChatIDAscPaginatedParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDAscPaginated, arg.ChatID, arg.AfterID, arg.LimitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
@@ -5046,7 +5264,7 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 
 const getChats = `-- name: GetChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 FROM
     chats
 WHERE
@@ -5139,6 +5357,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 			&i.Labels,
 			&i.BuildID,
 			&i.AgentID,
+			&i.PinOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -5154,7 +5373,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 }
 
 const getChatsByWorkspaceIDs = `-- name: GetChatsByWorkspaceIDs :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 FROM chats
 WHERE archived = false
   AND workspace_id = ANY($1::uuid[])
@@ -5191,6 +5410,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 			&i.Labels,
 			&i.BuildID,
 			&i.AgentID,
+			&i.PinOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -5256,7 +5476,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 FROM
     chats
 WHERE
@@ -5296,6 +5516,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.Labels,
 			&i.BuildID,
 			&i.AgentID,
+			&i.PinOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -5377,7 +5598,7 @@ INSERT INTO chats (
     COALESCE($11::jsonb, '{}'::jsonb)
 )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type InsertChatParams struct {
@@ -5430,6 +5651,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
@@ -5714,6 +5936,67 @@ func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListCha
 	return items, nil
 }
 
+const pinChatByID = `-- name: PinChatByID :exec
+WITH target_chat AS (
+    SELECT
+        id,
+        owner_id
+    FROM
+        chats
+    WHERE
+        id = $1::uuid
+),
+ranked AS (
+    SELECT
+        c.id,
+        ROW_NUMBER() OVER (ORDER BY c.pin_order ASC, c.id ASC) :: integer AS next_pin_order
+    FROM
+        chats c
+    JOIN
+        target_chat ON c.owner_id = target_chat.owner_id
+    WHERE
+        c.pin_order > 0
+        AND c.archived = FALSE
+        AND c.id <> target_chat.id
+),
+updates AS (
+    SELECT
+        ranked.id,
+        ranked.next_pin_order AS pin_order
+    FROM
+        ranked
+    UNION ALL
+    SELECT
+        target_chat.id,
+        COALESCE((
+            SELECT
+                MAX(ranked.next_pin_order)
+            FROM
+                ranked
+        ), 0) + 1 AS pin_order
+    FROM
+        target_chat
+)
+UPDATE
+    chats c
+SET
+    pin_order = updates.pin_order
+FROM
+    updates
+WHERE
+    c.id = updates.id
+`
+
+// Under READ COMMITTED, concurrent pin operations for the same
+// owner may momentarily produce duplicate pin_order values because
+// each CTE snapshot does not see the other's writes. The next
+// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
+// sequence, so this is acceptable.
+func (q *sqlQuerier) PinChatByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, pinChatByID, id)
+	return err
+}
+
 const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
 DELETE FROM chat_queued_messages
 WHERE id = (
@@ -5816,6 +6099,65 @@ func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
+const unpinChatByID = `-- name: UnpinChatByID :exec
+WITH target_chat AS (
+    SELECT
+        id,
+        owner_id
+    FROM
+        chats
+    WHERE
+        id = $1::uuid
+),
+ranked AS (
+    SELECT
+        c.id,
+        ROW_NUMBER() OVER (ORDER BY c.pin_order ASC, c.id ASC) :: integer AS current_position
+    FROM
+        chats c
+    JOIN
+        target_chat ON c.owner_id = target_chat.owner_id
+    WHERE
+        c.pin_order > 0
+        AND c.archived = FALSE
+),
+target AS (
+    SELECT
+        ranked.id,
+        ranked.current_position
+    FROM
+        ranked
+    WHERE
+        ranked.id = $1::uuid
+),
+updates AS (
+    SELECT
+        ranked.id,
+        CASE
+            WHEN ranked.id = target.id THEN 0
+            WHEN ranked.current_position > target.current_position THEN ranked.current_position - 1
+            ELSE ranked.current_position
+        END AS pin_order
+    FROM
+        ranked
+    CROSS JOIN
+        target
+)
+UPDATE
+    chats c
+SET
+    pin_order = updates.pin_order
+FROM
+    updates
+WHERE
+    c.id = updates.id
+`
+
+func (q *sqlQuerier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, unpinChatByID, id)
+	return err
+}
+
 const updateChatBuildAgentBinding = `-- name: UpdateChatBuildAgentBinding :one
 UPDATE chats SET
     build_id = $1::uuid,
@@ -5823,7 +6165,7 @@ UPDATE chats SET
     updated_at = NOW()
 WHERE
     id = $3::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type UpdateChatBuildAgentBindingParams struct {
@@ -5856,6 +6198,7 @@ func (q *sqlQuerier) UpdateChatBuildAgentBinding(ctx context.Context, arg Update
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
@@ -5869,7 +6212,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type UpdateChatByIDParams struct {
@@ -5901,6 +6244,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
@@ -5940,7 +6284,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type UpdateChatLabelsByIDParams struct {
@@ -5972,6 +6316,53 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
+	)
+	return i, err
+}
+
+const updateChatLastModelConfigByID = `-- name: UpdateChatLastModelConfigByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    last_model_config_id = $1::uuid
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+`
+
+type UpdateChatLastModelConfigByIDParams struct {
+	LastModelConfigID uuid.UUID `db:"last_model_config_id" json:"last_model_config_id"`
+	ID                uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatLastModelConfigByID, arg.LastModelConfigID, arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
@@ -5985,7 +6376,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type UpdateChatMCPServerIDsParams struct {
@@ -6017,6 +6408,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
@@ -6068,6 +6460,77 @@ func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMe
 	return i, err
 }
 
+const updateChatPinOrder = `-- name: UpdateChatPinOrder :exec
+WITH target_chat AS (
+    SELECT
+        id,
+        owner_id
+    FROM
+        chats
+    WHERE
+        id = $1::uuid
+),
+ranked AS (
+    SELECT
+        c.id,
+        ROW_NUMBER() OVER (ORDER BY c.pin_order ASC, c.id ASC) :: integer AS current_position,
+        COUNT(*) OVER () :: integer AS pinned_count
+    FROM
+        chats c
+    JOIN
+        target_chat ON c.owner_id = target_chat.owner_id
+    WHERE
+        c.pin_order > 0
+        AND c.archived = FALSE
+),
+target AS (
+    SELECT
+        ranked.id,
+        ranked.current_position,
+        LEAST(GREATEST($2::integer, 1), ranked.pinned_count) AS desired_position
+    FROM
+        ranked
+    WHERE
+        ranked.id = $1::uuid
+),
+updates AS (
+    SELECT
+        ranked.id,
+        CASE
+            WHEN ranked.id = target.id THEN target.desired_position
+            WHEN target.desired_position < target.current_position
+                AND ranked.current_position >= target.desired_position
+                AND ranked.current_position < target.current_position THEN ranked.current_position + 1
+            WHEN target.desired_position > target.current_position
+                AND ranked.current_position > target.current_position
+                AND ranked.current_position <= target.desired_position THEN ranked.current_position - 1
+            ELSE ranked.current_position
+        END AS pin_order
+    FROM
+        ranked
+    CROSS JOIN
+        target
+)
+UPDATE
+    chats c
+SET
+    pin_order = updates.pin_order
+FROM
+    updates
+WHERE
+    c.id = updates.id
+`
+
+type UpdateChatPinOrderParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	PinOrder int32     `db:"pin_order" json:"pin_order"`
+}
+
+func (q *sqlQuerier) UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatPinOrder, arg.ID, arg.PinOrder)
+	return err
+}
+
 const updateChatStatus = `-- name: UpdateChatStatus :one
 UPDATE
     chats
@@ -6081,7 +6544,7 @@ SET
 WHERE
     id = $6::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type UpdateChatStatusParams struct {
@@ -6124,6 +6587,70 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
+	)
+	return i, err
+}
+
+const updateChatStatusPreserveUpdatedAt = `-- name: UpdateChatStatusPreserveUpdatedAt :one
+UPDATE
+    chats
+SET
+    status = $1::chat_status,
+    worker_id = $2::uuid,
+    started_at = $3::timestamptz,
+    heartbeat_at = $4::timestamptz,
+    last_error = $5::text,
+    updated_at = $6::timestamptz
+WHERE
+    id = $7::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+`
+
+type UpdateChatStatusPreserveUpdatedAtParams struct {
+	Status      ChatStatus     `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   sql.NullString `db:"last_error" json:"last_error"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatStatusPreserveUpdatedAt,
+		arg.Status,
+		arg.WorkerID,
+		arg.StartedAt,
+		arg.HeartbeatAt,
+		arg.LastError,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }
@@ -6135,7 +6662,7 @@ UPDATE chats SET
     agent_id = $3::uuid,
     updated_at = NOW()
 WHERE id = $4::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
 `
 
 type UpdateChatWorkspaceBindingParams struct {
@@ -6174,6 +6701,7 @@ func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateC
 		&i.Labels,
 		&i.BuildID,
 		&i.AgentID,
+		&i.PinOrder,
 	)
 	return i, err
 }

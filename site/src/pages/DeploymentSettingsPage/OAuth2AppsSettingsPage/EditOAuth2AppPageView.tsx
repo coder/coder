@@ -3,7 +3,6 @@ import Divider from "@mui/material/Divider";
 import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
-import { createDayString } from "utils/createDayString";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -29,6 +28,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { createDayString } from "#/utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type MutatingResource = {

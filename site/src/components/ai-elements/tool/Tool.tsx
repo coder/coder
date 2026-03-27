@@ -2,7 +2,6 @@ import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
-import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
@@ -10,6 +9,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -58,6 +58,11 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	isError?: boolean;
 	/** Maps sub-agent chat IDs to their titles, built from spawn tool results. */
 	subagentTitles?: Map<string, string>;
+	/** Set of chat IDs spawned by `spawn_computer_use_agent`. */
+	computerUseSubagentIds?: Set<string>;
+	/** When false, suppresses inline VNC previews while still
+	 * allowing the MonitorIcon variant to render. */
+	showDesktopPreviews?: boolean;
 	/** Maps sub-agent chat IDs to real-time status updates from stream events. */
 	subagentStatusOverrides?: Map<string, string>;
 	/** MCP server config ID associated with this tool call. */
@@ -75,6 +80,8 @@ type ToolRendererProps = {
 	result: unknown;
 	isError: boolean;
 	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, string>;
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
@@ -268,6 +275,8 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	subagentTitles,
+	computerUseSubagentIds,
+	showDesktopPreviews = true,
 	subagentStatusOverrides,
 }) => {
 	const parsedArgs = parseArgs(args);
@@ -293,7 +302,9 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		(rec ? asString(rec.title) : "") ||
 		(parsedArgs ? asString(parsedArgs.title) : "") ||
 		(chatId && subagentTitles?.get(chatId)) ||
-		"Sub-agent";
+		(name === "spawn_computer_use_agent"
+			? "Computer use sub-agent"
+			: "Sub-agent");
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
@@ -313,6 +324,10 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		(resultStr.toLowerCase().includes("timed out") ||
 			errorStr.toLowerCase().includes("timed out"));
 
+	const variant =
+		name === "spawn_computer_use_agent" || computerUseSubagentIds?.has(chatId)
+			? "computer-use"
+			: "default";
 	return (
 		<SubagentTool
 			toolName={name}
@@ -326,6 +341,10 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
 			isTimeout={isTimeout}
+			showDesktopPreview={
+				showDesktopPreviews && computerUseSubagentIds?.has(chatId)
+			}
+			variant={variant}
 		/>
 	);
 };
@@ -603,6 +622,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	wait_agent: SubagentRenderer,
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,
+	spawn_computer_use_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
 	propose_plan: ProposePlanRenderer,
 	computer: ComputerRenderer,
@@ -621,6 +641,8 @@ export const Tool = memo(
 		result,
 		isError = false,
 		subagentTitles,
+		computerUseSubagentIds,
+		showDesktopPreviews,
 		subagentStatusOverrides,
 		mcpServerConfigId,
 		mcpServers,
@@ -649,6 +671,8 @@ export const Tool = memo(
 					result={result}
 					isError={isError}
 					subagentTitles={subagentTitles}
+					computerUseSubagentIds={computerUseSubagentIds}
+					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={subagentStatusOverrides}
 					mcpServerConfigId={mcpServerConfigId}
 					mcpServers={mcpServers}

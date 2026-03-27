@@ -1,11 +1,6 @@
 import { ShieldIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-	dollarsToMicros,
-	isPositiveFiniteDollarAmount,
-	microsToDollars,
-} from "utils/currency";
 import { getErrorMessage } from "#/api/errors";
 import {
 	chatUsageLimitConfig,
@@ -25,6 +20,11 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	dollarsToMicros,
+	isPositiveFiniteDollarAmount,
+	microsToDollars,
+} from "#/utils/currency";
 import { DefaultLimitSection } from "./DefaultLimitSection";
 import { GroupLimitsSection } from "./GroupLimitsSection";
 import { normalizeChatUsageLimitPeriod } from "./limitsFormLogic";

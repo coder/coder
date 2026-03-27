@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
-import { cn } from "utils/cn";
 import { Button } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 import { DesktopPanel } from "../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
@@ -42,6 +42,10 @@ interface SidebarTabViewProps {
 	onClose?: () => void;
 	/** Desktop chat ID. Omitted if desktop is not available. */
 	desktopChatId?: string;
+	/** The currently active tab ID (controlled by the parent). */
+	activeTabId: string | null;
+	/** Called when the user switches tabs. */
+	onActiveTabChange: (tabId: string) => void;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -107,12 +111,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	desktopChatId,
+	activeTabId,
+	onActiveTabChange,
 }) => {
 	const tabIdPrefix = useId();
-	const [activeTabId, setActiveTabId] = useState<string | null>(
-		tabs.length > 0 ? tabs[0].id : null,
-	);
-
 	// Build the full list of tab IDs including the desktop tab
 	// so that effectiveTabId validation covers it.
 	const allTabIds = new Set(tabs.map((t) => t.id));
@@ -227,7 +229,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}
-									onClick={() => setActiveTabId(tab.id)}
+									onClick={() => onActiveTabChange(tab.id)}
 									variant="outline"
 									size="lg"
 									className={cn(
@@ -257,7 +259,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								id={`${tabIdPrefix}-tab-desktop`}
 								role="tab"
 								aria-selected={effectiveTabId === "desktop"}
-								onClick={() => setActiveTabId("desktop")}
+								onClick={() => onActiveTabChange("desktop")}
 								variant="outline"
 								size="lg"
 								className={cn(

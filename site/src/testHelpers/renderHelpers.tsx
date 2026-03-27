@@ -7,9 +7,6 @@ import {
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import type { ProxyProvider } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
-import { DashboardLayout } from "modules/dashboard/DashboardLayout";
-import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import type { JSX, ReactNode } from "react";
@@ -19,8 +16,11 @@ import {
 	type RouteObject,
 	RouterProvider,
 } from "react-router";
-import themes, { DEFAULT_THEME } from "theme";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { DashboardLayout } from "#/modules/dashboard/DashboardLayout";
+import type { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
+import OrganizationSettingsLayout from "#/modules/management/OrganizationSettingsLayout";
+import themes, { DEFAULT_THEME } from "#/theme";
 import { MockUserOwner } from "./entities";
 
 // Creates one query client for each test case, to make sure that tests are

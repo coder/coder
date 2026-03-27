@@ -7,11 +7,11 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
-import { BODY_FONT_FAMILY } from "theme/constants";
-import { cn } from "utils/cn";
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
+import { BODY_FONT_FAMILY } from "#/theme/constants";
+import { cn } from "#/utils/cn";
 
 const Language = {
 	seconds: "seconds",

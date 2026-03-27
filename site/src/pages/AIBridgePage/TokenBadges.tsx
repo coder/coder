@@ -56,7 +56,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center justify-between gap-4">
 								<div className="text-xs text-content-secondary">Input</div>
 								<div className="text-xs text-content-secondary">
-									{roundTokenDisplay(inputTokens)}
+									{inputTokens}
 								</div>
 							</div>
 						</div>
@@ -71,7 +71,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center justify-between gap-4">
 								<div className="text-xs text-content-secondary">Output</div>
 								<div className="text-xs text-content-secondary">
-									{roundTokenDisplay(outputTokens)}
+									{outputTokens}
 								</div>
 							</div>
 						</div>

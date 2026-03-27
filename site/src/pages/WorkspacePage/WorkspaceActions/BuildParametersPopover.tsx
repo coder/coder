@@ -1,12 +1,6 @@
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { docs } from "utils/docs";
-import { getFormHelpers } from "utils/formUtils";
-import {
-	type AutofillBuildParameter,
-	getInitialRichParameterValues,
-} from "utils/richParameters";
 import { richParameters } from "#/api/queries/templates";
 import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
 import type {
@@ -32,6 +26,12 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
+import {
+	type AutofillBuildParameter,
+	getInitialRichParameterValues,
+} from "#/utils/richParameters";
 
 interface BuildParametersPopoverProps {
 	workspace: Workspace;

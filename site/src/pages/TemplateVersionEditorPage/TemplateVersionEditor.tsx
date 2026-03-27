@@ -7,17 +7,6 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import {
-	AlertVariant,
-	ProvisionerAlert,
-} from "modules/provisioners/ProvisionerAlert";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { WildcardHostnameWarning } from "modules/resources/WildcardHostnameWarning";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
-import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
-import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -26,17 +15,6 @@ import {
 	unstable_usePrompt as usePrompt,
 } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
-import {
-	createFile,
-	existsFile,
-	type FileTree,
-	getFileText,
-	isFolder,
-	moveFile,
-	removeFile,
-	updateFile,
-} from "utils/filetree";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	ProvisionerJobLog,
@@ -63,6 +41,28 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import {
+	AlertVariant,
+	ProvisionerAlert,
+} from "#/modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
+import { WildcardHostnameWarning } from "#/modules/resources/WildcardHostnameWarning";
+import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
+import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFileTree";
+import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { cn } from "#/utils/cn";
+import {
+	createFile,
+	existsFile,
+	type FileTree,
+	getFileText,
+	isFolder,
+	moveFile,
+	removeFile,
+	updateFile,
+} from "#/utils/filetree";
 import {
 	CreateFileDialog,
 	DeleteFileDialog,

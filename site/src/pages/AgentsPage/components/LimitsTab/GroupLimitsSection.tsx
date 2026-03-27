@@ -1,7 +1,5 @@
 import { Check } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
 import { type FC, useId } from "react";
-import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
 import { getErrorMessage } from "#/api/errors";
 import type { Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
@@ -18,6 +16,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { getGroupSubtitle } from "#/modules/groups";
+import {
+	formatCostMicros,
+	isPositiveFiniteDollarAmount,
+} from "#/utils/currency";
 import { SectionHeader } from "../SectionHeader";
 
 interface GroupLimitsSectionProps {

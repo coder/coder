@@ -1,10 +1,10 @@
 import { useProxy } from "contexts/ProxyContext";
-import { useAuthenticated } from "hooks/useAuthenticated";
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { docs } from "#/utils/docs";
 
 interface WildcardHostnameWarningProps {
 	// If resources are provided, show template-focused warning

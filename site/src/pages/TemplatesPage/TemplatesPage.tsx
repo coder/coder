@@ -1,13 +1,13 @@
 import { useAuthenticated } from "hooks";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templateExamples, templates } from "#/api/queries/templates";
 import { type UseFilterResult, useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { pageTitle } from "#/utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const TemplatesPage: FC = () => {

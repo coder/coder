@@ -1,17 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ArrowRightIcon, PlusIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import { createDayString } from "utils/createDayString";
-import { docs } from "utils/docs";
-import {
-	formatTemplateActiveDevelopers,
-	formatTemplateBuildTime,
-} from "utils/templates";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type { Template, TemplateExample } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -48,6 +39,15 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
+import { createDayString } from "#/utils/createDayString";
+import { docs } from "#/utils/docs";
+import {
+	formatTemplateActiveDevelopers,
+	formatTemplateBuildTime,
+} from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";

@@ -1,16 +1,6 @@
-import {
-	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceAgent,
-} from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withProxyProvider,
-	withWebSocket,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
+import { useRef } from "react";
 import { Outlet } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -29,6 +19,17 @@ import {
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+	withWebSocket,
+} from "#/testHelpers/storybook";
 import AgentDetail, { RIGHT_PANEL_OPEN_KEY } from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 
@@ -36,6 +37,7 @@ import type { AgentsOutletContext } from "./AgentsPage";
 // Layout wrapper – provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentDetailLayout: FC = () => {
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -51,9 +53,16 @@ const AgentDetailLayout: FC = () => {
 								_workspaceId: string,
 							) => {},
 							requestUnarchiveAgent: () => {},
+							requestPinAgent: () => {},
+							requestUnpinAgent: () => {},
+							onRegenerateTitle: () => {},
+							isRegeneratingTitle: false,
+							regeneratingTitleChatId: null,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
+							onChatReady: () => {},
+							scrollContainerRef,
 						} satisfies AgentsOutletContext
 					}
 				/>
@@ -133,6 +142,7 @@ const baseChatFields = {
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 } as const;
 
@@ -666,6 +676,92 @@ export const WithSubagentCards: Story = {
 	},
 };
 
+/** spawn_computer_use_agent tool renders with an "Open Desktop" button
+ *  that opens the right sidebar panel and switches to the Desktop tab. */
+export const WithComputerUseAgent: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Desktop automation task",
+					status: "running",
+				},
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:00:01.000Z",
+							role: "user",
+							content: [
+								{
+									type: "text",
+									text: "Can you check the browser for visual regressions?",
+								},
+							],
+						},
+						{
+							id: 2,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:00:02.000Z",
+							role: "assistant",
+							content: [
+								{
+									type: "text",
+									text: "I'll spawn a computer use agent to visually inspect the browser.",
+								},
+								{
+									type: "tool-call",
+									tool_call_id: "tool-desktop-1",
+									tool_name: "spawn_computer_use_agent",
+									args: {
+										title: "Visual regression check",
+										prompt:
+											"Open the browser and check for visual regressions on the dashboard page.",
+									},
+								},
+								{
+									type: "tool-result",
+									tool_call_id: "tool-desktop-1",
+									tool_name: "spawn_computer_use_agent",
+									result: {
+										chat_id: "desktop-child-1",
+										title: "Visual regression check",
+										status: "completed",
+										duration_ms: "12400",
+									},
+								},
+								{
+									type: "text",
+									text: "The desktop agent has finished its visual inspection. No regressions found. You can click **Open Desktop** above to view the desktop session.",
+								},
+							],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+				{ diffUrl: undefined },
+			),
+			// Enable the desktop feature so the Desktop tab appears in the sidebar.
+			{
+				key: ["chat-desktop-enabled"],
+				data: { enable_desktop: true },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The tool should show "Spawned ... Visual regression check".
+		await waitFor(() => {
+			expect(canvas.getByText(/Visual regression check/)).toBeInTheDocument();
+		});
+	},
+};
+
 /** Completed reasoning part renders inline. */
 export const WithReasoningInline: Story = {
 	parameters: {
@@ -1041,5 +1137,228 @@ export const StreamedReasoning: Story = {
 		await expect(
 			canvas.findByText("Streaming reasoning body"),
 		).resolves.toBeInTheDocument();
+	},
+};
+
+/**
+ * Validates that text currently being streamed via WebSocket is not lost
+ * when the user sends a follow-up message and the server responds with a
+ * queued acknowledgement. The streaming content must remain visible in the
+ * DOM after the send completes.
+ */
+export const QueuedSendWithActiveStream: Story = {
+	beforeEach: () => {
+		const spy = spyOn(API.experimental, "createChatMessage").mockResolvedValue({
+			queued: true,
+			queued_message: {
+				id: 99,
+				chat_id: CHAT_ID,
+				created_at: "2026-02-18T00:00:02.000Z",
+				content: [{ type: "text", text: "follow-up" }],
+			},
+		});
+		return () => spy.mockRestore();
+	},
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Streaming survives queued send",
+				status: "running",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						message_part: {
+							part: {
+								type: "text",
+								text: "I am helping you with the implementation",
+							},
+						},
+					}),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the streamed text to appear.
+		await expect(
+			canvas.findByText("I am helping you with the implementation"),
+		).resolves.toBeInTheDocument();
+
+		// Type a follow-up message and send it.
+		const textbox = canvas.getByRole("textbox");
+		await userEvent.type(textbox, "follow-up");
+		await userEvent.keyboard("{Enter}");
+
+		// Verify the send actually fired (guards against the test
+		// passing trivially if a future change blocks the send).
+		await waitFor(() => {
+			expect(API.experimental.createChatMessage).toHaveBeenCalledTimes(1);
+		});
+
+		// After the queued send, the streaming text must still be visible.
+		expect(
+			canvas.getByText("I am helping you with the implementation"),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * Validates that a failed POST during an active stream does not wipe
+ * the streaming output. The catch block re-throws before reaching
+ * clearStreamState(), so the in-progress text must survive.
+ */
+export const FailedSendWithActiveStream: Story = {
+	beforeEach: () => {
+		const spy = spyOn(API.experimental, "createChatMessage").mockRejectedValue(
+			new Error("network error"),
+		);
+		return () => spy.mockRestore();
+	},
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Failed send preserves stream",
+				status: "running",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						message_part: {
+							part: {
+								type: "text",
+								text: "I am helping you with the implementation",
+							},
+						},
+					}),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for the streamed text to appear.
+		await expect(
+			canvas.findByText("I am helping you with the implementation"),
+		).resolves.toBeInTheDocument();
+
+		// Type a message and send it (the POST will reject).
+		const textbox = canvas.getByRole("textbox");
+		await userEvent.type(textbox, "this will fail");
+		await userEvent.keyboard("{Enter}");
+
+		// Verify the send was attempted.
+		await waitFor(() => {
+			expect(API.experimental.createChatMessage).toHaveBeenCalledTimes(1);
+		});
+
+		// The streaming text must survive the failed send.
+		expect(
+			canvas.getByText("I am helping you with the implementation"),
+		).toBeInTheDocument();
+	},
+};
+
+/** wait_agent for a computer-use subagent renders the VNC preview card
+ *  (SubagentTool with computer-use variant) instead of the plain SubagentTool card. */
+export const WithWaitAgentComputerUseVNC: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Wait agent computer use",
+					status: "running",
+				},
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:00:01.000Z",
+							role: "assistant",
+							content: [
+								{
+									type: "tool-call",
+									tool_call_id: "tool-spawn-desktop",
+									tool_name: "spawn_computer_use_agent",
+									args: {
+										title: "Visual check",
+										prompt: "Check the browser.",
+									},
+								},
+								{
+									type: "tool-result",
+									tool_call_id: "tool-spawn-desktop",
+									tool_name: "spawn_computer_use_agent",
+									result: {
+										chat_id: "desktop-child-1",
+										title: "Visual check",
+										status: "completed",
+									},
+								},
+							],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+				{ diffUrl: undefined },
+			),
+			{
+				key: ["chat-desktop-enabled"],
+				data: { enable_desktop: true },
+			},
+		],
+		// The wait_agent arrives via WebSocket so it renders in
+		// the streaming/running state (no tool-result yet).
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						chat_id: CHAT_ID,
+						message_part: {
+							part: {
+								type: "tool-call",
+								tool_call_id: "tool-wait-desktop",
+								tool_name: "wait_agent",
+								args_delta: '{"chat_id":"desktop-child-1"}',
+							},
+						},
+					}),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The wait_agent card should show "Waiting for" (running state)
+		// rendered via SubagentTool with VNC preview.
+		await waitFor(() => {
+			expect(canvas.getByText(/Waiting for/)).toBeInTheDocument();
+		});
 	},
 };

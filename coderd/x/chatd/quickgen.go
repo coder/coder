@@ -2,6 +2,8 @@ package chatd
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,6 +38,17 @@ const titleGenerationPrompt = "You are a title generator. Your ONLY job is to ou
 	"Output ONLY the title — no quotes, no emoji, no markdown, no code fences, " +
 	"no trailing punctuation, no preamble, no explanation. Sentence case."
 
+const (
+	// maxConversationContextRunes caps the conversation sample in manual
+	// title prompts to avoid exceeding model context windows.
+	maxConversationContextRunes = 6000
+	// maxLatestUserMessageRunes caps the latest user message excerpt.
+	maxLatestUserMessageRunes = 1000
+	// recentTurnWindow is the number of most recent turns included
+	// alongside the first user turn in manual title context.
+	recentTurnWindow = 3
+)
+
 // preferredTitleModels are lightweight models used for title
 // generation, one per provider type. Each entry uses the
 // cheapest/fastest small model for that provider as identified
@@ -52,6 +65,33 @@ var preferredTitleModels = []struct {
 	{fantasybedrock.Name, "anthropic.claude-haiku-4-5-20251001-v1:0"},
 	{fantasyopenrouter.Name, "anthropic/claude-3.5-haiku"},
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
+}
+
+func selectPreferredConfiguredShortTextModelConfig(
+	configs []database.ChatModelConfig,
+) (database.ChatModelConfig, bool) {
+	for _, preferred := range preferredTitleModels {
+		for _, config := range configs {
+			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
+				continue
+			}
+			if !strings.EqualFold(strings.TrimSpace(config.Model), preferred.model) {
+				continue
+			}
+			return config, true
+		}
+	}
+	return database.ChatModelConfig{}, false
+}
+
+func normalizeShortTextOutput(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	text = strings.Trim(text, "\"'`")
+	return strings.Join(strings.Fields(text), " ")
 }
 
 // maybeGenerateChatTitle generates an AI title for the chat when
@@ -138,7 +178,7 @@ func generateTitle(
 	model fantasy.LanguageModel,
 	input string,
 ) (string, error) {
-	title, err := generateShortText(ctx, model, titleGenerationPrompt, input)
+	title, _, err := generateShortText(ctx, model, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -199,13 +239,10 @@ func titleInput(
 }
 
 func normalizeTitleOutput(title string) string {
-	title = strings.TrimSpace(title)
+	title = normalizeShortTextOutput(title)
 	if title == "" {
 		return ""
 	}
-
-	title = strings.Trim(title, "\"'`")
-	title = strings.Join(strings.Fields(title), " ")
 	return truncateRunes(title, 80)
 }
 
@@ -226,7 +263,7 @@ func fallbackChatTitle(message string) string {
 
 	title := strings.Join(words, " ")
 	if truncated {
-		title += "…"
+		return truncateRunes(title, maxRunes-1) + "…"
 	}
 
 	return truncateRunes(title, maxRunes)
@@ -260,6 +297,186 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
+// Manual title regeneration is user-initiated and can use richer
+// conversation context than the automatic first-message title path
+// above. These helpers keep the manual prompt-building logic private
+// while reusing the shared title-generation utilities in this file.
+type manualTitleTurn struct {
+	role string
+	text string
+}
+
+func extractManualTitleTurns(messages []database.ChatMessage) []manualTitleTurn {
+	turns := make([]manualTitleTurn, 0, len(messages))
+	for _, message := range messages {
+		if message.Visibility == database.ChatMessageVisibilityModel {
+			continue
+		}
+
+		role := ""
+		switch message.Role {
+		case database.ChatMessageRoleUser:
+			role = string(database.ChatMessageRoleUser)
+		case database.ChatMessageRoleAssistant:
+			role = string(database.ChatMessageRoleAssistant)
+		default:
+			continue
+		}
+
+		parts, err := chatprompt.ParseContent(message)
+		if err != nil {
+			continue
+		}
+
+		text := strings.TrimSpace(contentBlocksToText(parts))
+		if text == "" {
+			continue
+		}
+
+		turns = append(turns, manualTitleTurn{
+			role: role,
+			text: text,
+		})
+	}
+
+	return turns
+}
+
+func selectManualTitleTurnIndexes(turns []manualTitleTurn) []int {
+	firstUserIndex := slices.IndexFunc(turns, func(turn manualTitleTurn) bool {
+		return turn.role == string(database.ChatMessageRoleUser)
+	})
+	if firstUserIndex == -1 {
+		return nil
+	}
+
+	windowStart := max(0, len(turns)-recentTurnWindow)
+	selected := make([]int, 0, recentTurnWindow+1)
+	if firstUserIndex < windowStart {
+		selected = append(selected, firstUserIndex)
+	}
+	for i := windowStart; i < len(turns); i++ {
+		selected = append(selected, i)
+	}
+
+	return selected
+}
+
+func buildManualTitleContext(
+	turns []manualTitleTurn,
+	selected []int,
+) (conversationBlock string, latestUserMsg string) {
+	userCount := 0
+	for _, turn := range turns {
+		if turn.role != string(database.ChatMessageRoleUser) {
+			continue
+		}
+		userCount++
+		latestUserMsg = turn.text
+	}
+
+	latestUserMsg = truncateRunes(latestUserMsg, maxLatestUserMessageRunes)
+	if userCount <= 1 || len(selected) == 0 {
+		return "", latestUserMsg
+	}
+
+	lines := make([]string, 0, len(selected)+1)
+	for i, idx := range selected {
+		if i == 1 {
+			if gap := idx - selected[i-1] - 1; gap > 0 {
+				lines = append(lines, fmt.Sprintf("[... %d earlier turns omitted ...]", gap))
+			}
+		}
+		lines = append(lines, fmt.Sprintf("[%s]: %s", turns[idx].role, turns[idx].text))
+	}
+
+	conversationBlock = strings.Join(lines, "\n")
+	conversationBlock = truncateRunes(conversationBlock, maxConversationContextRunes)
+	return conversationBlock, latestUserMsg
+}
+
+func renderManualTitlePrompt(
+	conversationBlock string,
+	firstUserText string,
+	latestUserMsg string,
+) string {
+	var prompt strings.Builder
+	write := func(value string) {
+		_, _ = prompt.WriteString(value)
+	}
+
+	write("You are a title generator for an AI coding assistant conversation.\n\n")
+	write("The user's primary objective was:\n<primary_objective>\n")
+	write(firstUserText)
+	write("\n</primary_objective>")
+
+	if conversationBlock != "" {
+		write("\n\nConversation sample:\n<conversation_sample>\n")
+		write(conversationBlock)
+		write("\n</conversation_sample>")
+	}
+
+	if strings.TrimSpace(latestUserMsg) != strings.TrimSpace(truncateRunes(firstUserText, maxLatestUserMessageRunes)) {
+		write("\n\nThe user's most recent message:\n<latest_message>\n")
+		write(latestUserMsg)
+		write("\n</latest_message>\n")
+		write("Note: Weight the overall conversation arc more heavily than just the latest message.")
+	}
+
+	write("\n\nRequirements:\n")
+	write("- Output a short title of 2-8 words.\n")
+	write("- Use verb-noun format in sentence case.\n")
+	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
+	write("- No trailing punctuation, quotes, emoji, or markdown.\n")
+	write("- No temporal phrasing (\"Continue\", \"Follow up on\") or meta phrasing (\"Chat about\").\n")
+	write("- Output ONLY the title - nothing else.\n")
+	return prompt.String()
+}
+
+func generateManualTitle(
+	ctx context.Context,
+	messages []database.ChatMessage,
+	fallbackModel fantasy.LanguageModel,
+) (string, fantasy.Usage, error) {
+	turns := extractManualTitleTurns(messages)
+	selected := selectManualTitleTurnIndexes(turns)
+
+	firstUserIndex := slices.IndexFunc(turns, func(turn manualTitleTurn) bool {
+		return turn.role == string(database.ChatMessageRoleUser)
+	})
+	if firstUserIndex == -1 {
+		return "", fantasy.Usage{}, nil
+	}
+	firstUserText := truncateRunes(turns[firstUserIndex].text, maxLatestUserMessageRunes)
+
+	conversationBlock, latestUserMsg := buildManualTitleContext(turns, selected)
+	systemPrompt := renderManualTitlePrompt(
+		conversationBlock,
+		firstUserText,
+		latestUserMsg,
+	)
+
+	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	title, usage, err := generateShortText(
+		titleCtx,
+		fallbackModel,
+		systemPrompt,
+		"Generate the title.",
+	)
+	if err != nil {
+		return "", fantasy.Usage{}, err
+	}
+
+	title = normalizeTitleOutput(title)
+	if title == "" {
+		return "", usage, xerrors.New("generated title was empty")
+	}
+
+	return title, usage, nil
+}
+
 const pushSummaryPrompt = "You are a notification assistant. Given a chat title " +
 	"and the agent's last message, write a single short sentence (under 100 characters) " +
 	"summarizing what the agent did. This will be shown as a push notification body. " +
@@ -281,6 +498,7 @@ func generatePushSummary(
 	summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	assistantText = truncateRunes(assistantText, maxConversationContextRunes)
 	input := "Chat title: " + chat.Title + "\n\nAgent's last message:\n" + assistantText
 
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
@@ -296,7 +514,7 @@ func generatePushSummary(
 	candidates = append(candidates, fallbackModel)
 
 	for _, model := range candidates {
-		summary, err := generateShortText(summaryCtx, model, pushSummaryPrompt, input)
+		summary, _, err := generateShortText(summaryCtx, model, pushSummaryPrompt, input)
 		if err != nil {
 			logger.Debug(ctx, "push summary model candidate failed",
 				slog.Error(err),
@@ -318,7 +536,7 @@ func generateShortText(
 	model fantasy.LanguageModel,
 	systemPrompt string,
 	userInput string,
-) (string, error) {
+) (string, fantasy.Usage, error) {
 	prompt := []fantasy.Message{
 		{
 			Role: fantasy.MessageRoleSystem,
@@ -346,7 +564,7 @@ func generateShortText(
 		return genErr
 	}, nil)
 	if err != nil {
-		return "", xerrors.Errorf("generate short text: %w", err)
+		return "", fantasy.Usage{}, xerrors.Errorf("generate short text: %w", err)
 	}
 
 	responseParts := make([]codersdk.ChatMessagePart, 0, len(response.Content))
@@ -355,7 +573,6 @@ func generateShortText(
 			responseParts = append(responseParts, p)
 		}
 	}
-	text := strings.TrimSpace(contentBlocksToText(responseParts))
-	text = strings.Trim(text, "\"'`")
-	return text, nil
+	text := normalizeShortTextOutput(contentBlocksToText(responseParts))
+	return text, response.Usage, nil
 }

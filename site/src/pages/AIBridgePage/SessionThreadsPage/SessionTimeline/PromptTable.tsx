@@ -7,8 +7,8 @@ import {
 } from "components/Tooltip/Tooltip";
 import { AIBridgeModelIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeModelIcon";
 import type { FC } from "react";
-import { cn } from "utils/cn";
-import { formatDate } from "utils/time";
+import { cn } from "#/utils/cn";
+import { formatDate } from "#/utils/time";
 import { TokenBadges } from "../../TokenBadges";
 
 interface PromptTableProps {

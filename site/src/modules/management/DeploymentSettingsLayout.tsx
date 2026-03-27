@@ -1,6 +1,4 @@
 import { useAuthenticated } from "hooks";
-import { canViewDeploymentSettings } from "modules/permissions";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, Suspense } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import {
@@ -11,6 +9,8 @@ import {
 	BreadcrumbSeparator,
 } from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
+import { canViewDeploymentSettings } from "#/modules/permissions";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { DeploymentSidebar } from "./DeploymentSidebar";
 
 const DeploymentSettingsLayout: FC = () => {

@@ -1,6 +1,5 @@
 import { type FormikContextType, getIn } from "formik";
 import type { FC } from "react";
-import { cn } from "utils/cn";
 import {
 	type FieldSchema,
 	getVisibleGeneralFields,
@@ -19,6 +18,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { cn } from "#/utils/cn";
 import { normalizeProvider } from "./helpers";
 import type {
 	ModelConfigFormBuildResult,

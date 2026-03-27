@@ -10,13 +10,13 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { cn } from "utils/cn";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 export const ToolIcon: React.FC<{
 	name: string;
@@ -83,6 +83,7 @@ export const ToolIcon: React.FC<{
 		case "propose_plan":
 			return <ClipboardListIcon className={base} />;
 		case "computer":
+		case "spawn_computer_use_agent":
 			return <MonitorIcon className={base} />;
 		default:
 			return <WrenchIcon className={base} />;

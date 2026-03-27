@@ -1,9 +1,9 @@
-import type { FC } from "react";
+import { type FC, type RefObject, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import { cn } from "#/utils/cn";
+import { pageTitle } from "#/utils/page";
 import {
 	AgentsSidebar,
 	sidebarViewFromPath,
@@ -20,9 +20,18 @@ export interface AgentsOutletContext {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	requestPinAgent: (chatId: string) => void;
+	requestUnpinAgent: (chatId: string) => void;
+	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle?: (chatId: string) => void;
+	isRegeneratingTitle: boolean;
+	regeneratingTitleChatId: string | null;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
+	onChatReady: () => void;
+	/** Ref attached to the chat scroll container by AgentDetail. */
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 interface AgentsPageViewProps {
@@ -50,6 +59,12 @@ interface AgentsPageViewProps {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	requestPinAgent: (chatId: string) => void;
+	requestUnpinAgent: (chatId: string) => void;
+	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle: (chatId: string) => void;
+	isRegeneratingTitle: boolean;
+	regeneratingTitleChatId: string | null;
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
@@ -81,6 +96,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestArchiveAgent,
 	requestUnarchiveAgent,
 	requestArchiveAndDeleteWorkspace,
+	requestPinAgent,
+	requestUnpinAgent,
+	requestReorderPinnedAgent,
+	onRegenerateTitle,
+	isRegeneratingTitle,
+	regeneratingTitleChatId,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
 	hasNextPage,
@@ -109,6 +130,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		]),
 	);
 
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -116,9 +139,17 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestArchiveAgent,
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
+		requestPinAgent,
+		requestUnpinAgent,
+		requestReorderPinnedAgent,
+		onRegenerateTitle,
+		isRegeneratingTitle,
+		regeneratingTitleChatId,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
+		onChatReady: () => {},
+		scrollContainerRef,
 	};
 
 	return (
@@ -144,6 +175,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+					onPinAgent={requestPinAgent}
+					onUnpinAgent={requestUnpinAgent}
+					onReorderPinnedAgent={requestReorderPinnedAgent}
+					onRegenerateTitle={onRegenerateTitle}
+					isRegeneratingTitle={isRegeneratingTitle}
+					regeneratingTitleChatId={regeneratingTitleChatId}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
 					isArchiving={isArchiving}

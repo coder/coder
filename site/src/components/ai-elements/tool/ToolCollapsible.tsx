@@ -1,7 +1,7 @@
 import { ChevronDownIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useState } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface ToolCollapsibleProps {
 	children: ReactNode;

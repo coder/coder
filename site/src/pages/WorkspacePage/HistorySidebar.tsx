@@ -1,8 +1,4 @@
 import { ArrowDownIcon } from "lucide-react";
-import {
-	WorkspaceBuildData,
-	WorkspaceBuildDataSkeleton,
-} from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
 import { infiniteWorkspaceBuilds } from "#/api/queries/workspaceBuilds";
@@ -16,6 +12,10 @@ import {
 } from "#/components/FullPageLayout/Sidebar";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	WorkspaceBuildData,
+	WorkspaceBuildDataSkeleton,
+} from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 
 interface HistorySidebarProps {
 	workspace: Workspace;

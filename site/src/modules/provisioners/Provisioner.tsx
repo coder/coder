@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import { Building2Icon, UserIcon } from "lucide-react";
 import type { FC } from "react";
-import { createDayString } from "utils/createDayString";
 import type { HealthMessage, ProvisionerDaemon } from "#/api/typesGenerated";
 import { Pill } from "#/components/Pill/Pill";
 import {
@@ -9,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { createDayString } from "#/utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
 
 interface ProvisionerProps {

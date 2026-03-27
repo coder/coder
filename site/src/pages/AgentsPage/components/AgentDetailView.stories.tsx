@@ -1,5 +1,3 @@
-import { MockUserOwner } from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps, FC } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -8,6 +6,11 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
@@ -45,6 +48,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 	...overrides,
 });
@@ -138,6 +142,7 @@ const StoryAgentDetailView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleArchiveAgentAction: fn(),
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
+		handleRegenerateTitle: fn(),
 		scrollContainerRef: { current: null },
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
@@ -518,11 +523,7 @@ const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 };
 
 const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
-	const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
-	scrollContainer.scrollTop = -maxScroll;
-	if (Math.abs(scrollContainer.scrollTop) < 100) {
-		scrollContainer.scrollTop = maxScroll;
-	}
+	scrollContainer.scrollTop = 0;
 	scrollContainer.dispatchEvent(new Event("scroll"));
 };
 
@@ -565,10 +566,24 @@ export const ScrollToBottomButton: Story = {
 		// Wait for content to render and create overflow.
 		await waitForScrollOverflow(scrollContainer);
 
-		// Scroll up. In flex-col-reverse containers, Chrome uses
-		// negative scrollTop values when scrolled away from the
-		// bottom. Try negative first, fall back to positive for
-		// other engines.
+		// Wait for the initial bottom pin to settle before scrolling away.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
+		// Scroll to the top (away from bottom). In normal top-to-bottom
+		// flow, scrollTop = 0 is at the top and the user is farthest
+		// from the bottom of the conversation.
 		scrollAwayFromBottom(scrollContainer);
 
 		// Button should become visible (enters the accessibility tree).
@@ -607,6 +622,21 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 
 		await waitForScrollOverflow(scrollContainer);
 
+		// Wait for the initial bottom pin to settle before scrolling away.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
 		// Scroll away from bottom.
 		scrollAwayFromBottom(scrollContainer);
 
@@ -621,8 +651,11 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 		);
 
 		// Record position while clearly away from the bottom.
-		const scrollTopBefore = scrollContainer.scrollTop;
-		expect(Math.abs(scrollTopBefore)).toBeGreaterThan(50);
+		const distFromBottom =
+			scrollContainer.scrollHeight -
+			scrollContainer.scrollTop -
+			scrollContainer.clientHeight;
+		expect(distFromBottom).toBeGreaterThan(50);
 
 		const existing = getStoreMessages(preservedScrollStore);
 		preservedScrollStore.replaceMessages(
@@ -644,7 +677,11 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 		// We should remain significantly away from the bottom.
 		await waitFor(
 			() => {
-				expect(Math.abs(scrollContainer.scrollTop)).toBeGreaterThan(50);
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeGreaterThan(50);
 			},
 			{ timeout: 2000 },
 		);
@@ -667,8 +704,17 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 
 		await waitForScrollOverflow(scrollContainer);
 
-		// Verify the starting position is pinned to the bottom.
-		expect(Math.abs(scrollContainer.scrollTop)).toBeLessThan(5);
+		// Wait for the initial bottom pin (double-RAF) to settle.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();
@@ -690,7 +736,11 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 		// Wait for the double-RAF pin to complete.
 		await waitFor(
 			() => {
-				expect(Math.abs(scrollContainer.scrollTop)).toBeLessThan(5);
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
 			},
 			{ timeout: 2000 },
 		);

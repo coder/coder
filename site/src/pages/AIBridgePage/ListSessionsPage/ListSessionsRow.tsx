@@ -7,17 +7,14 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { AIBridgeClientIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
 import type { FC } from "react";
-import { DATE_FORMAT, formatDateTime } from "utils/time";
 import type { AIBridgeSession } from "#/api/typesGenerated";
-import {
-	getProviderDisplayName,
-	getProviderIconName,
-	roundTokenDisplay,
-} from "../utils";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { TokenBadges } from "../TokenBadges";
+import { getProviderDisplayName, getProviderIconName } from "../utils";
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
@@ -65,86 +62,40 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-1.5 max-w-full">
-									<div className="flex-shrink-0 flex items-center">
-										<AIBridgeProviderIcon
-											provider={getProviderIconName(session.providers[0])}
-											className="size-icon-xs"
-										/>
-									</div>
-									<span className="truncate min-w-0">
-										{getProviderDisplayName(session.providers[0])}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{getProviderDisplayName(session.providers[0])}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Badge className="gap-1.5 max-w-full">
+						<div className="flex-shrink-0 flex items-center">
+							<AIBridgeProviderIcon
+								provider={getProviderIconName(session.providers[0])}
+								className="size-icon-xs"
+							/>
+						</div>
+						<span className="truncate min-w-0">
+							{getProviderDisplayName(session.providers[0])}
+						</span>
+					</Badge>
 				</div>
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-1.5 max-w-full">
-									<div className="flex-shrink-0 flex items-center">
-										<AIBridgeClientIcon
-											client={session.client}
-											className="size-icon-xs"
-										/>
-									</div>
-									<span className="truncate min-w-0">
-										{session.client ?? "Unknown"}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>{session.client}</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Badge className="gap-1.5 max-w-full">
+						<div className="flex-shrink-0 flex items-center">
+							<AIBridgeClientIcon
+								client={session.client}
+								className="size-icon-xs"
+							/>
+						</div>
+						<span className="truncate min-w-0">
+							{session.client ?? "Unknown"}
+						</span>
+					</Badge>
 				</div>
 			</TableCell>
 			<TableCell className="w-32">
 				<div className="flex items-center">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-0 rounded-e-none">
-									<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
-									<span className="truncate min-w-0 w-full">
-										{roundTokenDisplay(
-											session.token_usage_summary.input_tokens,
-										)}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{session.token_usage_summary.input_tokens} Input Tokens
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
-									<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
-									<span className="truncate min-w-0 w-full">
-										{roundTokenDisplay(
-											session.token_usage_summary.output_tokens,
-										)}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{session.token_usage_summary.output_tokens} Output Tokens
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<TokenBadges
+						inputTokens={session.token_usage_summary.input_tokens}
+						outputTokens={session.token_usage_summary.output_tokens}
+					/>
 				</div>
 			</TableCell>
 			<TableCell className="w-32">
@@ -160,7 +111,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 							DATE_FORMAT.FULL_DATETIME,
 						)}
 					</span>
-					<ChevronRightIcon className="ml-4" />
+					<ChevronRightIcon className="ml-4 size-icon-sm" />
 				</div>
 			</TableCell>
 		</TableRow>

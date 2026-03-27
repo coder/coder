@@ -10,6 +10,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelSelectorPlaceholder,
@@ -338,7 +339,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
 					Coder Agents is available via{" "}
 					<a
-						href="https://coder.com/docs/ai-coder/agents/early-access"
+						href={docs("/ai-coder/agents/early-access")}
 						target="_blank"
 						rel="noreferrer"
 						className="text-content-secondary/50 underline hover:text-content-secondary"

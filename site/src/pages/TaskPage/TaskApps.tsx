@@ -1,14 +1,6 @@
 import { ChevronDownIcon, LayoutGridIcon, TerminalIcon } from "lucide-react";
-import { getTerminalHref } from "modules/apps/apps";
-import { useAppLink } from "modules/apps/useAppLink";
-import {
-	getAllAppsWithAgent,
-	type WorkspaceAppWithAgent,
-} from "modules/tasks/apps";
 import { type FC, useState } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
 import type { Task, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -21,6 +13,14 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { ScrollArea, ScrollBar } from "#/components/ScrollArea/ScrollArea";
+import { getTerminalHref } from "#/modules/apps/apps";
+import { useAppLink } from "#/modules/apps/useAppLink";
+import {
+	getAllAppsWithAgent,
+	type WorkspaceAppWithAgent,
+} from "#/modules/tasks/apps";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import { TaskAppIFrame, TaskIframe } from "./TaskAppIframe";
 
 type TaskAppsProps = {

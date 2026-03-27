@@ -1,7 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import type React from "react";
 import { createContext, useContext, useState } from "react";
-import { cn } from "utils/cn";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -17,6 +16,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { cn } from "#/utils/cn";
 
 type ComboboxContextProps = {
 	open: boolean;

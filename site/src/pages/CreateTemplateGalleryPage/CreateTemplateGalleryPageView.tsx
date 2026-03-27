@@ -6,7 +6,6 @@ import Stack from "@mui/material/Stack";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -16,6 +15,7 @@ import {
 	PageHeader,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
 interface CreateTemplateGalleryPageViewProps {

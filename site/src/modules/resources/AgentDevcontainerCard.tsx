@@ -1,13 +1,10 @@
 import Skeleton from "@mui/material/Skeleton";
 import { useProxy } from "contexts/ProxyContext";
 import { Container, ExternalLinkIcon } from "lucide-react";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
-import { portForwardURL } from "utils/portForward";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -37,6 +34,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { cn } from "#/utils/cn";
+import { portForwardURL } from "#/utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";

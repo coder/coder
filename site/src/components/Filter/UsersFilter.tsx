@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import {
 	Filter,
 	MenuSkeleton,
@@ -14,6 +13,7 @@ import {
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import { docs } from "#/utils/docs";
 
 const userFilterQuery = {
 	active: "status:active",

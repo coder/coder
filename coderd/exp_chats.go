@@ -354,7 +354,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChats(chats, diffStatusesByChatID))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chats(chats, diffStatusesByChatID))
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -499,7 +499,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1224,7 +1224,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 			slog.Error(err),
 		)
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, diffStatus))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1555,8 +1555,8 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Supports updating labels and
-// toggling the archived state.
+// patchChat updates a chat resource. Supports updating labels,
+// archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1637,6 +1637,54 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Failed to %s chat.", action),
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	if req.PinOrder != nil {
+		pinOrder := *req.PinOrder
+		if pinOrder < 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Pin order must be non-negative.",
+			})
+			return
+		}
+
+		if pinOrder > 0 && chat.Archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin an archived chat.",
+			})
+			return
+		}
+
+		// The behavior depends on current pin state:
+		// - pinOrder == 0: unpin.
+		// - pinOrder > 0 && already pinned: reorder (shift
+		//   neighbors, clamp to [1, count]).
+		// - pinOrder > 0 && not pinned: append to end. The
+		//   requested value is intentionally ignored because
+		//   PinChatByID also bumps updated_at to keep the
+		//   chat visible in the paginated sidebar.
+		var err error
+		errMsg := "Failed to pin chat."
+		switch {
+		case pinOrder == 0:
+			errMsg = "Failed to unpin chat."
+			err = api.Database.UnpinChatByID(ctx, chat.ID)
+		case chat.PinOrder > 0:
+			errMsg = "Failed to reorder pinned chat."
+			err = api.Database.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+				ID:       chat.ID,
+				PinOrder: pinOrder,
+			})
+		default:
+			err = api.Database.PinChatByID(ctx, chat.ID)
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: errMsg,
 				Detail:  err.Error(),
 			})
 			return
@@ -2054,7 +2102,51 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return
+		}
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to regenerate chat title.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3694,79 +3786,6 @@ func truncateRunes(value string, maxLen int) string {
 	}
 
 	return string(runes[:maxLen])
-}
-
-func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
-	mcpServerIDs := c.MCPServerIDs
-	if mcpServerIDs == nil {
-		mcpServerIDs = []uuid.UUID{}
-	}
-	labels := map[string]string(c.Labels)
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	chat := codersdk.Chat{
-		ID:                c.ID,
-		OwnerID:           c.OwnerID,
-		LastModelConfigID: c.LastModelConfigID,
-		Title:             c.Title,
-		Status:            codersdk.ChatStatus(c.Status),
-		Archived:          c.Archived,
-		CreatedAt:         c.CreatedAt,
-		UpdatedAt:         c.UpdatedAt,
-		MCPServerIDs:      mcpServerIDs,
-		Labels:            labels,
-	}
-	if c.LastError.Valid {
-		chat.LastError = &c.LastError.String
-	}
-	if c.ParentChatID.Valid {
-		parentChatID := c.ParentChatID.UUID
-		chat.ParentChatID = &parentChatID
-	}
-	switch {
-	case c.RootChatID.Valid:
-		rootChatID := c.RootChatID.UUID
-		chat.RootChatID = &rootChatID
-	case c.ParentChatID.Valid:
-		rootChatID := c.ParentChatID.UUID
-		chat.RootChatID = &rootChatID
-	default:
-		rootChatID := c.ID
-		chat.RootChatID = &rootChatID
-	}
-	if c.WorkspaceID.Valid {
-		chat.WorkspaceID = &c.WorkspaceID.UUID
-	}
-	if c.BuildID.Valid {
-		chat.BuildID = &c.BuildID.UUID
-	}
-	if c.AgentID.Valid {
-		chat.AgentID = &c.AgentID.UUID
-	}
-	if diffStatus != nil {
-		convertedDiffStatus := db2sdk.ChatDiffStatus(c.ID, diffStatus)
-		chat.DiffStatus = &convertedDiffStatus
-	}
-	return chat
-}
-
-func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
-	result := make([]codersdk.Chat, len(chats))
-	for i, c := range chats {
-		diffStatus, ok := diffStatusesByChatID[c.ID]
-		if ok {
-			result[i] = convertChat(c, &diffStatus)
-			continue
-		}
-
-		result[i] = convertChat(c, nil)
-		if diffStatusesByChatID != nil {
-			emptyDiffStatus := db2sdk.ChatDiffStatus(c.ID, nil)
-			result[i].DiffStatus = &emptyDiffStatus
-		}
-	}
-	return result
 }
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {

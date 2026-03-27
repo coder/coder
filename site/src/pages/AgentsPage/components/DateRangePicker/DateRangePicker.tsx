@@ -8,13 +8,13 @@ import dayjs from "dayjs";
 import { CalendarIcon, MoveRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
-import { cn } from "utils/cn";
-import { Button } from "#/components/Button/Button";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { cn } from "#/utils/cn";
 import { Calendar } from "../Calendar/Calendar";
 
 export type DateRangeValue = {
@@ -82,6 +82,7 @@ interface DateRangePickerProps {
 	onChange: (value: DateRangeValue) => void;
 	now?: Date;
 	presets?: DateRangePreset[];
+	size?: ButtonProps["size"];
 }
 
 /**
@@ -119,6 +120,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	onChange,
 	now,
 	presets,
+	size = "sm",
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
@@ -173,7 +175,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button variant="outline" size={size}>
 					<CalendarIcon className="size-4 text-content-secondary" />
 					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />

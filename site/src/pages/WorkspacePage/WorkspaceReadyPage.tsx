@@ -1,16 +1,6 @@
-import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
-import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
-import {
-	useWorkspaceUpdate,
-	WorkspaceUpdateDialogs,
-} from "modules/workspaces/WorkspaceUpdateDialogs";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import {
 	type ApiError,
@@ -33,6 +23,16 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
+import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
+import {
+	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
+} from "#/modules/workspaces/WorkspaceUpdateDialogs";
+import { pageTitle } from "#/utils/page";
 import { Workspace } from "./Workspace";
 
 interface WorkspaceReadyPageProps {

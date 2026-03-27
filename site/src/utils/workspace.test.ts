@@ -1,6 +1,6 @@
-import * as Mocks from "testHelpers/entities";
 import dayjs from "dayjs";
 import type * as TypesGen from "#/api/typesGenerated";
+import * as Mocks from "#/testHelpers/entities";
 import {
 	agentVersionStatus,
 	defaultWorkspaceExtension,

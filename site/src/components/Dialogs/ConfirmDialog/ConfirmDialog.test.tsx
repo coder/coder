@@ -1,5 +1,5 @@
-import { renderComponent } from "testHelpers/renderHelpers";
 import { fireEvent, screen } from "@testing-library/react";
+import { renderComponent } from "#/testHelpers/renderHelpers";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 describe("ConfirmDialog", () => {

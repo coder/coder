@@ -1,11 +1,14 @@
-import { MockUserOwner } from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 const defaultModelOptions: ModelSelectorOption[] = [
@@ -45,6 +48,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 	...overrides,
 });
@@ -68,8 +72,13 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
 		onArchiveAndDeleteWorkspace: fn(),
+		onPinAgent: fn(),
+		onUnpinAgent: fn(),
+		onRegenerateTitle: fn(),
 		onBeforeNewAgent: fn(),
 		isCreating: false,
+		isRegeneratingTitle: false,
+		regeneratingTitleChatId: null,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
 	},
@@ -311,7 +320,9 @@ export const ActiveChatAncestryExpanded: Story = {
 	},
 };
 
-const todayTimestamp = new Date().toISOString();
+// Use a fixed offset so the value always falls in the "Today" bucket
+// without embedding a literal date that drifts across calendar days.
+const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
 
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {
@@ -319,12 +330,12 @@ export const ActiveFilterShowsActiveAgents: Story = {
 			buildChat({
 				id: "active-1",
 				title: "Active agent one",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 			buildChat({
 				id: "active-2",
 				title: "Active agent two",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 		],
 		archivedFilter: "active",
@@ -352,13 +363,13 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 				id: "archived-1",
 				title: "Archived agent one",
 				archived: true,
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 			buildChat({
 				id: "archived-2",
 				title: "Archived agent two",
 				archived: true,
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 		],
 		archivedFilter: "archived",
@@ -385,12 +396,12 @@ export const NoArchivedSection: Story = {
 			buildChat({
 				id: "chat-a",
 				title: "First active agent",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 			buildChat({
 				id: "chat-b",
 				title: "Second active agent",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 		],
 	},
@@ -416,7 +427,7 @@ export const ArchivingShowsSpinnerOnly: Story = {
 			buildChat({
 				id: "archiving-chat",
 				title: "Chat being archived",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 		],
 		isArchiving: true,
@@ -436,7 +447,7 @@ export const DefaultShowsTimestampHidesMenu: Story = {
 			buildChat({
 				id: "default-chat",
 				title: "Default state agent",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 		],
 	},
@@ -454,7 +465,7 @@ export const WithDiffStats: Story = {
 			buildChat({
 				id: "diff-both",
 				title: "Agent with additions and deletions",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "diff-both",
 					url: "https://github.com/coder/coder/pull/1",
@@ -469,7 +480,7 @@ export const WithDiffStats: Story = {
 			buildChat({
 				id: "diff-add-only",
 				title: "Agent with additions only",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "diff-add-only",
 					url: "https://github.com/coder/coder/pull/2",
@@ -484,7 +495,7 @@ export const WithDiffStats: Story = {
 			buildChat({
 				id: "diff-del-only",
 				title: "Agent with deletions only",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "diff-del-only",
 					url: "https://github.com/coder/coder/pull/3",
@@ -499,7 +510,7 @@ export const WithDiffStats: Story = {
 			buildChat({
 				id: "diff-none",
 				title: "Agent with no diff changes",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "diff-none",
 					url: "https://github.com/coder/coder/pull/4",
@@ -545,7 +556,7 @@ export const WithDiffStatsLight: Story = {
 			buildChat({
 				id: "diff-both-light",
 				title: "Agent with additions and deletions",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "diff-both-light",
 					url: "https://github.com/coder/coder/pull/1",
@@ -560,7 +571,7 @@ export const WithDiffStatsLight: Story = {
 			buildChat({
 				id: "diff-add-only-light",
 				title: "Agent with additions only",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "diff-add-only-light",
 					url: "https://github.com/coder/coder/pull/2",
@@ -575,7 +586,7 @@ export const WithDiffStatsLight: Story = {
 			buildChat({
 				id: "diff-del-only-light",
 				title: "Agent with deletions only",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "diff-del-only-light",
 					url: "https://github.com/coder/coder/pull/3",
@@ -610,7 +621,7 @@ export const WithPRStateIcons: Story = {
 			buildChat({
 				id: "pr-open",
 				title: "Open pull request",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "pr-open",
 					url: "https://github.com/coder/coder/pull/100",
@@ -626,7 +637,7 @@ export const WithPRStateIcons: Story = {
 			buildChat({
 				id: "pr-draft",
 				title: "Draft pull request",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "pr-draft",
 					url: "https://github.com/coder/coder/pull/101",
@@ -642,7 +653,7 @@ export const WithPRStateIcons: Story = {
 			buildChat({
 				id: "pr-merged",
 				title: "Merged pull request",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "pr-merged",
 					url: "https://github.com/coder/coder/pull/102",
@@ -658,7 +669,7 @@ export const WithPRStateIcons: Story = {
 			buildChat({
 				id: "pr-closed",
 				title: "Closed pull request",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "pr-closed",
 					url: "https://github.com/coder/coder/pull/103",
@@ -674,7 +685,7 @@ export const WithPRStateIcons: Story = {
 			buildChat({
 				id: "pr-no-state",
 				title: "No PR state (branch only)",
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 				diff_status: {
 					chat_id: "pr-no-state",
 					url: "https://github.com/coder/coder/tree/my-branch",
@@ -703,7 +714,7 @@ export const ArchivedAgentUnarchiveOption: Story = {
 				id: "archived-unarchive",
 				title: "Archived agent with unarchive",
 				archived: true,
-				updated_at: todayTimestamp,
+				updated_at: recentTimestamp,
 			}),
 		],
 		archivedFilter: "archived",
@@ -736,5 +747,172 @@ export const ArchivedAgentUnarchiveOption: Story = {
 		expect(
 			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const PinnedChatsSection: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pinned-1",
+				title: "My pinned agent",
+				updated_at: recentTimestamp,
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "unpinned-1",
+				title: "Regular agent one",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "unpinned-2",
+				title: "Regular agent two",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Pinned")).toBeInTheDocument();
+			expect(canvas.getByText("My pinned agent")).toBeInTheDocument();
+		});
+
+		// Pinned chat must not appear again under the "Today" time group.
+		const allPinnedLinks = canvas.getAllByText("My pinned agent");
+		expect(allPinnedLinks).toHaveLength(1);
+
+		// Unpinned chats appear under their time group, not Pinned.
+		expect(canvas.getByText("Today")).toBeInTheDocument();
+		expect(canvas.getByText("Regular agent one")).toBeInTheDocument();
+	},
+};
+
+export const PinUnpinContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pin-test",
+				title: "Agent to pin",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Agent to pin")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText("Open actions for Agent to pin");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+		});
+		// Click Pin agent and verify callback.
+		const body = within(document.body);
+		await userEvent.click(body.getByText("Pin agent"));
+		expect(args.onPinAgent).toHaveBeenCalledWith("pin-test");
+	},
+};
+
+export const UnpinContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unpin-test",
+				title: "Agent to unpin",
+				updated_at: recentTimestamp,
+				pin_order: 1,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Agent to unpin")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText("Open actions for Agent to unpin");
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Unpin agent")).toBeInTheDocument();
+		});
+		await userEvent.click(body.getByText("Unpin agent"));
+		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+	},
+};
+
+export const FilterOnPinnedHeader: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pinned-filter",
+				title: "Pinned Chat",
+				updated_at: recentTimestamp,
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "unpinned-filter",
+				title: "Unpinned Chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Pinned")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+		});
+	},
+};
+
+export const FilterOnTimeGroupNoPins: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "today-only",
+				title: "Today Chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Today")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+		});
 	},
 };

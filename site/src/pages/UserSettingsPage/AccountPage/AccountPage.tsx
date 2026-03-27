@@ -1,10 +1,10 @@
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useAuthenticated } from "hooks";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "#/api/queries/groups";
 import { Stack } from "#/components/Stack/Stack";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { Section } from "../Section";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";

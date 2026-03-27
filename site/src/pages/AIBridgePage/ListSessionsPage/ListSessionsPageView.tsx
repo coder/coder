@@ -22,9 +22,9 @@ import {
 } from "components/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
 import type { ComponentProps, FC, PropsWithChildren } from "react";
-import { docs } from "utils/docs";
-import { DATE_FORMAT, formatDateTime } from "utils/time";
 import type { AIBridgeSession } from "#/api/typesGenerated";
+import { docs } from "#/utils/docs";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 import { ListSessionsRow } from "./ListSessionsRow";
 

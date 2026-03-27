@@ -1,8 +1,6 @@
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
-import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { FormSection } from "#/components/Form/Form";
@@ -12,6 +10,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
+import { docs } from "#/utils/docs";
 
 interface ProvisionerTagsPopoverProps {
 	tags: ProvisionerDaemon["tags"];

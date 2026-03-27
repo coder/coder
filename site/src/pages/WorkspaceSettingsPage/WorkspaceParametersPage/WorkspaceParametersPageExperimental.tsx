@@ -1,12 +1,8 @@
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import { API } from "#/api/api";
 import { DetailedError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -25,6 +21,10 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,

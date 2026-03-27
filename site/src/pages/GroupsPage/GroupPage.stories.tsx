@@ -1,10 +1,3 @@
-import {
-	MockDefaultOrganization,
-	MockGroup,
-	MockGroupWithoutMembers,
-	MockOrganizationMember,
-	MockOrganizationMember2,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { spyOn, userEvent, within } from "storybook/test";
 import {
@@ -18,6 +11,13 @@ import {
 	groupPermissionsKey,
 } from "#/api/queries/groups";
 import { organizationMembersKey } from "#/api/queries/organizations";
+import {
+	MockDefaultOrganization,
+	MockGroup,
+	MockGroupWithoutMembers,
+	MockOrganizationMember,
+	MockOrganizationMember2,
+} from "#/testHelpers/entities";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 
@@ -70,7 +70,10 @@ const permissionsQuery = (data: unknown, id?: string) => ({
 });
 
 const membersQuery = (data: unknown) => ({
-	key: organizationMembersKey(MockDefaultOrganization.id),
+	key: organizationMembersKey(MockDefaultOrganization.id, {
+		limit: 25,
+		q: "",
+	}),
 	data,
 });
 
@@ -178,7 +181,7 @@ export const MembersError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select a user" }),
+			await canvas.findByRole("button", { name: "Add users" }),
 		);
 	},
 };
@@ -195,7 +198,7 @@ export const NoMembers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select a user" }),
+			await canvas.findByRole("button", { name: "Add users" }),
 		);
 	},
 };
@@ -217,7 +220,7 @@ export const FiltersByMembers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select a user" }),
+			await canvas.findByRole("button", { name: "Add users" }),
 		);
 	},
 };

@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
-import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -22,6 +21,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
@@ -218,7 +218,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	);
 
 	const handleSetDefault = (modelConfig: TypesGen.ChatModelConfig) => {
-		if (modelConfig.is_default) return;
+		if (modelConfig.is_default || !modelConfig.enabled) return;
 		void onUpdateModel(modelConfig.id, { is_default: true });
 	};
 
@@ -310,7 +310,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 												e.stopPropagation();
 												handleSetDefault(modelConfig);
 											}}
-											aria-disabled={isUpdating || modelConfig.is_default}
+											aria-disabled={
+												isUpdating ||
+												modelConfig.is_default ||
+												!modelConfig.enabled
+											}
 											aria-label={
 												modelConfig.is_default
 													? "Default model"
@@ -320,7 +324,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 												"flex shrink-0 items-center justify-center bg-transparent border-0 p-0 transition-colors",
 												modelConfig.is_default
 													? "text-content-primary"
-													: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
+													: !modelConfig.enabled
+														? "cursor-not-allowed text-content-secondary/30"
+														: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
 											)}
 										>
 											<PinIcon
@@ -332,9 +338,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										</button>
 									</TooltipTrigger>
 									<TooltipContent side="left">
-										{modelConfig.is_default
-											? "Pinned as default for new chats"
-											: "Pin as default for new chats"}
+										{!modelConfig.enabled
+											? "Cannot set a disabled model as default"
+											: modelConfig.is_default
+												? "Pinned as default for new chats"
+												: "Pin as default for new chats"}
 									</TooltipContent>
 								</Tooltip>
 								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />

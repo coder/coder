@@ -1,9 +1,9 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -24,6 +24,7 @@ import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import { getLatestContextUsage } from "./AgentDetail/chatHelpers";
 import { LiveStreamTail } from "./AgentDetail/LiveStreamTail";
 import {
+	buildComputerUseSubagentIds,
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
@@ -68,11 +69,17 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		.filter(isChatMessage);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
+	const computerUseSubagentIds = buildComputerUseSubagentIds(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-6">
+				{/* VNC sessions for completed agents may already be
+					   terminated, so inline desktop previews are disabled
+					   via showDesktopPreviews={false} to avoid a perpetual
+					   "disconnected" state. The MonitorIcon variant still
+					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
 					onEditUserMessage={onEditUserMessage}
@@ -80,6 +87,8 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 					savingMessageId={savingMessageId}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
+					computerUseSubagentIds={computerUseSubagentIds}
+					showDesktopPreviews={false}
 				/>
 				<LiveStreamTail
 					store={store}
@@ -87,6 +96,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
+					computerUseSubagentIds={computerUseSubagentIds}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>
@@ -174,15 +184,12 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
+	const rawUsage = getLatestContextUsage(messages);
+	const latestContextUsage = rawUsage
+		? { ...rawUsage, compressionThreshold }
+		: rawUsage;
 	const { organizations } = useDashboard();
 	const organizationId = organizations[0]?.id;
-	const latestContextUsage = (() => {
-		const usage = getLatestContextUsage(messages);
-		if (!usage) {
-			return usage;
-		}
-		return { ...usage, compressionThreshold };
-	})();
 	const {
 		attachments,
 		textContents,

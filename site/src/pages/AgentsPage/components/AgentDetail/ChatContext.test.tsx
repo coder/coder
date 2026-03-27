@@ -32,9 +32,9 @@ const readInfiniteChats = (
 
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
-import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
 	selectOrderedMessageIDs,
@@ -207,6 +207,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 });
 

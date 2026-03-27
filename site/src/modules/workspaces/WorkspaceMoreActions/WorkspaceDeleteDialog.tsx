@@ -4,12 +4,12 @@ import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
-import { docs } from "utils/docs";
 import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { docs } from "#/utils/docs";
 
 interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;

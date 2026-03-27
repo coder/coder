@@ -6,16 +6,9 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import {
-	castNotificationMethod,
-	methodIcons,
-	methodLabels,
-	type NotificationMethod,
-} from "modules/notifications/utils";
 import { type FC, Fragment } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	type selectTemplatesByGroup,
@@ -30,6 +23,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	castNotificationMethod,
+	methodIcons,
+	methodLabels,
+	type NotificationMethod,
+} from "#/modules/notifications/utils";
+import { docs } from "#/utils/docs";
 
 type NotificationEventsProps = {
 	defaultMethod: NotificationMethod;

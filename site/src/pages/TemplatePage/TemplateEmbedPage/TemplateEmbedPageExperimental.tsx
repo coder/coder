@@ -1,14 +1,7 @@
 import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import {
-	Diagnostics,
-	DynamicParameter,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
-import { pageTitle } from "utils/page";
 import { API } from "#/api/api";
 import { DetailedError } from "#/api/errors";
 import type {
@@ -24,6 +17,13 @@ import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { useClipboard } from "#/hooks/useClipboard";
+import {
+	Diagnostics,
+	DynamicParameter,
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { pageTitle } from "#/utils/page";
 
 type ButtonValues = Record<string, string>;
 

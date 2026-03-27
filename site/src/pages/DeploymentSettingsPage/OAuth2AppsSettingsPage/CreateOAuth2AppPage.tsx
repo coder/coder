@@ -3,9 +3,9 @@ import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import { getErrorDetail } from "#/api/errors";
 import { postApp } from "#/api/queries/oauth2";
+import { pageTitle } from "#/utils/page";
 import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 
 const CreateOAuth2AppPage: FC = () => {

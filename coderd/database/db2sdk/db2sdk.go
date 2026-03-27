@@ -1097,6 +1097,287 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 	}
 }
 
+// AIBridgeSessionThreads converts session metadata and thread interceptions
+// into the threads response. It groups interceptions into threads, builds
+// agentic actions from tool usages and model thoughts, and aggregates
+// token usage with metadata.
+func AIBridgeSessionThreads(
+	session database.ListAIBridgeSessionsRow,
+	interceptions []database.ListAIBridgeSessionThreadsRow,
+	tokenUsages []database.AIBridgeTokenUsage,
+	toolUsages []database.AIBridgeToolUsage,
+	userPrompts []database.AIBridgeUserPrompt,
+	modelThoughts []database.AIBridgeModelThought,
+) codersdk.AIBridgeSessionThreadsResponse {
+	// Index subresources by interception ID.
+	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
+	for _, tu := range tokenUsages {
+		tokensByInterception[tu.InterceptionID] = append(tokensByInterception[tu.InterceptionID], tu)
+	}
+	toolsByInterception := make(map[uuid.UUID][]database.AIBridgeToolUsage, len(interceptions))
+	for _, tu := range toolUsages {
+		toolsByInterception[tu.InterceptionID] = append(toolsByInterception[tu.InterceptionID], tu)
+	}
+	promptsByInterception := make(map[uuid.UUID][]database.AIBridgeUserPrompt, len(interceptions))
+	for _, up := range userPrompts {
+		promptsByInterception[up.InterceptionID] = append(promptsByInterception[up.InterceptionID], up)
+	}
+	thoughtsByInterception := make(map[uuid.UUID][]database.AIBridgeModelThought, len(interceptions))
+	for _, mt := range modelThoughts {
+		thoughtsByInterception[mt.InterceptionID] = append(thoughtsByInterception[mt.InterceptionID], mt)
+	}
+
+	// Group interceptions by thread_id, preserving the order returned by the
+	// SQL query.
+	interceptionsByThread := make(map[uuid.UUID][]database.AIBridgeInterception, len(interceptions))
+	var threadIDs []uuid.UUID
+	for _, row := range interceptions {
+		if _, ok := interceptionsByThread[row.ThreadID]; !ok {
+			threadIDs = append(threadIDs, row.ThreadID)
+		}
+		interceptionsByThread[row.ThreadID] = append(interceptionsByThread[row.ThreadID], row.AIBridgeInterception)
+	}
+
+	// Build threads and track page time bounds.
+	threads := make([]codersdk.AIBridgeThread, 0, len(threadIDs))
+	var pageStartedAt, pageEndedAt *time.Time
+	for _, threadID := range threadIDs {
+		intcs := interceptionsByThread[threadID]
+		thread := buildAIBridgeThread(threadID, intcs, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception)
+		for _, intc := range intcs {
+			if pageStartedAt == nil || intc.StartedAt.Before(*pageStartedAt) {
+				t := intc.StartedAt
+				pageStartedAt = &t
+			}
+			if intc.EndedAt.Valid {
+				if pageEndedAt == nil || intc.EndedAt.Time.After(*pageEndedAt) {
+					t := intc.EndedAt.Time
+					pageEndedAt = &t
+				}
+			}
+		}
+		threads = append(threads, thread)
+	}
+
+	// Aggregate session-level token usage metadata from all token
+	// usages in the session (not just the page).
+	sessionTokenMeta := aggregateTokenMetadata(tokenUsages)
+
+	resp := codersdk.AIBridgeSessionThreadsResponse{
+		ID: session.SessionID,
+		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
+			ID:        session.UserID,
+			Username:  session.UserUsername,
+			Name:      session.UserName,
+			AvatarURL: session.UserAvatarUrl,
+		}),
+		Providers:     session.Providers,
+		Models:        session.Models,
+		Metadata:      jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: session.Metadata, Valid: len(session.Metadata) > 0}),
+		StartedAt:     session.StartedAt,
+		PageStartedAt: pageStartedAt,
+		PageEndedAt:   pageEndedAt,
+		TokenUsageSummary: codersdk.AIBridgeSessionThreadsTokenUsage{
+			InputTokens:  session.InputTokens,
+			OutputTokens: session.OutputTokens,
+			Metadata:     sessionTokenMeta,
+		},
+		Threads: threads,
+	}
+	if resp.Providers == nil {
+		resp.Providers = []string{}
+	}
+	if resp.Models == nil {
+		resp.Models = []string{}
+	}
+	if session.Client != "" {
+		resp.Client = &session.Client
+	}
+	if !session.EndedAt.IsZero() {
+		resp.EndedAt = &session.EndedAt
+	}
+	return resp
+}
+
+func buildAIBridgeThread(
+	threadID uuid.UUID,
+	interceptions []database.AIBridgeInterception,
+	tokensByInterception map[uuid.UUID][]database.AIBridgeTokenUsage,
+	toolsByInterception map[uuid.UUID][]database.AIBridgeToolUsage,
+	promptsByInterception map[uuid.UUID][]database.AIBridgeUserPrompt,
+	thoughtsByInterception map[uuid.UUID][]database.AIBridgeModelThought,
+) codersdk.AIBridgeThread {
+	// Find the root interception (where id == threadID) to get the
+	// thread prompt and model.
+	var rootIntc *database.AIBridgeInterception
+	for i := range interceptions {
+		if interceptions[i].ID == threadID {
+			rootIntc = &interceptions[i]
+			break
+		}
+	}
+	// Fallback to first interception if root not found.
+	if rootIntc == nil && len(interceptions) > 0 {
+		rootIntc = &interceptions[0]
+	}
+
+	thread := codersdk.AIBridgeThread{
+		ID: threadID,
+	}
+	if rootIntc != nil {
+		thread.Model = rootIntc.Model
+		thread.Provider = rootIntc.Provider
+		// Get first user prompt from root interception.
+		// A thread can only have one prompt, by definition, since we currently
+		// only store the last prompt observed in an interception.
+		if prompts := promptsByInterception[rootIntc.ID]; len(prompts) > 0 {
+			thread.Prompt = &prompts[0].Prompt
+		}
+	}
+
+	// Compute thread time bounds from interceptions.
+	for _, intc := range interceptions {
+		if thread.StartedAt.IsZero() || intc.StartedAt.Before(thread.StartedAt) {
+			thread.StartedAt = intc.StartedAt
+		}
+		if intc.EndedAt.Valid {
+			if thread.EndedAt == nil || intc.EndedAt.Time.After(*thread.EndedAt) {
+				t := intc.EndedAt.Time
+				thread.EndedAt = &t
+			}
+		}
+	}
+
+	// Build agentic actions grouped by interception. Each interception that
+	// has tool calls produces one action with all its tool calls, thinking
+	// blocks, and token usage.
+	var actions []codersdk.AIBridgeAgenticAction
+	for _, intc := range interceptions {
+		tools := toolsByInterception[intc.ID]
+		if len(tools) == 0 {
+			continue
+		}
+
+		// Thinking blocks for this interception.
+		thoughts := thoughtsByInterception[intc.ID]
+		thinking := make([]codersdk.AIBridgeModelThought, 0, len(thoughts))
+		for _, mt := range thoughts {
+			thinking = append(thinking, codersdk.AIBridgeModelThought{
+				Text: mt.Content,
+			})
+		}
+
+		// Token usage for the interception.
+		actionTokenUsage := aggregateTokenUsage(tokensByInterception[intc.ID])
+
+		// Build tool call list.
+		toolCalls := make([]codersdk.AIBridgeToolCall, 0, len(tools))
+		for _, tu := range tools {
+			toolCalls = append(toolCalls, codersdk.AIBridgeToolCall{
+				ID:                 tu.ID,
+				InterceptionID:     tu.InterceptionID,
+				ProviderResponseID: tu.ProviderResponseID,
+				ServerURL:          tu.ServerUrl.String,
+				Tool:               tu.Tool,
+				Injected:           tu.Injected,
+				Input:              tu.Input,
+				Metadata:           jsonOrEmptyMap(tu.Metadata),
+				CreatedAt:          tu.CreatedAt,
+			})
+		}
+
+		actions = append(actions, codersdk.AIBridgeAgenticAction{
+			Model:      intc.Model,
+			TokenUsage: actionTokenUsage,
+			Thinking:   thinking,
+			ToolCalls:  toolCalls,
+		})
+	}
+
+	if actions == nil {
+		// Make an empty slice so we don't serialize `null`.
+		actions = make([]codersdk.AIBridgeAgenticAction, 0)
+	}
+
+	thread.AgenticActions = actions
+
+	// Aggregate thread-level token usage.
+	var threadTokens []database.AIBridgeTokenUsage
+	for _, intc := range interceptions {
+		threadTokens = append(threadTokens, tokensByInterception[intc.ID]...)
+	}
+	thread.TokenUsage = aggregateTokenUsage(threadTokens)
+
+	return thread
+}
+
+// aggregateTokenUsage sums token usage rows and aggregates metadata.
+func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridgeSessionThreadsTokenUsage {
+	var inputTokens, outputTokens int64
+	for _, tu := range tokens {
+		inputTokens += tu.InputTokens
+		outputTokens += tu.OutputTokens
+		// TODO: once https://github.com/coder/aibridge/issues/150 lands we
+		// should aggregate the other token types.
+	}
+	return codersdk.AIBridgeSessionThreadsTokenUsage{
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		Metadata:     aggregateTokenMetadata(tokens),
+	}
+}
+
+// aggregateTokenMetadata sums all numeric values from the metadata
+// JSONB across the given token usage rows by key. Nested objects are
+// flattened using dot-notation (e.g. {"cache": {"read_tokens": 10}}
+// becomes "cache.read_tokens"). Non-numeric leaves (strings,
+// booleans, arrays, nulls) are silently skipped.
+func aggregateTokenMetadata(tokens []database.AIBridgeTokenUsage) map[string]any {
+	sums := make(map[string]int64)
+	for _, tu := range tokens {
+		if !tu.Metadata.Valid || len(tu.Metadata.RawMessage) == 0 {
+			continue
+		}
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(tu.Metadata.RawMessage, &m); err != nil {
+			continue
+		}
+		flattenAndSum(sums, "", m)
+	}
+	result := make(map[string]any, len(sums))
+	for k, v := range sums {
+		result[k] = v
+	}
+	return result
+}
+
+// flattenAndSum recursively walks a JSON object and sums all numeric
+// leaf values into sums, using dot-separated keys for nested objects.
+func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMessage) {
+	for k, raw := range m {
+		key := k
+		if prefix != "" {
+			key = prefix + "." + k
+		}
+
+		// Try as a number first.
+		var n json.Number
+		if err := json.Unmarshal(raw, &n); err == nil {
+			if v, err := n.Int64(); err == nil {
+				sums[key] += v
+			}
+			continue
+		}
+
+		// Try as a nested object.
+		var nested map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &nested); err == nil {
+			flattenAndSum(sums, key, nested)
+		}
+		// Arrays, strings, booleans, nulls are skipped.
+	}
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {
@@ -1233,6 +1514,86 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	}
 	value := v.Int64
 	return &value
+}
+
+// Chat converts a database.Chat to a codersdk.Chat. It coalesces
+// nil slices and maps to empty values for JSON serialization and
+// derives RootChatID from the parent chain when not explicitly set.
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+	mcpServerIDs := c.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
+	labels := map[string]string(c.Labels)
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	chat := codersdk.Chat{
+		ID:                c.ID,
+		OwnerID:           c.OwnerID,
+		LastModelConfigID: c.LastModelConfigID,
+		Title:             c.Title,
+		Status:            codersdk.ChatStatus(c.Status),
+		Archived:          c.Archived,
+		PinOrder:          c.PinOrder,
+		CreatedAt:         c.CreatedAt,
+		UpdatedAt:         c.UpdatedAt,
+		MCPServerIDs:      mcpServerIDs,
+		Labels:            labels,
+	}
+	if c.LastError.Valid {
+		chat.LastError = &c.LastError.String
+	}
+	if c.ParentChatID.Valid {
+		parentChatID := c.ParentChatID.UUID
+		chat.ParentChatID = &parentChatID
+	}
+	switch {
+	case c.RootChatID.Valid:
+		rootChatID := c.RootChatID.UUID
+		chat.RootChatID = &rootChatID
+	case c.ParentChatID.Valid:
+		rootChatID := c.ParentChatID.UUID
+		chat.RootChatID = &rootChatID
+	default:
+		rootChatID := c.ID
+		chat.RootChatID = &rootChatID
+	}
+	if c.WorkspaceID.Valid {
+		chat.WorkspaceID = &c.WorkspaceID.UUID
+	}
+	if c.BuildID.Valid {
+		chat.BuildID = &c.BuildID.UUID
+	}
+	if c.AgentID.Valid {
+		chat.AgentID = &c.AgentID.UUID
+	}
+	if diffStatus != nil {
+		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
+		chat.DiffStatus = &convertedDiffStatus
+	}
+	return chat
+}
+
+// Chats converts a slice of database.Chat to codersdk.Chat, looking
+// up diff statuses from the provided map. When diffStatusesByChatID
+// is non-nil, chats without an entry receive an empty DiffStatus.
+func Chats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
+	result := make([]codersdk.Chat, len(chats))
+	for i, c := range chats {
+		diffStatus, ok := diffStatusesByChatID[c.ID]
+		if ok {
+			result[i] = Chat(c, &diffStatus)
+			continue
+		}
+
+		result[i] = Chat(c, nil)
+		if diffStatusesByChatID != nil {
+			emptyDiffStatus := ChatDiffStatus(c.ID, nil)
+			result[i].DiffStatus = &emptyDiffStatus
+		}
+	}
+	return result
 }
 
 // ChatDiffStatus converts a database.ChatDiffStatus to a

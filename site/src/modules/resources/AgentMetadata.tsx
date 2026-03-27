@@ -9,8 +9,6 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
-import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { watchAgentMetadata } from "#/api/api";
 import type {
 	ServerSentEvent,
@@ -23,6 +21,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 

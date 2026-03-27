@@ -1,10 +1,10 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Table, TableBody } from "#/components/Table/Table";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockWebConnectionLog,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table, TableBody } from "#/components/Table/Table";
+} from "#/testHelpers/entities";
 import { ConnectionLogRow } from "./ConnectionLogRow";
 
 const meta: Meta<typeof ConnectionLogRow> = {

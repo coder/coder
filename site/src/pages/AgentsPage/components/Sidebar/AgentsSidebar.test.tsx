@@ -1,20 +1,20 @@
+import { act, render } from "@testing-library/react";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import type { FC, PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
+import { MemoryRouter } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockUserOwner,
-} from "testHelpers/entities";
-import { act, render } from "@testing-library/react";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
-import themes, { DEFAULT_THEME } from "theme";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type * as TypesGen from "#/api/typesGenerated";
-import type { Chat } from "#/api/typesGenerated";
+} from "#/testHelpers/entities";
+import themes, { DEFAULT_THEME } from "#/theme";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -62,6 +62,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
 	last_error: null,
 	mcp_server_ids: [],
 	labels: {},
@@ -105,6 +106,11 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onArchiveAndDeleteWorkspace: vi.fn(),
+	onPinAgent: vi.fn(),
+	onUnpinAgent: vi.fn(),
+	onRegenerateTitle: vi.fn(),
+	isRegeneratingTitle: false,
+	regeneratingTitleChatId: null,
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,
 	archivedFilter: "active" as const,
@@ -410,5 +416,64 @@ describe("AgentsSidebar model display names", () => {
 		);
 
 		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
+	});
+
+	it("shows Default model when last_model_config_id is a nil UUID", () => {
+		const { getByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "nil-uuid-chat",
+							title: "Chat from pubsub",
+							last_model_config_id: "00000000-0000-0000-0000-000000000000",
+						}),
+					]}
+					modelOptions={[
+						{
+							id: "config-real",
+							provider: "openai",
+							model: "gpt-4o",
+							displayName: "GPT-4o",
+						},
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		// A nil UUID means LastModelConfigID was left at its zero value,
+		// so the sidebar cannot resolve the model and falls back.
+		expect(getByText("Default model")).toBeInTheDocument();
+	});
+
+	it("shows model name when last_model_config_id matches a config", () => {
+		const { getByText, queryByText } = render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "matched-chat",
+							title: "Chat with valid model",
+							last_model_config_id: "config-real",
+						}),
+					]}
+					modelOptions={[
+						{
+							id: "config-real",
+							provider: "openai",
+							model: "gpt-4o",
+							displayName: "GPT-4o",
+						},
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		// Regression guard: a valid last_model_config_id must resolve
+		// to the actual model display name, not "Default model".
+		expect(getByText("GPT-4o")).toBeInTheDocument();
+		expect(queryByText("Default model")).not.toBeInTheDocument();
 	});
 });

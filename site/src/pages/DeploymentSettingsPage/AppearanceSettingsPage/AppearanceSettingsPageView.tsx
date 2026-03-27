@@ -1,6 +1,5 @@
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
 import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
 import {
 	Badges,
@@ -25,6 +24,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
@@ -89,7 +90,7 @@ export const AppearanceSettingsPageView: FC<
 						<PopoverPaywall
 							message="Appearance"
 							description="With a Premium license, you can customize the appearance and branding of your deployment."
-							documentationLink="https://coder.com/docs/admin/appearance"
+							documentationLink={docs("/admin/setup/appearance")}
 						/>
 					</TooltipContent>
 				</Tooltip>

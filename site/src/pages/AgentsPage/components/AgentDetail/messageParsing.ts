@@ -19,7 +19,10 @@ const appendText = (current: string, next: string): string => {
 };
 
 const isSubagentToolName = (name: string): boolean =>
-	name === "spawn_agent" || name === "wait_agent" || name === "message_agent";
+	name === "spawn_agent" ||
+	name === "spawn_computer_use_agent" ||
+	name === "wait_agent" ||
+	name === "message_agent";
 
 const isCompletedSubagentResult = (
 	toolName: string,
@@ -264,7 +267,10 @@ export const buildSubagentTitles = (
 	const map = new Map<string, string>();
 	for (const { parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
-			if (tool.name !== "spawn_agent") {
+			if (
+				tool.name !== "spawn_agent" &&
+				tool.name !== "spawn_computer_use_agent"
+			) {
 				continue;
 			}
 			const rec = asRecord(tool.result);
@@ -279,4 +285,26 @@ export const buildSubagentTitles = (
 		}
 	}
 	return map;
+};
+
+export const buildComputerUseSubagentIds = (
+	parsedMessages: readonly ParsedMessageEntry[],
+): Set<string> => {
+	const ids = new Set<string>();
+	for (const { parsed } of parsedMessages) {
+		for (const tool of parsed.tools) {
+			if (tool.name !== "spawn_computer_use_agent") {
+				continue;
+			}
+			const rec = asRecord(tool.result);
+			if (!rec) {
+				continue;
+			}
+			const chatId = asString(rec.chat_id);
+			if (chatId) {
+				ids.add(chatId);
+			}
+		}
+	}
+	return ids;
 };

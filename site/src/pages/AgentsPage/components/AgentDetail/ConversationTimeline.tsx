@@ -3,14 +3,12 @@ import {
 	type FC,
 	Fragment,
 	memo,
-	type ReactNode,
 	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
 import type { UrlTransform } from "streamdown";
-import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConversationItem,
@@ -28,6 +26,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import {
 	decodeInlineTextAttachment,
 	fetchTextAttachmentContent,
@@ -48,12 +47,12 @@ import type {
 	StreamState,
 } from "./types";
 
-const ReasoningDisclosure: FC<{
+const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}> = ({ id, text, isStreaming = false, urlTransform }) => {
+}>(({ id, text, isStreaming = false, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -69,6 +68,7 @@ const ReasoningDisclosure: FC<{
 				<Response
 					className="text-[11px] text-content-secondary"
 					urlTransform={urlTransform}
+					streaming={isStreaming}
 				>
 					{displayText}
 				</Response>
@@ -85,40 +85,28 @@ const ReasoningDisclosure: FC<{
 			</div>
 		</div>
 	);
-};
-
-// Shared block renderer used by both ChatMessageItem (historical
-// messages) and StreamingOutput (live stream). Encapsulates the
-// response / thinking / tool switch so the two consumers stay in sync.
-type RenderBlockListParams = {
-	blocks: readonly RenderBlock[];
-	toolByID: ReadonlyMap<string, MergedTool>;
-	keyPrefix: string;
-	isStreaming?: boolean;
-	subagentTitles?: Map<string, string>;
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
-	urlTransform?: UrlTransform;
-};
+});
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
 // messages render through <Response> directly.
-const SmoothedResponse: FC<{
+const SmoothedResponse = memo<{
 	text: string;
 	streamKey: string;
 	urlTransform?: UrlTransform;
-}> = ({ text, streamKey, urlTransform }) => {
+}>(({ text, streamKey, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming: true,
 		bypassSmoothing: false,
 		streamKey,
 	});
-	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
-};
+	return (
+		<Response streaming urlTransform={urlTransform}>
+			{visibleText}
+		</Response>
+	);
+});
 
 const InlineTextAttachmentButton: FC<{
 	content: string;
@@ -202,24 +190,15 @@ const TextAttachmentButton: FC<{
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
-type RenderFileBlockParams = {
+const FileBlock: FC<{
 	block: FileRenderBlock;
-	key: string;
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (content: string) => void;
-};
-
-const renderFileBlock = ({
-	block,
-	key,
-	onImageClick,
-	onTextFileClick,
-}: RenderFileBlockParams): ReactNode => {
+}> = ({ block, onImageClick, onTextFileClick }) => {
 	if (block.media_type === "text/plain") {
 		if (block.file_id) {
 			return (
 				<TextAttachmentButton
-					key={key}
 					fileId={block.file_id}
 					onPreview={onTextFileClick}
 				/>
@@ -228,7 +207,6 @@ const renderFileBlock = ({
 		if (block.data != null) {
 			return (
 				<InlineTextAttachmentButton
-					key={key}
 					content={decodeInlineTextAttachment(block.data)}
 					onPreview={onTextFileClick}
 				/>
@@ -243,7 +221,6 @@ const renderFileBlock = ({
 		: `data:${block.media_type};base64,${block.data}`;
 	return (
 		<button
-			key={key}
 			type="button"
 			aria-label="View image"
 			className="inline-block rounded-md border-0 bg-transparent p-0"
@@ -261,127 +238,177 @@ const renderFileBlock = ({
 	);
 };
 
-type RenderBlockListResult = {
-	elements: ReactNode[];
-	renderedToolIDs: ReadonlySet<string>;
-};
-
-function renderBlockList({
+// Shared block renderer used by both ChatMessageItem (historical
+// messages) and StreamingOutput (live stream). Encapsulates the
+// response / thinking / tool / file / sources switch so both
+// consumers stay in sync. PascalCase so the React Compiler
+// auto-memoizes every element inside.
+const BlockList: FC<{
+	blocks: readonly RenderBlock[];
+	tools: readonly MergedTool[];
+	keyPrefix: string;
+	isStreaming?: boolean;
+	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
+	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onImageClick?: (src: string) => void;
+	onTextFileClick?: (content: string) => void;
+	urlTransform?: UrlTransform;
+}> = ({
 	blocks,
-	toolByID,
+	tools,
 	keyPrefix,
 	isStreaming = false,
 	subagentTitles,
+	computerUseSubagentIds,
+	showDesktopPreviews,
 	subagentStatusOverrides,
 	mcpServers,
 	onImageClick,
 	onTextFileClick,
 	urlTransform,
-}: RenderBlockListParams): RenderBlockListResult {
-	const renderedToolIDs = new Set<string>();
-	const elements = blocks
-		.map((block, index) => {
-			switch (block.type) {
-				case "response":
-					return isStreaming ? (
-						<SmoothedResponse
-							key={`${keyPrefix}-response-${index}`}
-							text={block.text}
-							streamKey={keyPrefix}
-							urlTransform={urlTransform}
-						/>
-					) : (
-						<Response
-							key={`${keyPrefix}-response-${index}`}
-							urlTransform={urlTransform}
-						>
-							{block.text}
-						</Response>
-					);
-				case "thinking":
-					return (
-						<ReasoningDisclosure
-							key={`${keyPrefix}-thinking-${index}`}
-							id={`${keyPrefix}-thinking-${index}`}
-							text={block.text}
-							isStreaming={isStreaming}
-							urlTransform={urlTransform}
-						/>
-					);
-				case "file-reference":
-					return (
-						<div
-							key={`${keyPrefix}-file-reference-${index}`}
-							className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
-						>
-							<span className="shrink-0 text-xs font-medium text-content-link">
-								{block.file_name}:
-								{block.start_line === block.end_line
-									? block.start_line
-									: `${block.start_line}\u2013${block.end_line}`}
-							</span>
-						</div>
-					);
-				case "tool": {
-					const tool = toolByID.get(block.id);
-					if (!tool) {
-						if (!isStreaming) {
-							return null;
+}) => {
+	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
+
+	// Pre-compute which tool IDs have a corresponding block so
+	// we can render "remaining" (block-less) tools afterwards.
+	const blockToolIDs = new Set(
+		blocks
+			.filter(
+				(b): b is Extract<RenderBlock, { type: "tool" }> =>
+					b.type === "tool" && (toolByID.has(b.id) || isStreaming),
+			)
+			.map((b) => b.id),
+	);
+
+	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
+
+	return (
+		<>
+			{blocks.map((block, index) => {
+				switch (block.type) {
+					case "response":
+						return isStreaming ? (
+							<SmoothedResponse
+								key={`${keyPrefix}-response-${index}`}
+								text={block.text}
+								streamKey={keyPrefix}
+								urlTransform={urlTransform}
+							/>
+						) : (
+							<Response
+								key={`${keyPrefix}-response-${index}`}
+								urlTransform={urlTransform}
+							>
+								{block.text}
+							</Response>
+						);
+					case "thinking":
+						return (
+							<ReasoningDisclosure
+								key={`${keyPrefix}-thinking-${index}`}
+								id={`${keyPrefix}-thinking-${index}`}
+								text={block.text}
+								isStreaming={isStreaming}
+								urlTransform={urlTransform}
+							/>
+						);
+					case "file-reference":
+						return (
+							<div
+								key={`${keyPrefix}-file-reference-${index}`}
+								className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
+							>
+								<span className="shrink-0 text-xs font-medium text-content-link">
+									{block.file_name}:
+									{block.start_line === block.end_line
+										? block.start_line
+										: `${block.start_line}\u2013${block.end_line}`}
+								</span>
+							</div>
+						);
+					case "tool": {
+						const tool = toolByID.get(block.id);
+						if (!tool) {
+							if (!isStreaming) {
+								return null;
+							}
+							// Streaming placeholder for not-yet-resolved tool.
+							return (
+								<Tool
+									key={block.id}
+									name="Tool"
+									status="running"
+									isError={false}
+									subagentTitles={subagentTitles}
+									subagentStatusOverrides={subagentStatusOverrides}
+									mcpServers={mcpServers}
+								/>
+							);
 						}
-						// Streaming placeholder for not-yet-resolved tool.
-						renderedToolIDs.add(block.id);
 						return (
 							<Tool
-								key={block.id}
-								name="Tool"
-								status="running"
-								isError={false}
+								key={tool.id}
+								name={tool.name}
+								args={tool.args}
+								result={tool.result}
+								status={tool.status}
+								isError={tool.isError}
 								subagentTitles={subagentTitles}
-								subagentStatusOverrides={subagentStatusOverrides}
+								computerUseSubagentIds={computerUseSubagentIds}
+								showDesktopPreviews={showDesktopPreviews}
+								subagentStatusOverrides={
+									isStreaming ? subagentStatusOverrides : undefined
+								}
+								mcpServerConfigId={tool.mcpServerConfigId}
 								mcpServers={mcpServers}
 							/>
 						);
 					}
-					renderedToolIDs.add(tool.id);
-					return (
-						<Tool
-							key={tool.id}
-							name={tool.name}
-							args={tool.args}
-							result={tool.result}
-							status={tool.status}
-							isError={tool.isError}
-							subagentTitles={isStreaming ? subagentTitles : undefined}
-							subagentStatusOverrides={
-								isStreaming ? subagentStatusOverrides : undefined
-							}
-							mcpServerConfigId={tool.mcpServerConfigId}
-							mcpServers={mcpServers}
-						/>
-					);
+					case "file":
+						return (
+							<FileBlock
+								key={`${keyPrefix}-file-${block.file_id ?? index}`}
+								block={block}
+								onImageClick={onImageClick}
+								onTextFileClick={onTextFileClick}
+							/>
+						);
+					case "sources":
+						return (
+							<WebSearchSources
+								key={`${keyPrefix}-sources-${index}`}
+								sources={block.sources}
+							/>
+						);
+					default:
+						return null;
 				}
-				case "file":
-					return renderFileBlock({
-						block,
-						key: `${keyPrefix}-file-${block.file_id ?? index}`,
-						onImageClick,
-						onTextFileClick,
-					});
-				case "sources":
-					return (
-						<WebSearchSources
-							key={`${keyPrefix}-sources-${index}`}
-							sources={block.sources}
-						/>
-					);
-				default:
-					return null;
-			}
-		})
-		.filter((el): el is NonNullable<typeof el> => el != null);
-	return { elements, renderedToolIDs };
-}
+			})}
 
+			{remainingTools.map((tool) => (
+				<Tool
+					key={tool.id}
+					name={tool.name}
+					args={tool.args}
+					result={tool.result}
+					status={tool.status}
+					isError={tool.isError}
+					subagentTitles={subagentTitles}
+					computerUseSubagentIds={computerUseSubagentIds}
+					showDesktopPreviews={showDesktopPreviews}
+					subagentStatusOverrides={
+						isStreaming ? subagentStatusOverrides : undefined
+					}
+					mcpServerConfigId={tool.mcpServerConfigId}
+					mcpServers={mcpServers}
+				/>
+			))}
+		</>
+	);
+};
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
@@ -400,6 +427,8 @@ const ChatMessageItem = memo<{
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
 }>(
 	({
 		message,
@@ -412,13 +441,13 @@ const ChatMessageItem = memo<{
 		urlTransform,
 		mcpServers,
 		subagentTitles,
+		computerUseSubagentIds,
+		showDesktopPreviews,
 	}) => {
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] = useState<string | null>(null);
-		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
-
 		if (
 			parsed.toolResults.length > 0 &&
 			parsed.toolCalls.length === 0 &&
@@ -474,19 +503,6 @@ const ChatMessageItem = memo<{
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
-		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-			blocks: parsed.blocks,
-			toolByID,
-			keyPrefix: String(message.id),
-			subagentTitles,
-			onImageClick: setPreviewImage,
-			onTextFileClick: (content) => setPreviewText(content),
-			urlTransform,
-			mcpServers,
-		});
-		const remainingTools = parsed.tools.filter(
-			(tool) => !renderedToolIDs.has(tool.id),
-		);
 
 		return (
 			<div
@@ -579,26 +595,23 @@ const ChatMessageItem = memo<{
 											)}
 										</div>
 									)}
-									{(() => {
-										if (userFileBlocks.length === 0) return null;
-										return (
-											<div
-												className={cn(
-													hasUserMessageBody && "mt-2",
-													"flex flex-wrap gap-2",
-												)}
-											>
-												{userFileBlocks.map((block, i) =>
-													renderFileBlock({
-														block,
-														key: `user-file-${block.file_id ?? i}`,
-														onImageClick: setPreviewImage,
-														onTextFileClick: setPreviewText,
-													}),
-												)}
-											</div>
-										);
-									})()}
+									{hasFileBlocks && (
+										<div
+											className={cn(
+												hasUserMessageBody && "mt-2",
+												"flex flex-wrap gap-2",
+											)}
+										>
+											{userFileBlocks.map((block, i) => (
+												<FileBlock
+													key={`user-file-${block.file_id ?? i}`}
+													block={block}
+													onImageClick={setPreviewImage}
+													onTextFileClick={setPreviewText}
+												/>
+											))}
+										</div>
+									)}
 									{fadeFromBottom && (
 										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
@@ -615,20 +628,18 @@ const ChatMessageItem = memo<{
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
 								<div className="space-y-3">
-									{orderedBlocks}
-									{remainingTools.map((tool) => (
-										<Tool
-											key={tool.id}
-											name={tool.name}
-											args={tool.args}
-											result={tool.result}
-											status={tool.status}
-											isError={tool.isError}
-											subagentTitles={subagentTitles}
-											mcpServerConfigId={tool.mcpServerConfigId}
-											mcpServers={mcpServers}
-										/>
-									))}
+									<BlockList
+										blocks={parsed.blocks}
+										tools={parsed.tools}
+										keyPrefix={String(message.id)}
+										subagentTitles={subagentTitles}
+										computerUseSubagentIds={computerUseSubagentIds}
+										showDesktopPreviews={showDesktopPreviews}
+										onImageClick={setPreviewImage}
+										onTextFileClick={setPreviewText}
+										urlTransform={urlTransform}
+										mcpServers={mcpServers}
+									/>
 									{!hasRenderableContent && (
 										<div className="text-xs text-content-secondary">
 											Message has no renderable content.
@@ -665,6 +676,7 @@ export const StreamingOutput: FC<{
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	subagentTitles?: Map<string, string>;
+	computerUseSubagentIds?: Set<string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
 	startingResetKey?: string;
@@ -674,6 +686,7 @@ export const StreamingOutput: FC<{
 	streamState,
 	streamTools,
 	subagentTitles,
+	computerUseSubagentIds,
 	subagentStatusOverrides,
 	liveStatus,
 	startingResetKey,
@@ -693,21 +706,7 @@ export const StreamingOutput: FC<{
 	}
 
 	const conversationItemProps = { role: "assistant" as const };
-	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
 	const blocks = shouldShowBlocks ? (streamState?.blocks ?? []) : [];
-	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-		blocks,
-		toolByID,
-		keyPrefix: "stream",
-		isStreaming,
-		subagentTitles,
-		subagentStatusOverrides,
-		urlTransform,
-		mcpServers,
-	});
-	const remainingTools = shouldShowBlocks
-		? streamTools.filter((tool) => !renderedToolIDs.has(tool.id))
-		: [];
 
 	return (
 		<ConversationItem {...conversationItemProps}>
@@ -715,25 +714,17 @@ export const StreamingOutput: FC<{
 				<MessageContent className="whitespace-normal">
 					<div className="space-y-3">
 						{shouldShowBlocks && (
-							<>
-								{orderedBlocks}
-								{remainingTools.map((tool) => (
-									<Tool
-										key={tool.id}
-										name={tool.name}
-										args={tool.args}
-										result={tool.result}
-										status={tool.status}
-										isError={tool.isError}
-										subagentTitles={isStreaming ? subagentTitles : undefined}
-										subagentStatusOverrides={
-											isStreaming ? subagentStatusOverrides : undefined
-										}
-										mcpServerConfigId={tool.mcpServerConfigId}
-										mcpServers={mcpServers}
-									/>
-								))}
-							</>
+							<BlockList
+								blocks={blocks}
+								tools={streamTools}
+								keyPrefix="stream"
+								isStreaming={isStreaming}
+								subagentTitles={subagentTitles}
+								computerUseSubagentIds={computerUseSubagentIds}
+								subagentStatusOverrides={subagentStatusOverrides}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+							/>
 						)}
 						{shouldShowStatusCallout && (
 							<ChatStatusCallout
@@ -1044,6 +1035,8 @@ interface ConversationTimelineProps {
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	computerUseSubagentIds?: Set<string>;
+	showDesktopPreviews?: boolean;
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
@@ -1053,6 +1046,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 	mcpServers,
+	computerUseSubagentIds,
+	showDesktopPreviews,
 }) => {
 	const subagentTitles = buildSubagentTitles(parsedMessages);
 
@@ -1099,6 +1094,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 						isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 						mcpServers={mcpServers}
 						subagentTitles={subagentTitles}
+						computerUseSubagentIds={computerUseSubagentIds}
+						showDesktopPreviews={showDesktopPreviews}
 					/>
 				),
 			)}

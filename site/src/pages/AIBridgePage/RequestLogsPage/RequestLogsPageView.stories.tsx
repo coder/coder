@@ -1,8 +1,3 @@
-import {
-	MockInterception,
-	MockInterceptionAnthropic,
-	MockInterceptionCopilot,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import {
@@ -13,6 +8,11 @@ import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
+import {
+	MockInterception,
+	MockInterceptionAnthropic,
+	MockInterceptionCopilot,
+} from "#/testHelpers/entities";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 type FilterProps = ComponentProps<typeof RequestLogsPageView>["filterProps"];

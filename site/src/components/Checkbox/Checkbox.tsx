@@ -4,7 +4,7 @@
  */
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { Check, Minus } from "lucide-react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 /**
  * To allow for an indeterminate state the checkbox must be controlled, otherwise the checked prop would remain undefined

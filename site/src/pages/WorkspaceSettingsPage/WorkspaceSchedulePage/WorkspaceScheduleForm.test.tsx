@@ -1,9 +1,9 @@
-import { MockTemplate } from "testHelpers/entities";
-import { render } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { timeZones } from "utils/timeZones";
 import { API } from "#/api/api";
+import { MockTemplate } from "#/testHelpers/entities";
+import { render } from "#/testHelpers/renderHelpers";
+import { timeZones } from "#/utils/timeZones";
 import {
 	Language,
 	ttlShutdownAt,

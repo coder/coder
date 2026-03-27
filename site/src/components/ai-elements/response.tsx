@@ -10,11 +10,15 @@ import {
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
 	urlTransform?: UrlTransform;
+	/** Enable streaming-mode Streamdown with incomplete-markdown
+	 * preprocessing (remend) and useTransition-based render
+	 * scheduling. Pass true only for live-streaming output. */
+	streaming?: boolean;
 }
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
@@ -231,6 +235,7 @@ export const Response = ({
 	children,
 	ref,
 	urlTransform,
+	streaming,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
@@ -253,6 +258,8 @@ export const Response = ({
 				components={components}
 				urlTransform={urlTransform}
 				rehypePlugins={chatRehypePlugins}
+				mode={streaming ? "streaming" : "static"}
+				parseIncompleteMarkdown={streaming}
 			>
 				{children}
 			</Streamdown>

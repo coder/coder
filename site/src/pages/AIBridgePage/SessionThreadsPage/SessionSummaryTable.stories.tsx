@@ -1,5 +1,5 @@
-import { MockSession } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockSession } from "#/testHelpers/entities";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 
 const meta: Meta<typeof SessionSummaryTable> = {

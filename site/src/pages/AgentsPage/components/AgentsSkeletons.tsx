@@ -163,7 +163,7 @@ export const AgentDetailSkeleton: FC = () => {
 					<Skeleton className="h-7 w-7 rounded" />
 					<Skeleton className="h-7 w-7 rounded" />
 				</div>
-				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
 							<ChatConversationSkeleton />

@@ -1,11 +1,19 @@
 import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	type RefObject,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/components/ai-elements";
+import { DesktopPanelContext } from "#/components/ai-elements/tool/DesktopPanelContext";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -109,9 +117,13 @@ interface AgentDetailViewProps {
 	handleArchiveAgentAction: () => void;
 	handleUnarchiveAgentAction: () => void;
 	handleArchiveAndDeleteWorkspaceAction: () => void;
+	handleRegenerateTitle?: () => void;
+	isRegeneratingTitle?: boolean;
+	isRegenerateTitleDisabled?: boolean;
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	scrollToBottomRef?: RefObject<(() => void) | null>;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -170,7 +182,11 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleArchiveAgentAction,
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
+	handleRegenerateTitle,
+	isRegeneratingTitle,
+	isRegenerateTitleDisabled,
 	scrollContainerRef,
+	scrollToBottomRef,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
@@ -186,6 +202,23 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	const internalScrollToBottomRef = useRef<(() => void) | null>(null);
+	const effectiveScrollToBottomRef =
+		scrollToBottomRef ?? internalScrollToBottomRef;
+
+	// State for programmatically switching the sidebar tab (e.g. when
+	// the user clicks the inline desktop preview card).
+	const [sidebarTabId, setSidebarTabId] = useState<string | null>(null);
+
+	const handleOpenDesktop = () => {
+		onSetShowSidebarPanel(true);
+		setSidebarTabId("desktop");
+	};
+
+	const desktopPanelCtx = {
+		desktopChatId,
+		onOpenDesktop: desktopChatId ? handleOpenDesktop : undefined,
+	};
 
 	// Compute local diff stats from git watcher unified diffs.
 
@@ -198,155 +231,167 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	const shouldShowSidebar = showSidebarPanel;
 
 	return (
-		<div
-			className={cn(
-				"relative flex min-h-0 min-w-0 flex-1",
-				shouldShowSidebar && !visualExpanded && "flex-row",
-			)}
-		>
-			{titleElement}
+		<DesktopPanelContext value={desktopPanelCtx}>
 			<div
 				className={cn(
-					"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden",
-					visualExpanded && "hidden",
-					shouldShowSidebar && "max-md:hidden",
+					"relative flex min-h-0 min-w-0 flex-1",
+					shouldShowSidebar && !visualExpanded && "flex-row",
 				)}
 			>
-				<div className="relative z-10 shrink-0 overflow-visible">
-					<AgentDetailTopBar
-						chatTitle={chatTitle}
-						parentChat={parentChat}
-						panel={{
-							showSidebarPanel,
-							onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
-						}}
-						workspace={{
-							canOpenEditors,
-							canOpenWorkspace,
-							onOpenInEditor: handleOpenInEditor,
-							onViewWorkspace: handleViewWorkspace,
-							onOpenTerminal: handleOpenTerminal,
-							sshCommand,
-						}}
-						onArchiveAgent={handleArchiveAgentAction}
-						onUnarchiveAgent={handleUnarchiveAgentAction}
-						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
-						hasWorkspace={hasWorkspace}
-						isArchived={isArchived}
-						diffStatusData={diffStatusData}
-						isSidebarCollapsed={isSidebarCollapsed}
-						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					/>
-					{isArchived && (
-						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-							<ArchiveIcon className="h-4 w-4 shrink-0" />
-							This agent has been archived and is read-only.
-						</div>
+				{titleElement}
+				<div
+					className={cn(
+						"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+						visualExpanded && "hidden",
+						shouldShowSidebar && "max-md:hidden",
 					)}
-					<div
-						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
-						style={{
-							maskImage:
-								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-							WebkitMaskImage:
-								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-						}}
-					/>
-				</div>
-				<ScrollAnchoredContainer
-					scrollContainerRef={scrollContainerRef}
-					isFetchingMoreMessages={isFetchingMoreMessages}
-					hasMoreMessages={hasMoreMessages}
-					onFetchMoreMessages={onFetchMoreMessages}
 				>
-					<div className="px-4">
-						<AgentDetailTimeline
-							chatID={agentId}
-							store={store}
-							persistedError={persistedError}
-							onEditUserMessage={editing.handleEditUserMessage}
-							editingMessageId={editing.editingMessageId}
-							savingMessageId={pendingEditMessageId}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
+					<div className="relative z-10 shrink-0 overflow-visible">
+						<AgentDetailTopBar
+							chatTitle={chatTitle}
+							parentChat={parentChat}
+							panel={{
+								showSidebarPanel,
+								onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
+							}}
+							workspace={{
+								canOpenEditors,
+								canOpenWorkspace,
+								onOpenInEditor: handleOpenInEditor,
+								onViewWorkspace: handleViewWorkspace,
+								onOpenTerminal: handleOpenTerminal,
+								sshCommand,
+							}}
+							onArchiveAgent={handleArchiveAgentAction}
+							onUnarchiveAgent={handleUnarchiveAgentAction}
+							onArchiveAndDeleteWorkspace={
+								handleArchiveAndDeleteWorkspaceAction
+							}
+							{...(handleRegenerateTitle
+								? { onRegenerateTitle: handleRegenerateTitle }
+								: {})}
+							isRegeneratingTitle={isRegeneratingTitle}
+							isRegenerateTitleDisabled={isRegenerateTitleDisabled}
+							hasWorkspace={hasWorkspace}
+							isArchived={isArchived}
+							diffStatusData={diffStatusData}
+							isSidebarCollapsed={isSidebarCollapsed}
+							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+						/>
+						{isArchived && (
+							<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+								<ArchiveIcon className="h-4 w-4 shrink-0" />
+								This agent has been archived and is read-only.
+							</div>
+						)}
+						<div
+							aria-hidden
+							className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+							style={{
+								maskImage:
+									"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+								WebkitMaskImage:
+									"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+							}}
 						/>
 					</div>
-				</ScrollAnchoredContainer>
-				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-					<AgentDetailInput
-						store={store}
-						compressionThreshold={compressionThreshold}
-						onSend={editing.handleSendFromInput}
-						onDeleteQueuedMessage={handleDeleteQueuedMessage}
-						onPromoteQueuedMessage={handlePromoteQueuedMessage}
-						onInterrupt={handleInterrupt}
-						isInputDisabled={isInputDisabled}
-						isSendPending={isSubmissionPending}
-						isInterruptPending={isInterruptPending}
-						hasModelOptions={hasModelOptions}
-						selectedModel={effectiveSelectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						isModelCatalogLoading={isModelCatalogLoading}
-						inputRef={editing.chatInputRef}
-						initialValue={editing.editorInitialValue}
-						onContentChange={editing.handleContentChange}
-						editingQueuedMessageID={editing.editingQueuedMessageID}
-						onStartQueueEdit={editing.handleStartQueueEdit}
-						onCancelQueueEdit={editing.handleCancelQueueEdit}
-						isEditingHistoryMessage={editing.editingMessageId !== null}
-						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-						editingFileBlocks={editing.editingFileBlocks}
-						mcpServers={mcpServers}
-						selectedMCPServerIds={selectedMCPServerIds}
-						onMCPSelectionChange={onMCPSelectionChange}
-						onMCPAuthComplete={onMCPAuthComplete}
-					/>
+					<ScrollAnchoredContainer
+						scrollContainerRef={scrollContainerRef}
+						scrollToBottomRef={effectiveScrollToBottomRef}
+						isFetchingMoreMessages={isFetchingMoreMessages}
+						hasMoreMessages={hasMoreMessages}
+						onFetchMoreMessages={onFetchMoreMessages}
+					>
+						<div className="px-4">
+							<AgentDetailTimeline
+								chatID={agentId}
+								store={store}
+								persistedError={persistedError}
+								onEditUserMessage={editing.handleEditUserMessage}
+								editingMessageId={editing.editingMessageId}
+								savingMessageId={pendingEditMessageId}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+							/>
+						</div>
+					</ScrollAnchoredContainer>
+					<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+						<AgentDetailInput
+							store={store}
+							compressionThreshold={compressionThreshold}
+							onSend={editing.handleSendFromInput}
+							onDeleteQueuedMessage={handleDeleteQueuedMessage}
+							onPromoteQueuedMessage={handlePromoteQueuedMessage}
+							onInterrupt={handleInterrupt}
+							isInputDisabled={isInputDisabled}
+							isSendPending={isSubmissionPending}
+							isInterruptPending={isInterruptPending}
+							hasModelOptions={hasModelOptions}
+							selectedModel={effectiveSelectedModel}
+							onModelChange={setSelectedModel}
+							modelOptions={modelOptions}
+							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							isModelCatalogLoading={isModelCatalogLoading}
+							inputRef={editing.chatInputRef}
+							initialValue={editing.editorInitialValue}
+							onContentChange={editing.handleContentChange}
+							editingQueuedMessageID={editing.editingQueuedMessageID}
+							onStartQueueEdit={editing.handleStartQueueEdit}
+							onCancelQueueEdit={editing.handleCancelQueueEdit}
+							isEditingHistoryMessage={editing.editingMessageId !== null}
+							onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+							editingFileBlocks={editing.editingFileBlocks}
+							mcpServers={mcpServers}
+							selectedMCPServerIds={selectedMCPServerIds}
+							onMCPSelectionChange={onMCPSelectionChange}
+							onMCPAuthComplete={onMCPAuthComplete}
+						/>
+					</div>
 				</div>
-			</div>
-			<RightPanel
-				isOpen={shouldShowSidebar}
-				isExpanded={isRightPanelExpanded}
-				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => onSetShowSidebarPanel(false)}
-				onVisualExpandedChange={setDragVisualExpanded}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			>
-				<SidebarTabView
-					tabs={[
-						{
-							id: "git",
-							label: "Git",
-							content: (
-								<GitPanel
-									prTab={
-										prNumber && agentId
-											? { prNumber, chatId: agentId }
-											: undefined
-									}
-									repositories={gitWatcher.repositories}
-									onRefresh={gitWatcher.refresh}
-									onCommit={handleCommit}
-									isExpanded={visualExpanded}
-									remoteDiffStats={diffStatusData}
-									chatInputRef={editing.chatInputRef}
-								/>
-							),
-						},
-					]}
-					onClose={() => onSetShowSidebarPanel(false)}
-					isExpanded={visualExpanded}
+				<RightPanel
+					isOpen={shouldShowSidebar}
+					isExpanded={isRightPanelExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+					onClose={() => onSetShowSidebarPanel(false)}
+					onVisualExpandedChange={setDragVisualExpanded}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					chatTitle={chatTitle}
-					desktopChatId={desktopChatId}
-				/>
-			</RightPanel>
-		</div>
+				>
+					<SidebarTabView
+						activeTabId={sidebarTabId}
+						onActiveTabChange={setSidebarTabId}
+						tabs={[
+							{
+								id: "git",
+								label: "Git",
+								content: (
+									<GitPanel
+										prTab={
+											prNumber && agentId
+												? { prNumber, chatId: agentId }
+												: undefined
+										}
+										repositories={gitWatcher.repositories}
+										onRefresh={gitWatcher.refresh}
+										onCommit={handleCommit}
+										isExpanded={visualExpanded}
+										remoteDiffStats={diffStatusData}
+										chatInputRef={editing.chatInputRef}
+									/>
+								),
+							},
+						]}
+						onClose={() => onSetShowSidebarPanel(false)}
+						isExpanded={visualExpanded}
+						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+						chatTitle={chatTitle}
+						desktopChatId={desktopChatId}
+					/>
+				</RightPanel>
+			</div>
+		</DesktopPanelContext>
 	);
 };
 
@@ -401,12 +446,13 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
+					onRegenerateTitle={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
-				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+				<div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
 							<ChatConversationSkeleton />
@@ -473,6 +519,7 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
+				onRegenerateTitle={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}
 				hasWorkspace={false}
 				isSidebarCollapsed={isSidebarCollapsed}
@@ -486,10 +533,10 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 };
 
 /**
- * Scroll container that uses flex-col-reverse for bottom-anchored chat
- * layout. In this layout scrollTop = 0 means the user is at the
- * bottom (most recent content); scrolling up moves scrollTop away from
- * 0 (negative in Chrome, positive in Firefox).
+ * Scroll container that keeps the transcript in normal top-to-bottom
+ * document flow while preserving a bottom-anchored chat experience.
+ * The user is at the bottom when the remaining scroll distance to the
+ * end of the container is within SCROLL_THRESHOLD.
  *
  * Handles:
  * - Loading older message pages via an IntersectionObserver sentinel.
@@ -498,26 +545,61 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
  * - A floating "Scroll to bottom" button when the user is scrolled
  *   away from the bottom.
  *
- * CSS scroll anchoring is unreliable in flex-col-reverse containers,
- * so all position restoration is done manually.
+ * CSS overflow anchoring is disabled on the container, so all position
+ * restoration is done manually.
  */
 const SCROLL_THRESHOLD = 100;
 
-// In flex-col-reverse, scrollTop is 0 at the bottom. Its sign
-// when scrolled up varies by engine (negative in Chrome, positive
-// in Firefox). The user is "near bottom" when close to 0.
 function isNearBottom(container: HTMLElement): boolean {
-	return Math.abs(container.scrollTop) < SCROLL_THRESHOLD;
+	return (
+		container.scrollHeight - container.scrollTop - container.clientHeight <
+		SCROLL_THRESHOLD
+	);
+}
+
+function scrollTranscriptToBottom({
+	behavior,
+	scrollContainerRef,
+	autoScrollRef,
+	isRestoringScrollRef,
+	setShowScrollToBottom,
+}: {
+	behavior: "smooth" | "instant";
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	autoScrollRef: { current: boolean };
+	isRestoringScrollRef: { current: boolean };
+	setShowScrollToBottom: (next: boolean) => void;
+}): void {
+	const container = scrollContainerRef.current;
+	if (!container) {
+		return;
+	}
+
+	autoScrollRef.current = true;
+	isRestoringScrollRef.current = true;
+	const top = Math.max(container.scrollHeight - container.clientHeight, 0);
+	if (behavior === "smooth") {
+		container.scrollTo({ top, behavior: "smooth" });
+	} else {
+		container.scrollTop = top;
+		// Instant scrollTop assignment may not fire a scroll event when the
+		// container is already at the target position, so clear the restoring
+		// guard immediately to avoid blocking subsequent scroll handling.
+		isRestoringScrollRef.current = false;
+	}
+	setShowScrollToBottom(false);
 }
 
 const ScrollAnchoredContainer: FC<{
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	scrollToBottomRef: RefObject<(() => void) | null>;
 	isFetchingMoreMessages: boolean;
 	hasMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
 	children: React.ReactNode;
 }> = ({
 	scrollContainerRef,
+	scrollToBottomRef,
 	isFetchingMoreMessages,
 	hasMoreMessages,
 	onFetchMoreMessages,
@@ -526,21 +608,46 @@ const ScrollAnchoredContainer: FC<{
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
+	const hasFetchedRef = useRef(false);
 	const onFetchRef = useRef(onFetchMoreMessages);
 	const autoScrollRef = useRef(true);
 	const contentRef = useRef<HTMLDivElement>(null);
+	const pendingPrependRef = useRef<{
+		contentHeight: number;
+		scrollHeight: number;
+		contentWidth: number;
+	} | null>(null);
 	// Guard flag: true while a programmatic scroll adjustment is in-flight.
 	// The scroll handler skips autoScrollRef updates and re-render triggers
 	// when this is set, preventing user-visible jitter. Cleared when the
 	// scroll reaches its destination or the user actively interrupts.
 	const isRestoringScrollRef = useRef(false);
-	useEffect(() => {
+	const cancelPendingPinsRef = useRef<(() => void) | null>(null);
+	useLayoutEffect(() => {
 		isFetchingRef.current = isFetchingMoreMessages;
+		if (isFetchingMoreMessages) {
+			hasFetchedRef.current = true;
+		}
 		onFetchRef.current = onFetchMoreMessages;
 	}, [isFetchingMoreMessages, onFetchMoreMessages]);
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
-	// Sentinel observer — triggers loading older messages.
+	useEffect(() => {
+		scrollToBottomRef.current = () => {
+			scrollTranscriptToBottom({
+				behavior: "instant",
+				scrollContainerRef,
+				autoScrollRef,
+				isRestoringScrollRef,
+				setShowScrollToBottom,
+			});
+		};
+		return () => {
+			scrollToBottomRef.current = null;
+		};
+	}, [scrollContainerRef, scrollToBottomRef]);
+
+	// Sentinel observer, triggers loading older messages.
 	// All changing values are read from refs so the observer
 	// is created once and never torn down / recreated, which
 	// would cause spurious intersection callbacks.
@@ -552,6 +659,18 @@ const ScrollAnchoredContainer: FC<{
 		const observer = new IntersectionObserver(
 			([entry]) => {
 				if (entry.isIntersecting && !isFetchingRef.current) {
+					const container = scrollContainerRef.current;
+					const content = contentRef.current;
+					if (container && content) {
+						const contentRect = content.getBoundingClientRect();
+						// Capture the current viewport snapshot before the fetch so
+						// prepended content can be restored after layout updates.
+						pendingPrependRef.current = {
+							contentHeight: contentRect.height,
+							scrollHeight: container.scrollHeight,
+							contentWidth: contentRect.width,
+						};
+					}
 					onFetchRef.current();
 				}
 			},
@@ -562,8 +681,21 @@ const ScrollAnchoredContainer: FC<{
 			},
 		);
 		observerRef.current = observer;
-		observer.observe(sentinel);
+		// Defer sentinel observation until after the initial bottom
+		// pin settles. In normal flex-col flow, scrollTop starts at 0,
+		// which places the sentinel in the viewport and would trigger
+		// an eager history fetch before the transcript pins to bottom.
+		let deferInnerId: number | null = null;
+		const deferOuterId = requestAnimationFrame(() => {
+			deferInnerId = requestAnimationFrame(() => {
+				observer.observe(sentinel);
+			});
+		});
 		return () => {
+			cancelAnimationFrame(deferOuterId);
+			if (deferInnerId !== null) {
+				cancelAnimationFrame(deferInnerId);
+			}
 			observer.disconnect();
 			observerRef.current = null;
 		};
@@ -576,12 +708,40 @@ const ScrollAnchoredContainer: FC<{
 	// again on its own.
 	useEffect(() => {
 		if (isFetchingMoreMessages) return;
+		// Skip re-observation on initial mount. The sentinel setup
+		// effect defers observation via double-RAF to avoid an eager
+		// fetch before the initial bottom pin settles. This effect
+		// would bypass that defer since isFetchingMoreMessages starts
+		// as false.
+		if (!hasFetchedRef.current) return;
+		const pendingPrepend = pendingPrependRef.current;
+		const cleanupId = requestAnimationFrame(() => {
+			const container = scrollContainerRef.current;
+			if (
+				!pendingPrepend ||
+				pendingPrependRef.current !== pendingPrepend ||
+				!container
+			) {
+				return;
+			}
+			// If the fetch did not change the container scroll height, the
+			// ResizeObserver never runs to clear the pending prepend snapshot.
+			// Clear it after layout settles so later resizes do not apply stale
+			// scroll compensation.
+			if (Math.abs(container.scrollHeight - pendingPrepend.scrollHeight) < 1) {
+				pendingPrependRef.current = null;
+			}
+		});
 		const sentinel = sentinelRef.current;
 		const observer = observerRef.current;
-		if (!sentinel || !observer) return;
-		observer.unobserve(sentinel);
-		observer.observe(sentinel);
-	}, [isFetchingMoreMessages]);
+		if (sentinel && observer) {
+			observer.unobserve(sentinel);
+			observer.observe(sentinel);
+		}
+		return () => {
+			cancelAnimationFrame(cleanupId);
+		};
+	}, [isFetchingMoreMessages, scrollContainerRef]);
 
 	useEffect(() => {
 		const container = scrollContainerRef.current;
@@ -622,7 +782,11 @@ const ScrollAnchoredContainer: FC<{
 					if (restoreGuardRafId !== null) {
 						cancelAnimationFrame(restoreGuardRafId);
 					}
-					container.scrollTop = 0;
+					container.scrollTop = Math.max(
+						container.scrollHeight - container.clientHeight,
+						0,
+					);
+					setShowScrollToBottom(false);
 					restoreGuardRafId = requestAnimationFrame(() => {
 						isRestoringScrollRef.current = false;
 						restoreGuardRafId = null;
@@ -631,26 +795,7 @@ const ScrollAnchoredContainer: FC<{
 			});
 		};
 
-		const compensateScroll = (delta: number) => {
-			if (restoreGuardRafId !== null) {
-				cancelAnimationFrame(restoreGuardRafId);
-			}
-			isRestoringScrollRef.current = true;
-			// In flex-col-reverse, "away from bottom" can be either
-			// negative (Chrome) or positive (Firefox). Detect which
-			// convention applies and compensate accordingly.
-			if (container.scrollTop < 0) {
-				// Negative convention: subtract to move away from 0 (bottom).
-				container.scrollTop -= delta;
-			} else {
-				// Positive convention: add to move away from 0 (bottom).
-				container.scrollTop += delta;
-			}
-			restoreGuardRafId = requestAnimationFrame(() => {
-				isRestoringScrollRef.current = false;
-				restoreGuardRafId = null;
-			});
-		};
+		cancelPendingPinsRef.current = cancelPendingPins;
 
 		const observer = new ResizeObserver((entries) => {
 			const entry = entries[0];
@@ -662,14 +807,37 @@ const ScrollAnchoredContainer: FC<{
 			const widthChanged = Math.abs(nextWidth - prevContentWidth) > 1;
 			prevContentHeight = nextHeight;
 			prevContentWidth = nextWidth;
+
+			const pending = pendingPrependRef.current;
+			if (pending !== null && isFetchingRef.current) {
+				pending.contentHeight = nextHeight;
+				pending.scrollHeight = container.scrollHeight;
+				pending.contentWidth = nextWidth;
+				return;
+			}
 			if (Math.abs(delta) < 1) {
 				return;
 			}
 
-			// Skip compensation during pagination. Older messages are
-			// prepended in flex-col-reverse which grows content into the
-			// overflow direction; the browser preserves scrollTop for us.
-			if (isFetchingRef.current) {
+			// Restore the viewport after older messages are prepended.
+			if (pending !== null && !isFetchingRef.current) {
+				pendingPrependRef.current = null;
+				// Width changes indicate reflow rather than a true prepend.
+				if (!widthChanged) {
+					const scrollHeightDelta =
+						container.scrollHeight - pending.scrollHeight;
+					if (scrollHeightDelta > 0) {
+						if (restoreGuardRafId !== null) {
+							cancelAnimationFrame(restoreGuardRafId);
+						}
+						isRestoringScrollRef.current = true;
+						container.scrollTop = container.scrollTop + scrollHeightDelta;
+						restoreGuardRafId = requestAnimationFrame(() => {
+							isRestoringScrollRef.current = false;
+							restoreGuardRafId = null;
+						});
+					}
+				}
 				return;
 			}
 
@@ -686,11 +854,20 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			compensateScroll(delta);
+			// In normal flow, appends grow below the viewport, so users reading
+			// history do not need scroll compensation.
 		});
 		observer.observe(content);
 
+		// In normal flex-col flow, scrollTop starts at 0 (top).
+		// Pin to bottom on initial mount so existing chats open
+		// at the most recent messages.
+		if (autoScrollRef.current) {
+			scheduleBottomPin();
+		}
+
 		return () => {
+			cancelPendingPinsRef.current = null;
 			observer.disconnect();
 			cancelPendingPins();
 			if (restoreGuardRafId !== null) {
@@ -720,7 +897,10 @@ const ScrollAnchoredContainer: FC<{
 				cancelAnimationFrame(restoreGuardRafId);
 			}
 			isRestoringScrollRef.current = true;
-			container.scrollTop = 0;
+			container.scrollTop = Math.max(
+				container.scrollHeight - container.clientHeight,
+				0,
+			);
 			restoreGuardRafId = requestAnimationFrame(() => {
 				isRestoringScrollRef.current = false;
 				restoreGuardRafId = null;
@@ -738,9 +918,6 @@ const ScrollAnchoredContainer: FC<{
 	}, [scrollContainerRef]);
 
 	// Track scroll position to show/hide the scroll-to-bottom button.
-	// In a flex-col-reverse container, scrollTop = 0 means the user
-	// is at the bottom (most recent content). Scrolling up moves
-	// scrollTop away from 0, with the sign varying by engine.
 	useEffect(() => {
 		const container = scrollContainerRef.current;
 		if (!container) return;
@@ -757,6 +934,7 @@ const ScrollAnchoredContainer: FC<{
 				if (isNearBottom(container)) {
 					isRestoringScrollRef.current = false;
 					autoScrollRef.current = true;
+					setShowScrollToBottom(false);
 				}
 				return;
 			}
@@ -777,8 +955,15 @@ const ScrollAnchoredContainer: FC<{
 		};
 
 		const handleUserInterrupt = () => {
-			if (isRestoringScrollRef.current) {
-				isRestoringScrollRef.current = false;
+			// Always clear the restoration guard so the next scroll event is
+			// processed normally.
+			isRestoringScrollRef.current = false;
+			// Only disable auto-scroll when the user is away from the bottom.
+			// Trackpad noise or accidental wheel events at the bottom should
+			// not break streaming follow-mode.
+			if (!isNearBottom(container)) {
+				autoScrollRef.current = false;
+				cancelPendingPinsRef.current?.();
 			}
 		};
 
@@ -800,16 +985,13 @@ const ScrollAnchoredContainer: FC<{
 	}, [scrollContainerRef]);
 
 	const handleScrollToBottom = () => {
-		const container = scrollContainerRef.current;
-		if (!container) return;
-		autoScrollRef.current = true;
-		isRestoringScrollRef.current = true;
-		container.scrollTo({ top: 0, behavior: "smooth" });
-		// Hide immediately so the button doesn't linger while the
-		// smooth scroll animates. If the user interrupts the scroll
-		// before it reaches the bottom, the scroll handler will
-		// re-show the button.
-		setShowScrollToBottom(false);
+		scrollTranscriptToBottom({
+			behavior: "smooth",
+			scrollContainerRef,
+			autoScrollRef,
+			isRestoringScrollRef,
+			setShowScrollToBottom,
+		});
 	};
 
 	return (
@@ -817,10 +999,14 @@ const ScrollAnchoredContainer: FC<{
 			<div
 				ref={scrollContainerRef}
 				data-testid="scroll-container"
-				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
-				<div ref={contentRef}>{children}</div>
-				{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
+				<div ref={contentRef}>
+					{hasMoreMessages && (
+						<div ref={sentinelRef} className="h-px shrink-0" />
+					)}
+					{children}
+				</div>
 			</div>
 			<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 				<Button

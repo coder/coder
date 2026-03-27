@@ -1,7 +1,7 @@
-import { MockSession } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Table, TableBody } from "components/Table/Table";
 import { fn } from "storybook/test";
+import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
 
 const meta: Meta<typeof ListSessionsRow> = {

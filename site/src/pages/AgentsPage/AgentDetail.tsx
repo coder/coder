@@ -292,15 +292,20 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
+		onRegenerateTitle,
+		isRegeneratingTitle,
+		regeneratingTitleChatId,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
+		onChatReady,
+		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -323,6 +328,9 @@ const AgentDetail: FC = () => {
 			return value;
 		});
 	};
+
+	const isRegeneratingThisChat =
+		isRegeneratingTitle && regeneratingTitleChatId === agentId;
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -478,6 +486,7 @@ const AgentDetail: FC = () => {
 				}
 			: undefined;
 	const isArchived = chatRecord?.archived ?? false;
+	const isRegenerateTitleDisabled = isArchived || isRegeneratingTitle;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const sendMutation = useMutation(
@@ -666,15 +675,13 @@ const AgentDetail: FC = () => {
 			clearChatErrorReason(agentId);
 			clearStreamError();
 			setPendingEditMessageId(editedMessageID);
-			if (scrollContainerRef.current) {
-				scrollContainerRef.current.scrollTop = 0;
-			}
-			store.clearStreamState();
+			scrollToBottomRef.current?.();
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
+				store.clearStreamState();
 				setPendingEditMessageId(null);
 			} catch (error) {
 				setPendingEditMessageId(null);
@@ -694,14 +701,12 @@ const AgentDetail: FC = () => {
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
-		if (scrollContainerRef.current) {
-			scrollContainerRef.current.scrollTop = 0;
-		}
+		scrollToBottomRef.current?.();
 
-		// No optimistic rendering — the message will appear in the
-		// timeline when the server confirms via the POST response or
-		// via the SSE stream.
-		store.clearStreamState();
+		// Don't clear stream state before the POST completes.
+		// For queued sends the WebSocket status events handle
+		// clearing; for non-queued sends we clear explicitly
+		// below. Clearing eagerly causes a visible cutoff.
 		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
 		try {
 			response = await sendMutation.mutateAsync(request);
@@ -710,10 +715,14 @@ const AgentDetail: FC = () => {
 			throw error;
 		}
 		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
+		// queued), clear the stream and insert the user's message
+		// so it appears in the timeline without waiting for the
+		// WebSocket stream.
+		if (!response.queued) {
+			store.clearStreamState();
+			if (response.message) {
+				store.upsertDurableMessage(response.message);
+			}
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
@@ -875,6 +884,23 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent(agentId);
 	};
 
+	// Signal the parent layout that messages have loaded.
+	const chatReadyFiredRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
+			return;
+		}
+		chatReadyFiredRef.current = agentId ?? null;
+		onChatReady();
+	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
+
+	const handleRegenerateTitle = () => {
+		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {
+			return;
+		}
+		onRegenerateTitle(agentId);
+	};
+
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentDetailLoadingView
@@ -946,8 +972,12 @@ const AgentDetail: FC = () => {
 			handleArchiveAndDeleteWorkspaceAction={
 				handleArchiveAndDeleteWorkspaceAction
 			}
+			handleRegenerateTitle={handleRegenerateTitle}
+			isRegeneratingTitle={isRegeneratingThisChat}
+			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
+			scrollToBottomRef={scrollToBottomRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}

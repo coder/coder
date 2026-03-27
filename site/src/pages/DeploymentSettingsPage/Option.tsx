@@ -1,8 +1,8 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { DisabledBadge, EnabledBadge } from "#/components/Badges/Badges";
+import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	return (

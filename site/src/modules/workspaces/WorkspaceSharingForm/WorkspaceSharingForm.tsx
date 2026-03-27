@@ -1,5 +1,4 @@
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
 import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
@@ -39,6 +38,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "#/modules/groups";
 
 interface RoleSelectProps {
 	value: WorkspaceRole;

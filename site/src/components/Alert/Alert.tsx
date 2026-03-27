@@ -7,8 +7,8 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
-import { cn } from "utils/cn";
 import { Button } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 
 const alertVariants = cva(
 	"relative w-full rounded-lg border border-solid p-4 text-left",

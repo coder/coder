@@ -6,7 +6,6 @@ import { useFormik } from "formik";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type ChangeEvent, type FC, useState } from "react";
 import { useNavigate } from "react-router";
-import { getFormHelpers, nameValidator } from "utils/formUtils";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import { RBACResourceActions } from "#/api/rbacresourcesGenerated";
@@ -37,6 +36,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { getFormHelpers, nameValidator } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),

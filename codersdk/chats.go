@@ -61,6 +61,7 @@ type Chat struct {
 	CreatedAt         time.Time         `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time         `json:"updated_at" format:"date-time"`
 	Archived          bool              `json:"archived"`
+	PinOrder          int32             `json:"pin_order"`
 	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string `json:"labels"`
 }
@@ -323,8 +324,18 @@ type CreateChatRequest struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title    *string            `json:"title,omitempty"`
-	Archived *bool              `json:"archived,omitempty"`
+	Title    *string `json:"title,omitempty"`
+	Archived *bool   `json:"archived,omitempty"`
+	// PinOrder controls the chat's pinned state and position.
+	// - nil: no change to pin state.
+	// - 0: unpin the chat.
+	// - >0 (chat is unpinned): pin the chat, appending it to
+	//   the end of the pinned list. The specific value is
+	//   ignored; the server assigns the next available position.
+	// - >0 (chat is already pinned): move the chat to the
+	//   requested position, shifting neighbors as needed. The
+	//   value is clamped to [1, pinned_count].
+	PinOrder *int32             `json:"pin_order,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
 }
 
@@ -1854,6 +1865,21 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// RegenerateChatTitle requests the server to regenerate the chat's
+// title using richer conversation context.
+func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, readBodyAsChatUsageLimitError(res)
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)

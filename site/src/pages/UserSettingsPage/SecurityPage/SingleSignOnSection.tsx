@@ -3,7 +3,6 @@ import TextField from "@mui/material/TextField";
 import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
-import { docs } from "utils/docs";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import type {
@@ -17,6 +16,7 @@ import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Stack } from "#/components/Stack/Stack";
+import { docs } from "#/utils/docs";
 import { Section } from "../Section";
 
 type LoginTypeConfirmation =

@@ -1,3 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
+import type { WorkspaceAppStatus } from "#/api/typesGenerated";
 import {
 	createTimestamp,
 	MockTaskWorkspace,
@@ -6,11 +9,8 @@ import {
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
 	MockWorkspaceAppStatuses,
-} from "testHelpers/entities";
-import { withProxyProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
-import type { WorkspaceAppStatus } from "#/api/typesGenerated";
+} from "#/testHelpers/entities";
+import { withProxyProvider } from "#/testHelpers/storybook";
 import { AppStatuses } from "./AppStatuses";
 
 const meta: Meta<typeof AppStatuses> = {

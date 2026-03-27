@@ -1,8 +1,6 @@
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import type {
 	Organization,
@@ -57,6 +55,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {

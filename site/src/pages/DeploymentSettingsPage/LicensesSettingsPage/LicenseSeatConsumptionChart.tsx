@@ -9,8 +9,6 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { docs } from "utils/docs";
-import { formatDate } from "utils/time";
 import { Button } from "#/components/Button/Button";
 import {
 	type ChartConfig,
@@ -25,6 +23,8 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { docs } from "#/utils/docs";
+import { formatDate } from "#/utils/time";
 
 const chartConfig = {
 	users: {

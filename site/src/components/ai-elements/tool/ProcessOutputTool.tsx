@@ -1,9 +1,9 @@
 import { ChevronDownIcon, LoaderIcon } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
-import { cn } from "utils/cn";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { cn } from "#/utils/cn";
 import { COLLAPSED_OUTPUT_HEIGHT } from "./utils";
 
 /**

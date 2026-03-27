@@ -1,15 +1,3 @@
-import {
-	MockCustomNotificationTemplates,
-	MockNotificationMethodsResponse,
-	MockNotificationPreferences,
-	MockSystemNotificationTemplates,
-	MockUserOwner,
-} from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withToaster,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -20,6 +8,18 @@ import {
 	systemNotificationTemplatesKey,
 	userNotificationPreferencesKey,
 } from "#/api/queries/notifications";
+import {
+	MockCustomNotificationTemplates,
+	MockNotificationMethodsResponse,
+	MockNotificationPreferences,
+	MockSystemNotificationTemplates,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {

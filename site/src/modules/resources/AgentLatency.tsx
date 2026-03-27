@@ -1,6 +1,4 @@
 import type { FC } from "react";
-import { cn } from "utils/cn";
-import { getLatencyColor } from "utils/latency";
 import type { DERPRegion, WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	HelpTooltip,
@@ -9,6 +7,8 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "#/components/HelpTooltip/HelpTooltip";
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
 
 const getDisplayLatency = (agent: WorkspaceAgent) => {
 	// Find the right latency to display

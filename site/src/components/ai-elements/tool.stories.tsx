@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { Tool } from "./tool";
+import { DesktopPanelContext } from "./tool/DesktopPanelContext";
 
 const executeCommand = "git fetch origin";
 const meta: Meta<typeof Tool> = {
@@ -1092,5 +1093,119 @@ export const MCPToolFailedUnifiedStyle: Story = {
 		).not.toBeNull();
 		// Icon should NOT be red.
 		expect(canvasElement.querySelector(".text-content-destructive")).toBeNull();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// spawn_computer_use_agent stories
+// ---------------------------------------------------------------------------
+
+export const SpawnComputerUseAgentRunning: Story = {
+	args: {
+		name: "spawn_computer_use_agent",
+		status: "running",
+		args: {
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Visual regression check",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Spawning/)).toBeInTheDocument();
+		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+	},
+};
+
+export const SpawnComputerUseAgentCompleted: Story = {
+	args: {
+		name: "spawn_computer_use_agent",
+		status: "completed",
+		args: {
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "desktop-child-1",
+			title: "Visual regression check",
+			status: "completed",
+			duration_ms: "12400",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Spawned/)).toBeInTheDocument();
+		expect(canvas.getByText(/Visual regression check/)).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/desktop-child-1",
+		);
+	},
+};
+
+export const SpawnComputerUseAgentError: Story = {
+	args: {
+		name: "spawn_computer_use_agent",
+		status: "error",
+		isError: true,
+		result: {
+			chat_id: "desktop-child-1",
+			status: "error",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		expect(canvasElement.querySelector(".lucide-circle-x")).not.toBeNull();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// wait_agent with computer-use subagent stories
+// ---------------------------------------------------------------------------
+
+export const WaitAgentComputerUseRunning: Story = {
+	args: {
+		name: "wait_agent",
+		status: "running",
+		args: {
+			chat_id: "desktop-child-1",
+		},
+		result: {
+			chat_id: "desktop-child-1",
+			status: "pending",
+		},
+		computerUseSubagentIds: new Set(["desktop-child-1"]),
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "desktop-child-1",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Waiting for/)).toBeInTheDocument();
+		// Running state shows the spinner icon.
+		expect(canvasElement.querySelector(".lucide-loader")).not.toBeNull();
+		// The VNC preview container should mount (the connection will
+		// stay in "connecting" state without a real WebSocket, which
+		// is expected — we only verify the container renders).
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Open desktop tab" }),
+			).toBeInTheDocument();
+		});
 	},
 };

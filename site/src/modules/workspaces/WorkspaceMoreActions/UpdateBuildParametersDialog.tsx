@@ -7,11 +7,6 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
-import {
-	getInitialRichParameterValues,
-	useValidationSchemaForRichParameters,
-} from "utils/richParameters";
 import * as Yup from "yup";
 import type {
 	TemplateVersionParameter,
@@ -21,6 +16,11 @@ import { Button } from "#/components/Button/Button";
 import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "#/components/Form/Form";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
+import { getFormHelpers } from "#/utils/formUtils";
+import {
+	getInitialRichParameterValues,
+	useValidationSchemaForRichParameters,
+} from "#/utils/richParameters";
 
 type UpdateBuildParametersDialogProps = DialogProps & {
 	onClose: () => void;
