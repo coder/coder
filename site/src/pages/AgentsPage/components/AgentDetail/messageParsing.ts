@@ -93,6 +93,12 @@ export const mergeTools = (
 	for (const call of calls) {
 		seen.add(call.id);
 		const result = resultById.get(call.id);
+		// Extract model_intent from the tool call args if present.
+		const callArgs = call.args as Record<string, unknown> | undefined;
+		const modelIntent =
+			typeof callArgs?.model_intent === "string"
+				? callArgs.model_intent
+				: undefined;
 		merged.push({
 			id: call.id,
 			name: call.name,
@@ -101,6 +107,7 @@ export const mergeTools = (
 			isError: result?.isError ?? false,
 			status: result ? (result.isError ? "error" : "completed") : "completed",
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			modelIntent,
 		});
 	}
 

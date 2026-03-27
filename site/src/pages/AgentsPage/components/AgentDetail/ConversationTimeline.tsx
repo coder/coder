@@ -367,6 +367,7 @@ const BlockList: FC<{
 								}
 								mcpServerConfigId={tool.mcpServerConfigId}
 								mcpServers={mcpServers}
+								modelIntent={tool.modelIntent}
 							/>
 						);
 					}
@@ -407,6 +408,7 @@ const BlockList: FC<{
 					}
 					mcpServerConfigId={tool.mcpServerConfigId}
 					mcpServers={mcpServers}
+					modelIntent={tool.modelIntent}
 				/>
 			))}
 		</>
