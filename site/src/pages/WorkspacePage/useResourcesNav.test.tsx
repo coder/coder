@@ -64,6 +64,35 @@ describe("useResourcesNav", () => {
 		expect(result.current.value).toBe(resourceOptionValue(resources[1]));
 	});
 
+	it("falls back to the first resource when none have visible agents", () => {
+		const resources: WorkspaceResource[] = [
+			{
+				...MockWorkspaceResource,
+				name: "chat-only-resource",
+				agents: [
+					{
+						...MockWorkspaceAgent,
+						id: "chat-only-agent",
+						name: `workspace${CHAT_AGENT_SUFFIX}`,
+					},
+				],
+			},
+			{
+				...MockWorkspaceResource,
+				name: "no-agent-resource",
+				agents: [],
+			},
+		];
+		const { result } = renderHook(() => useResourcesNav(resources), {
+			wrapper: ({ children }) => (
+				<RouterProvider
+					router={createMemoryRouter([{ path: "/", element: children }])}
+				/>
+			),
+		});
+		expect(result.current.value).toBe(resourceOptionValue(resources[0]));
+	});
+
 	it("selects the resource passed in the URL", () => {
 		const resources: WorkspaceResource[] = [
 			{

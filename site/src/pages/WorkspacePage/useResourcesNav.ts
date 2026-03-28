@@ -25,12 +25,13 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
 	const onResourceChanges = useEffectEvent(
 		(resources?: WorkspaceResource[]) => {
 			const hasSelectedResource = resourcesNav.value !== "";
-			const firstResourceWithAgents = resources?.find(
+			const firstResourceWithVisibleAgents = resources?.find(
 				(resource) => countVisibleWorkspaceAgents(resource) > 0,
 			);
+			const fallbackResource = firstResourceWithVisibleAgents ?? resources?.[0];
 
-			if (!hasSelectedResource && firstResourceWithAgents) {
-				resourcesNav.setValue(resourceOptionValue(firstResourceWithAgents));
+			if (!hasSelectedResource && fallbackResource) {
+				resourcesNav.setValue(resourceOptionValue(fallbackResource));
 			}
 		},
 	);
