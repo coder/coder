@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/util/xio"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -36,22 +37,51 @@ func dirHasExt(dir string, exts ...string) (bool, error) {
 	return false, nil
 }
 
+func dirHasName(dir string, names ...string) (bool, error) {
+	dirEnts, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+
+	for _, fi := range dirEnts {
+		for _, name := range names {
+			if fi.Name() == name {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
 func DirHasLockfile(dir string) (bool, error) {
 	return dirHasExt(dir, ".terraform.lock.hcl")
 }
 
-// Tar archives a Terraform directory.
-func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
+func templateRequiredFiles(dir string, provisionerType codersdk.ProvisionerType) ([]string, bool, error) {
+	switch provisionerType {
+	case codersdk.ProvisionerTypePulumi:
+		requiredFiles := []string{"Pulumi.yaml", "Pulumi.yml"}
+		hasRequiredFiles, err := dirHasName(dir, requiredFiles...)
+		return requiredFiles, hasRequiredFiles, err
+	default:
+		requiredFiles := []string{".tf", ".tf.json"}
+		hasRequiredFiles, err := dirHasExt(dir, requiredFiles...)
+		return requiredFiles, hasRequiredFiles, err
+	}
+}
+
+// Tar archives a template directory.
+func Tar(w io.Writer, logger slog.Logger, directory string, provisionerType codersdk.ProvisionerType, limit int64) error {
 	// The total bytes written must be under the limit, so use -1
 	w = xio.NewLimitWriter(w, limit-1)
 	tarWriter := tar.NewWriter(w)
 
-	tfExts := []string{".tf", ".tf.json"}
-	hasTf, err := dirHasExt(directory, tfExts...)
+	requiredFiles, hasRequiredFiles, err := templateRequiredFiles(directory, provisionerType)
 	if err != nil {
 		return err
 	}
-	if !hasTf {
+	if !hasRequiredFiles {
 		absPath, err := filepath.Abs(directory)
 		if err != nil {
 			return err
@@ -61,7 +91,7 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		// useless.
 		return xerrors.Errorf(
 			"%s is not a valid template since it has no %s files",
-			absPath, tfExts,
+			absPath, requiredFiles,
 		)
 	}
 
@@ -83,6 +113,17 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		rel, err := filepath.Rel(directory, file)
 		if err != nil {
 			return err
+		}
+		if fileInfo.IsDir() && filepath.Base(rel) == "node_modules" {
+			logger.Debug(context.Background(), "skip dependency directory", slog.F("name", rel))
+			return filepath.SkipDir
+		}
+		if provisionerType == codersdk.ProvisionerTypePulumi && (rel == "sdks" || strings.HasPrefix(rel, "sdks"+string(filepath.Separator))) {
+			logger.Debug(context.Background(), "skip pulumi sdk directory", slog.F("name", rel))
+			if fileInfo.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		// We want to allow .terraform.lock.hcl files to be archived. This
 		// allows provider plugins to be cached.

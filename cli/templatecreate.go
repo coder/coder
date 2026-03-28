@@ -89,7 +89,9 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
 			}
 
-			err = uploadFlags.checkForLockfile(inv)
+			provisionerType := codersdk.ProvisionerType(provisioner)
+
+			err = uploadFlags.checkForLockfile(inv, provisionerType)
 			if err != nil {
 				return xerrors.Errorf("check for lockfile: %w", err)
 			}
@@ -109,7 +111,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			}
 
 			// Confirm upload of the directory.
-			resp, err := uploadFlags.upload(inv, client)
+			resp, err := uploadFlags.upload(inv, client, provisionerType)
 			if err != nil {
 				return err
 			}
@@ -131,7 +133,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				Message:            message,
 				Client:             client,
 				Organization:       organization,
-				Provisioner:        codersdk.ProvisionerType(provisioner),
+				Provisioner:        provisionerType,
 				FileID:             resp.ID,
 				ProvisionerTags:    tags,
 				UserVariableValues: userVariableValues,

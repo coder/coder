@@ -10,9 +10,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 )
+
+func tarTerraform(w io.Writer, logger slog.Logger, dir string, limit int64) error {
+	return provisionersdk.Tar(w, logger, dir, codersdk.ProvisionerTypeTerraform, limit)
+}
 
 func TestTar(t *testing.T) {
 	t.Parallel()
@@ -32,7 +38,7 @@ func TestTar(t *testing.T) {
 		err = os.Symlink("no-exists", filepath.Join(dir, "link"))
 		require.NoError(t, err)
 
-		err = provisionersdk.Tar(io.Discard, log, dir, 1024*1024)
+		err = tarTerraform(io.Discard, log, dir, 1024*1024)
 		require.NoError(t, err)
 	})
 	t.Run("HeaderBreakLimit", func(t *testing.T) {
@@ -42,7 +48,7 @@ func TestTar(t *testing.T) {
 		require.NoError(t, err)
 		_ = file.Close()
 		// A header is 512 bytes
-		err = provisionersdk.Tar(io.Discard, log, dir, 100)
+		err = tarTerraform(io.Discard, log, dir, 100)
 		require.Error(t, err)
 	})
 	t.Run("HeaderAndContent", func(t *testing.T) {
@@ -53,11 +59,11 @@ func TestTar(t *testing.T) {
 		_, _ = file.Write(make([]byte, 100))
 		_ = file.Close()
 		// Pay + header is 1024 bytes (padding)
-		err = provisionersdk.Tar(io.Discard, log, dir, 1025)
+		err = tarTerraform(io.Discard, log, dir, 1025)
 		require.NoError(t, err)
 
 		// Limit is 1 byte too small (n == limit is a failure, must be under)
-		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
+		err = tarTerraform(io.Discard, log, dir, 1024)
 		require.Error(t, err)
 	})
 
@@ -67,7 +73,7 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "")
 		require.NoError(t, err)
 		_ = file.Close()
-		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
+		err = tarTerraform(io.Discard, log, dir, 1024)
 		require.Error(t, err)
 	})
 	t.Run("Valid", func(t *testing.T) {
@@ -76,7 +82,7 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "*.tf")
 		require.NoError(t, err)
 		_ = file.Close()
-		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
+		err = tarTerraform(io.Discard, log, dir, 1024)
 		require.NoError(t, err)
 	})
 	t.Run("ValidJSON", func(t *testing.T) {
@@ -85,9 +91,83 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "*.tf.json")
 		require.NoError(t, err)
 		_ = file.Close()
-		err = provisionersdk.Tar(io.Discard, log, dir, 1024)
+		err = tarTerraform(io.Discard, log, dir, 1024)
 		require.NoError(t, err)
 	})
+	t.Run("PulumiRequiresProjectFile", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+
+		err = provisionersdk.Tar(io.Discard, log, dir, codersdk.ProvisionerTypePulumi, 1024)
+		require.Error(t, err)
+	})
+	t.Run("ValidPulumiYAML", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Pulumi.yaml"), []byte("name: test\nruntime: nodejs\n"), 0o600))
+
+		err := provisionersdk.Tar(io.Discard, log, dir, codersdk.ProvisionerTypePulumi, 2048)
+		require.NoError(t, err)
+	})
+	t.Run("ValidPulumiYML", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Pulumi.yml"), []byte("name: test\nruntime: nodejs\n"), 0o600))
+
+		err := provisionersdk.Tar(io.Discard, log, dir, codersdk.ProvisionerTypePulumi, 2048)
+		require.NoError(t, err)
+	})
+
+	t.Run("SkipsNodeModulesDirectories", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte("terraform {}\n"), 0o600))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "node_modules", "pkg"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "node_modules", "pkg", "index.js"), []byte("module.exports = {}\n"), 0o600))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "sdks", "typescript", "node_modules", "dep"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "sdks", "typescript", "node_modules", "dep", "index.js"), []byte("module.exports = {}\n"), 0o600))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "modules"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "modules", "child.tf"), []byte("terraform {}\n"), 0o600))
+
+		archive := new(bytes.Buffer)
+		err := tarTerraform(archive, log, dir, 1024<<4)
+		require.NoError(t, err)
+
+		outDir := t.TempDir()
+		require.NoError(t, provisionersdk.Untar(outDir, archive))
+		_, err = os.Stat(filepath.Join(outDir, "main.tf"))
+		require.NoError(t, err)
+		_, err = os.Stat(filepath.Join(outDir, "modules", "child.tf"))
+		require.NoError(t, err)
+		_, err = os.Stat(filepath.Join(outDir, "node_modules"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+		_, err = os.Stat(filepath.Join(outDir, "sdks", "typescript", "node_modules"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("SkipsSDKsDirectoriesForPulumi", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "Pulumi.yaml"), []byte("name: test\nruntime: nodejs\n"), 0o600))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "sdks", "typescript", "node_modules", "dep"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "sdks", "typescript", "sdk.ts"), []byte("export const sdk = true\n"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "sdks", "typescript", "node_modules", "dep", "index.js"), []byte("module.exports = {}\n"), 0o600))
+
+		archive := new(bytes.Buffer)
+		err := provisionersdk.Tar(archive, log, dir, codersdk.ProvisionerTypePulumi, 1024<<4)
+		require.NoError(t, err)
+
+		outDir := t.TempDir()
+		require.NoError(t, provisionersdk.Untar(outDir, archive))
+		_, err = os.Stat(filepath.Join(outDir, "Pulumi.yaml"))
+		require.NoError(t, err)
+		_, err = os.Stat(filepath.Join(outDir, "sdks"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
 	t.Run("HiddenFiles", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
@@ -165,7 +245,7 @@ func TestTar(t *testing.T) {
 		}
 		archive := new(bytes.Buffer)
 		// Headers are chonky so raise the limit to something reasonable
-		err := provisionersdk.Tar(archive, log, dir, 1024<<3)
+		err := tarTerraform(archive, log, dir, 1024<<3)
 		require.NoError(t, err)
 		dir = t.TempDir()
 		err = provisionersdk.Untar(dir, archive)
@@ -195,7 +275,7 @@ func TestUntar(t *testing.T) {
 		_ = file.Close()
 
 		archive := new(bytes.Buffer)
-		err = provisionersdk.Tar(archive, log, dir, 1024)
+		err = tarTerraform(archive, log, dir, 1024)
 		require.NoError(t, err)
 
 		dir = t.TempDir()
@@ -225,7 +305,7 @@ func TestUntar(t *testing.T) {
 		archive := new(bytes.Buffer)
 
 		// 2. Build tar archive.
-		err = provisionersdk.Tar(archive, log, dir1, 4096)
+		err = tarTerraform(archive, log, dir1, 4096)
 		require.NoError(t, err)
 
 		// 3. Untar to the second location.
@@ -237,7 +317,7 @@ func TestUntar(t *testing.T) {
 		require.NoError(t, err)
 
 		// 5. Build tar archive with modified .tf file
-		err = provisionersdk.Tar(archive, log, dir1, 4096)
+		err = tarTerraform(archive, log, dir1, 4096)
 		require.NoError(t, err)
 
 		// 6. Untar to a second location.

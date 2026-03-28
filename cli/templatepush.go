@@ -124,7 +124,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				cliui.Info(inv.Stderr, "Provisioner tags: "+cliui.Code(tagStr))
 			}
 
-			err = uploadFlags.checkForLockfile(inv)
+			provisionerType := codersdk.ProvisionerType(provisioner)
+
+			err = uploadFlags.checkForLockfile(inv, provisionerType)
 			if err != nil {
 				return xerrors.Errorf("check for lockfile: %w", err)
 			}
@@ -143,7 +145,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 			}
 
-			resp, err := uploadFlags.upload(inv, client)
+			resp, err := uploadFlags.upload(inv, client, provisionerType)
 			if err != nil {
 				return err
 			}
@@ -160,7 +162,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				Message:            message,
 				Client:             client,
 				Organization:       organization,
-				Provisioner:        codersdk.ProvisionerType(provisioner),
+				Provisioner:        provisionerType,
 				FileID:             resp.ID,
 				ProvisionerTags:    tags,
 				UserVariableValues: userVariableValues,
@@ -317,7 +319,7 @@ func (pf *templateUploadFlags) stdin(inv *serpent.Invocation) (out bool) {
 	return pf.directory == "-" || (!isTTYIn(inv) && !inv.ParsedFlags().Lookup("directory").Changed)
 }
 
-func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.Client, provisionerType codersdk.ProvisionerType) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin(inv) {
 		content = inv.Stdin
@@ -334,7 +336,7 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 
 		pipeReader, pipeWriter := io.Pipe()
 		go func() {
-			err := provisionersdk.Tar(pipeWriter, inv.Logger, pf.directory, provisionersdk.TemplateArchiveLimit)
+			err := provisionersdk.Tar(pipeWriter, inv.Logger, pf.directory, provisionerType, provisionersdk.TemplateArchiveLimit)
 			_ = pipeWriter.CloseWithError(err)
 		}()
 		defer pipeReader.Close()
@@ -354,8 +356,8 @@ func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.
 	return &resp, nil
 }
 
-func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation) error {
-	if pf.stdin(inv) || pf.ignoreLockfile {
+func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation, provisionerType codersdk.ProvisionerType) error {
+	if pf.stdin(inv) || pf.ignoreLockfile || provisionerType == codersdk.ProvisionerTypePulumi {
 		// Just assume there's a lockfile if reading from stdin.
 		return nil
 	}
