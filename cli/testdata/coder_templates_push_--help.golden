@@ -16,8 +16,20 @@ OPTIONS:
           Always prompt all parameters. Does not pull parameter values from
           active template version.
 
+      --description string
+          Set the description of the template. If unset, the description field
+          from the template's README.md frontmatter will be used, if available.
+
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
+
+      --display-name string
+          Set the display name of the template. If unset, the display_name field
+          from the template's README.md frontmatter will be used, if available.
+
+      --icon string
+          Set the icon of the template. If unset, the icon field from the
+          template's README.md frontmatter will be used, if available.
 
       --ignore-lockfile bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
