@@ -606,9 +606,11 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	// The wake channel may trigger immediate processing after EditMessage,
 	// transitioning the chat from pending to running then error before we
 	// read the DB. Wait for any in-flight processing to settle.
+	// Note: WaitUntilIdleForTest must be called from the test goroutine
+	// (not inside require.Eventually) to avoid a WaitGroup Add/Wait race.
+	chatd.WaitUntilIdleForTest(replica)
 	var chatFromDB database.Chat
 	require.Eventually(t, func() bool {
-		chatd.WaitUntilIdleForTest(replica)
 		c, e := db.GetChatByID(ctx, chat.ID)
 		if e != nil {
 			return false

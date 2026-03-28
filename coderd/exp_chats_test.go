@@ -567,12 +567,12 @@ func TestListChats(t *testing.T) {
 		for i := 1; i < len(chats); i++ {
 			require.False(t, chats[i-1].UpdatedAt.Before(chats[i].UpdatedAt))
 		}
-		if firstChatA.UpdatedAt.After(firstChatB.UpdatedAt) {
-			require.Less(t, chatIndexes[firstChatA.ID], chatIndexes[firstChatB.ID])
-		}
-		if firstChatB.UpdatedAt.After(firstChatA.UpdatedAt) {
-			require.Less(t, chatIndexes[firstChatB.ID], chatIndexes[firstChatA.ID])
-		}
+		// The list is already verified as sorted by UpdatedAt
+		// descending (loop above). We intentionally do NOT
+		// compare positions using the creation-time UpdatedAt
+		// values because signalWake() may trigger background
+		// processing that mutates UpdatedAt between CreateChat
+		// and ListChats.
 
 		memberChats, err := memberClient.ListChats(ctx, nil)
 		require.NoError(t, err)
