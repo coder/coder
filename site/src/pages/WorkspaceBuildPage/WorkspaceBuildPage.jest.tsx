@@ -6,10 +6,11 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceAgentLogs,
 	MockWorkspaceBuild,
+	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import WorkspaceBuildPage from "./WorkspaceBuildPage";
-import { LOGS_TAB_KEY } from "./WorkspaceBuildPageView";
+import { LOGS_TAB_KEY, WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
 afterEach(() => {
 	WS.clean();
@@ -77,5 +78,42 @@ describe("WorkspaceBuildPage", () => {
 		await server.connected;
 		server.send(JSON.stringify(MockWorkspaceAgentLogs));
 		await screen.findByText(MockWorkspaceAgentLogs[0].output);
+	});
+
+	test("falls back to build logs when the selected agent is hidden", async () => {
+		const hiddenChatAgent = {
+			...MockWorkspaceAgent,
+			id: "hidden-chat-agent",
+			name: "workspace-coderd-chat",
+		};
+		const buildWithHiddenChatAgent = {
+			...MockWorkspaceBuild,
+			resources: [
+				{
+					...MockWorkspaceBuild.resources[0],
+					agents: [hiddenChatAgent],
+				},
+			],
+		};
+
+		renderWithAuth(
+			<WorkspaceBuildPageView
+				build={buildWithHiddenChatAgent}
+				logs={MockWorkspaceBuildLogs}
+				builds={[buildWithHiddenChatAgent]}
+				activeBuildNumber={buildWithHiddenChatAgent.build_number}
+			/>,
+			{
+				route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}?${LOGS_TAB_KEY}=hidden-chat-agent`,
+				path: "/:username/:workspace/builds/:buildNumber",
+			},
+		);
+
+		expect(
+			await screen.findByText(MockWorkspaceBuildLogs[0].output),
+		).toBeVisible();
+		expect(
+			screen.queryByText("coder_agent.workspace-coderd-chat"),
+		).not.toBeInTheDocument();
 	});
 });

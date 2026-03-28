@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
@@ -484,6 +485,72 @@ func TestWorkspaceUpdates(t *testing.T) {
 		}, update)
 	})
 
+	t.Run("FallsBackToUnfilteredAgentsWhenChatLookupFails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaceID := uuid.UUID{0x13}
+		workspaceIDSlice := tailnet.UUIDToByteSlice(workspaceID)
+		visibleAgentID := uuid.UUID{0x14}
+		visibleAgentIDSlice := tailnet.UUIDToByteSlice(visibleAgentID)
+		hiddenAgentID := uuid.UUID{0x15}
+		hiddenAgentIDSlice := tailnet.UUIDToByteSlice(hiddenAgentID)
+
+		db := &mockWorkspaceStore{
+			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
+				{
+					ID:         workspaceID,
+					Name:       "fallback-workspace",
+					JobStatus:  database.ProvisionerJobStatusRunning,
+					Transition: database.WorkspaceTransitionStart,
+					Agents: []database.AgentIDNamePair{
+						{ID: visibleAgentID, Name: "agent-visible"},
+						{ID: hiddenAgentID, Name: "agent-chat-coderd-chat"},
+					},
+				},
+			},
+			workspaceAgentErrors: map[uuid.UUID]error{
+				workspaceID: xerrors.New("lookup failed"),
+			},
+		}
+
+		ps := &mockPubsub{cbs: map[string]pubsub.ListenerWithErr{}}
+		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
+		t.Cleanup(func() {
+			_ = updateProvider.Close()
+		})
+
+		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sub.Close()
+		})
+
+		update := testutil.TryReceive(ctx, t, sub.Updates())
+		require.Equal(t, &proto.WorkspaceUpdate{
+			UpsertedWorkspaces: []*proto.Workspace{{
+				Id:     workspaceIDSlice,
+				Name:   "fallback-workspace",
+				Status: proto.Workspace_STARTING,
+			}},
+			UpsertedAgents: []*proto.Agent{
+				{
+					Id:          visibleAgentIDSlice,
+					Name:        "agent-visible",
+					WorkspaceId: workspaceIDSlice,
+				},
+				{
+					Id:          hiddenAgentIDSlice,
+					Name:        "agent-chat-coderd-chat",
+					WorkspaceId: workspaceIDSlice,
+				},
+			},
+			DeletedWorkspaces: []*proto.Workspace{},
+			DeletedAgents:     []*proto.Agent{},
+		}, update)
+	})
+
 	t.Run("Resubscribe", func(t *testing.T) {
 		t.Parallel()
 
@@ -567,8 +634,9 @@ func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, ev
 }
 
 type mockWorkspaceStore struct {
-	orderedRows     []database.GetWorkspacesAndAgentsByOwnerIDRow
-	workspaceAgents map[uuid.UUID][]database.WorkspaceAgent
+	orderedRows          []database.GetWorkspacesAndAgentsByOwnerIDRow
+	workspaceAgents      map[uuid.UUID][]database.WorkspaceAgent
+	workspaceAgentErrors map[uuid.UUID]error
 }
 
 // GetAuthorizedWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
@@ -578,6 +646,11 @@ func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uu
 
 // GetWorkspaceAgentsInLatestBuildByWorkspaceID implements coderd.UpdatesQuerier.
 func (m *mockWorkspaceStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	if m.workspaceAgentErrors != nil {
+		if err, ok := m.workspaceAgentErrors[workspaceID]; ok {
+			return nil, err
+		}
+	}
 	if m.workspaceAgents != nil {
 		if agents, ok := m.workspaceAgents[workspaceID]; ok {
 			return agents, nil

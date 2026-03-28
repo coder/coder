@@ -334,7 +334,7 @@ func hiddenChatAgentIDs(ctx context.Context, db UpdatesQuerier, row database.Get
 
 	workspaceAgents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace agents in latest build: %w", err)
+		return map[uuid.UUID]struct{}{}, nil
 	}
 
 	hiddenAgentIDs := make(map[uuid.UUID]struct{})
