@@ -143,6 +143,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const effectiveProviderState = effectiveProvider
 		? (providerStates.find((ps) => ps.provider === effectiveProvider) ?? null)
 		: null;
+	const headerProviderLabel = isEditing
+		? effectiveProviderState?.label
+		: (resolvedProviderOption?.label ?? effectiveProviderState?.label);
 	const selectedProviderConfigCount =
 		effectiveProviderState?.providerConfigs.length;
 	const canManageModels = isEditing
@@ -212,6 +215,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 					provider: effectiveProvider,
 					model: trimmedModel,
 					enabled: true,
+					...(resolvedProviderOption?.configId && {
+						provider_config_id: resolvedProviderOption.configId,
+					}),
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -392,6 +398,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 					/>
 				)}
 				<div className="min-w-0 flex-1">
+					{headerProviderLabel && (
+						<span className="text-xs text-content-secondary">
+							{headerProviderLabel}
+						</span>
+					)}
 					<input
 						type="text"
 						{...form.getFieldProps("displayName")}

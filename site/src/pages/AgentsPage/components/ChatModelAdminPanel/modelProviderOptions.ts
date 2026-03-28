@@ -13,6 +13,8 @@ export type ModelProviderOption = {
 	provider: string;
 	label: string;
 	iconProvider: string;
+	/** Database provider config UUID, when this option is backed by a config. */
+	configId?: string;
 };
 
 const getQualifyingDatabaseConfigs = (
@@ -54,6 +56,7 @@ export function buildModelProviderOptions(
 					provider: providerState.provider,
 					label,
 					iconProvider: providerState.provider,
+					configId: config.id,
 				});
 			}
 			continue;

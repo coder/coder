@@ -72,6 +72,7 @@ describe("buildModelProviderOptions", () => {
 				provider: "openai",
 				label: "OpenAI Legacy",
 				iconProvider: "openai",
+				configId: "provider-config-undefined-source",
 			},
 		]);
 	});
@@ -96,8 +97,30 @@ describe("buildModelProviderOptions", () => {
 				provider: "openai",
 				label: "OpenAI Env Key",
 				iconProvider: "openai",
+				configId: "provider-config-env-api-key",
 			},
 		]);
+	});
+
+	it("does not attach configId to env preset options", () => {
+		const options = buildModelProviderOptions([
+			providerState({
+				provider: "anthropic",
+				label: "Anthropic",
+				hasEffectiveAPIKey: true,
+				isEnvPreset: true,
+			}),
+		]);
+
+		expect(options).toEqual([
+			{
+				key: "env:anthropic",
+				provider: "anthropic",
+				label: "Anthropic",
+				iconProvider: "anthropic",
+			},
+		]);
+		expect(options[0]?.configId).toBeUndefined();
 	});
 });
 

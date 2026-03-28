@@ -721,6 +721,7 @@ export const CreateModelMultiConfig: Story = {
 
 		await userEvent.click(secondaryOption);
 		await body.findByLabelText(/Model Identifier/i);
+		await expect(body.getByText(/^OpenAI 2$/i)).toBeVisible();
 
 		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
@@ -732,7 +733,10 @@ export const CreateModelMultiConfig: Story = {
 
 		await waitFor(() => {
 			expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
-				expect.objectContaining({ provider: "openai" }),
+				expect.objectContaining({
+					provider: "openai",
+					provider_config_id: "provider-openai-dev",
+				}),
 			);
 		});
 
@@ -741,7 +745,7 @@ export const CreateModelMultiConfig: Story = {
 				typeof spyOn
 			>
 		).mock.calls[0][0] as Record<string, unknown>;
-		expect(call).not.toHaveProperty("provider_config_id");
+		expect(call).toHaveProperty("provider_config_id", "provider-openai-dev");
 	},
 };
 
