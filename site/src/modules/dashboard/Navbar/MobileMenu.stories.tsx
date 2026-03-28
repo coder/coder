@@ -45,6 +45,7 @@ const meta: Meta<typeof MobileMenu> = {
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		canViewAIBridge: true,
 	},
 	decorators: [withNavbarMock],
 };
