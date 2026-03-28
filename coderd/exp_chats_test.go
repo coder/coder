@@ -3677,11 +3677,12 @@ func TestRegenerateChatTitle(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusConflict, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		var resp codersdk.Response
+		var resp codersdk.Chat
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
-		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
+		require.Equal(t, chat.ID, resp.ID)
+		require.Equal(t, "pending chat without worker", resp.Title)
 
 		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)

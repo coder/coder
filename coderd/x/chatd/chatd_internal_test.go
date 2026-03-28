@@ -47,6 +47,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	ownerID := uuid.New()
 	chatID := uuid.New()
 	modelConfigID := uuid.New()
+	workerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
 	wantTitle := "Review PR 23633"
 
@@ -54,7 +55,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		ID:                chatID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
-		Status:            database.ChatStatusCompleted,
+		Status:            database.ChatStatusRunning,
+		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
 		Title:             fallbackChatTitle(userPrompt),
 	}
 	modelConfig := database.ChatModelConfig{
@@ -154,16 +156,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	)
 
 	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
-		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
-			require.Equal(t, chatID, arg.ID)
-			require.Equal(t, chat.Status, arg.Status)
-			require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
-			require.True(t, arg.StartedAt.Valid)
-			require.True(t, arg.HeartbeatAt.Valid)
-			return chat, nil
-		},
-	)
 
 	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
 	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
@@ -180,18 +172,195 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		Title: wantTitle,
 	}).Return(updatedChat, nil)
 
-	lockedChatWithMarker := updatedChat
-	lockedChatWithMarker.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
-	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChatWithMarker, nil)
-	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
-		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
-			require.Equal(t, chatID, arg.ID)
-			require.False(t, arg.WorkerID.Valid)
-			require.False(t, arg.StartedAt.Valid)
-			require.False(t, arg.HeartbeatAt.Valid)
-			return updatedChat, nil
+	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
+
+	gotChat, err := server.RegenerateChatTitle(ctx, chat)
+	require.NoError(t, err)
+	require.Equal(t, updatedChat, gotChat)
+
+	select {
+	case event := <-messageEvents:
+		require.NoError(t, event.err)
+		require.Equal(t, coderdpubsub.ChatEventKindTitleChange, event.payload.Kind)
+		require.Equal(t, chatID, event.payload.Chat.ID)
+		require.Equal(t, wantTitle, event.payload.Chat.Title)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for title change pubsub event")
+	}
+}
+
+func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	lockTx := dbmock.NewMockStore(ctrl)
+	usageTx := dbmock.NewMockStore(ctrl)
+	unlockTx := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	pubsub := dbpubsub.NewInMemory()
+	clock := quartz.NewReal()
+
+	ownerID := uuid.New()
+	chatID := uuid.New()
+	modelConfigID := uuid.New()
+	userPrompt := "review pull request 23633 and fix review threads"
+	wantTitle := "Review PR 23633"
+
+	chat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusCompleted,
+		Title:             fallbackChatTitle(userPrompt),
+	}
+	lockedChat := chat
+	lockedChat.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
+	lockedChat.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
+	modelConfig := database.ChatModelConfig{
+		ID:           modelConfigID,
+		Provider:     "anthropic",
+		Model:        "claude-haiku-4-5",
+		ContextLimit: 8192,
+	}
+	updatedChat := lockedChat
+	updatedChat.Title = wantTitle
+	unlockedChat := updatedChat
+	unlockedChat.WorkerID = uuid.NullUUID{}
+	unlockedChat.StartedAt = sql.NullTime{}
+
+	messageEvents := make(chan struct {
+		payload coderdpubsub.ChatEvent
+		err     error
+	}, 1)
+	cancelSub, err := pubsub.SubscribeWithErr(
+		coderdpubsub.ChatEventChannel(ownerID),
+		coderdpubsub.HandleChatEvent(func(_ context.Context, payload coderdpubsub.ChatEvent, err error) {
+			messageEvents <- struct {
+				payload coderdpubsub.ChatEvent
+				err     error
+			}{payload: payload, err: err}
+		}),
+	)
+	require.NoError(t, err)
+	defer cancelSub()
+
+	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		require.Equal(t, "claude-haiku-4-5", req.Model)
+		return chattest.AnthropicNonStreamingResponse(wantTitle)
+	})
+
+	server := &Server{
+		db:          db,
+		logger:      logger,
+		pubsub:      pubsub,
+		configCache: newChatConfigCache(context.Background(), db, clock),
+	}
+
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+		BaseUrl:  serverURL,
+	}}, nil)
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
+	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
+		gomock.Any(),
+		database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chatID,
+			AfterID:  0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return([]database.ChatMessage{
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText(userPrompt),
+		),
+		mustChatMessage(
+			t,
+			database.ChatMessageRoleAssistant,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText("checking the diff now"),
+		),
+	}, nil)
+	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
+		gomock.Any(),
+		database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chatID,
+			BeforeID: 0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+
+	gomock.InOrder(
+		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Equal(t, "chat_title_regenerate_lock", opts.TxIdentifier)
+				return fn(lockTx)
+			},
+		),
+		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Nil(t, opts)
+				return fn(usageTx)
+			},
+		),
+		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Equal(t, "chat_title_regenerate_unlock", opts.TxIdentifier)
+				return fn(unlockTx)
+			},
+		),
+	)
+
+	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
+	lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
+		gomock.Any(),
+		gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{}),
+	).DoAndReturn(func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
+		require.Equal(t, chat.ID, arg.ID)
+		require.Equal(t, chat.Status, arg.Status)
+		require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
+		require.True(t, arg.StartedAt.Valid)
+		require.WithinDuration(t, time.Now(), arg.StartedAt.Time, time.Second)
+		require.False(t, arg.HeartbeatAt.Valid)
+		require.Equal(t, chat.LastError, arg.LastError)
+		require.Equal(t, chat.UpdatedAt, arg.UpdatedAt)
+		return lockedChat, nil
+	})
+
+	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
+	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
+			require.Equal(t, []uuid.UUID{modelConfigID}, arg.ModelConfigID)
+			require.Equal(t, []string{"[]"}, arg.Content)
+			return []database.ChatMessage{{ID: 91}}, nil
 		},
 	)
+	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
+	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+		ID:    chatID,
+		Title: wantTitle,
+	}).Return(updatedChat, nil)
+
+	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
+	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
+		gomock.Any(),
+		database.UpdateChatStatusPreserveUpdatedAtParams{
+			ID:          updatedChat.ID,
+			Status:      updatedChat.Status,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   updatedChat.LastError,
+			UpdatedAt:   updatedChat.UpdatedAt,
+		},
+	).Return(unlockedChat, nil)
 
 	gotChat, err := server.RegenerateChatTitle(ctx, chat)
 	require.NoError(t, err)

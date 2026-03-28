@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { Navigate } from "react-router";
 import {
 	expect,
@@ -237,6 +237,41 @@ const agentsRouting = {
 	],
 };
 
+const defaultArgs: ComponentProps<typeof AgentsPageView> = {
+	agentId: undefined,
+	chatList: [],
+	catalogModelOptions: defaultModelOptions,
+	modelConfigs: defaultModelConfigs,
+	logoUrl: "",
+	handleNewAgent: fn(),
+	isCreating: false,
+	isArchiving: false,
+	archivingChatId: undefined,
+	isChatsLoading: false,
+	chatsLoadError: null,
+	onRetryChatsLoad: fn(),
+	onCollapseSidebar: fn(),
+	isSidebarCollapsed: false,
+	onExpandSidebar: fn(),
+	chatErrorReasons: {},
+	setChatErrorReason: fn(),
+	clearChatErrorReason: fn(),
+	requestArchiveAgent: fn(),
+	requestUnarchiveAgent: fn(),
+	requestArchiveAndDeleteWorkspace: fn(),
+	requestPinAgent: fn(),
+	requestUnpinAgent: fn(),
+	onRegenerateTitle: fn(),
+	regeneratingTitleChatIds: [],
+	onToggleSidebarCollapsed: fn(),
+	isAgentsAdmin: false,
+	archivedFilter: "active",
+	onArchivedFilterChange: fn(),
+	hasNextPage: false,
+	onLoadMore: fn(),
+	isFetchingNextPage: false,
+};
+
 const meta: Meta<typeof AgentsPageView> = {
 	title: "pages/AgentsPage/AgentsPageView",
 	component: AgentsPageView,
@@ -250,36 +285,7 @@ const meta: Meta<typeof AgentsPageView> = {
 			routing: agentsRouting,
 		}),
 	},
-	args: {
-		agentId: undefined,
-		chatList: [],
-		catalogModelOptions: defaultModelOptions,
-		modelConfigs: defaultModelConfigs,
-		logoUrl: "",
-		handleNewAgent: fn(),
-		isCreating: false,
-		isArchiving: false,
-		archivingChatId: undefined,
-		isChatsLoading: false,
-		chatsLoadError: null,
-		onRetryChatsLoad: fn(),
-		onCollapseSidebar: fn(),
-		isSidebarCollapsed: false,
-		onExpandSidebar: fn(),
-		chatErrorReasons: {},
-		setChatErrorReason: fn(),
-		clearChatErrorReason: fn(),
-		requestArchiveAgent: fn(),
-		requestUnarchiveAgent: fn(),
-		requestArchiveAndDeleteWorkspace: fn(),
-		onToggleSidebarCollapsed: fn(),
-		isAgentsAdmin: false,
-		archivedFilter: "active" as const,
-		onArchivedFilterChange: fn(),
-		hasNextPage: false,
-		onLoadMore: fn(),
-		isFetchingNextPage: false,
-	},
+	args: defaultArgs,
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],

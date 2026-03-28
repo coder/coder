@@ -293,8 +293,7 @@ const AgentChatPage: FC = () => {
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
 		onRegenerateTitle,
-		isRegeneratingTitle,
-		regeneratingTitleChatId,
+		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
@@ -329,8 +328,9 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	const isRegeneratingThisChat =
-		isRegeneratingTitle && regeneratingTitleChatId === agentId;
+	const isRegeneratingThisChat = agentId
+		? regeneratingTitleChatIds.includes(agentId)
+		: false;
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -486,7 +486,7 @@ const AgentChatPage: FC = () => {
 				}
 			: undefined;
 	const isArchived = chatRecord?.archived ?? false;
-	const isRegenerateTitleDisabled = isArchived || isRegeneratingTitle;
+	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const sendMutation = useMutation(

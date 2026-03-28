@@ -227,6 +227,10 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
+	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
+		readonly string[]
+	>([]);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
@@ -366,11 +370,37 @@ const AgentsPage: FC = () => {
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
-	const requestRegenerateTitle = (chatId: string) => {
-		if (regenerateTitleMutation.isPending) {
+	const addRegeneratingTitleChatId = (chatId: string) => {
+		if (!chatId || regeneratingTitleChatIdsRef.current.has(chatId)) {
+			return false;
+		}
+		const next = new Set(regeneratingTitleChatIdsRef.current);
+		next.add(chatId);
+		regeneratingTitleChatIdsRef.current = next;
+		setRegeneratingTitleChatIds(Array.from(next));
+		return true;
+	};
+	const removeRegeneratingTitleChatId = (chatId: string) => {
+		if (!regeneratingTitleChatIdsRef.current.has(chatId)) {
 			return;
 		}
-		regenerateTitleMutation.mutate(chatId);
+		const next = new Set(regeneratingTitleChatIdsRef.current);
+		next.delete(chatId);
+		regeneratingTitleChatIdsRef.current = next;
+		setRegeneratingTitleChatIds(Array.from(next));
+	};
+	const requestRegenerateTitle = (chatId: string) => {
+		if (!addRegeneratingTitleChatId(chatId)) {
+			return;
+		}
+		void regenerateTitleMutation
+			.mutateAsync(chatId)
+			.catch(() => {
+				// The shared mutation onError already reports the failure.
+			})
+			.finally(() => {
+				removeRegeneratingTitleChatId(chatId);
+			});
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
@@ -660,8 +690,7 @@ const AgentsPage: FC = () => {
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
 				onRegenerateTitle={requestRegenerateTitle}
-				isRegeneratingTitle={regenerateTitleMutation.isPending}
-				regeneratingTitleChatId={regenerateTitleMutation.variables ?? null}
+				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
