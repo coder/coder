@@ -2525,10 +2525,10 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property         | Value(s)            |
-|------------------|---------------------|
-| `provisioner`    | `echo`, `terraform` |
-| `storage_method` | `file`              |
+| Property         | Value(s)                      |
+|------------------|-------------------------------|
+| `provisioner`    | `echo`, `pulumi`, `terraform` |
+| `storage_method` | `file`                        |
 
 ## codersdk.CreateTestAuditLogRequest
 
