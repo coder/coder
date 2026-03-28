@@ -394,6 +394,58 @@ func TestSessionExpiry(t *testing.T) {
 	}
 }
 
+// TestSessionCookieMaxAge verifies that the session cookie is a persistent
+// cookie (has MaxAge set) rather than a session cookie. Standalone PWAs
+// run in their own browser process and mobile OSes purge in-memory
+// (session) cookies when that process is killed, so the cookie must be
+// persisted to disk.
+func TestSessionCookieMaxAge(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.DefaultDuration = serpent.Duration(time.Hour * 12)
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dc,
+	})
+
+	// Create the first user (password-based login).
+	req := codersdk.CreateFirstUserRequest{
+		Email:    "testuser@coder.com",
+		Username: "testuser",
+		Password: "SomeSecurePassword!",
+	}
+	_, err := client.CreateFirstUser(ctx, req)
+	require.NoError(t, err)
+
+	// Login via the raw HTTP endpoint so we can inspect the Set-Cookie header.
+	loginURL, err := client.URL.Parse("/api/v2/users/login")
+	require.NoError(t, err)
+
+	res, err := client.Request(ctx, http.MethodPost, loginURL.String(), codersdk.LoginWithPasswordRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusCreated, res.StatusCode)
+
+	var found bool
+	for _, cookie := range res.Cookies() {
+		if cookie.Name == codersdk.SessionTokenCookie {
+			// MaxAge should match the configured session duration so the
+			// browser persists the cookie to disk.
+			require.Equal(t, int(dc.Sessions.DefaultDuration.Value().Seconds()), cookie.MaxAge,
+				"Session cookie MaxAge should match the configured session duration")
+			found = true
+		}
+	}
+	require.True(t, found, "session cookie should be present in login response")
+}
+
 func TestAPIKey_OK(t *testing.T) {
 	t.Parallel()
 
