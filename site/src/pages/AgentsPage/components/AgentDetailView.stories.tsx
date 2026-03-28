@@ -861,3 +861,88 @@ export const ScrollNotJumpedDuringTouch: Story = {
 		});
 	},
 };
+
+const wheelGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
+
+/** During active wheel/trackpad scrolling, the container ResizeObserver
+ *  must not snap scroll to bottom. This prevents desktop scroll jump. */
+export const ScrollNotJumpedDuringWheel: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentDetailView store={wheelGuardScrollStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Wait for the initial bottom pin to settle.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
+		// Simulate a wheel event (trackpad/mouse scroll).
+		scrollContainer.dispatchEvent(
+			new WheelEvent("wheel", { bubbles: true, deltaY: -50 }),
+		);
+
+		// Scroll partway up, within the 100px threshold but not at
+		// the absolute bottom. This simulates the user scrolling up
+		// slightly with a trackpad.
+		const offsetFromBottom = 50;
+		const targetScrollTop =
+			scrollContainer.scrollHeight -
+			scrollContainer.clientHeight -
+			offsetFromBottom;
+		scrollContainer.scrollTop = targetScrollTop;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		// Record the scroll position before the resize.
+		const scrollTopBeforeResize = scrollContainer.scrollTop;
+
+		// Simulate a container resize (e.g., window resize or sidebar
+		// toggle). Shrink the container height slightly to trigger
+		// the ResizeObserver.
+		const originalHeight = scrollContainer.style.height;
+		scrollContainer.style.height = `${scrollContainer.clientHeight - 10}px`;
+
+		// Give the ResizeObserver a chance to fire.
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		);
+
+		// During active wheel scrolling, the resize guard should
+		// prevent the container observer from snapping to the
+		// absolute bottom.
+		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
+			scrollTopBeforeResize + 1,
+		);
+
+		// Restore container height.
+		scrollContainer.style.height = originalHeight;
+
+		// Wait for the wheel debounce to clear (150ms) plus a
+		// buffer, then verify normal scroll tracking resumes.
+		await new Promise<void>((resolve) => setTimeout(resolve, 200));
+
+		// Scroll to the very bottom and verify the button disappears.
+		scrollContainer.scrollTop =
+			scrollContainer.scrollHeight - scrollContainer.clientHeight;
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
+};

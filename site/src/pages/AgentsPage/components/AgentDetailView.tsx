@@ -629,6 +629,12 @@ const ScrollAnchoredContainer: FC<{
 	// during mobile URL bar show/hide, which triggers container resize
 	// events while the user's finger is still on the screen.
 	const activeTouchCountRef = useRef(0);
+	// Guard flag: true while the user is actively scrolling via
+	// mouse wheel or trackpad. Set on each wheel event and cleared
+	// after a short debounce period. Prevents ResizeObserver
+	// callbacks from snapping scroll to bottom during active
+	// wheel/trackpad scrolling within the near-bottom threshold.
+	const isWheelScrollingRef = useRef(false);
 	useLayoutEffect(() => {
 		isFetchingRef.current = isFetchingMoreMessages;
 		if (isFetchingMoreMessages) {
@@ -847,7 +853,11 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (autoScrollRef.current && activeTouchCountRef.current === 0) {
+			if (
+				autoScrollRef.current &&
+				activeTouchCountRef.current === 0 &&
+				!isWheelScrollingRef.current
+			) {
 				scheduleBottomPin();
 				return;
 			}
@@ -898,7 +908,7 @@ const ScrollAnchoredContainer: FC<{
 			if (Math.abs(delta) < 1 || !autoScrollRef.current) {
 				return;
 			}
-			if (activeTouchCountRef.current > 0) {
+			if (activeTouchCountRef.current > 0 || isWheelScrollingRef.current) {
 				return;
 			}
 
@@ -932,6 +942,7 @@ const ScrollAnchoredContainer: FC<{
 		if (!container) return;
 
 		let rafId: number | null = null;
+		let wheelTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 		const handleScroll = () => {
 			// While a programmatic scroll is in progress (e.g. smooth
@@ -983,6 +994,21 @@ const ScrollAnchoredContainer: FC<{
 			return Math.max(event.changedTouches.length, 1);
 		};
 
+		const handleWheel = () => {
+			isWheelScrollingRef.current = true;
+			if (wheelTimeoutId !== null) {
+				clearTimeout(wheelTimeoutId);
+			}
+			// Clear the wheel-scrolling flag after 150ms of inactivity.
+			// This covers trackpad momentum and rapid discrete wheel
+			// ticks without permanently blocking ResizeObserver pins.
+			wheelTimeoutId = setTimeout(() => {
+				isWheelScrollingRef.current = false;
+				wheelTimeoutId = null;
+			}, 150);
+			handleUserInterrupt();
+		};
+
 		const handleTouchStart = (event: TouchEvent) => {
 			activeTouchCountRef.current += getChangedTouchCount(event);
 			handleUserInterrupt();
@@ -1005,7 +1031,7 @@ const ScrollAnchoredContainer: FC<{
 		};
 
 		container.addEventListener("scroll", handleScroll, { passive: true });
-		container.addEventListener("wheel", handleUserInterrupt, {
+		container.addEventListener("wheel", handleWheel, {
 			passive: true,
 		});
 		container.addEventListener("touchstart", handleTouchStart, {
@@ -1032,13 +1058,16 @@ const ScrollAnchoredContainer: FC<{
 		document.addEventListener("visibilitychange", handleVisibilityChange);
 		return () => {
 			container.removeEventListener("scroll", handleScroll);
-			container.removeEventListener("wheel", handleUserInterrupt);
+			container.removeEventListener("wheel", handleWheel);
 			container.removeEventListener("touchstart", handleTouchStart);
 			container.removeEventListener("touchend", handleTouchEnd);
 			container.removeEventListener("touchcancel", handleTouchEnd);
 			document.removeEventListener("visibilitychange", handleVisibilityChange);
 			if (rafId !== null) {
 				cancelAnimationFrame(rafId);
+			}
+			if (wheelTimeoutId !== null) {
+				clearTimeout(wheelTimeoutId);
 			}
 		};
 	}, [scrollContainerRef]);
