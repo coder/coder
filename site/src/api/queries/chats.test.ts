@@ -29,7 +29,7 @@ import {
 	updateInfiniteChatsCache,
 } from "./chats";
 
-vi.mock("api/api", () => ({
+vi.mock("#/api/api", () => ({
 	API: {
 		experimental: {
 			updateChat: vi.fn(),

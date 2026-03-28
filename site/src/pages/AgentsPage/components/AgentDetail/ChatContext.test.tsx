@@ -48,7 +48,7 @@ import {
 	useChatStore,
 } from "./ChatContext";
 
-vi.mock("api/api", () => ({
+vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
 }));
 

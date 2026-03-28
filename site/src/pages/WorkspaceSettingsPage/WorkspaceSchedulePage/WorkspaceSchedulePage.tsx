@@ -1,9 +1,4 @@
 import dayjs from "dayjs";
-import {
-	scheduleChanged,
-	scheduleToAutostart,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
@@ -22,6 +17,11 @@ import {
 	PageHeader,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import {
+	scheduleChanged,
+	scheduleToAutostart,
+} from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { ttlMsToAutostop } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";

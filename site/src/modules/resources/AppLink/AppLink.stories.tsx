@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
+import { expect, screen, spyOn, userEvent, within } from "storybook/test";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockWorkspace,
@@ -217,5 +218,28 @@ export const WithTooltip: Story = {
 				"This is a tooltip with Markdown: **bold**, _italic_, and [link](https://coder.com/docs)",
 		},
 		agent: MockWorkspaceAgent,
+	},
+};
+
+export const SlimWindowPopupBlocked: Story = {
+	decorators: [withToaster],
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			open_in: "slim-window",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement }) => {
+		spyOn(window, "open").mockReturnValue(null);
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link");
+		const user = userEvent.setup();
+		await user.click(link);
+		const toastMessage = await screen.findByText(
+			"Popup blocked. Allow popups to open this app.",
+		);
+		expect(toastMessage).toBeInTheDocument();
 	},
 };

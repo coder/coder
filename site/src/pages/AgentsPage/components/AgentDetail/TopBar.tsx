@@ -17,7 +17,6 @@ import {
 import type { FC } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -29,6 +28,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import { useEmbedContext } from "../EmbedContext";
 import { PrStateIcon } from "../GitPanel/GitPanel";
@@ -202,7 +202,10 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<EllipsisIcon className="h-4 w-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
+						<DropdownMenuContent
+							align="end"
+							className="[&_[role=menuitem]]:text-[13px]"
+						>
 							<DropdownMenuItem
 								disabled={!workspace.canOpenEditors}
 								onSelect={() => {

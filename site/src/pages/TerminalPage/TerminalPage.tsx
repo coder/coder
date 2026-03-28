@@ -6,8 +6,6 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import { useProxy } from "contexts/ProxyContext";
-import { ThemeOverride } from "contexts/ThemeProvider";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -25,6 +23,8 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "#/api/queries/workspaces";
+import { useProxy } from "#/contexts/ProxyContext";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes from "#/theme";

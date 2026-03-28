@@ -496,7 +496,7 @@ const sampleMCPServers = [
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
-] satisfies readonly import("api/typesGenerated").MCPServerConfig[];
+] satisfies readonly import("#/api/typesGenerated").MCPServerConfig[];
 
 export const MCPToolRunning: Story = {
 	args: {
@@ -1255,5 +1255,141 @@ export const WaitAgentComputerUseRunning: Story = {
 				canvas.getByRole("button", { name: "Open desktop tab" }),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+// ---------------------------------------------------------------------------
+// read_skill stories
+// ---------------------------------------------------------------------------
+
+export const ReadSkillRunning: Story = {
+	args: {
+		name: "read_skill",
+		status: "running",
+		args: { name: "deep-review" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Reading skill deep-review/)).toBeInTheDocument();
+	},
+};
+
+export const ReadSkillCompleted: Story = {
+	args: {
+		name: "read_skill",
+		status: "completed",
+		args: { name: "deep-review" },
+		result: {
+			name: "deep-review",
+			body: "## Deep Review Skill\n\nReview the code changes thoroughly.\n\n1. Check for correctness\n2. Verify tests\n3. Ensure style consistency",
+			files: ["roles/security-reviewer.md", "templates/review-checklist.md"],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Read skill deep-review/)).toBeInTheDocument();
+	},
+};
+
+export const ReadSkillError: Story = {
+	args: {
+		name: "read_skill",
+		status: "error",
+		isError: true,
+		args: { name: "nonexistent-skill" },
+		result: { error: 'skill "nonexistent-skill" not found' },
+	},
+	play: async ({ canvasElement }) => {
+		expect(
+			canvasElement.querySelector(".lucide-triangle-alert"),
+		).not.toBeNull();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// read_skill_file stories
+// ---------------------------------------------------------------------------
+
+export const ReadSkillFileRunning: Story = {
+	args: {
+		name: "read_skill_file",
+		status: "running",
+		args: { name: "deep-review", path: "roles/security-reviewer.md" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/Reading deep-review\/roles\/security-reviewer\.md/),
+		).toBeInTheDocument();
+	},
+};
+
+export const ReadSkillFileCompleted: Story = {
+	args: {
+		name: "read_skill_file",
+		status: "completed",
+		args: { name: "deep-review", path: "roles/security-reviewer.md" },
+		result: {
+			content:
+				"# Security Reviewer Role\n\nFocus on authentication, authorization, and input validation.\n\n## Checklist\n- [ ] Verify auth middleware\n- [ ] Check for SQL injection\n- [ ] Validate user inputs",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/Read deep-review\/roles\/security-reviewer\.md/),
+		).toBeInTheDocument();
+	},
+};
+
+export const ReadSkillFileError: Story = {
+	args: {
+		name: "read_skill_file",
+		status: "error",
+		isError: true,
+		args: { name: "deep-review", path: "missing-file.md" },
+		result: { error: "file not found" },
+	},
+};
+
+// ---------------------------------------------------------------------------
+// start_workspace stories
+// ---------------------------------------------------------------------------
+
+export const StartWorkspaceRunning: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Starting workspace…")).toBeInTheDocument();
+	},
+};
+
+export const StartWorkspaceCompleted: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			started: true,
+			workspace_name: "my-project",
+			agent_status: "ready",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Started my-project")).toBeInTheDocument();
+	},
+};
+
+export const StartWorkspaceError: Story = {
+	args: {
+		name: "start_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "workspace was deleted; use create_workspace to make a new one",
+		},
 	},
 };

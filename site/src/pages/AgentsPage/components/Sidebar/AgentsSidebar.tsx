@@ -16,7 +16,6 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
@@ -85,6 +84,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
@@ -528,7 +529,6 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											isActive && "font-medium",
-											chat.has_unread && !isActiveChat && "font-semibold",
 											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
 											isRegeneratingThisChat && "animate-pulse",
 										)}
@@ -601,7 +601,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
 									{!chat.archived && !isChildNode && (
 										<DropdownMenuItem
 											onSelect={() =>
@@ -888,7 +891,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<FilterIcon />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
+			<DropdownMenuContent
+				align="end"
+				className="[&_[role=menuitem]]:text-[13px]"
+			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
 					{archivedFilter === "active" && (
@@ -1396,14 +1402,9 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const onLoadMoreRef = useRef(onLoadMore);
-
-	// Keep the callback ref in sync so the observer closure
-	// always calls the latest onLoadMore without needing to
-	// tear down and re-create the observer.
-	useEffect(() => {
-		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
+	const onLoadMoreStable = useEffectEvent(() => {
+		onLoadMore?.();
+	});
 
 	useEffect(() => {
 		// Don't observe while a fetch is in progress. When the
@@ -1419,15 +1420,15 @@ const LoadMoreSentinel: FC<{
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries[0]?.isIntersecting && onLoadMoreRef.current) {
-					onLoadMoreRef.current();
+				if (entries[0]?.isIntersecting) {
+					onLoadMoreStable();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [isFetchingNextPage]);
+	}, [isFetchingNextPage, onLoadMoreStable]);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">

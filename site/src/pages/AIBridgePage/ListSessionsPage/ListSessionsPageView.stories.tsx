@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
+import { fn } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
-} from "components/Filter/storyHelpers";
+} from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
-} from "components/PaginationWidget/PaginationContainer.mocks";
-import type { ComponentProps } from "react";
-import { fn } from "storybook/test";
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
@@ -32,6 +32,7 @@ const meta: Meta<typeof ListSessionsPageView> = {
 	component: ListSessionsPageView,
 	args: {
 		isLoading: false,
+		isFetching: false,
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
 		filterProps: defaultFilterProps,
@@ -73,6 +74,13 @@ export const Empty: Story = {
 
 export const Loaded: Story = {
 	args: {
+		sessions: [MockSession],
+	},
+};
+
+export const Fetching: Story = {
+	args: {
+		isFetching: true,
 		sessions: [MockSession],
 	},
 };

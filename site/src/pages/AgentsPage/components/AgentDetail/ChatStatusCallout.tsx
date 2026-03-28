@@ -1,9 +1,9 @@
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Response, Shimmer } from "components/ai-elements";
-import { Button } from "components/Button/Button";
-import { Pill } from "components/Pill/Pill";
 import { ExternalLinkIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Response, Shimmer } from "#/components/ai-elements";
+import { Button } from "#/components/Button/Button";
+import { Pill } from "#/components/Pill/Pill";
 import { getKindLabel, getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 

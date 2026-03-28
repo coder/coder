@@ -1,28 +1,28 @@
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Link } from "components/Link/Link";
+import { InfoIcon } from "lucide-react";
+import type { ComponentProps, FC, PropsWithChildren } from "react";
+import type { AIBridgeSession } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
-import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
+} from "#/components/PaginationWidget/PaginationContainer";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Table,
 	TableBody,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { InfoIcon } from "lucide-react";
-import type { ComponentProps, FC, PropsWithChildren } from "react";
-import type { AIBridgeSession } from "#/api/typesGenerated";
+} from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ListSessionsFilter } from "./ListSessionsFilter";
@@ -30,6 +30,7 @@ import { ListSessionsRow } from "./ListSessionsRow";
 
 interface ListSessionsPageViewProps {
 	isLoading: boolean;
+	isFetching: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
@@ -56,6 +57,7 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 
 export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 	isLoading,
+	isFetching,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
@@ -110,7 +112,7 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading ? (
+						{isLoading || isFetching ? (
 							<TableLoader />
 						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />

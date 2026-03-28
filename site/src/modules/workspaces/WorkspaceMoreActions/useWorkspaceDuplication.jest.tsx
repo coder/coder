@@ -1,6 +1,6 @@
 import { act, waitFor } from "@testing-library/react";
-import CreateWorkspacePage from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import type { Workspace } from "#/api/typesGenerated";
+import CreateWorkspacePage from "#/pages/CreateWorkspacePage/CreateWorkspacePage";
 import * as M from "#/testHelpers/entities";
 import {
 	type GetLocationSnapshot,

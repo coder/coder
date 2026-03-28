@@ -170,6 +170,40 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
+		case "read_skill": {
+			const skillName = parsed ? asString(parsed.name) : "";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{skillName
+						? parsedResult
+							? `Read skill ${skillName}`
+							: `Reading skill ${skillName}…`
+						: "Reading skill…"}
+				</span>
+			);
+		}
+		case "read_skill_file": {
+			const skillName = parsed ? asString(parsed.name) : "";
+			const filePath = parsed ? asString(parsed.path) : "";
+			const label =
+				skillName && filePath
+					? `${skillName}/${filePath}`
+					: skillName || filePath || "skill file";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{parsedResult ? `Read ${label}` : `Reading ${label}…`}
+				</span>
+			);
+		}
+		case "start_workspace": {
+			const wsName = parsedResult ? asString(parsedResult.workspace_name) : "";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{wsName ? `Started ${wsName}` : "Starting workspace…"}
+				</span>
+			);
+		}
+
 		default: {
 			const displayName = mcpSlug ? humanizeMCPToolName(mcpSlug, name) : name;
 			return (

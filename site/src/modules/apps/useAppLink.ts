@@ -1,4 +1,3 @@
-import { useProxy } from "contexts/ProxyContext";
 import type React from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
@@ -8,6 +7,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
 import {
 	getAppHref,
 	isExternalApp,

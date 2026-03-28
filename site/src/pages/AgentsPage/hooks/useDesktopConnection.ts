@@ -1,8 +1,8 @@
 import RFB from "@novnc/novnc/lib/rfb";
-import { useClipboard } from "hooks/useClipboard";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { watchChatDesktop } from "#/api/api";
+import { useClipboard } from "#/hooks/useClipboard";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;
@@ -122,13 +122,6 @@ export function useDesktopConnection({
 			);
 		},
 	});
-	// Stable ref so the effect can call the latest
-	// syncRemoteClipboardToLocal without listing it as a
-	// dependency (its identity may change across renders).
-	const syncClipboardRef = useRef(syncRemoteClipboardToLocal);
-	useEffect(() => {
-		syncClipboardRef.current = syncRemoteClipboardToLocal;
-	}, [syncRemoteClipboardToLocal]);
 
 	const attach = (container: HTMLElement) => {
 		const screen = offscreenContainerRef.current;
@@ -256,7 +249,7 @@ export function useDesktopConnection({
 						return;
 					}
 					setRemoteClipboardText(text);
-					syncClipboardRef.current(text).catch((err) => {
+					syncRemoteClipboardToLocal(text).catch((err) => {
 						console.error("Failed to sync remote clipboard to local:", err);
 					});
 				});
@@ -500,7 +493,7 @@ export function useDesktopConnection({
 			setStatus("idle");
 			setHasConnected(false);
 		};
-	}, [chatId]);
+	}, [chatId, syncRemoteClipboardToLocal]);
 
 	return {
 		status,

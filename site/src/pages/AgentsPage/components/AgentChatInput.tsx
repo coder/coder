@@ -223,57 +223,75 @@ const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
 		: "Context usage";
 
+	const triggerButton = (
+		<button
+			type="button"
+			aria-label={ariaLabel}
+			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+		>
+			<svg
+				className={cn("size-icon-sm -rotate-90", toneClassName)}
+				viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+				aria-hidden
+			>
+				<circle
+					cx={RING_SIZE / 2}
+					cy={RING_SIZE / 2}
+					r={RING_RADIUS}
+					fill="none"
+					strokeWidth={RING_STROKE}
+					className="stroke-content-secondary/25"
+				/>
+				<circle
+					cx={RING_SIZE / 2}
+					cy={RING_SIZE / 2}
+					r={RING_RADIUS}
+					fill="none"
+					strokeWidth={RING_STROKE}
+					strokeLinecap="round"
+					className="stroke-current transition-all duration-300 ease-out"
+					style={{
+						strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
+						strokeDashoffset: dashOffset,
+					}}
+				/>
+			</svg>
+		</button>
+	);
+
+	const tooltipContent = (
+		<div className="text-xs text-content-primary">
+			{hasPercent
+				? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+				: "Context usage unavailable"}
+			{hasPercent &&
+				usage?.compressionThreshold !== undefined &&
+				usage.compressionThreshold > 0 && (
+					<div className="mt-1 text-content-secondary">
+						Compacts at {usage.compressionThreshold}%
+					</div>
+				)}
+		</div>
+	);
+
+	// On mobile viewports, Radix Tooltip only opens on hover which
+	// doesn't exist on touch devices.  Use a Popover instead so a tap
+	// toggles the context-usage info.
+	if (isMobileViewport()) {
+		return (
+			<Popover>
+				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+				<PopoverContent side="top" className="w-auto px-3 py-2">
+					{tooltipContent}
+				</PopoverContent>
+			</Popover>
+		);
+	}
+
 	return (
 		<Tooltip>
-			<TooltipTrigger asChild>
-				<button
-					type="button"
-					aria-label={ariaLabel}
-					className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
-				>
-					<svg
-						className={cn("size-icon-sm -rotate-90", toneClassName)}
-						viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-						aria-hidden
-					>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							className="stroke-content-secondary/25"
-						/>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							strokeLinecap="round"
-							className="stroke-current transition-all duration-300 ease-out"
-							style={{
-								strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-								strokeDashoffset: dashOffset,
-							}}
-						/>
-					</svg>
-				</button>
-			</TooltipTrigger>
-			<TooltipContent side="top">
-				<div className="text-xs text-content-primary">
-					{hasPercent
-						? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-						: "Context usage unavailable"}
-					{hasPercent &&
-						usage?.compressionThreshold !== undefined &&
-						usage.compressionThreshold > 0 && (
-							<div className="mt-1 text-content-secondary">
-								Compacts at {usage.compressionThreshold}%
-							</div>
-						)}
-				</div>
-			</TooltipContent>
+			<TooltipTrigger asChild>{triggerButton}</TooltipTrigger>
+			<TooltipContent side="top">{tooltipContent}</TooltipContent>
 		</Tooltip>
 	);
 };

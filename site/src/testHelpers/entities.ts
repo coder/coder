@@ -1,4 +1,3 @@
-import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
 import {
 	type DeploymentConfig,
@@ -7,6 +6,7 @@ import {
 } from "#/api/api";
 import type { FieldError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 import type { FileTree } from "#/utils/filetree";

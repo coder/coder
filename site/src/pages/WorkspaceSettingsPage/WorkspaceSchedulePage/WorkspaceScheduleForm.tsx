@@ -1,10 +1,6 @@
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import { type FormikTouched, useFormik } from "formik";
-import {
-	defaultSchedule,
-	emptySchedule,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import type { FC } from "react";
 import * as Yup from "yup";
 import type { Template } from "#/api/typesGenerated";
@@ -27,6 +23,10 @@ import {
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import {
+	defaultSchedule,
+	emptySchedule,
+} from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { getFormHelpers } from "#/utils/formUtils";
 import { humanDuration } from "#/utils/time";
 import { timeZones } from "#/utils/timeZones";
