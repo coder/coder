@@ -4292,6 +4292,41 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var providerConfigID uuid.NullUUID
+	if req.ProviderConfigID != nil {
+		configID := *req.ProviderConfigID
+		providerConfig, err := api.Database.GetChatProviderByID(ctx, configID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Provider config not found.",
+					Detail:  fmt.Sprintf("provider_config_id %s does not exist", configID),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to look up provider config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !providerConfig.Enabled {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Provider config is disabled.",
+				Detail:  fmt.Sprintf("provider_config_id %s is not enabled", configID),
+			})
+			return
+		}
+		if normalizeChatProvider(providerConfig.Provider) != provider {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Provider config does not match the requested provider.",
+				Detail:  fmt.Sprintf("provider_config_id %s belongs to provider %q, not %q", configID, providerConfig.Provider, provider),
+			})
+			return
+		}
+		providerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+	}
+
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -4348,7 +4383,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
-		ProviderConfigID:     uuid.NullUUID{},
+		ProviderConfigID:     providerConfigID,
 		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 	}
