@@ -623,6 +623,28 @@ const ScrollAnchoredContainer: FC<{
 	// scroll reaches its destination or the user actively interrupts.
 	const isRestoringScrollRef = useRef(false);
 	const cancelPendingPinsRef = useRef<(() => void) | null>(null);
+	// Guard counter: positive while one or more touch contacts are active.
+	// Prevents ResizeObserver callbacks from snapping scroll to bottom
+	// during mobile URL bar show/hide, which triggers container resize
+	// events while the user's finger is still on the screen.
+	const activeTouchCountRef = useRef(0);
+	// Guard flag: true while the user is actively scrolling via
+	// mouse wheel or trackpad. Set on each wheel event and cleared
+	// after a short debounce period. Prevents ResizeObserver
+	// callbacks from snapping scroll to bottom during active
+	// wheel/trackpad scrolling within the near-bottom threshold.
+	const isWheelScrollingRef = useRef(false);
+	// Track whether a resize would have pinned to bottom while the
+	// wheel guard was active. When scrolling stops, run one catch-up
+	// pin so auto-follow resumes without waiting for another resize.
+	const pendingWheelPinRef = useRef(false);
+	// Snapshot of autoScrollRef at the start of the current wheel
+	// burst. Used by the debounce timeout to decide whether to repin
+	// after deferred content growth.
+	const wheelSessionAutoScrollRef = useRef(false);
+	// scrollTop at the start of the current wheel burst. Compared
+	// against the final scrollTop to detect intentional upward scrolls.
+	const wheelSessionStartTopRef = useRef(0);
 	useLayoutEffect(() => {
 		isFetchingRef.current = isFetchingMoreMessages;
 		if (isFetchingMoreMessages) {
@@ -767,6 +789,7 @@ const ScrollAnchoredContainer: FC<{
 
 		const scheduleBottomPin = () => {
 			cancelPendingPins();
+			pendingWheelPinRef.current = false;
 			isRestoringScrollRef.current = true;
 			// Double-RAF lets React's commit phase and the browser's
 			// layout pass both complete before we pin to bottom.
@@ -840,7 +863,11 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (autoScrollRef.current) {
+			if (autoScrollRef.current && activeTouchCountRef.current === 0) {
+				if (isWheelScrollingRef.current) {
+					pendingWheelPinRef.current = true;
+					return;
+				}
 				scheduleBottomPin();
 				return;
 			}
@@ -891,6 +918,13 @@ const ScrollAnchoredContainer: FC<{
 			if (Math.abs(delta) < 1 || !autoScrollRef.current) {
 				return;
 			}
+			if (activeTouchCountRef.current > 0) {
+				return;
+			}
+			if (isWheelScrollingRef.current) {
+				pendingWheelPinRef.current = true;
+				return;
+			}
 
 			if (restoreGuardRafId !== null) {
 				cancelAnimationFrame(restoreGuardRafId);
@@ -922,6 +956,7 @@ const ScrollAnchoredContainer: FC<{
 		if (!container) return;
 
 		let rafId: number | null = null;
+		let wheelTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 		const handleScroll = () => {
 			// While a programmatic scroll is in progress (e.g. smooth
@@ -962,23 +997,135 @@ const ScrollAnchoredContainer: FC<{
 			// not break streaming follow-mode.
 			if (!isNearBottom(container)) {
 				autoScrollRef.current = false;
+				pendingWheelPinRef.current = false;
 				cancelPendingPinsRef.current?.();
 			}
 		};
 
+		const getChangedTouchCount = (event: TouchEvent) => {
+			// A single touch event can add or remove multiple contacts.
+			// Count changed touches so the guard stays active until the
+			// final finger leaves the screen.
+			return Math.max(event.changedTouches.length, 1);
+		};
+
+		const handleWheel = () => {
+			if (!isWheelScrollingRef.current) {
+				// First wheel event of this burst: snapshot the current
+				// follow state and scroll position so the debounce
+				// timeout can distinguish content-driven gaps from
+				// intentional user scroll.
+				wheelSessionAutoScrollRef.current = autoScrollRef.current;
+				wheelSessionStartTopRef.current = container.scrollTop;
+			}
+			isWheelScrollingRef.current = true;
+			if (wheelTimeoutId !== null) {
+				clearTimeout(wheelTimeoutId);
+			}
+			// Clear the wheel-scrolling flag after 150ms of inactivity.
+			// This covers trackpad momentum and rapid discrete wheel
+			// ticks without permanently blocking ResizeObserver pins.
+			wheelTimeoutId = setTimeout(() => {
+				isWheelScrollingRef.current = false;
+				wheelTimeoutId = null;
+				const wasPinDeferred = pendingWheelPinRef.current;
+				pendingWheelPinRef.current = false;
+				// Repin if the wheel burst started in follow mode and
+				// content grew while the guard was active, unless the
+				// user clearly scrolled away from the near-bottom follow
+				// zone during the burst.
+				if (wasPinDeferred && wheelSessionAutoScrollRef.current) {
+					const scrolledUp =
+						container.scrollTop < wheelSessionStartTopRef.current - 1;
+					const nearBottom = isNearBottom(container);
+					if (!scrolledUp || nearBottom) {
+						scrollTranscriptToBottom({
+							behavior: "instant",
+							scrollContainerRef,
+							autoScrollRef,
+							isRestoringScrollRef,
+							setShowScrollToBottom,
+						});
+					} else {
+						autoScrollRef.current = false;
+						setShowScrollToBottom(true);
+					}
+				} else {
+					// Sync follow state with the actual scroll position
+					// now that the wheel burst is over.
+					const nearBottom = isNearBottom(container);
+					autoScrollRef.current = nearBottom;
+					setShowScrollToBottom(!nearBottom);
+				}
+			}, 150);
+			// Clear the restoration guard so user input can interrupt
+			// programmatic scrolls, but do not call handleUserInterrupt()
+			// here. The scroll handler and debounce timeout manage
+			// follow-mode transitions to avoid races with deferred
+			// content growth.
+			isRestoringScrollRef.current = false;
+			cancelPendingPinsRef.current?.();
+		};
+
+		const handleTouchStart = (event: TouchEvent) => {
+			activeTouchCountRef.current += getChangedTouchCount(event);
+			handleUserInterrupt();
+		};
+
+		const handleTouchEnd = (event: TouchEvent) => {
+			activeTouchCountRef.current = Math.max(
+				0,
+				activeTouchCountRef.current - getChangedTouchCount(event),
+			);
+			if (activeTouchCountRef.current === 0) {
+				// Re-evaluate because momentum scrolling may carry the
+				// user away from the bottom after touchstart initially
+				// saw them as near the bottom.
+				if (!isNearBottom(container)) {
+					autoScrollRef.current = false;
+					cancelPendingPinsRef.current?.();
+				}
+			}
+		};
+
 		container.addEventListener("scroll", handleScroll, { passive: true });
-		container.addEventListener("wheel", handleUserInterrupt, {
+		container.addEventListener("wheel", handleWheel, {
 			passive: true,
 		});
-		container.addEventListener("touchstart", handleUserInterrupt, {
+		container.addEventListener("touchstart", handleTouchStart, {
 			passive: true,
 		});
+		container.addEventListener("touchend", handleTouchEnd, {
+			passive: true,
+		});
+		// touchcancel fires when the OS interrupts a gesture (e.g.,
+		// incoming call, system gesture). Must also decrement the
+		// touch counter to avoid a stuck positive value.
+		container.addEventListener("touchcancel", handleTouchEnd, {
+			passive: true,
+		});
+		// Reset touch counter when page is hidden (e.g., tab switch).
+		// The browser may not fire touchend/touchcancel when the user
+		// switches away mid-gesture, which would leave the counter
+		// positive and permanently block ResizeObserver pins.
+		const handleVisibilityChange = () => {
+			if (document.hidden) {
+				activeTouchCountRef.current = 0;
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibilityChange);
 		return () => {
 			container.removeEventListener("scroll", handleScroll);
-			container.removeEventListener("wheel", handleUserInterrupt);
-			container.removeEventListener("touchstart", handleUserInterrupt);
+			container.removeEventListener("wheel", handleWheel);
+			container.removeEventListener("touchstart", handleTouchStart);
+			container.removeEventListener("touchend", handleTouchEnd);
+			container.removeEventListener("touchcancel", handleTouchEnd);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 			if (rafId !== null) {
 				cancelAnimationFrame(rafId);
+			}
+			if (wheelTimeoutId !== null) {
+				clearTimeout(wheelTimeoutId);
 			}
 		};
 	}, [scrollContainerRef]);
