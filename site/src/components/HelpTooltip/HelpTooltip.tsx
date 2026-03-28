@@ -1,32 +1,32 @@
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren, ReactNode } from "react";
 import {
-	Tooltip,
-	TooltipContent,
-	type TooltipContentProps,
-	type TooltipProps,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+	Popover,
+	PopoverContent,
+	type PopoverContentProps,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
 
 type Icon = typeof CircleHelpIcon;
 
 type Size = "small" | "medium";
 
-export const HelpTooltipTrigger = TooltipTrigger;
+export const HelpTooltipTrigger = PopoverTrigger;
 
 export const HelpTooltipIcon = CircleHelpIcon;
 
-export const HelpTooltip: FC<TooltipProps> = (props) => {
-	return <Tooltip {...props} />;
+export const HelpTooltip: FC<React.ComponentProps<typeof Popover>> = (
+	props,
+) => {
+	return <Popover {...props} />;
 };
 
-export const HelpTooltipContent: FC<TooltipContentProps> = ({
-	className,
-	...props
-}) => {
-	return (
-		<TooltipContent
+export const HelpTooltipContent: FC<
+	PopoverContentProps & { disablePortal?: boolean }
+> = ({ className, disablePortal, ...props }) => {
+	const content = (
+		<PopoverContent
 			side="bottom"
 			align="start"
 			collisionPadding={16}
@@ -37,6 +37,10 @@ export const HelpTooltipContent: FC<TooltipContentProps> = ({
 			)}
 		/>
 	);
+
+	// PopoverContent already uses Portal internally, so disablePortal is a no-op
+	// but we accept it for backward compatibility with TooltipContent API
+	return content;
 };
 
 type HelpTooltipIconTriggerProps = React.ComponentPropsWithRef<"button"> & {
@@ -55,6 +59,7 @@ export const HelpTooltipIconTrigger: React.FC<HelpTooltipIconTriggerProps> = ({
 		<HelpTooltipTrigger asChild>
 			<button
 				{...buttonProps}
+				type="button"
 				aria-label="More info"
 				className={cn(
 					"flex items-center justify-center px-0 py-1",
