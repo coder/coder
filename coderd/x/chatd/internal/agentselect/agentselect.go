@@ -20,7 +20,7 @@ const chatAgentSuffix = "-coderd-chat"
 // the provided candidates. It applies these rules in order:
 //  1. Filter to root agents only (ParentID is null).
 //  2. Sort stably and deterministically by DisplayOrder ASC, then
-//     Name ASC (case-insensitive).
+//     Name ASC (case-insensitive), then Name ASC.
 //  3. If exactly one root agent name ends with "-coderd-chat"
 //     (case-insensitive), return it.
 //  4. If zero root agents match the suffix, return the first root agent
@@ -49,7 +49,10 @@ func SelectChatAgent(
 		if order := cmp.Compare(a.DisplayOrder, b.DisplayOrder); order != 0 {
 			return order
 		}
-		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+		if order := cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	matchingAgents := make([]database.WorkspaceAgent, 0, 1)

@@ -331,17 +331,17 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 			"message":        "workspace build completed",
 		}
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-		if agentsErr == nil {
+		if agentsErr == nil && len(agents) > 0 {
 			selected, selectErr := agentselect.SelectChatAgent(agents)
-			if selectErr == nil {
-				for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
-					result[k] = v
-				}
-			} else {
-				o.Logger.Debug(ctx, "failed to select chat workspace agent",
+			if selectErr != nil {
+				o.Logger.Debug(ctx, "agent selection failed, falling back to first agent for readiness check",
 					slog.F("workspace_id", ws.ID),
 					slog.Error(selectErr),
 				)
+				selected = agents[0]
+			}
+			for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+				result[k] = v
 			}
 		}
 		return result, true, nil
@@ -362,39 +362,39 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		// connection status to decide whether the workspace is
 		// still usable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-		if agentsErr == nil {
+		if agentsErr == nil && len(agents) > 0 {
 			selected, selectErr := agentselect.SelectChatAgent(agents)
-			if selectErr == nil {
-				status := selected.Status(agentInactiveDisconnectTimeout)
-				result := map[string]any{
-					"created":        false,
-					"workspace_name": ws.Name,
-					"status":         "already_exists",
-				}
-
-				switch status.Status {
-				case database.WorkspaceAgentStatusConnected:
-					result["message"] = "workspace is already running and recently connected"
-					for k, v := range waitForAgentReady(ctx, db, selected.ID, nil) {
-						result[k] = v
-					}
-					return result, true, nil
-				case database.WorkspaceAgentStatusConnecting:
-					result["message"] = "workspace exists and the agent is still connecting"
-					for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
-						result[k] = v
-					}
-					return result, true, nil
-				case database.WorkspaceAgentStatusDisconnected,
-					database.WorkspaceAgentStatusTimeout:
-					// Agent is offline or never became ready - allow
-					// creation.
-				}
-			} else {
-				o.Logger.Debug(ctx, "failed to select chat workspace agent",
+			if selectErr != nil {
+				o.Logger.Debug(ctx, "agent selection failed, falling back to first agent for status check",
 					slog.F("workspace_id", ws.ID),
 					slog.Error(selectErr),
 				)
+				selected = agents[0]
+			}
+			status := selected.Status(agentInactiveDisconnectTimeout)
+			result := map[string]any{
+				"created":        false,
+				"workspace_name": ws.Name,
+				"status":         "already_exists",
+			}
+
+			switch status.Status {
+			case database.WorkspaceAgentStatusConnected:
+				result["message"] = "workspace is already running and recently connected"
+				for k, v := range waitForAgentReady(ctx, db, selected.ID, nil) {
+					result[k] = v
+				}
+				return result, true, nil
+			case database.WorkspaceAgentStatusConnecting:
+				result["message"] = "workspace exists and the agent is still connecting"
+				for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+					result[k] = v
+				}
+				return result, true, nil
+			case database.WorkspaceAgentStatusDisconnected,
+				database.WorkspaceAgentStatusTimeout:
+				// Agent is offline or never became ready - allow
+				// creation.
 			}
 		}
 		// No agent ID or no agent status — allow creation.

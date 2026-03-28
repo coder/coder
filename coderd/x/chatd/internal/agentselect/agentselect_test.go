@@ -71,6 +71,14 @@ func TestSelectChatAgent(t *testing.T) {
 			wantIndex: 1,
 		},
 		{
+			name: "CaseOnlyNameTieFallbackDeterministic",
+			agents: []database.WorkspaceAgent{
+				newRootAgent("Dev", 0),
+				newRootAgent("dev", 0),
+			},
+			wantIndex: 0,
+		},
+		{
 			name: "MultipleSuffixMatchesError",
 			agents: []database.WorkspaceAgent{
 				newRootAgent("alpha-coderd-chat", 2),
