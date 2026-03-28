@@ -2323,6 +2323,7 @@ export interface CreateChatModelConfigRequest {
 	readonly is_default?: boolean;
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
+	readonly provider_config_id?: string;
 	readonly model_config?: ChatModelCallConfig;
 }
 

@@ -54,7 +54,8 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    provider_config_id
 ) VALUES (
     @provider::text,
     @model::text,
@@ -65,7 +66,8 @@ INSERT INTO chat_model_configs (
     @is_default::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
-    @options::jsonb
+    @options::jsonb,
+    sqlc.narg('provider_config_id')::uuid
 )
 RETURNING
     *;
