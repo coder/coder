@@ -14,12 +14,16 @@ import (
 func TestSelectChatAgent(t *testing.T) {
 	t.Parallel()
 
-	newRootAgent := func(name string, displayOrder int32) database.WorkspaceAgent {
+	newRootAgentWithID := func(id, name string, displayOrder int32) database.WorkspaceAgent {
 		return database.WorkspaceAgent{
-			ID:           uuid.New(),
+			ID:           uuid.MustParse(id),
 			Name:         name,
 			DisplayOrder: displayOrder,
 		}
+	}
+
+	newRootAgent := func(name string, displayOrder int32) database.WorkspaceAgent {
+		return newRootAgentWithID(uuid.NewString(), name, displayOrder)
 	}
 
 	newChildAgent := func(name string, displayOrder int32) database.WorkspaceAgent {
@@ -77,6 +81,14 @@ func TestSelectChatAgent(t *testing.T) {
 				newRootAgent("dev", 0),
 			},
 			wantIndex: 0,
+		},
+		{
+			name: "ExactNameTieFallbackByID",
+			agents: []database.WorkspaceAgent{
+				newRootAgentWithID("00000000-0000-0000-0000-000000000002", "dev", 0),
+				newRootAgentWithID("00000000-0000-0000-0000-000000000001", "dev", 0),
+			},
+			wantIndex: 1,
 		},
 		{
 			name: "MultipleSuffixMatchesError",
