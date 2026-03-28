@@ -204,21 +204,28 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				}
 			}
 
+			result := map[string]any{
+				"created":        true,
+				"workspace_name": workspace.FullName(),
+			}
+
 			// Select the chat agent so follow-up tools wait on the
 			// intended workspace agent.
 			workspaceAgentID := uuid.Nil
 			if options.DB != nil {
 				agents, agentErr := options.DB.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if agentErr == nil {
-					selected, selectErr := agentselect.SelectChatAgent(agents)
-					if selectErr == nil {
-						workspaceAgentID = selected.ID
-					} else {
-						options.Logger.Debug(ctx, "failed to select chat workspace agent",
-							slog.F("workspace_id", workspace.ID),
-							slog.Error(selectErr),
-						)
+					if len(agents) == 0 {
+						result["agent_status"] = "no_agent"
+						return toolResponse(result), nil
 					}
+					selected, selectErr := agentselect.SelectChatAgent(agents)
+					if selectErr != nil {
+						result["agent_status"] = "selection_error"
+						result["agent_error"] = selectErr.Error()
+						return toolResponse(result), nil
+					}
+					workspaceAgentID = selected.ID
 				}
 			}
 
@@ -251,20 +258,12 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// Wait for the agent to come online and startup scripts to finish.
 			if workspaceAgentID != uuid.Nil {
 				agentStatus := waitForAgentReady(ctx, options.DB, workspaceAgentID, options.AgentConnFn)
-				result := map[string]any{
-					"created":        true,
-					"workspace_name": workspace.FullName(),
-				}
 				for k, v := range agentStatus {
 					result[k] = v
 				}
-				return toolResponse(result), nil
 			}
 
-			return toolResponse(map[string]any{
-				"created":        true,
-				"workspace_name": workspace.FullName(),
-			}), nil
+			return toolResponse(result), nil
 		})
 }
 

@@ -22,8 +22,9 @@ import (
 )
 
 type UpdatesQuerier interface {
-	// GetAuthorizedWorkspacesAndAgentsByOwnerID requires a context with an actor set
+	// GetAuthorizedWorkspacesAndAgentsByOwnerID requires a context with an actor set.
 	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
+	GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error)
 	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error)
 }
 
@@ -81,7 +82,11 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 		s.logger.Warn(ctx, "failed to get workspaces and agents by owner ID", slog.Error(err))
 		return
 	}
-	latest := convertRows(rows)
+	latest, err := convertRows(s.ctx, s.db, rows)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to convert workspace rows", slog.Error(err))
+		return
+	}
 
 	out, updated := produceUpdate(s.prev, latest)
 	if !updated {
@@ -102,7 +107,10 @@ func (s *sub) start(ctx context.Context) (err error) {
 		return xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
 	}
 
-	latest := convertRows(rows)
+	latest, err := convertRows(ctx, s.db, rows)
+	if err != nil {
+		return xerrors.Errorf("convert workspace rows: %w", err)
+	}
 	initUpdate, _ := produceUpdate(workspacesByID{}, latest)
 	s.ch <- initUpdate
 	s.prev = latest
@@ -276,14 +284,17 @@ func produceUpdate(oldWS, newWS workspacesByID) (out *proto.WorkspaceUpdate, upd
 	return out, updated
 }
 
-func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesByID {
+func convertRows(ctx context.Context, db UpdatesQuerier, rows []database.GetWorkspacesAndAgentsByOwnerIDRow) (workspacesByID, error) {
 	out := workspacesByID{}
 	for _, row := range rows {
+		hiddenAgentIDs, err := hiddenChatAgentIDs(ctx, db, row)
+		if err != nil {
+			return nil, xerrors.Errorf("hidden chat agents for workspace %s: %w", row.ID, err)
+		}
+
 		agents := []database.AgentIDNamePair{}
 		for _, agent := range row.Agents {
-			// Match the chatd naming convention for chat-routing agents.
-			// These agents are infrastructure, not user-facing endpoints.
-			if strings.HasSuffix(strings.ToLower(agent.Name), "-coderd-chat") {
+			if _, hidden := hiddenAgentIDs[agent.ID]; hidden {
 				continue
 			}
 			agents = append(agents, database.AgentIDNamePair{
@@ -297,7 +308,51 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 			Agents:        agents,
 		}
 	}
-	return out
+	return out, nil
+}
+
+func hiddenChatAgentIDs(ctx context.Context, db UpdatesQuerier, row database.GetWorkspacesAndAgentsByOwnerIDRow) (map[uuid.UUID]struct{}, error) {
+	hiddenAgentIDs := make(map[uuid.UUID]struct{})
+	hasChatAgent := false
+	for _, agent := range row.Agents {
+		if strings.HasSuffix(strings.ToLower(agent.Name), "-coderd-chat") {
+			hiddenAgentIDs[agent.ID] = struct{}{}
+			hasChatAgent = true
+		}
+	}
+	if !hasChatAgent || db == nil {
+		return hiddenAgentIDs, nil
+	}
+
+	workspaceAgents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agents in latest build: %w", err)
+	}
+
+	childrenByParent := make(map[uuid.UUID][]uuid.UUID)
+	queue := make([]uuid.UUID, 0, len(hiddenAgentIDs))
+	for hiddenAgentID := range hiddenAgentIDs {
+		queue = append(queue, hiddenAgentID)
+	}
+	for _, agent := range workspaceAgents {
+		if agent.ParentID.Valid {
+			childrenByParent[agent.ParentID.UUID] = append(childrenByParent[agent.ParentID.UUID], agent.ID)
+		}
+	}
+
+	for len(queue) > 0 {
+		agentID := queue[0]
+		queue = queue[1:]
+		for _, childID := range childrenByParent[agentID] {
+			if _, hidden := hiddenAgentIDs[childID]; hidden {
+				continue
+			}
+			hiddenAgentIDs[childID] = struct{}{}
+			queue = append(queue, childID)
+		}
+	}
+
+	return hiddenAgentIDs, nil
 }
 
 type rbacAuthorizer struct {

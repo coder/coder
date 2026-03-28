@@ -241,6 +241,8 @@ func TestWorkspaceUpdates(t *testing.T) {
 		hiddenAgentUpdatedID := uuid.UUID{0x0C}
 		visibleAgentUpdatedID := uuid.UUID{0x0D}
 		visibleAgentUpdatedIDSlice := tailnet.UUIDToByteSlice(visibleAgentUpdatedID)
+		hiddenDescendantID := uuid.UUID{0x0E}
+		hiddenDescendantUpdatedID := uuid.UUID{0x0F}
 
 		db := &mockWorkspaceStore{
 			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
@@ -258,6 +260,21 @@ func TestWorkspaceUpdates(t *testing.T) {
 							ID:   hiddenAgentID,
 							Name: "agent1-CODERD-CHAT",
 						},
+						{
+							ID:   hiddenDescendantID,
+							Name: "agent1-child",
+						},
+					},
+				},
+			},
+			workspaceAgents: map[uuid.UUID][]database.WorkspaceAgent{
+				chatWorkspaceID: {
+					{ID: visibleAgentID, Name: "agent1"},
+					{ID: hiddenAgentID, Name: "agent1-CODERD-CHAT"},
+					{
+						ID:       hiddenDescendantID,
+						Name:     "agent1-child",
+						ParentID: uuid.NullUUID{UUID: hiddenAgentID, Valid: true},
 					},
 				},
 			},
@@ -313,7 +330,20 @@ func TestWorkspaceUpdates(t *testing.T) {
 						ID:   hiddenAgentUpdatedID,
 						Name: "agent1-coderd-chat",
 					},
+					{
+						ID:   hiddenDescendantUpdatedID,
+						Name: "agent1-child-updated",
+					},
 				},
+			},
+		}
+		db.workspaceAgents[chatWorkspaceID] = []database.WorkspaceAgent{
+			{ID: visibleAgentID, Name: "agent1"},
+			{ID: hiddenAgentUpdatedID, Name: "agent1-coderd-chat"},
+			{
+				ID:       hiddenDescendantUpdatedID,
+				Name:     "agent1-child-updated",
+				ParentID: uuid.NullUUID{UUID: hiddenAgentUpdatedID, Valid: true},
 			},
 		}
 		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
@@ -341,7 +371,25 @@ func TestWorkspaceUpdates(t *testing.T) {
 						ID:   visibleAgentUpdatedID,
 						Name: "agent2",
 					},
+					{
+						ID:   hiddenAgentUpdatedID,
+						Name: "agent1-coderd-chat",
+					},
+					{
+						ID:   hiddenDescendantUpdatedID,
+						Name: "agent1-child-updated",
+					},
 				},
+			},
+		}
+		db.workspaceAgents[chatWorkspaceID] = []database.WorkspaceAgent{
+			{ID: visibleAgentID, Name: "agent1"},
+			{ID: visibleAgentUpdatedID, Name: "agent2"},
+			{ID: hiddenAgentUpdatedID, Name: "agent1-coderd-chat"},
+			{
+				ID:       hiddenDescendantUpdatedID,
+				Name:     "agent1-child-updated",
+				ParentID: uuid.NullUUID{UUID: hiddenAgentUpdatedID, Valid: true},
 			},
 		}
 		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
@@ -446,12 +494,36 @@ func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, ev
 }
 
 type mockWorkspaceStore struct {
-	orderedRows []database.GetWorkspacesAndAgentsByOwnerIDRow
+	orderedRows     []database.GetWorkspacesAndAgentsByOwnerIDRow
+	workspaceAgents map[uuid.UUID][]database.WorkspaceAgent
 }
 
 // GetAuthorizedWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
 func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return m.orderedRows, nil
+}
+
+// GetWorkspaceAgentsInLatestBuildByWorkspaceID implements coderd.UpdatesQuerier.
+func (m *mockWorkspaceStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	if m.workspaceAgents != nil {
+		if agents, ok := m.workspaceAgents[workspaceID]; ok {
+			return agents, nil
+		}
+	}
+	for _, row := range m.orderedRows {
+		if row.ID != workspaceID {
+			continue
+		}
+		agents := make([]database.WorkspaceAgent, 0, len(row.Agents))
+		for _, agent := range row.Agents {
+			agents = append(agents, database.WorkspaceAgent{
+				ID:   agent.ID,
+				Name: agent.Name,
+			})
+		}
+		return agents, nil
+	}
+	return nil, nil
 }
 
 // GetWorkspaceByAgentID implements coderd.UpdatesQuerier.
