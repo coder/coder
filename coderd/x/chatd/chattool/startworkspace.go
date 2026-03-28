@@ -155,7 +155,7 @@ func waitForAgentAndRespond(
 	ws database.Workspace,
 ) (fantasy.ToolResponse, error) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-	if err != nil {
+	if err != nil || len(agents) == 0 {
 		// Workspace started but no agent found - still report
 		// success so the model knows the workspace is up.
 		return toolResponse(map[string]any{
