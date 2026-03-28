@@ -107,7 +107,7 @@ export const ToggleParentCheckbox: Story = {
 		const canvas = within(canvasElement);
 		const checkbox = await canvas
 			.getByTestId("audit_log")
-			.getElementsByTagName("input")[0];
+			.getElementsByTagName("input")[0]!;
 		await user.click(checkbox);
 		await expect(checkbox).toBeChecked();
 		await user.click(checkbox);

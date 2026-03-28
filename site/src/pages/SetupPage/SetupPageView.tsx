@@ -53,7 +53,7 @@ export const Language = {
 const usernameValidator = nameValidator(Language.usernameLabel);
 const usernameFromEmail = (email: string): string => {
 	try {
-		const emailPrefix = email.split("@")[0];
+		const emailPrefix = email.split("@")[0]!;
 		const username = emailPrefix.toLowerCase().replace(/[^a-z0-9]/g, "-");
 		usernameValidator.validateSync(username);
 		return username;

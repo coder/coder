@@ -42,7 +42,7 @@ export const AnnouncementBannerSettings: FC<
 
 	const updateBanner = (i: number, banner: Partial<BannerConfig>) => {
 		const newBanners = [...banners];
-		newBanners[i] = { ...banners[i], ...banner };
+		newBanners[i] = { ...banners[i]!, ...banner };
 		setBanners(newBanners);
 		return newBanners;
 	};

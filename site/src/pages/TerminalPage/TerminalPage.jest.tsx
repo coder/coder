@@ -162,7 +162,7 @@ describe("TerminalPage", () => {
 
 		const msg = ws.nextMessage;
 		const terminal = container.getElementsByClassName("xterm");
-		await userEvent.type(terminal[0], "{Shift>}{Enter}{/Shift}");
+		await userEvent.type(terminal[0]!, "{Shift>}{Enter}{/Shift}");
 		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
 		expect(req.data).toBe("\x1b\r");
 	});

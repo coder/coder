@@ -26,10 +26,10 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 				<Pill
 					className={cn(
 						"border-none w-fit",
-						orgs[0].isUUID ? "bg-surface-destructive" : "bg-surface-secondary",
+						orgs[0]!.isUUID ? "bg-surface-destructive" : "bg-surface-secondary",
 					)}
 				>
-					{orgs[0].name}
+					{orgs[0]!.name}
 				</Pill>
 			) : (
 				<p>None</p>

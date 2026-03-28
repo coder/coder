@@ -14,7 +14,7 @@ describe("Resource Card", () => {
 		).toBeInTheDocument();
 
 		expect(
-			screen.getByText(MockWorkspaceResource!.metadata![0].value as string),
+			screen.getByText(MockWorkspaceResource!.metadata![0]!.value as string),
 		).toBeInTheDocument();
 	});
 
@@ -48,17 +48,17 @@ describe("Resource Card", () => {
 		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
 		expect(screen.getByText(mockResource.daily_cost)).toBeInTheDocument();
 		expect(
-			screen.getByText(mockResource!.metadata![0].value),
+			screen.getByText(mockResource!.metadata![0]!.value),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(mockResource!.metadata![1].value),
+			screen.getByText(mockResource!.metadata![1]!.value),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(mockResource!.metadata![2].value),
+			screen.getByText(mockResource!.metadata![2]!.value),
 		).toBeInTheDocument();
 		// last element is hidden
 		expect(
-			screen.queryByText(mockResource!.metadata![3].value),
+			screen.queryByText(mockResource!.metadata![3]!.value),
 		).not.toBeInTheDocument();
 	});
 
@@ -93,16 +93,16 @@ describe("Resource Card", () => {
 		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
 		expect(screen.queryByText(mockResource.daily_cost)).not.toBeInTheDocument();
 		expect(
-			screen.getByText(mockResource!.metadata![0].value),
+			screen.getByText(mockResource!.metadata![0]!.value),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(mockResource!.metadata![1].value),
+			screen.getByText(mockResource!.metadata![1]!.value),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(mockResource!.metadata![2].value),
+			screen.getByText(mockResource!.metadata![2]!.value),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(mockResource!.metadata![3].value),
+			screen.getByText(mockResource!.metadata![3]!.value),
 		).toBeInTheDocument();
 	});
 });

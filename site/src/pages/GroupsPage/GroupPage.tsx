@@ -192,7 +192,7 @@ const GroupPage: FC = () => {
 									member={member}
 									group={groupData}
 									key={member.id}
-									canUpdate={canUpdateGroup}
+									canUpdate={canUpdateGroup ?? false}
 									onRemove={async () => {
 										try {
 											await removeMemberMutation.mutateAsync({

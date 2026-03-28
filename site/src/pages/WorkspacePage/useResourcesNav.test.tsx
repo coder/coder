@@ -49,13 +49,13 @@ describe("useResourcesNav", () => {
 				<RouterProvider
 					router={createMemoryRouter([{ path: "/", element: children }], {
 						initialEntries: [
-							`/?resources=${resourceOptionValue(resources[1])}`,
+							`/?resources=${resourceOptionValue(resources[1]!)}`,
 						],
 					})}
 				/>
 			),
 		});
-		expect(result.current.value).toBe(resourceOptionValue(resources[1]));
+		expect(result.current.value).toBe(resourceOptionValue(resources[1]!));
 	});
 
 	it("selects a resource when resources are updated", () => {
@@ -88,7 +88,7 @@ describe("useResourcesNav", () => {
 				initialProps: { resources: startedResources },
 			},
 		);
-		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]));
+		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]!));
 
 		// When a workspace is stopped, there are no resources with agents, so we
 		// need to retain the currently selected resource. This ensures consistency
@@ -105,11 +105,11 @@ describe("useResourcesNav", () => {
 			},
 		];
 		rerender({ resources: stoppedResources });
-		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]));
+		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]!));
 
 		// When a workspace is started again a resource is selected
 		rerender({ resources: startedResources });
-		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]));
+		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]!));
 	});
 
 	// This happens when a new workspace is created and there are no resources
@@ -145,6 +145,6 @@ describe("useResourcesNav", () => {
 			},
 		];
 		rerender({ resources: startedResources });
-		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]));
+		expect(result.current.value).toBe(resourceOptionValue(startedResources[0]!));
 	});
 });

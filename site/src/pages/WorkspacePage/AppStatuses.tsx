@@ -60,7 +60,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	}
 
 	const comparisonDate = referenceDate ?? new Date();
-	const latestStatus = allStatuses[0];
+	const latestStatus = allStatuses[0]!;
 	const otherStatuses = allStatuses.slice(1);
 
 	return (

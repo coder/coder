@@ -64,8 +64,8 @@ describe("WorkspacesPage", () => {
 		renderWithAuth(<WorkspacesPage />);
 		await waitForLoaderToBeRemoved();
 
-		await user.click(getWorkspaceCheckbox(workspaces[0]));
-		await user.click(getWorkspaceCheckbox(workspaces[1]));
+		await user.click(getWorkspaceCheckbox(workspaces[0]!));
+		await user.click(getWorkspaceCheckbox(workspaces[1]!));
 
 		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
 		const deleteButton = await screen.findByText(/delete/i);
@@ -81,8 +81,8 @@ describe("WorkspacesPage", () => {
 		await waitFor(() => {
 			expect(deleteWorkspace).toHaveBeenCalledTimes(2);
 		});
-		expect(deleteWorkspace).toHaveBeenCalledWith(workspaces[0].id);
-		expect(deleteWorkspace).toHaveBeenCalledWith(workspaces[1].id);
+		expect(deleteWorkspace).toHaveBeenCalledWith(workspaces[0]!.id);
+		expect(deleteWorkspace).toHaveBeenCalledWith(workspaces[1]!.id);
 	});
 
 	describe("batch updates", () => {
@@ -238,8 +238,8 @@ describe("WorkspacesPage", () => {
 		renderWithAuth(<WorkspacesPage />);
 		await waitForLoaderToBeRemoved();
 
-		await user.click(getWorkspaceCheckbox(workspaces[0]));
-		await user.click(getWorkspaceCheckbox(workspaces[1]));
+		await user.click(getWorkspaceCheckbox(workspaces[0]!));
+		await user.click(getWorkspaceCheckbox(workspaces[1]!));
 		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
 		const stopButton = await screen.findByRole("menuitem", { name: /stop/i });
 		await user.click(stopButton);
@@ -247,8 +247,8 @@ describe("WorkspacesPage", () => {
 		await waitFor(() => {
 			expect(stopWorkspace).toHaveBeenCalledTimes(2);
 		});
-		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[0].id);
-		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[1].id);
+		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[0]!.id);
+		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[1]!.id);
 	});
 
 	it("starts only the stopped and selected workspaces", async () => {
@@ -265,8 +265,8 @@ describe("WorkspacesPage", () => {
 		renderWithAuth(<WorkspacesPage />);
 		await waitForLoaderToBeRemoved();
 
-		await user.click(getWorkspaceCheckbox(workspaces[0]));
-		await user.click(getWorkspaceCheckbox(workspaces[1]));
+		await user.click(getWorkspaceCheckbox(workspaces[0]!));
+		await user.click(getWorkspaceCheckbox(workspaces[1]!));
 		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
 		const startButton = await screen.findByRole("menuitem", { name: /start/i });
 		await user.click(startButton);
@@ -275,11 +275,11 @@ describe("WorkspacesPage", () => {
 			expect(startWorkspace).toHaveBeenCalledTimes(2);
 		});
 		expect(startWorkspace).toHaveBeenCalledWith(
-			workspaces[0].id,
+			workspaces[0]!.id,
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
 		expect(startWorkspace).toHaveBeenCalledWith(
-			workspaces[1].id,
+			workspaces[1]!.id,
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
 	});

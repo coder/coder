@@ -106,7 +106,7 @@ export const OpenOptionsMenu: Story = {
 		const optionButtons = await canvas.findAllByRole("button", {
 			name: /task options/i,
 		});
-		await userEvent.click(optionButtons[0]);
+		await userEvent.click(optionButtons[0]!);
 	},
 };
 
@@ -120,7 +120,7 @@ export const OpenDeleteDialog: Story = {
 			const optionButtons = await canvas.findAllByRole("button", {
 				name: /task options/i,
 			});
-			await userEvent.click(optionButtons[0]);
+			await userEvent.click(optionButtons[0]!);
 		});
 		await step("Open delete dialog", async () => {
 			const body = within(canvasElement.ownerDocument.body);

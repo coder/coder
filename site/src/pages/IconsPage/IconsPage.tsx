@@ -26,7 +26,7 @@ import icons from "theme/icons.json";
 import uFuzzy from "ufuzzy";
 import { pageTitle } from "utils/page";
 
-const iconsWithoutSuffix = icons.map((icon) => icon.split(".")[0]);
+const iconsWithoutSuffix = icons.map((icon) => icon.split(".")[0]!);
 const fuzzyFinder = new uFuzzy({
 	intraMode: 1,
 	intraIns: 1,
@@ -56,8 +56,8 @@ const IconsPage: FC = () => {
 		}
 
 		return sorted.map((i) => {
-			const iconName = icons[info.idx[i]];
-			const ranges = info.ranges[i];
+			const iconName = icons[info.idx[i]!]!;
+			const ranges = info.ranges[i]!;
 
 			const nodes: ReactNode[] = [];
 			let cursor = 0;
@@ -66,7 +66,7 @@ const IconsPage: FC = () => {
 				nodes.push(
 					<mark key={j + 1}>{iconName.slice(ranges[j], ranges[j + 1])}</mark>,
 				);
-				cursor = ranges[j + 1];
+				cursor = ranges[j + 1]!;
 			}
 			nodes.push(iconName.slice(cursor));
 			return { url: `/icon/${iconName}`, description: nodes };

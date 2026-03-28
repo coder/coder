@@ -446,7 +446,7 @@ describe("DynamicParameter", () => {
 
 			const deleteButtons = screen.getAllByTestId("CancelIcon");
 			await waitFor(async () => {
-				await userEvent.click(deleteButtons[0]);
+				await userEvent.click(deleteButtons[0]!);
 			});
 
 			expect(mockOnChange).toHaveBeenCalledWith('["tag2"]');
@@ -548,7 +548,7 @@ describe("DynamicParameter", () => {
 
 			const removeButtons = screen.getAllByTestId("clear-option-button");
 			await waitFor(async () => {
-				await userEvent.click(removeButtons[0]);
+				await userEvent.click(removeButtons[0]!);
 			});
 
 			expect(mockOnChange).toHaveBeenCalledWith('["option2"]');

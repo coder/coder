@@ -38,7 +38,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 			};
 		};
 
-		fileReader.readAsText(files[0]);
+		fileReader.readAsText(files[0]!);
 	}
 
 	const isUploading = false;

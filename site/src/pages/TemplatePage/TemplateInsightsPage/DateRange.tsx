@@ -56,7 +56,7 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 				<DateRangePicker
 					css={styles.wrapper}
 					onChange={(item) => {
-						const range = item.selection;
+						const range = item.selection!;
 						setRanges([range]);
 
 						// When it is the first selection, we don't want to close the popover

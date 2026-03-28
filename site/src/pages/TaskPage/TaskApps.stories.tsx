@@ -125,7 +125,7 @@ function mockWorkspaceWithApps(apps: WorkspaceApp[]): Workspace {
 			...MockWorkspace.latest_build,
 			resources: [
 				{
-					...MockWorkspace.latest_build.resources[0],
+					...MockWorkspace.latest_build.resources[0]!,
 					agents: [
 						{
 							...MockWorkspaceAgent,

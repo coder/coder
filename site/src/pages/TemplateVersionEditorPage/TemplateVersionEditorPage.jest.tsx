@@ -92,7 +92,7 @@ const buildTemplateVersion = async (
 	jest
 		.spyOn(apiModule, "watchBuildLogsByTemplateVersionId")
 		.mockImplementation((_, options) => {
-			options.onMessage(MockWorkspaceBuildLogs[0]);
+			options.onMessage(MockWorkspaceBuildLogs[0]!);
 			options.onDone?.();
 			const wsMock = {
 				close: jest.fn(),

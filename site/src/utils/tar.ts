@@ -132,7 +132,7 @@ export class TarReader {
 
 	private readFileType(offset: number) {
 		const typeView = new Uint8Array(this.buffer, offset + 156, 1);
-		const typeStr = String.fromCharCode(typeView[0]);
+		const typeStr = String.fromCharCode(typeView[0]!);
 		return typeStr;
 	}
 
@@ -247,7 +247,7 @@ export class TarWriter {
 		const strView = utf8Encode(str);
 		const view = new Uint8Array(this.buffer, offset, size);
 		for (let i = 0; i < size; i += 1) {
-			view[i] = i < strView.length ? strView[i] : 0;
+			view[i] = i < strView.length ? strView[i]! : 0;
 		}
 	}
 
@@ -306,7 +306,7 @@ export class TarWriter {
 		const header = new Uint8Array(this.buffer, offset, 512);
 		let chksum = 0;
 		for (let i = 0; i < 512; i += 1) {
-			chksum += header[i];
+			chksum += header[i]!;
 		}
 		this.writeString(chksum.toString(8), offset + 148, 8);
 	}

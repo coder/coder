@@ -69,8 +69,8 @@ test("add 3 hours to deadline", async () => {
 
 	// Mocks are used here because the 'usedDeadline' is a dayjs object, which
 	// can't be directly compared.
-	const usedWorkspaceId = updateDeadlineSpy.mock.calls[0][0];
-	const usedDeadline = updateDeadlineSpy.mock.calls[0][1];
+	const usedWorkspaceId = updateDeadlineSpy.mock.calls[0]![0];
+	const usedDeadline = updateDeadlineSpy.mock.calls[0]![1];
 	expect(usedWorkspaceId).toEqual(MockWorkspace.id);
 	expect(usedDeadline.toISOString()).toEqual(
 		BASE_DEADLINE.add(3, "hour").toISOString(),
@@ -97,8 +97,8 @@ test("remove 2 hours to deadline", async () => {
 
 	// Mocks are used here because the 'usedDeadline' is a dayjs object, which
 	// can't be directly compared.
-	const usedWorkspaceId = updateDeadlineSpy.mock.calls[0][0];
-	const usedDeadline = updateDeadlineSpy.mock.calls[0][1];
+	const usedWorkspaceId = updateDeadlineSpy.mock.calls[0]![0];
+	const usedDeadline = updateDeadlineSpy.mock.calls[0]![1];
 	expect(usedWorkspaceId).toEqual(MockWorkspace.id);
 	expect(usedDeadline.toISOString()).toEqual(
 		BASE_DEADLINE.subtract(2, "hour").toISOString(),

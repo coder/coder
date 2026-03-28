@@ -200,7 +200,7 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
 				};
 			}
 
-			resources[resource.type].count++;
+			resources[resource.type]!.count++;
 		}
 	}
 

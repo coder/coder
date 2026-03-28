@@ -563,7 +563,7 @@ export const MockUsers: User[] = [
 	},
 ].map((u, i) => ({
 	...u,
-	...fakeUserData[i],
+	...fakeUserData[i]!,
 	avatar_url: "",
 	status: u.status as UserStatus,
 	login_type: u.login_type as LoginType,

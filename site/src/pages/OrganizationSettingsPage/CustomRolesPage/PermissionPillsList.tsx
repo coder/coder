@@ -27,7 +27,7 @@ export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 		<Stack direction="row" spacing={1}>
 			{permissions.length > 0 ? (
 				<PermissionsPill
-					resource={resourceTypes[0]}
+					resource={resourceTypes[0]!}
 					permissions={permissions}
 				/>
 			) : (

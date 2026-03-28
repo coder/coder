@@ -76,6 +76,6 @@ describe("WorkspaceBuildPage", () => {
 		await screen.findByText(`Build #${MockWorkspaceBuild.build_number}`);
 		await server.connected;
 		server.send(JSON.stringify(MockWorkspaceAgentLogs));
-		await screen.findByText(MockWorkspaceAgentLogs[0].output);
+		await screen.findByText(MockWorkspaceAgentLogs[0]!.output);
 	});
 });

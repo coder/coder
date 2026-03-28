@@ -27,7 +27,7 @@ const OrganizationRedirect: FC = () => {
 	// If they cannot edit any org, just redirect to an org they can read.
 	if (sortedOrganizations.length > 0) {
 		return (
-			<Navigate to={`/organizations/${sortedOrganizations[0].name}`} replace />
+			<Navigate to={`/organizations/${sortedOrganizations[0]!.name}`} replace />
 		);
 	}
 	return <EmptyState message="No organizations found" />;

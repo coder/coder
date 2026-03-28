@@ -1,3 +1,4 @@
+import type { Task } from "api/typesGenerated";
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
@@ -145,37 +146,43 @@ export const DisplayName: Story = {
 
 export const LoadedTasksWaitingForInputTab: Story = {
 	beforeEach: () => {
-		const [firstTask, ...otherTasks] = MockTasks;
+		const [firstTask, ...otherTasks] = MockTasks as [Task, ...Task[]];
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
 				id: "active-idle-task",
 				display_name: "Active Idle Task",
-				status: "active",
+				status: "active" as const,
 				current_state: {
-					...firstTask.current_state,
-					state: "idle",
+					timestamp: firstTask.current_state!.timestamp,
+					message: firstTask.current_state!.message,
+					uri: firstTask.current_state!.uri,
+					state: "idle" as const,
 				},
 			},
 			{
 				...firstTask,
 				id: "paused-idle-task",
 				display_name: "Paused Idle Task",
-				status: "paused",
+				status: "paused" as const,
 				current_state: {
-					...firstTask.current_state,
-					state: "idle",
+					timestamp: firstTask.current_state!.timestamp,
+					message: firstTask.current_state!.message,
+					uri: firstTask.current_state!.uri,
+					state: "idle" as const,
 				},
 			},
 			{
 				...firstTask,
 				id: "error-idle-task",
 				display_name: "Error Idle Task",
-				status: "error",
+				status: "error" as const,
 				current_state: {
-					...firstTask.current_state,
-					state: "idle",
+					timestamp: firstTask.current_state!.timestamp,
+					message: firstTask.current_state!.message,
+					uri: firstTask.current_state!.uri,
+					state: "idle" as const,
 				},
 			},
 			...otherTasks,
@@ -242,7 +249,7 @@ export const OpenDeleteDialog: Story = {
 		const deleteButtons = await canvas.findAllByRole("button", {
 			name: /delete task/i,
 		});
-		await userEvent.click(deleteButtons[0]);
+		await userEvent.click(deleteButtons[0]!);
 	},
 };
 
@@ -298,8 +305,8 @@ export const BatchActionsSomeSelected: Story = {
 			await canvas.findByRole("table");
 			const checkboxes = await canvas.findAllByRole("checkbox");
 			// Skip the "select all" checkbox (first one) and select the next two
-			await userEvent.click(checkboxes[1]);
-			await userEvent.click(checkboxes[2]);
+			await userEvent.click(checkboxes[1]!);
+			await userEvent.click(checkboxes[2]!);
 		});
 	},
 };
@@ -325,7 +332,7 @@ export const BatchActionsAllSelected: Story = {
 			await canvas.findByRole("table");
 			const checkboxes = await canvas.findAllByRole("checkbox");
 			// Click the first checkbox (select all)
-			await userEvent.click(checkboxes[0]);
+			await userEvent.click(checkboxes[0]!);
 		});
 	},
 };
@@ -350,8 +357,8 @@ export const BatchActionsDropdownOpen: Story = {
 		await step("Select some tasks", async () => {
 			await canvas.findByRole("table");
 			const checkboxes = await canvas.findAllByRole("checkbox");
-			await userEvent.click(checkboxes[1]);
-			await userEvent.click(checkboxes[2]);
+			await userEvent.click(checkboxes[1]!);
+			await userEvent.click(checkboxes[2]!);
 		});
 
 		await step("Open bulk actions dropdown", async () => {

@@ -263,7 +263,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			if (parameterIndex === -1) continue;
 
 			const parameterField = `rich_parameter_values.${parameterIndex}`;
-			const parameter = parameters[parameterIndex];
+			const parameter = parameters[parameterIndex]!;
 			const currentValue = currentValues.find(
 				(p) => p.name === presetParameter.Name,
 			)?.value;
@@ -587,9 +587,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 														"template_version_preset_id",
 														// "undefined" string is equivalent to using None option
 														// Combobox requires a value in order to correctly highlight the None option
-														presetOptions[index].value === "undefined"
+														presetOptions[index]!.value === "undefined"
 															? undefined
-															: presetOptions[index].value,
+															: presetOptions[index]!.value,
 													);
 												}}
 											/>

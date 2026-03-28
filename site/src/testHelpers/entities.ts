@@ -805,7 +805,7 @@ export const MockTemplate: TypesGen.Template = {
 	organization_icon: "/emojis/1f5fa.png",
 	name: "test-template",
 	display_name: "Test Template",
-	provisioner: MockProvisioner.provisioners[0],
+	provisioner: MockProvisioner.provisioners[0]!,
 	active_version_id: MockTemplateVersion.id,
 	active_user_count: 1,
 	build_time_stats: {

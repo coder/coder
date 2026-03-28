@@ -70,7 +70,7 @@ const TerminalPage: FC = () => {
 	// <workspace name>[.<agent name>]
 	const workspaceNameParts = params.workspace?.split(".");
 	const workspace = useQuery(
-		workspaceByOwnerAndName(username, workspaceNameParts?.[0]),
+		workspaceByOwnerAndName(username, workspaceNameParts?.[0] ?? ""),
 	);
 	const workspaceAgent = workspace.data
 		? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])

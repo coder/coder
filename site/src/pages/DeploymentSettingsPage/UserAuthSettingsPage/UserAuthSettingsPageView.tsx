@@ -23,10 +23,10 @@ export const UserAuthSettingsPageView = ({
 	options,
 }: UserAuthSettingsPageViewProps): JSX.Element => {
 	const oidcEnabled = Boolean(
-		useDeploymentOptions(options, "OIDC Client ID")[0].value,
+		useDeploymentOptions(options, "OIDC Client ID")[0]!.value,
 	);
 	const githubEnabled = Boolean(
-		useDeploymentOptions(options, "OAuth2 GitHub Client ID")[0].value,
+		useDeploymentOptions(options, "OAuth2 GitHub Client ID")[0]!.value,
 	);
 
 	return (

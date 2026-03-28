@@ -48,7 +48,7 @@ const removeMember = async () => {
 	const user = userEvent.setup();
 
 	const users = await screen.findAllByText(/.*@coder.com/);
-	const userRow = users[1].closest("tr");
+	const userRow = users[1]!.closest("tr");
 	if (!userRow) {
 		throw new Error("Error on get the first user row");
 	}
@@ -67,7 +67,7 @@ const removeMember = async () => {
 const updateUserRole = async (role: SlimRole) => {
 	// Get the first user in the table
 	const users = await screen.findAllByText(/.*@coder.com/);
-	const userRow = users[0].closest("tr");
+	const userRow = users[0]!.closest("tr");
 	if (!userRow) {
 		throw new Error("Error on get the first user row");
 	}

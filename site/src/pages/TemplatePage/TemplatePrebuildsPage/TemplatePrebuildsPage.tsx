@@ -36,7 +36,7 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 			}
 
 			// They all have the same template version
-			const { template_version_name } = data.invalidated[0];
+			const { template_version_name } = data.invalidated[0]!;
 			const count = data.invalidated.length;
 
 			displaySuccess(

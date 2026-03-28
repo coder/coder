@@ -21,7 +21,7 @@ const meta: Meta<typeof WorkspaceBuildPageView> = {
 		build: MockWorkspaceBuild,
 		logs: MockWorkspaceBuildLogs,
 		builds: defaultBuilds,
-		activeBuildNumber: defaultBuilds[0].build_number,
+		activeBuildNumber: defaultBuilds[0]!.build_number,
 	},
 };
 

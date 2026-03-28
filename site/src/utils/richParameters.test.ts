@@ -44,11 +44,11 @@ test("getInitialRichParameterValues return default value when default build para
 		},
 	];
 
-	const cpuParameter = templateParameters[0];
+	const cpuParameter = templateParameters[0]!;
 	const [cpuParameterInitialValue] = getInitialRichParameterValues(
 		templateParameters,
 		[{ name: cpuParameter.name, value: "100", source: "url" }],
 	);
 
-	expect(cpuParameterInitialValue.value).toBe(cpuParameter.default_value);
+	expect(cpuParameterInitialValue!.value).toBe(cpuParameter.default_value);
 });

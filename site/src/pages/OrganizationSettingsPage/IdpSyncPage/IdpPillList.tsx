@@ -17,7 +17,7 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
 		<Stack direction="row" spacing={1}>
 			{roles.length > 0 ? (
-				<Pill css={isUUID(roles[0]) ? styles.errorPill : styles.pill}>
+				<Pill css={isUUID(roles[0]!) ? styles.errorPill : styles.pill}>
 					{roles[0]}
 				</Pill>
 			) : (

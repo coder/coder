@@ -497,7 +497,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			if (versionId === "claude-code-version") {
 				return Promise.resolve([
 					{
-						...MockPresets[0],
+						...MockPresets[0]!,
 						ID: "claude-code-preset-1",
 						Name: "Claude Code Dev",
 					},
@@ -506,7 +506,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			if (versionId === "codex-version") {
 				return Promise.resolve([
 					{
-						...MockPresets[0],
+						...MockPresets[0]!,
 						ID: "codex-preset-1",
 						Name: "Codex Dev",
 					},
@@ -548,7 +548,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			expect(options).toHaveLength(1);
 			expect(options[0]).toContainHTML("Claude Code Dev");
 
-			await userEvent.click(options[0]);
+			await userEvent.click(options[0]!);
 		});
 
 		await step("Switch template", async () => {
@@ -569,7 +569,7 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 			expect(options).toHaveLength(1);
 			expect(options[0]).toContainHTML("Codex Dev");
 
-			await userEvent.click(options[0]);
+			await userEvent.click(options[0]!);
 		});
 
 		await step("Switch template back", async () => {

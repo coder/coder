@@ -220,7 +220,7 @@ export const Icons: Story = {
 	args: {
 		workspaces: allWorkspaces.map((workspace, i) => ({
 			...workspace,
-			template_icon: icons[i % icons.length],
+			template_icon: icons[i % icons.length]!,
 		})),
 		count: allWorkspaces.length,
 	},
@@ -321,18 +321,18 @@ export const MultipleApps: Story = {
 					...MockWorkspace.latest_build,
 					resources: [
 						{
-							...MockWorkspace.latest_build.resources[0],
+							...MockWorkspace.latest_build.resources[0]!,
 							agents: [
 								{
 									...MockWorkspaceAgent,
 									apps: [
 										{
-											...MockWorkspaceAgent.apps[0],
+											...MockWorkspaceAgent.apps[0]!,
 											display_name: "App 1",
 											id: "app-1",
 										},
 										{
-											...MockWorkspaceAgent.apps[0],
+											...MockWorkspaceAgent.apps[0]!,
 											display_name: "App 2",
 											id: "app-2",
 										},

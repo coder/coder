@@ -25,28 +25,28 @@ test("tar", async () => {
 	// Read
 	const reader = new TarReader();
 	const fileInfos = await reader.readFile(blob);
-	verifyFile(fileInfos[0], reader.getTextFile(fileInfos[0].name) as string, {
+	verifyFile(fileInfos[0]!, reader.getTextFile(fileInfos[0]!.name) as string, {
 		name: "a.txt",
 		content: "hello",
 	});
-	verifyFile(fileInfos[1], reader.getTextFile(fileInfos[1].name) as string, {
+	verifyFile(fileInfos[1]!, reader.getTextFile(fileInfos[1]!.name) as string, {
 		name: "b.txt",
 		content: "world",
 	});
-	verifyFile(fileInfos[2], reader.getTextFile(fileInfos[2].name) as string, {
+	verifyFile(fileInfos[2]!, reader.getTextFile(fileInfos[2]!.name) as string, {
 		name: "c.txt",
 		content: "",
 	});
-	verifyFolder(fileInfos[3], {
+	verifyFolder(fileInfos[3]!, {
 		name: "etc",
 	});
-	verifyFile(fileInfos[4], reader.getTextFile(fileInfos[4].name) as string, {
+	verifyFile(fileInfos[4]!, reader.getTextFile(fileInfos[4]!.name) as string, {
 		name: "etc/d.txt",
 		content: "Some text content",
 	});
-	expect(fileInfos[4].group).toEqual("codergroup");
-	expect(fileInfos[4].user).toEqual("coder");
-	expect(fileInfos[4].mode).toEqual(0o777);
+	expect(fileInfos[4]!.group).toEqual("codergroup");
+	expect(fileInfos[4]!.user).toEqual("coder");
+	expect(fileInfos[4]!.mode).toEqual(0o777);
 });
 
 function verifyFile(

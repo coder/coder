@@ -26,10 +26,10 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
 			const hasSelectedResource = resourcesNav.value !== "";
 			const hasResources = resources && resources.length > 0;
 			const hasResourcesWithAgents =
-				hasResources && resources[0].agents && resources[0].agents.length > 0;
+				hasResources && resources[0]!.agents && resources[0]!.agents.length > 0;
 
 			if (!hasSelectedResource && hasResourcesWithAgents) {
-				resourcesNav.setValue(resourceOptionValue(resources[0]));
+				resourcesNav.setValue(resourceOptionValue(resources[0]!));
 			}
 		},
 	);

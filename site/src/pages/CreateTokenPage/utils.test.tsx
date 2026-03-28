@@ -15,18 +15,18 @@ describe("unit/CreateTokenForm", () => {
 			{ maxTokenLifetime: 6 * 24 * NANO_HOUR, expected: [] },
 			{
 				maxTokenLifetime: 20 * 24 * NANO_HOUR,
-				expected: [lifetimeDayPresets[0]],
+				expected: [lifetimeDayPresets[0]!],
 			},
 			{
 				maxTokenLifetime: 40 * 24 * NANO_HOUR,
-				expected: [lifetimeDayPresets[0], lifetimeDayPresets[1]],
+				expected: [lifetimeDayPresets[0]!, lifetimeDayPresets[1]!],
 			},
 			{
 				maxTokenLifetime: 70 * 24 * NANO_HOUR,
 				expected: [
-					lifetimeDayPresets[0],
-					lifetimeDayPresets[1],
-					lifetimeDayPresets[2],
+					lifetimeDayPresets[0]!,
+					lifetimeDayPresets[1]!,
+					lifetimeDayPresets[2]!,
 				],
 			},
 			{

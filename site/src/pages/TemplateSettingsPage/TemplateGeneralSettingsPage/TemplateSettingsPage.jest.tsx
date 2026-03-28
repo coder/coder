@@ -176,7 +176,7 @@ describe("TemplateSettingsPage", () => {
 			await renderTemplateSettingsPage();
 			await deprecateTemplate(deprecationMessage);
 
-			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
+			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0]!;
 
 			expect(templateId).toEqual(MockTemplate.id);
 			expect(data).toEqual(
@@ -200,7 +200,7 @@ describe("TemplateSettingsPage", () => {
 			await renderTemplateSettingsPage();
 			await deprecateTemplate("This template should not be able to deprecate");
 
-			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
+			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0]!;
 
 			expect(templateId).toEqual(MockTemplate.id);
 			expect(data).toEqual(
