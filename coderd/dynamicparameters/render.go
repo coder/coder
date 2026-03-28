@@ -246,8 +246,16 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		}
 	}
 
+	// Only Terraform templates cache Terraform plan JSON. Other provisioners may
+	// reuse CachedPlan for format-specific preview data that preview.Preview must
+	// not parse as Terraform.
+	planJSON := []byte(nil)
+	if r.data.job.Provisioner == database.ProvisionerTypeTerraform {
+		planJSON = r.data.terraformValues.CachedPlan
+	}
+
 	input := preview.Input{
-		PlanJSON:        r.data.terraformValues.CachedPlan,
+		PlanJSON:        planJSON,
 		ParameterValues: values,
 		Owner:           *r.currentOwner,
 		TFVars:          r.tfvarValues,

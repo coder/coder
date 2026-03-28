@@ -100,6 +100,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisioner/pulumi"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1536,6 +1537,44 @@ func newProvisionerDaemon(
 			})
 
 			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+		case codersdk.ProvisionerTypePulumi:
+			plDir := filepath.Join(cacheDir, "pulumi")
+			err = os.MkdirAll(plDir, 0o700)
+			if err != nil {
+				return nil, xerrors.Errorf("mkdir pulumi dir: %w", err)
+			}
+
+			pulumiClient, pulumiServer := drpcsdk.MemTransportPipe()
+			wg.Add(1)
+			pproflabel.Go(ctx, pproflabel.Service("pulumi-provisioner"), func(ctx context.Context) {
+				defer wg.Done()
+				<-ctx.Done()
+				_ = pulumiClient.Close()
+				_ = pulumiServer.Close()
+			})
+			wg.Add(1)
+			pproflabel.Go(ctx, pproflabel.Service("pulumi-provisioner"), func(ctx context.Context) {
+				defer wg.Done()
+				defer cancel()
+
+				err := pulumi.Serve(ctx, &pulumi.ServeOptions{
+					ServeOptions: &provisionersdk.ServeOptions{
+						Listener:      pulumiServer,
+						Logger:        provisionerLogger,
+						WorkDirectory: workDir,
+						Experiments:   coderAPI.Experiments,
+					},
+					CachePath: plDir,
+				})
+				if err != nil && !xerrors.Is(err, context.Canceled) {
+					select {
+					case errCh <- err:
+					default:
+					}
+				}
+			})
+
+			connector[string(database.ProvisionerTypePulumi)] = sdkproto.NewDRPCProvisionerClient(pulumiClient)
 		default:
 			return nil, xerrors.Errorf("unknown provisioner type %q", provisionerType)
 		}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/provisioner/pulumi"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
@@ -172,11 +174,24 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				return err
 			}
 
+			pulumiCacheDir := filepath.Join(cacheDir, "pulumi")
+			err = os.MkdirAll(pulumiCacheDir, 0o700)
+			if err != nil {
+				return xerrors.Errorf("mkdir %q: %w", pulumiCacheDir, err)
+			}
+
 			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
 				_ = terraformClient.Close()
 				_ = terraformServer.Close()
+			}()
+
+			pulumiClient, pulumiServer := drpcsdk.MemTransportPipe()
+			go func() {
+				<-ctx.Done()
+				_ = pulumiClient.Close()
+				_ = pulumiServer.Close()
 			}()
 
 			errCh := make(chan error, 1)
@@ -191,6 +206,25 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 						Experiments:   coderd.ReadExperiments(logger, experiments),
 					},
 					CachePath: cacheDir,
+				})
+				if err != nil && !xerrors.Is(err, context.Canceled) {
+					select {
+					case errCh <- err:
+					default:
+					}
+				}
+			}()
+			go func() {
+				defer cancel()
+
+				err := pulumi.Serve(ctx, &pulumi.ServeOptions{
+					ServeOptions: &provisionersdk.ServeOptions{
+						Listener:      pulumiServer,
+						Logger:        logger.Named("pulumi"),
+						WorkDirectory: tempDir,
+						Experiments:   coderd.ReadExperiments(logger, experiments),
+					},
+					CachePath: pulumiCacheDir,
 				})
 				if err != nil && !xerrors.Is(err, context.Canceled) {
 					select {
@@ -222,12 +256,14 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 
 			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
+				string(database.ProvisionerTypePulumi):    proto.NewDRPCProvisionerClient(pulumiClient),
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 					Name: name,
 					Provisioners: []codersdk.ProvisionerType{
 						codersdk.ProvisionerTypeTerraform,
+						codersdk.ProvisionerTypePulumi,
 					},
 					Tags:           tags,
 					PreSharedKey:   preSharedKey,
