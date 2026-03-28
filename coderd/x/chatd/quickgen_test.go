@@ -329,10 +329,11 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			prompt := renderManualTitlePrompt(tt.conversationBlock, tt.firstUserText, tt.latestUserMsg)
 
-			require.Contains(t, prompt, "The user's primary objective was:")
+			require.Contains(t, prompt, "Primary user objective:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Output a short title of 2-8 words.")
-			require.Contains(t, prompt, "- Output ONLY the title - nothing else.")
+			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
+			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
+			require.Contains(t, prompt, "stay close to the user's wording")
 
 			if tt.wantConversationSample {
 				require.Contains(t, prompt, "Conversation sample:")
@@ -351,6 +352,15 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
+	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
+	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
+	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
 }
 
 func Test_generateManualTitle_UsesTimeout(t *testing.T) {
@@ -415,7 +425,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 
 			userText, ok := call.Prompt[1].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
-			require.Equal(t, "Generate the title.", userText.Text)
+			require.Equal(t, truncateRunes(longFirstUserText, 1000), userText.Text)
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
 					fantasy.TextContent{Text: "Refresh title"},
