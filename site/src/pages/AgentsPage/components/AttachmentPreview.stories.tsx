@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { AttachmentPreview, type UploadState } from "./AgentChatInput";
+import { AttachmentPreview, type UploadState } from "./AttachmentPreview";
 
 // Tiny 1x1 transparent PNG as data URI for previews.
 const TINY_PNG =

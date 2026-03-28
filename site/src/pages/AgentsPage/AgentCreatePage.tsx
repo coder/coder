@@ -7,6 +7,7 @@ import {
 	createChat,
 	mcpServerConfigs,
 } from "#/api/queries/chats";
+import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	AgentCreateForm,
@@ -27,6 +28,7 @@ const AgentCreatePage: FC = () => {
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 
 	const catalogModelOptions = getModelOptionsFromConfigs(
@@ -84,7 +86,11 @@ const AgentCreatePage: FC = () => {
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				mcpServers={mcpServersQuery.data ?? []}
 				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-			/>
+				workspaceCount={workspacesQuery.data?.count}
+				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+				workspacesError={workspacesQuery.error}
+				isWorkspacesLoading={workspacesQuery.isLoading}
+			/>{" "}
 		</>
 	);
 };

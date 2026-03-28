@@ -9,14 +9,8 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useId, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import {
-	createMCPServerConfig as createMCPServerConfigMutation,
-	deleteMCPServerConfig as deleteMCPServerConfigMutation,
-	mcpServerConfigs,
-	updateMCPServerConfig as updateMCPServerConfigMutation,
-} from "#/api/queries/chats";
+
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -897,24 +891,48 @@ interface MCPServerAdminPanelProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	sectionBadge?: ReactNode;
+	// Data from query.
+	serversData: TypesGen.MCPServerConfig[] | undefined;
+	isLoadingServers: boolean;
+	serversError: Error | null;
+	// Mutation handlers.
+	onCreateServer: (
+		req: TypesGen.CreateMCPServerConfigRequest,
+	) => Promise<unknown>;
+	onUpdateServer: (args: {
+		id: string;
+		req: TypesGen.UpdateMCPServerConfigRequest;
+	}) => Promise<unknown>;
+	onDeleteServer: (id: string) => Promise<unknown>;
+	isCreatingServer: boolean;
+	isUpdatingServer: boolean;
+	isDeletingServer: boolean;
+	createError: Error | null;
+	updateError: Error | null;
+	deleteError: Error | null;
 }
 
 export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	sectionLabel,
 	sectionDescription,
 	sectionBadge,
+	serversData,
+	isLoadingServers,
+	serversError,
+	onCreateServer,
+	onUpdateServer,
+	onDeleteServer,
+	isCreatingServer,
+	isUpdatingServer,
+	isDeletingServer,
+	createError,
+	updateError,
+	deleteError,
 }) => {
-	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const serverId = searchParams.get("server");
 
-	const serversQuery = useQuery(mcpServerConfigs());
-
-	const createMut = useMutation(createMCPServerConfigMutation(queryClient));
-	const updateMut = useMutation(updateMCPServerConfigMutation(queryClient));
-	const deleteMut = useMutation(deleteMCPServerConfigMutation(queryClient));
-
-	const servers = (serversQuery.data ?? [])
+	const servers = (serversData ?? [])
 		.slice()
 		.sort((a, b) => a.display_name.localeCompare(b.display_name));
 
@@ -940,14 +958,14 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 					: undefined,
 			};
 			try {
-				await updateMut.mutateAsync({ id, req: updateReq });
+				await onUpdateServer({ id, req: updateReq });
 			} catch {
 				// Error surfaced via mutation error state.
 				return;
 			}
 		} else {
 			try {
-				await createMut.mutateAsync(req);
+				await onCreateServer(req);
 			} catch {
 				// Error surfaced via mutation error state.
 				return;
@@ -958,7 +976,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 
 	const handleDelete = async (id: string) => {
 		try {
-			await deleteMut.mutateAsync(id);
+			await onDeleteServer(id);
 		} catch {
 			// Error surfaced via mutation error state.
 			return;
@@ -966,7 +984,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 		setSearchParams({});
 	};
 
-	if (serversQuery.isLoading) {
+	if (isLoadingServers) {
 		return <Spinner loading className="h-4 w-4" />;
 	}
 
@@ -985,18 +1003,18 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				<ServerForm
 					key={serverId}
 					server={isCreating ? null : editingServer}
-					isSaving={createMut.isPending || updateMut.isPending}
-					isDeleting={deleteMut.isPending}
+					isSaving={isCreatingServer || isUpdatingServer}
+					isDeleting={isDeletingServer}
 					onSave={handleSave}
 					onDelete={handleDelete}
 					onBack={() => setSearchParams({})}
 				/>
 			)}
 
-			{serversQuery.isError && <ErrorAlert error={serversQuery.error} />}
-			{createMut.error && <ErrorAlert error={createMut.error} />}
-			{updateMut.error && <ErrorAlert error={updateMut.error} />}
-			{deleteMut.error && <ErrorAlert error={deleteMut.error} />}
+			{serversError && <ErrorAlert error={serversError} />}
+			{createError && <ErrorAlert error={createError} />}
+			{updateError && <ErrorAlert error={updateError} />}
+			{deleteError && <ErrorAlert error={deleteError} />}
 		</div>
 	);
 };

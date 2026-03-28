@@ -18,7 +18,7 @@ const plugins: PluginOption[] = [
 			plugins: [],
 			overrides: [
 				{
-					test: /src\/(pages\/AgentsPage|components\/ai-elements)\//,
+					test: /src\/pages\/AgentsPage\//,
 					plugins: ["babel-plugin-react-compiler"],
 				},
 			],

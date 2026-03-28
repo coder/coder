@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import type { FC } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -9,7 +10,6 @@ import {
 	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import type { DateRangeValue } from "#/pages/AgentsPage/components/DateRangePicker/DateRangePicker";
 import { lastWeeks } from "./utils";
 
 // There is no point in showing the period > 6 months. We prune stats older than

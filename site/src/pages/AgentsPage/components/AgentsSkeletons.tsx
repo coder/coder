@@ -141,11 +141,11 @@ const ChatInputSkeleton: FC = () => (
 );
 
 /**
- * Skeleton shown while the AgentDetail chunk is loading. Mimics a
+ * Skeleton shown while the AgentChatPage chunk is loading. Mimics a
  * top bar + chat conversation layout so the user sees navigable
  * structure during the brief Suspense fallback.
  */
-export const AgentDetailSkeleton: FC = () => {
+export const AgentChatPageSkeleton: FC = () => {
 	const rightPanel = getRightPanelState();
 
 	return (

@@ -35,13 +35,13 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
-import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
+import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
 import {
 	type ChatDetailError,
@@ -493,7 +493,7 @@ const AgentsPage: FC = () => {
 					// Only cancel a per-chat refetch when the cache
 					// already has data. Cancelling a first-time fetch
 					// reverts the query to pending/idle with no data
-					// and no retry, which AgentDetail shows as
+					// and no retry, which AgentChatPage shows as
 					// "Chat not found".
 					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
 						void queryClient.cancelQueries({
@@ -568,7 +568,7 @@ const AgentsPage: FC = () => {
 							// Only create a new object if a field actually
 							// changed. Returning the same reference prevents
 							// react-query from notifying subscribers, avoiding
-							// unnecessary re-renders of AgentDetail during
+							// unnecessary re-renders of AgentChatPage during
 							// streaming when repeated status_change events
 							// carry the same "running" status.
 							const nextStatus = isStatusEvent
