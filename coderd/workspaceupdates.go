@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -280,6 +281,11 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 	for _, row := range rows {
 		agents := []database.AgentIDNamePair{}
 		for _, agent := range row.Agents {
+			// Match the chatd naming convention for chat-routing agents.
+			// These agents are infrastructure, not user-facing endpoints.
+			if strings.HasSuffix(strings.ToLower(agent.Name), "-coderd-chat") {
+				continue
+			}
 			agents = append(agents, database.AgentIDNamePair{
 				ID:   agent.ID,
 				Name: agent.Name,

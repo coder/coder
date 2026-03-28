@@ -228,6 +228,141 @@ func TestWorkspaceUpdates(t *testing.T) {
 		}, update)
 	})
 
+	t.Run("FiltersChatAgents", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		chatWorkspaceID := uuid.UUID{0x09}
+		chatWorkspaceIDSlice := tailnet.UUIDToByteSlice(chatWorkspaceID)
+		visibleAgentID := uuid.UUID{0x0A}
+		visibleAgentIDSlice := tailnet.UUIDToByteSlice(visibleAgentID)
+		hiddenAgentID := uuid.UUID{0x0B}
+		hiddenAgentUpdatedID := uuid.UUID{0x0C}
+		visibleAgentUpdatedID := uuid.UUID{0x0D}
+		visibleAgentUpdatedIDSlice := tailnet.UUIDToByteSlice(visibleAgentUpdatedID)
+
+		db := &mockWorkspaceStore{
+			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
+				{
+					ID:         chatWorkspaceID,
+					Name:       "chat-workspace",
+					JobStatus:  database.ProvisionerJobStatusRunning,
+					Transition: database.WorkspaceTransitionStart,
+					Agents: []database.AgentIDNamePair{
+						{
+							ID:   visibleAgentID,
+							Name: "agent1",
+						},
+						{
+							ID:   hiddenAgentID,
+							Name: "agent1-CODERD-CHAT",
+						},
+					},
+				},
+			},
+		}
+
+		ps := &mockPubsub{
+			cbs: map[string]pubsub.ListenerWithErr{},
+		}
+
+		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
+		t.Cleanup(func() {
+			_ = updateProvider.Close()
+		})
+
+		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sub.Close()
+		})
+
+		update := testutil.TryReceive(ctx, t, sub.Updates())
+		require.Equal(t, &proto.WorkspaceUpdate{
+			UpsertedWorkspaces: []*proto.Workspace{
+				{
+					Id:     chatWorkspaceIDSlice,
+					Name:   "chat-workspace",
+					Status: proto.Workspace_STARTING,
+				},
+			},
+			UpsertedAgents: []*proto.Agent{
+				{
+					Id:          visibleAgentIDSlice,
+					Name:        "agent1",
+					WorkspaceId: chatWorkspaceIDSlice,
+				},
+			},
+			DeletedWorkspaces: []*proto.Workspace{},
+			DeletedAgents:     []*proto.Agent{},
+		}, update)
+
+		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
+			{
+				ID:         chatWorkspaceID,
+				Name:       "chat-workspace",
+				JobStatus:  database.ProvisionerJobStatusRunning,
+				Transition: database.WorkspaceTransitionStart,
+				Agents: []database.AgentIDNamePair{
+					{
+						ID:   visibleAgentID,
+						Name: "agent1",
+					},
+					{
+						ID:   hiddenAgentUpdatedID,
+						Name: "agent1-coderd-chat",
+					},
+				},
+			},
+		}
+		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
+			WorkspaceID: chatWorkspaceID,
+		})
+		select {
+		case update := <-sub.Updates():
+			require.Failf(t, "unexpected update", "%v", update)
+		default:
+		}
+
+		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
+			{
+				ID:         chatWorkspaceID,
+				Name:       "chat-workspace",
+				JobStatus:  database.ProvisionerJobStatusRunning,
+				Transition: database.WorkspaceTransitionStart,
+				Agents: []database.AgentIDNamePair{
+					{
+						ID:   visibleAgentID,
+						Name: "agent1",
+					},
+					{
+						ID:   visibleAgentUpdatedID,
+						Name: "agent2",
+					},
+				},
+			},
+		}
+		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
+			WorkspaceID: chatWorkspaceID,
+		})
+		update = testutil.TryReceive(ctx, t, sub.Updates())
+		require.Equal(t, &proto.WorkspaceUpdate{
+			UpsertedWorkspaces: []*proto.Workspace{},
+			UpsertedAgents: []*proto.Agent{
+				{
+					Id:          visibleAgentUpdatedIDSlice,
+					Name:        "agent2",
+					WorkspaceId: chatWorkspaceIDSlice,
+				},
+			},
+			DeletedWorkspaces: []*proto.Workspace{},
+			DeletedAgents:     []*proto.Agent{},
+		}, update)
+	})
+
 	t.Run("Resubscribe", func(t *testing.T) {
 		t.Parallel()
 
