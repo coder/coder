@@ -635,6 +635,10 @@ const ScrollAnchoredContainer: FC<{
 	// callbacks from snapping scroll to bottom during active
 	// wheel/trackpad scrolling within the near-bottom threshold.
 	const isWheelScrollingRef = useRef(false);
+	// Track whether a resize would have pinned to bottom while the
+	// wheel guard was active. When scrolling stops, run one catch-up
+	// pin so auto-follow resumes without waiting for another resize.
+	const pendingWheelPinRef = useRef(false);
 	useLayoutEffect(() => {
 		isFetchingRef.current = isFetchingMoreMessages;
 		if (isFetchingMoreMessages) {
@@ -780,6 +784,7 @@ const ScrollAnchoredContainer: FC<{
 
 		const scheduleBottomPin = () => {
 			cancelPendingPins();
+			pendingWheelPinRef.current = false;
 			isRestoringScrollRef.current = true;
 			// Double-RAF lets React's commit phase and the browser's
 			// layout pass both complete before we pin to bottom.
@@ -853,11 +858,11 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (
-				autoScrollRef.current &&
-				activeTouchCountRef.current === 0 &&
-				!isWheelScrollingRef.current
-			) {
+			if (autoScrollRef.current && activeTouchCountRef.current === 0) {
+				if (isWheelScrollingRef.current) {
+					pendingWheelPinRef.current = true;
+					return;
+				}
 				scheduleBottomPin();
 				return;
 			}
@@ -908,7 +913,11 @@ const ScrollAnchoredContainer: FC<{
 			if (Math.abs(delta) < 1 || !autoScrollRef.current) {
 				return;
 			}
-			if (activeTouchCountRef.current > 0 || isWheelScrollingRef.current) {
+			if (activeTouchCountRef.current > 0) {
+				return;
+			}
+			if (isWheelScrollingRef.current) {
+				pendingWheelPinRef.current = true;
 				return;
 			}
 
@@ -983,6 +992,7 @@ const ScrollAnchoredContainer: FC<{
 			// not break streaming follow-mode.
 			if (!isNearBottom(container)) {
 				autoScrollRef.current = false;
+				pendingWheelPinRef.current = false;
 				cancelPendingPinsRef.current?.();
 			}
 		};
@@ -1005,6 +1015,23 @@ const ScrollAnchoredContainer: FC<{
 			wheelTimeoutId = setTimeout(() => {
 				isWheelScrollingRef.current = false;
 				wheelTimeoutId = null;
+				const shouldPinAfterWheel =
+					autoScrollRef.current &&
+					(pendingWheelPinRef.current ||
+						container.scrollHeight -
+							container.scrollTop -
+							container.clientHeight >
+							1);
+				pendingWheelPinRef.current = false;
+				if (shouldPinAfterWheel) {
+					scrollTranscriptToBottom({
+						behavior: "instant",
+						scrollContainerRef,
+						autoScrollRef,
+						isRestoringScrollRef,
+						setShowScrollToBottom,
+					});
+				}
 			}, 150);
 			handleUserInterrupt();
 		};

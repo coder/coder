@@ -927,22 +927,22 @@ export const ScrollNotJumpedDuringWheel: Story = {
 			scrollTopBeforeResize + 1,
 		);
 
-		// Restore container height.
-		scrollContainer.style.height = originalHeight;
-
 		// Wait for the wheel debounce to clear (150ms) plus a
-		// buffer, then verify normal scroll tracking resumes.
+		// buffer, then verify the missed bottom pin is applied.
 		await new Promise<void>((resolve) => setTimeout(resolve, 200));
 
-		// Scroll to the very bottom and verify the button disappears.
-		scrollContainer.scrollTop =
-			scrollContainer.scrollHeight - scrollContainer.clientHeight;
-		scrollContainer.dispatchEvent(new Event("scroll"));
-
 		await waitFor(() => {
+			const dist =
+				scrollContainer.scrollHeight -
+				scrollContainer.scrollTop -
+				scrollContainer.clientHeight;
+			expect(dist).toBeLessThan(5);
 			expect(
 				canvas.queryByRole("button", { name: "Scroll to bottom" }),
 			).toBeNull();
 		});
+
+		// Restore container height for cleanup.
+		scrollContainer.style.height = originalHeight;
 	},
 };
