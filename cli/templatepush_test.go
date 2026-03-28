@@ -256,6 +256,40 @@ func TestTemplatePush(t *testing.T) {
 		w.RequireError()
 	})
 
+	t.Run("PulumiSkipsLockfileWarning", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
+
+		inv, root := clitest.New(t, "templates", "push", template.Name,
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypePulumi),
+			"--name", "example",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		pty.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
+		pty.WriteLine("no")
+
+		w.RequireError()
+	})
+
 	t.Run("PushInactiveTemplateVersion", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
