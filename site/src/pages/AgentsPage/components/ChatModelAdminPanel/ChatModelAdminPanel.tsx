@@ -1,16 +1,5 @@
 import { type FC, type ReactNode, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-	chatModelConfigs,
-	chatModels,
-	chatProviderConfigs,
-	createChatModelConfig as createChatModelConfigMutation,
-	createChatProviderConfig as createChatProviderConfigMutation,
-	deleteChatModelConfig as deleteChatModelConfigMutation,
-	deleteChatProviderConfig as deleteChatProviderConfigMutation,
-	updateChatModelConfig as updateChatModelConfigMutation,
-	updateChatProviderConfig as updateChatProviderConfigMutation,
-} from "#/api/queries/chats";
+
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -200,6 +189,39 @@ interface ChatModelAdminPanelProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	sectionBadge?: ReactNode;
+	// Data from queries.
+	providerConfigsData: TypesGen.ChatProviderConfig[] | undefined;
+	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
+	modelCatalogData: TypesGen.ChatModelsResponse | undefined;
+	isLoading: boolean;
+	// Query error states.
+	providerConfigsError: Error | null;
+	modelConfigsError: Error | null;
+	modelCatalogError: Error | null;
+	// Provider mutation handlers.
+	onCreateProvider: (
+		req: TypesGen.CreateChatProviderConfigRequest,
+	) => Promise<unknown>;
+	onUpdateProvider: (
+		providerConfigId: string,
+		req: TypesGen.UpdateChatProviderConfigRequest,
+	) => Promise<unknown>;
+	onDeleteProvider: (providerConfigId: string) => Promise<void>;
+	isProviderMutationPending: boolean;
+	providerMutationError: Error | null;
+	// Model mutation handlers.
+	onCreateModel: (
+		req: TypesGen.CreateChatModelConfigRequest,
+	) => Promise<unknown>;
+	onUpdateModel: (
+		modelConfigId: string,
+		req: TypesGen.UpdateChatModelConfigRequest,
+	) => Promise<unknown>;
+	onDeleteModel: (modelConfigId: string) => Promise<void>;
+	isCreatingModel: boolean;
+	isUpdatingModel: boolean;
+	isDeletingModel: boolean;
+	modelMutationError: Error | null;
 }
 
 export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
@@ -208,39 +230,32 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	sectionLabel,
 	sectionDescription,
 	sectionBadge,
+	providerConfigsData,
+	modelConfigsData,
+	modelCatalogData,
+	isLoading,
+	providerConfigsError,
+	modelConfigsError,
+	modelCatalogError,
+	onCreateProvider,
+	onUpdateProvider,
+	onDeleteProvider,
+	isProviderMutationPending,
+	providerMutationError,
+	onCreateModel,
+	onUpdateModel,
+	onDeleteModel,
+	isCreatingModel,
+	isUpdatingModel,
+	isDeletingModel,
+	modelMutationError,
 }) => {
-	const queryClient = useQueryClient();
 	const [requestedProvider, setRequestedProvider] = useState<string | null>(
 		null,
 	);
 
-	// ── Queries ────────────────────────────────────────────────
-	const providerConfigsQuery = useQuery(chatProviderConfigs());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
-
-	// ── Mutations ──────────────────────────────────────────────
-	const createProviderMut = useMutation(
-		createChatProviderConfigMutation(queryClient),
-	);
-	const updateProviderMut = useMutation(
-		updateChatProviderConfigMutation(queryClient),
-	);
-	const createModelMut = useMutation(
-		createChatModelConfigMutation(queryClient),
-	);
-	const updateModelMut = useMutation(
-		updateChatModelConfigMutation(queryClient),
-	);
-	const deleteProviderMut = useMutation(
-		deleteChatProviderConfigMutation(queryClient),
-	);
-	const deleteModelMut = useMutation(
-		deleteChatModelConfigMutation(queryClient),
-	);
-
 	// ── Sorted model configs ───────────────────────────────────
-	const modelConfigs = (modelConfigsQuery.data ?? []).slice().sort((a, b) => {
+	const modelConfigs = (modelConfigsData ?? []).slice().sort((a, b) => {
 		const cmp = a.provider.localeCompare(b.provider);
 		return cmp !== 0 ? cmp : a.model.localeCompare(b.model);
 	});
@@ -248,8 +263,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	// ── Provider states ────────────────────────────────────────
 	const providerStates = useProviderStates(
 		modelConfigs,
-		providerConfigsQuery.data,
-		modelCatalogQuery.data,
+		providerConfigsData,
+		modelCatalogData,
 	);
 
 	// Derive the effective selected provider from user intent + available
@@ -264,23 +279,10 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const selectedProviderState = selectedProvider
 		? (providerStates.find((ps) => ps.provider === selectedProvider) ?? null)
 		: null;
+
 	// ── Derived state ──────────────────────────────────────────
-	const isLoading =
-		providerConfigsQuery.isLoading ||
-		modelConfigsQuery.isLoading ||
-		modelCatalogQuery.isLoading;
-	const providerConfigsUnavailable = providerConfigsQuery.data === null;
-	const modelConfigsUnavailable = modelConfigsQuery.data === null;
-	const isProviderMutationPending =
-		createProviderMut.isPending ||
-		updateProviderMut.isPending ||
-		deleteProviderMut.isPending;
-	const providerMutationError =
-		createProviderMut.error ??
-		updateProviderMut.error ??
-		deleteProviderMut.error;
-	const modelMutationError =
-		createModelMut.error ?? updateModelMut.error ?? deleteModelMut.error;
+	const providerConfigsUnavailable = providerConfigsData === null;
+	const modelConfigsUnavailable = modelConfigsData === null;
 
 	return (
 		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
@@ -301,14 +303,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
 						isProviderMutationPending={isProviderMutationPending}
-						onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
-						onUpdateProvider={(providerConfigId, req) =>
-							updateProviderMut.mutateAsync({
-								providerConfigId,
-								req,
-							})
-						}
-						onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
+						onCreateProvider={onCreateProvider}
+						onUpdateProvider={onUpdateProvider}
+						onDeleteProvider={onDeleteProvider}
 						onSelectedProviderChange={setRequestedProvider}
 					/>
 				) : (
@@ -322,31 +319,20 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						onSelectedProviderChange={setRequestedProvider}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}
-						isCreating={createModelMut.isPending}
-						isUpdating={updateModelMut.isPending}
-						isDeleting={deleteModelMut.isPending}
-						onCreateModel={(req) => createModelMut.mutateAsync(req)}
-						onUpdateModel={(modelConfigId, req) =>
-							updateModelMut.mutateAsync({
-								modelConfigId,
-								req,
-							})
-						}
-						onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
+						isCreating={isCreatingModel}
+						isUpdating={isUpdatingModel}
+						isDeleting={isDeletingModel}
+						onCreateModel={onCreateModel}
+						onUpdateModel={onUpdateModel}
+						onDeleteModel={onDeleteModel}
 					/>
 				)}
 			</div>
 
 			{/* Errors — rendered at the bottom */}
-			{providerConfigsQuery.isError && (
-				<ErrorAlert error={providerConfigsQuery.error} />
-			)}
-			{modelConfigsQuery.isError && (
-				<ErrorAlert error={modelConfigsQuery.error} />
-			)}
-			{modelCatalogQuery.isError && (
-				<ErrorAlert error={modelCatalogQuery.error} />
-			)}
+			{providerConfigsError && <ErrorAlert error={providerConfigsError} />}
+			{modelConfigsError && <ErrorAlert error={modelConfigsError} />}
+			{modelCatalogError && <ErrorAlert error={modelCatalogError} />}
 			{providerMutationError && <ErrorAlert error={providerMutationError} />}
 			{modelMutationError && <ErrorAlert error={modelMutationError} />}
 

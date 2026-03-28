@@ -64,8 +64,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
-import type { ModelSelectorOption } from "#/components/ai-elements";
-import { asString } from "#/components/ai-elements/runtimeTypeUtils";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -92,6 +90,8 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import type { ModelSelectorOption } from "../ChatElements";
+import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
 
 type SidebarView =

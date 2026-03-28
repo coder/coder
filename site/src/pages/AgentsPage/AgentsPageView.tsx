@@ -1,9 +1,9 @@
 import { type FC, type RefObject, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	AgentsSidebar,
 	sidebarViewFromPath,
@@ -30,7 +30,7 @@ export interface AgentsOutletContext {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	onChatReady: () => void;
-	/** Ref attached to the chat scroll container by AgentDetail. */
+	/** Ref attached to the chat scroll container by AgentChatPage. */
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
