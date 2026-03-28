@@ -621,6 +621,23 @@ func TestListChats(t *testing.T) {
 			createdChats = append(createdChats, chat)
 		}
 
+		// Wait for all chats to reach a terminal status so
+		// updated_at is stable before paginating.
+		for _, c := range createdChats {
+			require.Eventually(t, func() bool {
+				all, listErr := client.ListChats(ctx, nil)
+				if listErr != nil {
+					return false
+				}
+				for _, ch := range all {
+					if ch.ID == c.ID {
+						return ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning
+					}
+				}
+				return false
+			}, testutil.WaitShort, testutil.IntervalFast)
+		}
+
 		// Fetch first page with limit=2.
 		page1, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Pagination: codersdk.Pagination{Limit: 2},
