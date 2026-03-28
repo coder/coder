@@ -1016,12 +1016,7 @@ const ScrollAnchoredContainer: FC<{
 				isWheelScrollingRef.current = false;
 				wheelTimeoutId = null;
 				const shouldPinAfterWheel =
-					autoScrollRef.current &&
-					(pendingWheelPinRef.current ||
-						container.scrollHeight -
-							container.scrollTop -
-							container.clientHeight >
-							1);
+					pendingWheelPinRef.current && autoScrollRef.current;
 				pendingWheelPinRef.current = false;
 				if (shouldPinAfterWheel) {
 					scrollTranscriptToBottom({

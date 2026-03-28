@@ -898,7 +898,7 @@ export const ScrollNotJumpedDuringWheel: Story = {
 		// Scroll partway up, within the 100px threshold but not at
 		// the absolute bottom. This simulates the user scrolling up
 		// slightly with a trackpad.
-		const offsetFromBottom = 50;
+		const offsetFromBottom = 25;
 		const targetScrollTop =
 			scrollContainer.scrollHeight -
 			scrollContainer.clientHeight -
@@ -906,25 +906,28 @@ export const ScrollNotJumpedDuringWheel: Story = {
 		scrollContainer.scrollTop = targetScrollTop;
 		scrollContainer.dispatchEvent(new Event("scroll"));
 
-		// Record the scroll position before the resize.
-		const scrollTopBeforeResize = scrollContainer.scrollTop;
+		// Record the scroll position before new content arrives.
+		const scrollTopBeforeAppend = scrollContainer.scrollTop;
+		const scrollHeightBeforeAppend = scrollContainer.scrollHeight;
 
-		// Simulate a container resize (e.g., window resize or sidebar
-		// toggle). Shrink the container height slightly to trigger
-		// the ResizeObserver.
-		const originalHeight = scrollContainer.style.height;
-		scrollContainer.style.height = `${scrollContainer.clientHeight - 10}px`;
-
-		// Give the ResizeObserver a chance to fire.
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		// Simulate new assistant content arriving while the wheel guard is
+		// active. Keep the append small enough to remain within the
+		// near-bottom threshold so auto-follow should resume.
+		const existing = getStoreMessages(wheelGuardScrollStore);
+		wheelGuardScrollStore.replaceMessages(
+			existing.concat([buildMessage(31, "assistant", "Short update.")]),
 		);
 
-		// During active wheel scrolling, the resize guard should
-		// prevent the container observer from snapping to the
-		// absolute bottom.
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollHeightBeforeAppend,
+			);
+		});
+
+		// During active wheel scrolling, the deferred pin should stay
+		// suppressed until the debounce expires.
 		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeResize + 1,
+			scrollTopBeforeAppend + 1,
 		);
 
 		// Wait for the wheel debounce to clear (150ms) plus a
@@ -941,8 +944,5 @@ export const ScrollNotJumpedDuringWheel: Story = {
 				canvas.queryByRole("button", { name: "Scroll to bottom" }),
 			).toBeNull();
 		});
-
-		// Restore container height for cleanup.
-		scrollContainer.style.height = originalHeight;
 	},
 };
