@@ -137,6 +137,11 @@ type Server struct {
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 	chatHeartbeatInterval      time.Duration
+
+	// wakeCh is signaled by SendMessage, EditMessage, CreateChat,
+	// and PromoteQueued so the run loop calls processOnce
+	// immediately instead of waiting for the next ticker.
+	wakeCh chan struct{}
 }
 
 // chatTemplateAllowlist returns the deployment-wide template
@@ -973,6 +978,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
+	p.signalWake()
 	return chat, nil
 }
 
@@ -1134,6 +1140,7 @@ func (p *Server) SendMessage(
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.signalWake()
 	return result, nil
 }
 
@@ -1276,6 +1283,7 @@ func (p *Server) EditMessage(
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.signalWake()
 
 	return result, nil
 }
@@ -1461,6 +1469,7 @@ func (p *Server) PromoteQueued(
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	p.signalWake()
 
 	return result, nil
 }
@@ -2373,6 +2382,7 @@ func New(cfg Config) *Server {
 		chatHeartbeatInterval:          chatHeartbeatInterval,
 		usageTracker:                   cfg.UsageTracker,
 		clock:                          clk,
+		wakeCh:                         make(chan struct{}, 1),
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -2435,9 +2445,20 @@ func (p *Server) start(ctx context.Context) {
 			return
 		case <-acquireTicker.C:
 			p.processOnce(ctx)
+		case <-p.wakeCh:
+			p.processOnce(ctx)
 		case <-staleTicker.C:
 			p.recoverStaleChats(ctx)
 		}
+	}
+}
+
+// signalWake wakes the run loop so it calls processOnce immediately.
+// Non-blocking: if a signal is already pending it is a no-op.
+func (p *Server) signalWake() {
+	select {
+	case p.wakeCh <- struct{}{}:
+	default:
 	}
 }
 
