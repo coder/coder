@@ -102,3 +102,4 @@ PLAN.md
 
 # Ignore any dev licenses
 license.txt
+dogfood-output/
