@@ -1005,6 +1005,12 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, model)
 
+		// signalWake from CreateChat may trigger immediate processing.
+		// Wait for it to settle, then reset chats to the state we need.
+		server.inflight.Wait()
+		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
 		// Trap the fallback poll ticker to know when the
 		// function has subscribed to pubsub and entered
 		// its select loop.
