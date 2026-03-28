@@ -241,6 +241,17 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 			JobStatus: database.ProvisionerJobStatusSucceeded,
 		}, nil)
 	db.EXPECT().
+		UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+			BuildID:     uuid.NullUUID{},
+			AgentID:     uuid.NullUUID{},
+		}).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+	db.EXPECT().
 		GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{
 			{ID: uuid.New(), Name: "alpha-coderd-chat", DisplayOrder: 0},

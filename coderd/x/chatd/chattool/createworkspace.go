@@ -217,15 +217,15 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				if agentErr == nil {
 					if len(agents) == 0 {
 						result["agent_status"] = "no_agent"
-						return toolResponse(result), nil
+					} else {
+						selected, selectErr := agentselect.SelectChatAgent(agents)
+						if selectErr != nil {
+							result["agent_status"] = "selection_error"
+							result["agent_error"] = selectErr.Error()
+						} else {
+							workspaceAgentID = selected.ID
+						}
 					}
-					selected, selectErr := agentselect.SelectChatAgent(agents)
-					if selectErr != nil {
-						result["agent_status"] = "selection_error"
-						result["agent_error"] = selectErr.Error()
-						return toolResponse(result), nil
-					}
-					workspaceAgentID = selected.ID
 				}
 			}
 

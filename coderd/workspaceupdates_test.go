@@ -411,6 +411,79 @@ func TestWorkspaceUpdates(t *testing.T) {
 		}, update)
 	})
 
+	t.Run("KeepsChildSuffixAgentsVisible", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaceID := uuid.UUID{0x10}
+		workspaceIDSlice := tailnet.UUIDToByteSlice(workspaceID)
+		rootAgentID := uuid.UUID{0x11}
+		rootAgentIDSlice := tailnet.UUIDToByteSlice(rootAgentID)
+		childSuffixAgentID := uuid.UUID{0x12}
+		childSuffixAgentIDSlice := tailnet.UUIDToByteSlice(childSuffixAgentID)
+
+		db := &mockWorkspaceStore{
+			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
+				{
+					ID:         workspaceID,
+					Name:       "child-suffix-workspace",
+					JobStatus:  database.ProvisionerJobStatusRunning,
+					Transition: database.WorkspaceTransitionStart,
+					Agents: []database.AgentIDNamePair{
+						{ID: rootAgentID, Name: "agent-root"},
+						{ID: childSuffixAgentID, Name: "agent-child-coderd-chat"},
+					},
+				},
+			},
+			workspaceAgents: map[uuid.UUID][]database.WorkspaceAgent{
+				workspaceID: {
+					{ID: rootAgentID, Name: "agent-root"},
+					{
+						ID:       childSuffixAgentID,
+						Name:     "agent-child-coderd-chat",
+						ParentID: uuid.NullUUID{UUID: rootAgentID, Valid: true},
+					},
+				},
+			},
+		}
+
+		ps := &mockPubsub{cbs: map[string]pubsub.ListenerWithErr{}}
+		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
+		t.Cleanup(func() {
+			_ = updateProvider.Close()
+		})
+
+		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sub.Close()
+		})
+
+		update := testutil.TryReceive(ctx, t, sub.Updates())
+		require.Equal(t, &proto.WorkspaceUpdate{
+			UpsertedWorkspaces: []*proto.Workspace{{
+				Id:     workspaceIDSlice,
+				Name:   "child-suffix-workspace",
+				Status: proto.Workspace_STARTING,
+			}},
+			UpsertedAgents: []*proto.Agent{
+				{
+					Id:          rootAgentIDSlice,
+					Name:        "agent-root",
+					WorkspaceId: workspaceIDSlice,
+				},
+				{
+					Id:          childSuffixAgentIDSlice,
+					Name:        "agent-child-coderd-chat",
+					WorkspaceId: workspaceIDSlice,
+				},
+			},
+			DeletedWorkspaces: []*proto.Workspace{},
+			DeletedAgents:     []*proto.Agent{},
+		}, update)
+	})
+
 	t.Run("Resubscribe", func(t *testing.T) {
 		t.Parallel()
 

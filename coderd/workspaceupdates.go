@@ -312,15 +312,23 @@ func convertRows(ctx context.Context, db UpdatesQuerier, rows []database.GetWork
 }
 
 func hiddenChatAgentIDs(ctx context.Context, db UpdatesQuerier, row database.GetWorkspacesAndAgentsByOwnerIDRow) (map[uuid.UUID]struct{}, error) {
-	hiddenAgentIDs := make(map[uuid.UUID]struct{})
-	hasChatAgent := false
+	hasSuffixAgent := false
 	for _, agent := range row.Agents {
 		if strings.HasSuffix(strings.ToLower(agent.Name), "-coderd-chat") {
-			hiddenAgentIDs[agent.ID] = struct{}{}
-			hasChatAgent = true
+			hasSuffixAgent = true
+			break
 		}
 	}
-	if !hasChatAgent || db == nil {
+	if !hasSuffixAgent {
+		return map[uuid.UUID]struct{}{}, nil
+	}
+	if db == nil {
+		hiddenAgentIDs := make(map[uuid.UUID]struct{})
+		for _, agent := range row.Agents {
+			if strings.HasSuffix(strings.ToLower(agent.Name), "-coderd-chat") {
+				hiddenAgentIDs[agent.ID] = struct{}{}
+			}
+		}
 		return hiddenAgentIDs, nil
 	}
 
@@ -329,14 +337,17 @@ func hiddenChatAgentIDs(ctx context.Context, db UpdatesQuerier, row database.Get
 		return nil, xerrors.Errorf("get workspace agents in latest build: %w", err)
 	}
 
+	hiddenAgentIDs := make(map[uuid.UUID]struct{})
 	childrenByParent := make(map[uuid.UUID][]uuid.UUID)
-	queue := make([]uuid.UUID, 0, len(hiddenAgentIDs))
-	for hiddenAgentID := range hiddenAgentIDs {
-		queue = append(queue, hiddenAgentID)
-	}
+	queue := make([]uuid.UUID, 0, len(workspaceAgents))
 	for _, agent := range workspaceAgents {
 		if agent.ParentID.Valid {
 			childrenByParent[agent.ParentID.UUID] = append(childrenByParent[agent.ParentID.UUID], agent.ID)
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(agent.Name), "-coderd-chat") {
+			hiddenAgentIDs[agent.ID] = struct{}{}
+			queue = append(queue, agent.ID)
 		}
 	}
 
