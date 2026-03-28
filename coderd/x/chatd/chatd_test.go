@@ -603,9 +603,19 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 0)
 
-	chatFromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, chatFromDB.Status)
+	// The wake channel may trigger immediate processing after EditMessage,
+	// transitioning the chat from pending to running then error before we
+	// read the DB. Wait for any in-flight processing to settle.
+	var chatFromDB database.Chat
+	require.Eventually(t, func() bool {
+		chatd.WaitUntilIdleForTest(replica)
+		c, e := db.GetChatByID(ctx, chat.ID)
+		if e != nil {
+			return false
+		}
+		chatFromDB = c
+		return chatFromDB.Status != database.ChatStatusRunning
+	}, testutil.WaitShort, testutil.IntervalFast)
 	require.False(t, chatFromDB.WorkerID.Valid)
 }
 
