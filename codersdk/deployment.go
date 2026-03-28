@@ -2557,7 +2557,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "Provisioner Daemon Types",
 			Description: fmt.Sprintf("The supported job types for the built-in provisioners. By default, this is only the terraform type. Supported types: %s.",
 				strings.Join([]string{
-					string(ProvisionerTypeTerraform), string(ProvisionerTypeEcho),
+					string(ProvisionerTypeTerraform), string(ProvisionerTypeEcho), string(ProvisionerTypePulumi),
 				}, ",")),
 			Flag:    "provisioner-types",
 			Env:     "CODER_PROVISIONER_TYPES",

@@ -446,7 +446,7 @@ provisioning:
   # (default: 3, type: int)
   daemons: 3
   # The supported job types for the built-in provisioners. By default, this is only
-  # the terraform type. Supported types: terraform,echo.
+  # the terraform type. Supported types: terraform,echo,pulumi.
   # (default: terraform, type: string-array)
   daemonTypes:
     - terraform
