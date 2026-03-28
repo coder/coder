@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { fn } from "storybook/test";
 import { AgentDetailTopBar } from "./TopBar";
 
 const defaultProps = {
@@ -16,10 +16,6 @@ const defaultProps = {
 		onOpenTerminal: fn(),
 		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
-	onArchiveAgent: fn(),
-	onArchiveAndDeleteWorkspace: fn(),
-	onRegenerateTitle: fn(),
-	onUnarchiveAgent: fn(),
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: fn(),
 } satisfies React.ComponentProps<typeof AgentDetailTopBar>;
@@ -76,12 +72,6 @@ export const WithParentChat: Story = {
 export const SidebarCollapsed: Story = {
 	args: {
 		isSidebarCollapsed: true,
-	},
-};
-
-export const Archived: Story = {
-	args: {
-		isArchived: true,
 	},
 };
 
@@ -233,41 +223,5 @@ export const MobileWithClosedPR: Story = {
 			deletions: 50,
 			changed_files: 3,
 		},
-	},
-};
-
-export const GenerateTitle: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Generate new title")).toBeInTheDocument();
-		});
-	},
-};
-
-export const ArchivedWithUnarchive: Story = {
-	args: {
-		isArchived: true,
-		onUnarchiveAgent: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Open the actions dropdown
-		const trigger = canvas.getByLabelText("Open agent actions");
-		await userEvent.click(trigger);
-		// Verify "Unarchive Agent" is shown instead of "Archive Agent"
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Unarchive Agent")).toBeInTheDocument();
-		});
-		const body = within(document.body);
-		expect(body.queryByText("Generate new title")).not.toBeInTheDocument();
-		expect(body.queryByText("Archive Agent")).not.toBeInTheDocument();
-		expect(
-			body.queryByText("Archive & Delete Workspace"),
-		).not.toBeInTheDocument();
 	},
 };

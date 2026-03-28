@@ -61,7 +61,6 @@ interface AgentDetailViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
-	hasWorkspace: boolean;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -113,13 +112,7 @@ interface AgentDetailViewProps {
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
 
-	// Archive actions.
-	handleArchiveAgentAction: () => void;
-	handleUnarchiveAgentAction: () => void;
-	handleArchiveAndDeleteWorkspaceAction: () => void;
-	handleRegenerateTitle?: () => void;
 	isRegeneratingTitle?: boolean;
-	isRegenerateTitleDisabled?: boolean;
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -148,7 +141,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
-	hasWorkspace,
 	store,
 	editing,
 	pendingEditMessageId,
@@ -179,12 +171,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
-	handleArchiveAgentAction,
-	handleUnarchiveAgentAction,
-	handleArchiveAndDeleteWorkspaceAction,
-	handleRegenerateTitle,
 	isRegeneratingTitle,
-	isRegenerateTitleDisabled,
 	scrollContainerRef,
 	scrollToBottomRef,
 	hasMoreMessages,
@@ -262,18 +249,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 								onOpenTerminal: handleOpenTerminal,
 								sshCommand,
 							}}
-							onArchiveAgent={handleArchiveAgentAction}
-							onUnarchiveAgent={handleUnarchiveAgentAction}
-							onArchiveAndDeleteWorkspace={
-								handleArchiveAndDeleteWorkspaceAction
-							}
-							{...(handleRegenerateTitle
-								? { onRegenerateTitle: handleRegenerateTitle }
-								: {})}
 							isRegeneratingTitle={isRegeneratingTitle}
-							isRegenerateTitleDisabled={isRegenerateTitleDisabled}
-							hasWorkspace={hasWorkspace}
-							isArchived={isArchived}
 							diffStatusData={diffStatusData}
 							isSidebarCollapsed={isSidebarCollapsed}
 							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -445,11 +421,6 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						onOpenTerminal: () => {},
 						sshCommand: undefined,
 					}}
-					onArchiveAgent={() => {}}
-					onUnarchiveAgent={() => {}}
-					onRegenerateTitle={() => {}}
-					onArchiveAndDeleteWorkspace={() => {}}
-					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
@@ -473,7 +444,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 					/>
-				</div>{" "}
+				</div>
 			</div>
 			{showRightPanel && (
 				<RightPanel
@@ -518,11 +489,6 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 					onOpenTerminal: () => {},
 					sshCommand: undefined,
 				}}
-				onArchiveAgent={() => {}}
-				onUnarchiveAgent={() => {}}
-				onRegenerateTitle={() => {}}
-				onArchiveAndDeleteWorkspace={() => {}}
-				hasWorkspace={false}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			/>

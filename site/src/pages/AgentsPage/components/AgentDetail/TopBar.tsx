@@ -1,6 +1,4 @@
 import {
-	ArchiveIcon,
-	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
 	CopyIcon,
@@ -11,8 +9,6 @@ import {
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
 	TerminalIcon,
-	Trash2Icon,
-	WandSparklesIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
@@ -52,14 +48,7 @@ type AgentDetailTopBarProps = {
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
 	workspace: WorkspaceActions;
-	onArchiveAgent: () => void;
-	onUnarchiveAgent: () => void;
-	onArchiveAndDeleteWorkspace: () => void;
-	onRegenerateTitle?: () => void;
 	isRegeneratingTitle?: boolean;
-	isRegenerateTitleDisabled?: boolean;
-	hasWorkspace?: boolean;
-	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
@@ -70,14 +59,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	parentChat,
 	panel,
 	workspace,
-	onArchiveAgent,
-	onUnarchiveAgent,
-	onArchiveAndDeleteWorkspace,
-	onRegenerateTitle,
 	isRegeneratingTitle,
-	isRegenerateTitleDisabled,
-	hasWorkspace,
-	isArchived,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
@@ -255,48 +237,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<MonitorIcon className="h-3.5 w-3.5" />
 								View Workspace
 							</DropdownMenuItem>
-							{!isArchived && (
-								<>
-									<DropdownMenuSeparator />
-									{onRegenerateTitle && (
-										<>
-											<DropdownMenuItem
-												disabled={isRegenerateTitleDisabled}
-												onSelect={onRegenerateTitle}
-											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-										</>
-									)}
-								</>
-							)}
-							{isArchived ? (
-								<DropdownMenuItem onSelect={onUnarchiveAgent}>
-									<ArchiveRestoreIcon className="h-3.5 w-3.5" />
-									Unarchive Agent
-								</DropdownMenuItem>
-							) : (
-								<>
-									<DropdownMenuItem
-										className="text-content-destructive focus:text-content-destructive"
-										onSelect={onArchiveAgent}
-									>
-										<ArchiveIcon className="h-3.5 w-3.5" />
-										Archive Agent
-									</DropdownMenuItem>
-									{hasWorkspace && (
-										<DropdownMenuItem
-											className="text-content-destructive focus:text-content-destructive"
-											onSelect={onArchiveAndDeleteWorkspace}
-										>
-											<Trash2Icon className="h-3.5 w-3.5" />
-											Archive & Delete Workspace
-										</DropdownMenuItem>
-									)}
-								</>
-							)}
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}
