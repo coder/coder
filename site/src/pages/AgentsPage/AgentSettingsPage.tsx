@@ -1,9 +1,11 @@
 import type { FC } from "react";
-import { Outlet, useParams } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 
 const AgentSettingsPage: FC = () => {
-	const { "*": section } = useParams();
+	const location = useLocation();
+	const match = location.pathname.match(/\/agents\/settings\/(.+)/);
+	const section = match?.[1];
 
 	return (
 		<>
