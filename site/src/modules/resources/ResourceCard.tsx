@@ -11,6 +11,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getVisibleWorkspaceAgents } from "./agentUtils";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
 
@@ -83,6 +84,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 	const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
 		useState(false);
 	const metadataToDisplay = resource.metadata ?? [];
+	const visibleAgents = getVisibleWorkspaceAgents(resource.agents);
 
 	const visibleMetadata = shouldDisplayAllMetadata
 		? metadataToDisplay
@@ -184,9 +186,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 				)}
 			</Stack>
 
-			{resource.agents && resource.agents.length > 0 && (
-				<div>{resource.agents.map(agentRow)}</div>
-			)}
+			{visibleAgents.length > 0 && <div>{visibleAgents.map(agentRow)}</div>}
 		</div>
 	);
 };

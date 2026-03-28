@@ -1,7 +1,11 @@
 import { renderHook } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import type { WorkspaceResource } from "#/api/typesGenerated";
-import { MockWorkspaceResource } from "#/testHelpers/entities";
+import { CHAT_AGENT_SUFFIX } from "#/modules/resources/agentUtils";
+import {
+	MockWorkspaceAgent,
+	MockWorkspaceResource,
+} from "#/testHelpers/entities";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 describe("useResourcesNav", () => {
@@ -23,6 +27,41 @@ describe("useResourcesNav", () => {
 		expect(result.current.value).toBe(
 			resourceOptionValue(MockWorkspaceResource),
 		);
+	});
+
+	it("skips resources whose agents are hidden from the dashboard", () => {
+		const resources: WorkspaceResource[] = [
+			{
+				...MockWorkspaceResource,
+				name: "chat-resource",
+				agents: [
+					{
+						...MockWorkspaceAgent,
+						id: "chat-agent",
+						name: `workspace${CHAT_AGENT_SUFFIX}`,
+					},
+				],
+			},
+			{
+				...MockWorkspaceResource,
+				name: "visible-resource",
+				agents: [
+					{
+						...MockWorkspaceAgent,
+						id: "visible-agent",
+						name: "workspace-agent",
+					},
+				],
+			},
+		];
+		const { result } = renderHook(() => useResourcesNav(resources), {
+			wrapper: ({ children }) => (
+				<RouterProvider
+					router={createMemoryRouter([{ path: "/", element: children }])}
+				/>
+			),
+		});
+		expect(result.current.value).toBe(resourceOptionValue(resources[1]));
 	});
 
 	it("selects the resource passed in the URL", () => {

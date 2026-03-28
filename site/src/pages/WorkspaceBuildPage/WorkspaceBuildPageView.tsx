@@ -28,6 +28,7 @@ import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { BuildAvatar } from "#/modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
+import { getVisibleWorkspaceAgents } from "#/modules/resources/agentUtils";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import {
 	WorkspaceBuildData,
@@ -88,7 +89,9 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 		return <Loader />;
 	}
 
-	const agents = build.resources.flatMap((r) => r.agents ?? []);
+	const agents = getVisibleWorkspaceAgents(
+		build.resources.flatMap((resource) => resource.agents ?? []),
+	);
 	const selectedAgent = agents.find((a) => a.id === tabState.value);
 
 	return (

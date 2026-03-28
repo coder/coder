@@ -7,6 +7,10 @@ import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
+import {
+	countVisibleWorkspaceAgents,
+	getVisibleWorkspaceAgents,
+} from "#/modules/resources/agentUtils";
 import { getAgentHealthIssue } from "#/modules/workspaces/health";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
@@ -84,11 +88,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 	};
 
 	const resources = [...workspace.latest_build.resources].sort(
-		(a, b) => countAgents(b) - countAgents(a),
+		(a, b) => countVisibleWorkspaceAgents(b) - countVisibleWorkspaceAgents(a),
 	);
 	const resourcesNav = useResourcesNav(resources);
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
+	);
+	const visibleSelectedResourceAgents = getVisibleWorkspaceAgents(
+		selectedResource?.agents,
 	);
 
 	const workspaceRunning = workspace.latest_build.status === "running";
@@ -212,17 +219,17 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 						{selectedResource && (
 							<section className="flex flex-col gap-6 flex-grow min-w-0">
-								{selectedResource.agents
-									// If an agent has a `parent_id`, that means it is
+								{visibleSelectedResourceAgents
+									// If an agent has a `parent_id`, that means it is a
 									// child of another agent. We do not want these agents
-									// to be displayed at the top-level on this page. We
-									// want them to display _as children_ of their parents.
-									?.filter((agent) => agent.parent_id === null)
+									// to be displayed at the top level on this page. We
+									// want them to display as children of their parents.
+									.filter((agent) => agent.parent_id === null)
 									.map((agent) => (
 										<AgentRow
 											key={agent.id}
 											agent={agent}
-											subAgents={selectedResource.agents?.filter(
+											subAgents={visibleSelectedResourceAgents.filter(
 												(a) => a.parent_id === agent.id,
 											)}
 											workspace={workspace}
@@ -231,8 +238,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 										/>
 									))}
 
-								{(!selectedResource.agents ||
-									selectedResource.agents?.length === 0) && (
+								{visibleSelectedResourceAgents.length === 0 && (
 									<div className="flex justify-center items-center w-full h-full">
 										<div>
 											<h4 className="text-base font-medium">
@@ -254,8 +260,4 @@ export const Workspace: FC<WorkspaceProps> = ({
 			</div>
 		</div>
 	);
-};
-
-const countAgents = (resource: TypesGen.WorkspaceResource) => {
-	return resource.agents ? resource.agents.length : 0;
 };
