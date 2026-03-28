@@ -73,17 +73,11 @@ export const ExecuteTool: React.FC<{
 	return (
 		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			{/* Header: $ command + copy button */}
-			<div
-				className={cn(
-					"flex w-full justify-between gap-2 px-2.5 py-0.5",
-					commandExpanded ? "items-start" : "items-center",
-				)}
-			>
+			<div className="flex w-full items-start justify-between gap-2 px-3 py-2">
 				{/* biome-ignore lint/a11y/useKeyWithClickEvents: Click toggles for mouse users; keyboard users use the chevron button. */}
 				<div
 					className={cn(
-						"flex min-w-0 flex-1 gap-2",
-						commandExpanded ? "items-start" : "items-center",
+						"flex min-w-0 flex-1 items-start gap-2",
 						canToggleCommand && "cursor-pointer",
 					)}
 					onClick={
@@ -138,9 +132,11 @@ export const ExecuteTool: React.FC<{
 							<TooltipContent>Running in background</TooltipContent>
 						</Tooltip>
 					)}
-					<span className="opacity-0 transition-opacity group-hover/exec:opacity-100">
-						<CopyButton text={command} label="Copy command" />
-					</span>
+					<CopyButton
+						text={command}
+						label="Copy command"
+						className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
+					/>
 				</div>
 			</div>
 			{/* Output preview / expanded */}
@@ -160,7 +156,7 @@ export const ExecuteTool: React.FC<{
 									: { maxHeight: COLLAPSED_OUTPUT_HEIGHT, overflow: "hidden" }
 							}
 							className={cn(
-								"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-2.5 py-2 font-mono text-xs",
+								"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-3 py-2 font-mono text-xs",
 								"text-content-secondary",
 							)}
 						>
