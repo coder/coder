@@ -57,7 +57,7 @@ import (
 
 const (
 	chatDiffStatusTTL   = gitsync.DiffStatusTTL
-	chatStreamBatchSize = 32
+	chatStreamBatchSize = 256
 
 	chatContextLimitModelConfigKey                = "context_limit"
 	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
