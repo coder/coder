@@ -289,10 +289,6 @@ const AgentDetail: FC = () => {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
-		requestArchiveAgent,
-		requestArchiveAndDeleteWorkspace,
-		requestUnarchiveAgent,
-		onRegenerateTitle,
 		isRegeneratingTitle,
 		regeneratingTitleChatId,
 		isSidebarCollapsed,
@@ -486,7 +482,6 @@ const AgentDetail: FC = () => {
 				}
 			: undefined;
 	const isArchived = chatRecord?.archived ?? false;
-	const isRegenerateTitleDisabled = isArchived || isRegeneratingTitle;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const sendMutation = useMutation(
@@ -863,27 +858,6 @@ const AgentDetail: FC = () => {
 		openAppInNewWindow(terminalHref);
 	};
 
-	const handleArchiveAgentAction = () => {
-		if (!agentId || isArchived) {
-			return;
-		}
-		requestArchiveAgent(agentId);
-	};
-
-	const handleArchiveAndDeleteWorkspaceAction = () => {
-		if (!agentId || isArchived || !workspaceId) {
-			return;
-		}
-		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
-	};
-
-	const handleUnarchiveAgentAction = () => {
-		if (!agentId || !isArchived) {
-			return;
-		}
-		requestUnarchiveAgent(agentId);
-	};
-
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
@@ -906,13 +880,6 @@ const AgentDetail: FC = () => {
 		chatMessagesQuery.isSuccess,
 		agentId,
 	]);
-
-	const handleRegenerateTitle = () => {
-		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {
-			return;
-		}
-		onRegenerateTitle(agentId);
-	};
 
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
@@ -949,7 +916,6 @@ const AgentDetail: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
-			hasWorkspace={Boolean(workspaceId)}
 			store={store}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}
@@ -980,14 +946,7 @@ const AgentDetail: FC = () => {
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
-			handleArchiveAgentAction={handleArchiveAgentAction}
-			handleUnarchiveAgentAction={handleUnarchiveAgentAction}
-			handleArchiveAndDeleteWorkspaceAction={
-				handleArchiveAndDeleteWorkspaceAction
-			}
-			handleRegenerateTitle={handleRegenerateTitle}
 			isRegeneratingTitle={isRegeneratingThisChat}
-			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
 			scrollToBottomRef={scrollToBottomRef}
