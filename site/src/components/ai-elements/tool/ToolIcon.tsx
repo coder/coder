@@ -1,9 +1,11 @@
 import {
+	BookOpenIcon,
 	BotIcon,
 	ClipboardListIcon,
 	FileIcon,
 	FilePenIcon,
 	MonitorIcon,
+	PlayIcon,
 	PlusCircleIcon,
 	TerminalIcon,
 	WrenchIcon,
@@ -85,6 +87,12 @@ export const ToolIcon: React.FC<{
 		case "computer":
 		case "spawn_computer_use_agent":
 			return <MonitorIcon className={base} />;
+		case "read_skill":
+		case "read_skill_file":
+			return <BookOpenIcon className={base} />;
+		case "start_workspace":
+			return <PlayIcon className={base} />;
+
 		default:
 			return <WrenchIcon className={base} />;
 	}
