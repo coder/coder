@@ -696,7 +696,7 @@ export const router = createBrowserRouter(
 				>
 					<Route index element={<AgentCreatePage />} />
 					<Route path="settings" element={<AgentSettingsPage />}>
-						<Route index element={<Navigate to="behavior" replace />} />
+						<Route index element={<AgentSettingsBehaviorPage />} />
 						<Route path="behavior" element={<AgentSettingsBehaviorPage />} />
 						<Route path="providers" element={<AgentSettingsProvidersPage />} />
 						<Route path="models" element={<AgentSettingsModelsPage />} />
