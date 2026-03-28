@@ -639,6 +639,13 @@ const ScrollAnchoredContainer: FC<{
 	// wheel guard was active. When scrolling stops, run one catch-up
 	// pin so auto-follow resumes without waiting for another resize.
 	const pendingWheelPinRef = useRef(false);
+	// Snapshot of autoScrollRef at the start of the current wheel
+	// burst. Used by the debounce timeout to decide whether to repin
+	// after deferred content growth.
+	const wheelSessionAutoScrollRef = useRef(false);
+	// scrollTop at the start of the current wheel burst. Compared
+	// against the final scrollTop to detect intentional upward scrolls.
+	const wheelSessionStartTopRef = useRef(0);
 	useLayoutEffect(() => {
 		isFetchingRef.current = isFetchingMoreMessages;
 		if (isFetchingMoreMessages) {
@@ -1005,6 +1012,14 @@ const ScrollAnchoredContainer: FC<{
 		};
 
 		const handleWheel = () => {
+			if (!isWheelScrollingRef.current) {
+				// First wheel event of this burst: snapshot the current
+				// follow state and scroll position so the debounce
+				// timeout can distinguish content-driven gaps from
+				// intentional user scroll.
+				wheelSessionAutoScrollRef.current = autoScrollRef.current;
+				wheelSessionStartTopRef.current = container.scrollTop;
+			}
 			isWheelScrollingRef.current = true;
 			if (wheelTimeoutId !== null) {
 				clearTimeout(wheelTimeoutId);
@@ -1015,20 +1030,43 @@ const ScrollAnchoredContainer: FC<{
 			wheelTimeoutId = setTimeout(() => {
 				isWheelScrollingRef.current = false;
 				wheelTimeoutId = null;
-				const shouldPinAfterWheel =
-					pendingWheelPinRef.current && autoScrollRef.current;
+				const wasPinDeferred = pendingWheelPinRef.current;
 				pendingWheelPinRef.current = false;
-				if (shouldPinAfterWheel) {
-					scrollTranscriptToBottom({
-						behavior: "instant",
-						scrollContainerRef,
-						autoScrollRef,
-						isRestoringScrollRef,
-						setShowScrollToBottom,
-					});
+				// Repin if the wheel burst started in follow mode and
+				// content grew while the guard was active, unless the
+				// user clearly scrolled away from the near-bottom follow
+				// zone during the burst.
+				if (wasPinDeferred && wheelSessionAutoScrollRef.current) {
+					const scrolledUp =
+						container.scrollTop < wheelSessionStartTopRef.current - 1;
+					const nearBottom = isNearBottom(container);
+					if (!scrolledUp || nearBottom) {
+						scrollTranscriptToBottom({
+							behavior: "instant",
+							scrollContainerRef,
+							autoScrollRef,
+							isRestoringScrollRef,
+							setShowScrollToBottom,
+						});
+					} else {
+						autoScrollRef.current = false;
+						setShowScrollToBottom(true);
+					}
+				} else {
+					// Sync follow state with the actual scroll position
+					// now that the wheel burst is over.
+					const nearBottom = isNearBottom(container);
+					autoScrollRef.current = nearBottom;
+					setShowScrollToBottom(!nearBottom);
 				}
 			}, 150);
-			handleUserInterrupt();
+			// Clear the restoration guard so user input can interrupt
+			// programmatic scrolls, but do not call handleUserInterrupt()
+			// here. The scroll handler and debounce timeout manage
+			// follow-mode transitions to avoid races with deferred
+			// content growth.
+			isRestoringScrollRef.current = false;
+			cancelPendingPinsRef.current?.();
 		};
 
 		const handleTouchStart = (event: TouchEvent) => {

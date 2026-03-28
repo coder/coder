@@ -946,3 +946,78 @@ export const ScrollNotJumpedDuringWheel: Story = {
 		});
 	},
 };
+
+const wheelDeferredStore = buildStoreWithMessages(buildLongConversation(30));
+
+/**
+ * Regression: when content grows during a wheel burst (so
+ * ResizeObserver pins are deferred), the transcript must recover
+ * auto-follow after the wheel debounce expires instead of getting
+ * stuck in a jumped-up position.
+ */
+export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentDetailView store={wheelDeferredStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Wait for the initial bottom pin to settle.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
+		// Start a wheel burst to activate the wheel guard.
+		scrollContainer.dispatchEvent(
+			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
+		);
+
+		// Append content while the wheel guard is active. This
+		// defers the ResizeObserver pin (pendingWheelPinRef = true)
+		// and creates the gap that previously triggered the bug.
+		const existing = getStoreMessages(wheelDeferredStore);
+		wheelDeferredStore.replaceMessages(
+			existing.concat([
+				buildMessage(31, "assistant", "A ".repeat(200)),
+				buildMessage(32, "assistant", "B ".repeat(200)),
+			]),
+		);
+
+		// Fire a second wheel tick. In the old code, this wheel
+		// event called handleUserInterrupt() which saw the gap
+		// and falsely disabled auto-follow.
+		scrollContainer.dispatchEvent(
+			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
+		);
+
+		// Wait for the 150ms wheel debounce to expire, plus the
+		// catch-up scrollTranscriptToBottom to settle.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+
+		// Scroll-to-bottom button should not be visible.
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+	},
+};
