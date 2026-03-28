@@ -9,12 +9,19 @@ import {
 } from "./agentUtils";
 
 describe("agentUtils", () => {
-	it("matches the chat agent suffix case-insensitively", () => {
+	it("matches the chat agent suffix case-insensitively for root agents", () => {
 		expect(
 			isChatAgent({
 				name: `workspace${CHAT_AGENT_SUFFIX.toUpperCase()}`,
+				parent_id: null,
 			}),
 		).toBe(true);
+		expect(
+			isChatAgent({
+				name: `workspace${CHAT_AGENT_SUFFIX}`,
+				parent_id: "parent-agent",
+			}),
+		).toBe(false);
 	});
 
 	it("hides chat agents and their descendants", () => {
@@ -38,5 +45,24 @@ describe("agentUtils", () => {
 		expect(
 			getVisibleWorkspaceAgents([chatAgent, chatSubAgent, visibleAgent]),
 		).toEqual([visibleAgent]);
+	});
+
+	it("keeps child agents with the chat suffix visible when their parent is not hidden", () => {
+		const rootAgent = {
+			...MockWorkspaceAgent,
+			id: "root-agent",
+			name: "workspace-agent",
+		};
+		const childSuffixAgent = {
+			...MockWorkspaceSubAgent,
+			id: "child-suffix-agent",
+			name: `workspace-child${CHAT_AGENT_SUFFIX}`,
+			parent_id: rootAgent.id,
+		};
+
+		expect(getVisibleWorkspaceAgents([rootAgent, childSuffixAgent])).toEqual([
+			rootAgent,
+			childSuffixAgent,
+		]);
 	});
 });

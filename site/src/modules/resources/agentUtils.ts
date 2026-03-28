@@ -3,8 +3,12 @@ import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 // Chat agents use this suffix for AI chat routing and stay hidden in the UI.
 export const CHAT_AGENT_SUFFIX = "-coderd-chat";
 
-export const isChatAgent = (agent: Pick<WorkspaceAgent, "name">): boolean => {
-	return agent.name.toLowerCase().endsWith(CHAT_AGENT_SUFFIX);
+export const isChatAgent = (
+	agent: Pick<WorkspaceAgent, "name" | "parent_id">,
+): boolean => {
+	return (
+		!agent.parent_id && agent.name.toLowerCase().endsWith(CHAT_AGENT_SUFFIX)
+	);
 };
 
 export const getVisibleWorkspaceAgents = (
