@@ -84,14 +84,17 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 			)
 		: [];
 	const selectedAgent = agents.find((a) => a.id === tabState.value);
-	const activeTab =
-		tabState.value === "build" || selectedAgent ? tabState.value : "build";
+	const activeTab = !build
+		? tabState.value
+		: tabState.value === "build" || selectedAgent
+			? tabState.value
+			: "build";
 
 	useEffect(() => {
-		if (tabState.value !== activeTab) {
+		if (build && tabState.value !== activeTab) {
 			tabState.setValue(activeTab);
 		}
-	}, [activeTab, tabState.setValue, tabState.value]);
+	}, [activeTab, build, tabState.setValue, tabState.value]);
 
 	if (buildError) {
 		return (

@@ -110,7 +110,7 @@ describe("WorkspaceBuildPage", () => {
 		);
 
 		expect(
-			await screen.findByText(MockWorkspaceBuildLogs[0].output),
+			await screen.findByText(MockWorkspaceBuildLogs[0].stage),
 		).toBeVisible();
 		expect(
 			screen.queryByText("coder_agent.workspace-coderd-chat"),
