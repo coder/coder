@@ -1088,6 +1088,15 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, model)
 
+		// signalWake from CreateChat may have triggered background
+		// processing that transitions the child to "error". Wait
+		// for that to finish, then reset to "running" so the test
+		// exercises the context-cancellation path. Using "running"
+		// (not "pending") prevents re-acquisition by the shared
+		// server's background loop.
+		server.inflight.Wait()
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
 		// Use a short-lived context instead of goroutine + sleep.
 		shortCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
 		defer cancel()

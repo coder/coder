@@ -539,7 +539,16 @@ func TestListChats(t *testing.T) {
 
 			require.Equal(t, firstUser.UserID, chat.OwnerID)
 			require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
-			require.Equal(t, codersdk.ChatStatusPending, chat.Status)
+			// The chat may have been picked up by the background
+			// processor (via signalWake) before we list, so
+			// accept any active status.
+			require.Contains(t, []codersdk.ChatStatus{
+				codersdk.ChatStatusPending,
+				codersdk.ChatStatusRunning,
+				codersdk.ChatStatusError,
+				codersdk.ChatStatusWaiting,
+				codersdk.ChatStatusCompleted,
+			}, chat.Status, "unexpected chat status: %s", chat.Status)
 			require.NotZero(t, chat.CreatedAt)
 			require.NotZero(t, chat.UpdatedAt)
 			require.Nil(t, chat.ParentChatID)
@@ -549,7 +558,6 @@ func TestListChats(t *testing.T) {
 			require.NotNil(t, chat.DiffStatus)
 			require.Equal(t, chat.ID, chat.DiffStatus.ChatID)
 		}
-
 		require.Contains(t, chatsByID, firstChatA.ID)
 		require.Contains(t, chatsByID, firstChatB.ID)
 		require.NotContains(t, chatsByID, memberDBChat.ID)
@@ -3682,6 +3690,17 @@ func TestRegenerateChatTitle(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+
+		// Wait for background processing triggered by signalWake
+		// to finish before setting the status, otherwise the
+		// processor may update updated_at concurrently.
+		require.Eventually(t, func() bool {
+			c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			if getErr != nil {
+				return false
+			}
+			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,
