@@ -14831,7 +14831,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "terraform",
-                        "echo"
+                        "echo",
+                        "pulumi"
                     ]
                 },
                 "storage_method": {

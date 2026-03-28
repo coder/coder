@@ -1,0 +1,4 @@
+-- Removing an enum value from PostgreSQL is not straightforward.
+-- This migration cannot be trivially rolled back.
+-- The 'pulumi' value will remain in the enum but will not be used
+-- after rollback.

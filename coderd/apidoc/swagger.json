@@ -13355,7 +13355,7 @@
 				},
 				"provisioner": {
 					"type": "string",
-					"enum": ["terraform", "echo"]
+					"enum": ["terraform", "echo", "pulumi"]
 				},
 				"storage_method": {
 					"enum": ["file"],

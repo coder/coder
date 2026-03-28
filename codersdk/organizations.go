@@ -28,13 +28,14 @@ type ProvisionerType string
 const (
 	ProvisionerTypeEcho      ProvisionerType = "echo"
 	ProvisionerTypeTerraform ProvisionerType = "terraform"
+	ProvisionerTypePulumi    ProvisionerType = "pulumi"
 )
 
 // ProvisionerTypeValid accepts string or ProvisionerType for easier usage.
 // Will validate the enum is in the set.
 func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 	switch string(pt) {
-	case string(ProvisionerTypeEcho), string(ProvisionerTypeTerraform):
+	case string(ProvisionerTypeEcho), string(ProvisionerTypeTerraform), string(ProvisionerTypePulumi):
 		return nil
 	default:
 		return xerrors.Errorf("provisioner type '%s' is not supported", pt)
@@ -124,7 +125,7 @@ type CreateTemplateVersionRequest struct {
 	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
 	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID" format:"uuid"`
 	ExampleID       string                   `json:"example_id,omitempty" validate:"required_without=FileID"`
-	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo pulumi,required"`
 	ProvisionerTags map[string]string        `json:"tags"`
 
 	UserVariableValues []VariableValue `json:"user_variable_values,omitempty"`
