@@ -49,7 +49,7 @@ export const ProcessOutputTool: React.FC<{
 										: { maxHeight: COLLAPSED_OUTPUT_HEIGHT, overflow: "hidden" }
 								}
 								className={cn(
-									"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-2.5 py-2 font-mono text-xs",
+									"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-3 py-2 font-mono text-xs",
 									isError
 										? "text-content-destructive"
 										: "text-content-secondary",
@@ -90,7 +90,7 @@ export const ProcessOutputTool: React.FC<{
 					)}
 				</>
 			) : (
-				<div className="flex items-center gap-1 px-2.5 py-1.5">
+				<div className="flex items-center gap-1 px-3 py-1.5">
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 					)}
