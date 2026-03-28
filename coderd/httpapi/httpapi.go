@@ -438,7 +438,7 @@ func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r 
 		}
 		go HeartbeatClose(ctx, log, cancel, socket)
 
-		eventC := make(chan codersdk.ServerSentEvent)
+		eventC := make(chan codersdk.ServerSentEvent, 64)
 		socketErrC := make(chan websocket.CloseError, 1)
 		closed := make(chan struct{})
 		go func() {

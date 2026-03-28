@@ -1005,6 +1005,12 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, model)
 
+		// signalWake from CreateChat may trigger immediate processing.
+		// Wait for it to settle, then reset chats to the state we need.
+		server.inflight.Wait()
+		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
 		// Trap the fallback poll ticker to know when the
 		// function has subscribed to pubsub and entered
 		// its select loop.
@@ -1087,6 +1093,15 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		ctx := chatdTestContext(t)
 
 		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// signalWake from CreateChat may have triggered background
+		// processing that transitions the child to "error". Wait
+		// for that to finish, then reset to "running" so the test
+		// exercises the context-cancellation path. Using "running"
+		// (not "pending") prevents re-acquisition by the shared
+		// server's background loop.
+		server.inflight.Wait()
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 		// Use a short-lived context instead of goroutine + sleep.
 		shortCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
