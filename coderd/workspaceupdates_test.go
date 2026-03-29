@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
@@ -242,8 +241,6 @@ func TestWorkspaceUpdates(t *testing.T) {
 		hiddenAgentUpdatedID := uuid.UUID{0x0C}
 		visibleAgentUpdatedID := uuid.UUID{0x0D}
 		visibleAgentUpdatedIDSlice := tailnet.UUIDToByteSlice(visibleAgentUpdatedID)
-		hiddenDescendantID := uuid.UUID{0x0E}
-		hiddenDescendantUpdatedID := uuid.UUID{0x0F}
 
 		db := &mockWorkspaceStore{
 			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
@@ -261,21 +258,6 @@ func TestWorkspaceUpdates(t *testing.T) {
 							ID:   hiddenAgentID,
 							Name: "agent1-CODERD-CHAT",
 						},
-						{
-							ID:   hiddenDescendantID,
-							Name: "agent1-child",
-						},
-					},
-				},
-			},
-			workspaceAgents: map[uuid.UUID][]database.WorkspaceAgent{
-				chatWorkspaceID: {
-					{ID: visibleAgentID, Name: "agent1"},
-					{ID: hiddenAgentID, Name: "agent1-CODERD-CHAT"},
-					{
-						ID:       hiddenDescendantID,
-						Name:     "agent1-child",
-						ParentID: uuid.NullUUID{UUID: hiddenAgentID, Valid: true},
 					},
 				},
 			},
@@ -331,20 +313,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 						ID:   hiddenAgentUpdatedID,
 						Name: "agent1-coderd-chat",
 					},
-					{
-						ID:   hiddenDescendantUpdatedID,
-						Name: "agent1-child-updated",
-					},
 				},
-			},
-		}
-		db.workspaceAgents[chatWorkspaceID] = []database.WorkspaceAgent{
-			{ID: visibleAgentID, Name: "agent1"},
-			{ID: hiddenAgentUpdatedID, Name: "agent1-coderd-chat"},
-			{
-				ID:       hiddenDescendantUpdatedID,
-				Name:     "agent1-child-updated",
-				ParentID: uuid.NullUUID{UUID: hiddenAgentUpdatedID, Valid: true},
 			},
 		}
 		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
@@ -376,21 +345,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 						ID:   hiddenAgentUpdatedID,
 						Name: "agent1-coderd-chat",
 					},
-					{
-						ID:   hiddenDescendantUpdatedID,
-						Name: "agent1-child-updated",
-					},
 				},
-			},
-		}
-		db.workspaceAgents[chatWorkspaceID] = []database.WorkspaceAgent{
-			{ID: visibleAgentID, Name: "agent1"},
-			{ID: visibleAgentUpdatedID, Name: "agent2"},
-			{ID: hiddenAgentUpdatedID, Name: "agent1-coderd-chat"},
-			{
-				ID:       hiddenDescendantUpdatedID,
-				Name:     "agent1-child-updated",
-				ParentID: uuid.NullUUID{UUID: hiddenAgentUpdatedID, Valid: true},
 			},
 		}
 		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
@@ -405,145 +360,6 @@ func TestWorkspaceUpdates(t *testing.T) {
 					Id:          visibleAgentUpdatedIDSlice,
 					Name:        "agent2",
 					WorkspaceId: chatWorkspaceIDSlice,
-				},
-			},
-			DeletedWorkspaces: []*proto.Workspace{},
-			DeletedAgents:     []*proto.Agent{},
-		}, update)
-	})
-
-	t.Run("KeepsChildSuffixAgentsVisible", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		workspaceID := uuid.UUID{0x10}
-		workspaceIDSlice := tailnet.UUIDToByteSlice(workspaceID)
-		rootAgentID := uuid.UUID{0x11}
-		rootAgentIDSlice := tailnet.UUIDToByteSlice(rootAgentID)
-		childSuffixAgentID := uuid.UUID{0x12}
-		childSuffixAgentIDSlice := tailnet.UUIDToByteSlice(childSuffixAgentID)
-
-		db := &mockWorkspaceStore{
-			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
-				{
-					ID:         workspaceID,
-					Name:       "child-suffix-workspace",
-					JobStatus:  database.ProvisionerJobStatusRunning,
-					Transition: database.WorkspaceTransitionStart,
-					Agents: []database.AgentIDNamePair{
-						{ID: rootAgentID, Name: "agent-root"},
-						{ID: childSuffixAgentID, Name: "agent-child-coderd-chat"},
-					},
-				},
-			},
-			workspaceAgents: map[uuid.UUID][]database.WorkspaceAgent{
-				workspaceID: {
-					{ID: rootAgentID, Name: "agent-root"},
-					{
-						ID:       childSuffixAgentID,
-						Name:     "agent-child-coderd-chat",
-						ParentID: uuid.NullUUID{UUID: rootAgentID, Valid: true},
-					},
-				},
-			},
-		}
-
-		ps := &mockPubsub{cbs: map[string]pubsub.ListenerWithErr{}}
-		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
-		t.Cleanup(func() {
-			_ = updateProvider.Close()
-		})
-
-		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sub.Close()
-		})
-
-		update := testutil.TryReceive(ctx, t, sub.Updates())
-		require.Equal(t, &proto.WorkspaceUpdate{
-			UpsertedWorkspaces: []*proto.Workspace{{
-				Id:     workspaceIDSlice,
-				Name:   "child-suffix-workspace",
-				Status: proto.Workspace_STARTING,
-			}},
-			UpsertedAgents: []*proto.Agent{
-				{
-					Id:          rootAgentIDSlice,
-					Name:        "agent-root",
-					WorkspaceId: workspaceIDSlice,
-				},
-				{
-					Id:          childSuffixAgentIDSlice,
-					Name:        "agent-child-coderd-chat",
-					WorkspaceId: workspaceIDSlice,
-				},
-			},
-			DeletedWorkspaces: []*proto.Workspace{},
-			DeletedAgents:     []*proto.Agent{},
-		}, update)
-	})
-
-	t.Run("FallsBackToUnfilteredAgentsWhenChatLookupFails", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		workspaceID := uuid.UUID{0x13}
-		workspaceIDSlice := tailnet.UUIDToByteSlice(workspaceID)
-		visibleAgentID := uuid.UUID{0x14}
-		visibleAgentIDSlice := tailnet.UUIDToByteSlice(visibleAgentID)
-		hiddenAgentID := uuid.UUID{0x15}
-		hiddenAgentIDSlice := tailnet.UUIDToByteSlice(hiddenAgentID)
-
-		db := &mockWorkspaceStore{
-			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
-				{
-					ID:         workspaceID,
-					Name:       "fallback-workspace",
-					JobStatus:  database.ProvisionerJobStatusRunning,
-					Transition: database.WorkspaceTransitionStart,
-					Agents: []database.AgentIDNamePair{
-						{ID: visibleAgentID, Name: "agent-visible"},
-						{ID: hiddenAgentID, Name: "agent-chat-coderd-chat"},
-					},
-				},
-			},
-			workspaceAgentErrors: map[uuid.UUID]error{
-				workspaceID: xerrors.New("lookup failed"),
-			},
-		}
-
-		ps := &mockPubsub{cbs: map[string]pubsub.ListenerWithErr{}}
-		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
-		t.Cleanup(func() {
-			_ = updateProvider.Close()
-		})
-
-		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sub.Close()
-		})
-
-		update := testutil.TryReceive(ctx, t, sub.Updates())
-		require.Equal(t, &proto.WorkspaceUpdate{
-			UpsertedWorkspaces: []*proto.Workspace{{
-				Id:     workspaceIDSlice,
-				Name:   "fallback-workspace",
-				Status: proto.Workspace_STARTING,
-			}},
-			UpsertedAgents: []*proto.Agent{
-				{
-					Id:          visibleAgentIDSlice,
-					Name:        "agent-visible",
-					WorkspaceId: workspaceIDSlice,
-				},
-				{
-					Id:          hiddenAgentIDSlice,
-					Name:        "agent-chat-coderd-chat",
-					WorkspaceId: workspaceIDSlice,
 				},
 			},
 			DeletedWorkspaces: []*proto.Workspace{},
@@ -634,42 +450,12 @@ func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, ev
 }
 
 type mockWorkspaceStore struct {
-	orderedRows          []database.GetWorkspacesAndAgentsByOwnerIDRow
-	workspaceAgents      map[uuid.UUID][]database.WorkspaceAgent
-	workspaceAgentErrors map[uuid.UUID]error
+	orderedRows []database.GetWorkspacesAndAgentsByOwnerIDRow
 }
 
 // GetAuthorizedWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
 func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return m.orderedRows, nil
-}
-
-// GetWorkspaceAgentsInLatestBuildByWorkspaceID implements coderd.UpdatesQuerier.
-func (m *mockWorkspaceStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
-	if m.workspaceAgentErrors != nil {
-		if err, ok := m.workspaceAgentErrors[workspaceID]; ok {
-			return nil, err
-		}
-	}
-	if m.workspaceAgents != nil {
-		if agents, ok := m.workspaceAgents[workspaceID]; ok {
-			return agents, nil
-		}
-	}
-	for _, row := range m.orderedRows {
-		if row.ID != workspaceID {
-			continue
-		}
-		agents := make([]database.WorkspaceAgent, 0, len(row.Agents))
-		for _, agent := range row.Agents {
-			agents = append(agents, database.WorkspaceAgent{
-				ID:   agent.ID,
-				Name: agent.Name,
-			})
-		}
-		return agents, nil
-	}
-	return nil, nil
 }
 
 // GetWorkspaceByAgentID implements coderd.UpdatesQuerier.
