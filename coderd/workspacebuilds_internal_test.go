@@ -89,14 +89,28 @@ func TestHiddenChatAgentIDsFromAgents(t *testing.T) {
 			},
 		},
 		{
-			name: "ChatRootWithChildren",
+			name: "ChatRootWithChild",
+			setup: func() ([]database.WorkspaceAgent, map[uuid.UUID]struct{}) {
+				chatRoot := newAgent("workspace-coderd-chat", uuid.NullUUID{})
+				child := newAgent("workspace-agent", uuid.NullUUID{UUID: chatRoot.ID, Valid: true})
+				visibleRoot := newAgent("workspace-main", uuid.NullUUID{})
+				return []database.WorkspaceAgent{chatRoot, child, visibleRoot}, map[uuid.UUID]struct{}{
+					chatRoot.ID: {},
+					child.ID:    {},
+				}
+			},
+		},
+		{
+			name: "ChatRootWithDescendants",
 			setup: func() ([]database.WorkspaceAgent, map[uuid.UUID]struct{}) {
 				chatRoot := newAgent("workspace-coderd-chat", uuid.NullUUID{})
 				child := newAgent("workspace-agent", uuid.NullUUID{UUID: chatRoot.ID, Valid: true})
 				grandchild := newAgent("workspace-sidecar", uuid.NullUUID{UUID: child.ID, Valid: true})
 				visibleRoot := newAgent("workspace-main", uuid.NullUUID{})
 				return []database.WorkspaceAgent{chatRoot, child, grandchild, visibleRoot}, map[uuid.UUID]struct{}{
-					chatRoot.ID: {},
+					chatRoot.ID:   {},
+					child.ID:      {},
+					grandchild.ID: {},
 				}
 			},
 		},
@@ -117,8 +131,10 @@ func TestHiddenChatAgentIDsFromAgents(t *testing.T) {
 				chatChildTwo := newAgent("workspace-sidecar", uuid.NullUUID{UUID: chatRootTwo.ID, Valid: true})
 				visibleRoot := newAgent("workspace-main", uuid.NullUUID{})
 				return []database.WorkspaceAgent{chatRootOne, chatChildOne, chatRootTwo, chatChildTwo, visibleRoot}, map[uuid.UUID]struct{}{
-					chatRootOne.ID: {},
-					chatRootTwo.ID: {},
+					chatRootOne.ID:  {},
+					chatChildOne.ID: {},
+					chatRootTwo.ID:  {},
+					chatChildTwo.ID: {},
 				}
 			},
 		},
