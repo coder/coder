@@ -2,6 +2,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { chatCostSummary } from "#/api/queries/chats";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { AgentAnalyticsPageView } from "./AgentAnalyticsPageView";
 import { AgentPageHeader } from "./components/AgentPageHeader";
@@ -35,7 +36,7 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 	});
 
 	return (
-		<>
+		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
 			<AgentPageHeader mobileBack={{ to: "/agents", label: "Agents" }} />
 			<AgentAnalyticsPageView
 				summary={summaryQuery.data}
@@ -44,7 +45,7 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 				onRetry={() => void summaryQuery.refetch()}
 				rangeLabel={dateRange.rangeLabel}
 			/>
-		</>
+		</ScrollArea>
 	);
 };
 
