@@ -3,7 +3,6 @@ import {
 	type FC,
 	type HTMLProps,
 	type ReactNode,
-	useEffect,
 	useLayoutEffect,
 	useRef,
 } from "react";
@@ -29,7 +28,6 @@ import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { BuildAvatar } from "#/modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
-import { getVisibleWorkspaceAgents } from "#/modules/resources/agentUtils";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import {
 	WorkspaceBuildData,
@@ -78,24 +76,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 		defaultValue: "build",
 	});
 
-	const agents = build
-		? getVisibleWorkspaceAgents(
-				build.resources.flatMap((resource) => resource.agents ?? []),
-			)
-		: [];
-	const selectedAgent = agents.find((a) => a.id === tabState.value);
-	const activeTab = !build
-		? tabState.value
-		: tabState.value === "build" || selectedAgent
-			? tabState.value
-			: "build";
-
-	useEffect(() => {
-		if (build && tabState.value !== activeTab) {
-			tabState.setValue(activeTab);
-		}
-	}, [activeTab, build, tabState.setValue, tabState.value]);
-
 	if (buildError) {
 		return (
 			<Margins>
@@ -107,6 +87,9 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	if (!build) {
 		return <Loader />;
 	}
+
+	const agents = build.resources.flatMap((r) => r.agents ?? []);
+	const selectedAgent = agents.find((a) => a.id === tabState.value);
 
 	return (
 		<DashboardFullPage>
@@ -169,7 +152,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 
 				<ScrollArea>
 					<div className="flex items-center justify-between border-0 border-b border-solid border-border">
-						<Tabs active={activeTab}>
+						<Tabs active={tabState.value}>
 							<TabsList className="gap-0">
 								<TabLink
 									to={`?${LOGS_TAB_KEY}=build`}
@@ -191,7 +174,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 								))}
 							</TabsList>
 						</Tabs>
-						{activeTab === "build" && (
+						{tabState.value === "build" && (
 							<a
 								href={`/api/v2/workspacebuilds/${build.id}/logs?format=text`}
 								target="_blank"
@@ -202,7 +185,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 								<ExternalLinkIcon className="size-3" />
 							</a>
 						)}
-						{activeTab !== "build" && selectedAgent && (
+						{tabState.value !== "build" && selectedAgent && (
 							<a
 								href={`/api/v2/workspaceagents/${selectedAgent.id}/logs?format=text`}
 								target="_blank"
@@ -242,10 +225,10 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 						</Alert>
 					)}
 
-					{activeTab === "build" && (
+					{tabState.value === "build" && (
 						<BuildLogsContent logs={logs} build={build} />
 					)}
-					{activeTab !== "build" && selectedAgent && (
+					{tabState.value !== "build" && selectedAgent && (
 						<AgentLogsContent agent={selectedAgent} />
 					)}
 				</ScrollArea>

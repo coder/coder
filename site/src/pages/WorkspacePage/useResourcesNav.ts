@@ -2,7 +2,6 @@ import { useCallback, useEffect } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
-import { countVisibleWorkspaceAgents } from "#/modules/resources/agentUtils";
 export const resourceOptionValue = (resource: WorkspaceResource) => {
 	return `${resource.type}_${resource.name}`;
 };
@@ -25,13 +24,12 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
 	const onResourceChanges = useEffectEvent(
 		(resources?: WorkspaceResource[]) => {
 			const hasSelectedResource = resourcesNav.value !== "";
-			const firstResourceWithVisibleAgents = resources?.find(
-				(resource) => countVisibleWorkspaceAgents(resource) > 0,
-			);
-			const fallbackResource = firstResourceWithVisibleAgents ?? resources?.[0];
+			const hasResources = resources && resources.length > 0;
+			const hasResourcesWithAgents =
+				hasResources && resources[0].agents && resources[0].agents.length > 0;
 
-			if (!hasSelectedResource && fallbackResource) {
-				resourcesNav.setValue(resourceOptionValue(fallbackResource));
+			if (!hasSelectedResource && hasResourcesWithAgents) {
+				resourcesNav.setValue(resourceOptionValue(resources[0]));
 			}
 		},
 	);

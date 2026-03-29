@@ -3,8 +3,11 @@ import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { Stack } from "#/components/Stack/Stack";
-import { countVisibleWorkspaceAgents } from "./agentUtils";
 import { ResourceCard } from "./ResourceCard";
+
+const countAgents = (resource: WorkspaceResource) => {
+	return resource.agents ? resource.agents.length : 0;
+};
 
 interface ResourcesProps {
 	resources: WorkspaceResource[];
@@ -19,10 +22,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 		: resources
 				.filter((resource) => !resource.hide)
 				// Display the resources with agents first
-				.sort(
-					(a, b) =>
-						countVisibleWorkspaceAgents(b) - countVisibleWorkspaceAgents(a),
-				);
+				.sort((a, b) => countAgents(b) - countAgents(a));
 	const hasHideResources = resources.some((r) => r.hide);
 
 	return (
@@ -31,9 +31,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 				<ResourceCard
 					key={resource.id}
 					resource={resource}
-					agentRow={(agent) =>
-						agentRow(agent, countVisibleWorkspaceAgents(resource))
-					}
+					agentRow={(agent) => agentRow(agent, countAgents(resource))}
 				/>
 			))}
 			{hasHideResources && (
