@@ -13,29 +13,39 @@ func TestIsChatAgent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		agentName string
-		want      bool
+		name  string
+		input string
+		want  bool
 	}{
 		{
-			name:      "ExactSuffix",
-			agentName: "workspace-coderd-chat",
-			want:      true,
+			name:  "exact suffix",
+			input: "agent-coderd-chat",
+			want:  true,
 		},
 		{
-			name:      "CaseInsensitive",
-			agentName: "workspace-CODERD-CHAT",
-			want:      true,
+			name:  "uppercase suffix",
+			input: "agent-CODERD-CHAT",
+			want:  true,
 		},
 		{
-			name:      "NoSuffix",
-			agentName: "workspace-agent",
-			want:      false,
+			name:  "mixed case",
+			input: "agent-Coderd-Chat",
+			want:  true,
 		},
 		{
-			name:      "EmptyString",
-			agentName: "",
-			want:      false,
+			name:  "no suffix",
+			input: "my-agent",
+			want:  false,
+		},
+		{
+			name:  "suffix only",
+			input: "-coderd-chat",
+			want:  true,
+		},
+		{
+			name:  "partial suffix",
+			input: "agent-coderd",
+			want:  false,
 		},
 	}
 
@@ -43,7 +53,7 @@ func TestIsChatAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, isChatAgent(tt.agentName))
+			require.Equal(t, tt.want, isChatAgent(tt.input))
 		})
 	}
 }
@@ -86,9 +96,7 @@ func TestHiddenChatAgentIDsFromAgents(t *testing.T) {
 				grandchild := newAgent("workspace-sidecar", uuid.NullUUID{UUID: child.ID, Valid: true})
 				visibleRoot := newAgent("workspace-main", uuid.NullUUID{})
 				return []database.WorkspaceAgent{chatRoot, child, grandchild, visibleRoot}, map[uuid.UUID]struct{}{
-					chatRoot.ID:   {},
-					child.ID:      {},
-					grandchild.ID: {},
+					chatRoot.ID: {},
 				}
 			},
 		},
@@ -109,10 +117,8 @@ func TestHiddenChatAgentIDsFromAgents(t *testing.T) {
 				chatChildTwo := newAgent("workspace-sidecar", uuid.NullUUID{UUID: chatRootTwo.ID, Valid: true})
 				visibleRoot := newAgent("workspace-main", uuid.NullUUID{})
 				return []database.WorkspaceAgent{chatRootOne, chatChildOne, chatRootTwo, chatChildTwo, visibleRoot}, map[uuid.UUID]struct{}{
-					chatRootOne.ID:  {},
-					chatChildOne.ID: {},
-					chatRootTwo.ID:  {},
-					chatChildTwo.ID: {},
+					chatRootOne.ID: {},
+					chatRootTwo.ID: {},
 				}
 			},
 		},
