@@ -1272,7 +1272,7 @@ func (m queryMetricsStore) GetChatWorkspaceTTL(ctx context.Context) (string, err
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
+func (m queryMetricsStore) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.GetChatsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChats(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChats").Observe(time.Since(start).Seconds())
@@ -3752,6 +3752,14 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeClients(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeClients").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeClients").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeInterceptions(ctx, arg)
@@ -4110,6 +4118,14 @@ func (m queryMetricsStore) UpdateChatLastModelConfigByID(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpdateChatLastModelConfigByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatLastModelConfigByID").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatLastReadMessageID(ctx context.Context, arg database.UpdateChatLastReadMessageIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatLastReadMessageID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatLastReadMessageID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatLastReadMessageID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateChatMCPServerIDs(ctx context.Context, arg database.UpdateChatMCPServerIDsParams) (database.Chat, error) {
@@ -5288,6 +5304,14 @@ func (m queryMetricsStore) ListAuthorizedAIBridgeModels(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAuthorizedAIBridgeClients(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeClients").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeClients").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAuthorizedAIBridgeSessions(ctx context.Context, arg database.ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAuthorizedAIBridgeSessions(ctx, arg, prepared)
@@ -5312,7 +5336,7 @@ func (m queryMetricsStore) ListAuthorizedAIBridgeSessionThreads(ctx context.Cont
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
+func (m queryMetricsStore) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.GetChatsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizedChats(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedChats").Observe(time.Since(start).Seconds())

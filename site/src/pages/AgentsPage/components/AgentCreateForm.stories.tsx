@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { API } from "#/api/api";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
@@ -29,13 +28,13 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isModelCatalogLoading: false,
 		modelConfigs: [],
 		isModelConfigsLoading: false,
+		workspaceCount: 0,
+		workspaceOptions: [],
+		workspacesError: undefined,
+		isWorkspacesLoading: false,
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: [],
-			count: 0,
-		});
 	},
 };
 
@@ -71,12 +70,12 @@ const mockWorkspaces = [
 ];
 
 export const WithWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -97,12 +96,12 @@ export const WithWorkspaces: Story = {
 };
 
 export const SearchWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -133,12 +132,12 @@ export const SearchWorkspaces: Story = {
 };
 
 export const SelectWorkspaceViaSearch: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -210,10 +209,6 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 				},
 			]),
 		);
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: [],
-			count: 0,
-		});
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);

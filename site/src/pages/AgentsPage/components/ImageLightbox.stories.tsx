@@ -7,7 +7,7 @@ const TINY_PNG =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 const meta: Meta<typeof ImageLightbox> = {
-	title: "pages/AgentsPage/ImageLightbox",
+	title: "components/ImageLightbox",
 	component: ImageLightbox,
 	decorators: [
 		(Story) => (

@@ -1,9 +1,9 @@
-import { useFilter } from "components/Filter/Filter";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
+import { useFilter } from "#/components/Filter/Filter";
+import { useUserFilterMenu } from "#/components/Filter/UserFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -62,6 +62,7 @@ const AISessionListPage: FC = () => {
 
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
+				isFetching={sessionsQuery.isFetching}
 				isAISessionsEntitled={isEntitled}
 				isAISessionsEnabled={isEnabled}
 				sessions={sessionsQuery.data?.sessions}

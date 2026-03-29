@@ -3,12 +3,12 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import type { ModelSelectorOption } from "../ChatElements";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 const defaultModelOptions: ModelSelectorOption[] = [
@@ -49,6 +49,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	updated_at: oneWeekAgo,
 	archived: false,
 	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 	...overrides,
 });
@@ -77,8 +78,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onRegenerateTitle: fn(),
 		onBeforeNewAgent: fn(),
 		isCreating: false,
-		isRegeneratingTitle: false,
-		regeneratingTitleChatId: null,
+		regeneratingTitleChatIds: [],
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
 	},
@@ -323,6 +323,64 @@ export const ActiveChatAncestryExpanded: Story = {
 // Use a fixed offset so the value always falls in the "Today" bucket
 // without embedding a literal date that drifts across calendar days.
 const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
+
+export const RegeneratingTitleDisablesOnlyActiveChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "regenerating-chat",
+				title: "Regenerating agent",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-chat",
+				title: "Idle agent",
+				updated_at: recentTimestamp,
+			}),
+		],
+		regeneratingTitleChatIds: ["regenerating-chat"],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
+			"aria-busy",
+			"true",
+		);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Regenerating agent",
+			}),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Generate new title" }),
+		).toHaveAttribute("data-disabled");
+
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitem", { name: "Generate new title" }),
+			).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Idle agent",
+			}),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: "Generate new title" }),
+		).not.toHaveAttribute("data-disabled");
+	},
+};
 
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {
@@ -704,6 +762,69 @@ export const WithPRStateIcons: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const WithUnreadChats: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unread-1",
+				title: "Unread chat with new activity",
+				has_unread: true,
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "read-1",
+				title: "Already read chat",
+				has_unread: false,
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "unread-2",
+				title: "Another unread chat",
+				has_unread: true,
+				status: "running",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "unread-active",
+				title: "Unread but currently viewed",
+				has_unread: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/unread-active",
+				pathParams: { agentId: "unread-active" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			// Unread indicators should be visible for unread chats
+			// that are NOT the active chat.
+			expect(
+				canvas.getByTestId("unread-indicator-unread-1"),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByTestId("unread-indicator-unread-2"),
+			).toBeInTheDocument();
+		});
+		// Read chat should not have an unread indicator.
+		expect(
+			canvas.queryByTestId("unread-indicator-read-1"),
+		).not.toBeInTheDocument();
+		// Unread chat that IS the active chat should not show
+		// the indicator — the user is already viewing it.
+		expect(
+			canvas.queryByTestId("unread-indicator-unread-active"),
+		).not.toBeInTheDocument();
 	},
 };
 

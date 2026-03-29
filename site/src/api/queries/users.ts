@@ -154,7 +154,7 @@ export const me = (metadata: MetadataState<User>) => {
 	});
 };
 
-export const userKey = (usernameOrId: string) => ["user", usernameOrId];
+const userKey = (usernameOrId: string) => ["user", usernameOrId];
 
 export const user = (usernameOrId: string) => {
 	return {

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import { screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
 import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,

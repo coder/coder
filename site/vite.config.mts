@@ -18,7 +18,7 @@ const plugins: PluginOption[] = [
 			plugins: [],
 			overrides: [
 				{
-					test: /src\/(pages\/AgentsPage|components\/ai-elements)\//,
+					test: /src\/pages\/AgentsPage\//,
 					plugins: ["babel-plugin-react-compiler"],
 				},
 			],
@@ -219,16 +219,6 @@ export default defineConfig({
 			...(isProfilingBuild
 				? { "react-dom/client": "react-dom/profiling" }
 				: {}),
-			App: path.resolve(__dirname, "./src/App"),
-			api: path.resolve(__dirname, "./src/api"),
-			components: path.resolve(__dirname, "./src/components"),
-			contexts: path.resolve(__dirname, "./src/contexts"),
-			hooks: path.resolve(__dirname, "./src/hooks"),
-			modules: path.resolve(__dirname, "./src/modules"),
-			pages: path.resolve(__dirname, "./src/pages"),
-			testHelpers: path.resolve(__dirname, "./src/testHelpers"),
-			theme: path.resolve(__dirname, "./src/theme"),
-			utils: path.resolve(__dirname, "./src/utils"),
 		},
 	},
 	test: {

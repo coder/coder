@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import { type FC, Fragment, useEffect } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
@@ -25,6 +24,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	castNotificationMethod,
 	isTaskNotification,

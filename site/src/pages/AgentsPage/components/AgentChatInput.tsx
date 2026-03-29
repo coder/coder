@@ -1,10 +1,8 @@
 import {
-	AlertTriangleIcon,
 	ArrowUpIcon,
 	Check,
 	CheckIcon,
 	ChevronRightIcon,
-	ClipboardPasteIcon,
 	ImageIcon,
 	MicIcon,
 	MonitorIcon,
@@ -25,10 +23,6 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import {
 	ChatMessageInput,
@@ -52,44 +46,27 @@ import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import {
-	fetchTextAttachmentContent,
-	formatTextAttachmentPreview,
-} from "../utils/fetchTextAttachment";
 import { formatProviderLabel } from "../utils/modelOptions";
+import type { UploadState } from "./AttachmentPreview";
+import { AttachmentPreview } from "./AttachmentPreview";
+import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import type { AgentContextUsage } from "./ContextUsageIndicator";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
 export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
-
-export type UploadState = {
-	status: "uploading" | "uploaded" | "error";
-	fileId?: string;
-	error?: string;
-};
-
-export interface AgentContextUsage {
-	readonly usedTokens?: number;
-	readonly contextLimitTokens?: number;
-	readonly inputTokens?: number;
-	readonly outputTokens?: number;
-	readonly cacheReadTokens?: number;
-	readonly cacheCreationTokens?: number;
-	readonly reasoningTokens?: number;
-	// Percentage (0–100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
-}
+export {
+	ImageThumbnail,
+	type UploadState,
+} from "./AttachmentPreview";
+export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
@@ -137,6 +114,7 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
+	onEditLastUserMessage?: () => void;
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -155,308 +133,6 @@ interface AgentChatInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 }
-const hasFiniteTokenValue = (value: number | undefined): value is number =>
-	typeof value === "number" && Number.isFinite(value) && value >= 0;
-
-const formatTokenCount = (value: number | undefined): string =>
-	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
-
-const formatTokenCountCompact = (value: number | undefined): string => {
-	if (!hasFiniteTokenValue(value)) {
-		return "--";
-	}
-	if (value >= 1_000_000) {
-		const m = value / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1).replace(/\.0$/, "")}M`;
-	}
-	if (value >= 1_000) {
-		const k = value / 1_000;
-		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
-	}
-	return String(value);
-};
-
-const getIndicatorToneClassName = (percentUsed: number | null): string => {
-	if (percentUsed === null) {
-		return "text-content-secondary/60";
-	}
-	if (percentUsed >= 95) {
-		return "text-content-destructive";
-	}
-	if (percentUsed >= 85) {
-		return "text-content-warning";
-	}
-	return "text-content-secondary/60";
-};
-
-const RING_SIZE = 18;
-const RING_STROKE = 2.5;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
-	usage,
-}) => {
-	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
-		? usage.usedTokens
-		: undefined;
-	const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
-		? usage.contextLimitTokens
-		: undefined;
-	const percentUsed =
-		usedTokens !== undefined &&
-		contextLimitTokens !== undefined &&
-		contextLimitTokens > 0
-			? (usedTokens / contextLimitTokens) * 100
-			: null;
-	const hasPercent = percentUsed !== null;
-	const percentLabel =
-		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-	const clampedPercent = hasPercent
-		? Math.min(Math.max(percentUsed, 0), 100)
-		: 100;
-	const dashOffset =
-		RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
-	const toneClassName = getIndicatorToneClassName(percentUsed);
-	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
-		: "Context usage";
-
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<button
-					type="button"
-					aria-label={ariaLabel}
-					className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
-				>
-					<svg
-						className={cn("size-icon-sm -rotate-90", toneClassName)}
-						viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-						aria-hidden
-					>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							className="stroke-content-secondary/25"
-						/>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							strokeLinecap="round"
-							className="stroke-current transition-all duration-300 ease-out"
-							style={{
-								strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-								strokeDashoffset: dashOffset,
-							}}
-						/>
-					</svg>
-				</button>
-			</TooltipTrigger>
-			<TooltipContent side="top">
-				<div className="text-xs text-content-primary">
-					{hasPercent
-						? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-						: "Context usage unavailable"}
-					{hasPercent &&
-						usage?.compressionThreshold !== undefined &&
-						usage.compressionThreshold > 0 && (
-							<div className="mt-1 text-content-secondary">
-								Compacts at {usage.compressionThreshold}%
-							</div>
-						)}
-				</div>
-			</TooltipContent>
-		</Tooltip>
-	);
-};
-
-/** Renders an image thumbnail from a pre-created preview URL. */
-export const ImageThumbnail: FC<{
-	previewUrl: string;
-	name: string;
-	className?: string;
-}> = ({ previewUrl, name, className }) => (
-	<img
-		src={previewUrl}
-		alt={name}
-		className={cn(
-			"h-16 w-16 rounded-md border border-border-default object-cover",
-			className,
-		)}
-	/>
-);
-
-/** Renders a horizontal strip of attachment thumbnails above the input. */
-export const AttachmentPreview: FC<{
-	attachments: readonly File[];
-	onRemove: (attachment: number | File) => void;
-	uploadStates?: Map<File, UploadState>;
-	previewUrls?: Map<File, string>;
-	onPreview?: (url: string) => void;
-	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
-	onInlineText?: (file: File, content?: string) => void;
-}> = ({
-	attachments,
-	onRemove,
-	uploadStates,
-	previewUrls,
-	onPreview,
-	textContents,
-	onTextPreview,
-	onInlineText,
-}) => {
-	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => textAttachmentLoadControllerRef.current?.abort();
-	}, []);
-
-	if (attachments.length === 0) return null;
-
-	const loadTextAttachmentContent = async (
-		content: string | undefined,
-		fileId: string | undefined,
-	): Promise<string | undefined> => {
-		textAttachmentLoadControllerRef.current?.abort();
-		if (content !== undefined || !fileId) {
-			textAttachmentLoadControllerRef.current = null;
-			return content;
-		}
-		const controller = new AbortController();
-		textAttachmentLoadControllerRef.current = controller;
-		try {
-			const fetchedContent = await fetchTextAttachmentContent(
-				fileId,
-				controller.signal,
-			);
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			return fetchedContent;
-		} catch (err) {
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			if (err instanceof Error && err.name === "AbortError") {
-				return undefined;
-			}
-			console.error("Failed to load text attachment:", err);
-			return undefined;
-		}
-	};
-
-	return (
-		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
-			{attachments.map((file, index) => {
-				const uploadState = uploadStates?.get(file);
-				const previewUrl = previewUrls?.get(file) ?? "";
-				const textContent = textContents?.get(file);
-				const textFileId =
-					uploadState?.status === "uploaded" ? uploadState.fileId : undefined;
-				const hasTextAttachment =
-					file.type === "text/plain" &&
-					(textContent !== undefined || textFileId !== undefined);
-				return (
-					<div
-						// Key combines file metadata with index as a fallback for
-						// duplicate names. Acceptable for a small, append-only list.
-						key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-						className="group relative"
-					>
-						{file.type.startsWith("image/") && previewUrl ? (
-							<button
-								type="button"
-								className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
-								onClick={() => onPreview?.(previewUrl)}
-							>
-								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
-							</button>
-						) : hasTextAttachment ? (
-							<button
-								type="button"
-								aria-label="View text attachment"
-								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									if (nextContent !== undefined) {
-										onTextPreview?.(nextContent, file.name);
-									}
-								}}
-							>
-								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{formatTextAttachmentPreview(textContent ?? "")}
-								</span>
-							</button>
-						) : (
-							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
-								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
-							</div>
-						)}
-						{hasTextAttachment && (
-							<button
-								type="button"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									onInlineText?.(file, nextContent);
-								}}
-								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-label="Paste inline"
-							>
-								<ClipboardPasteIcon className="h-3.5 w-3.5" />
-							</button>
-						)}
-						{uploadState?.status === "uploading" && (
-							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
-								<Spinner className="h-5 w-5 text-white" loading />
-							</div>
-						)}
-						{uploadState?.status === "error" && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<div
-										className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
-										role="img"
-										aria-label="Upload error"
-									>
-										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
-									</div>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									<p className="max-w-xs text-xs">
-										{uploadState.error ?? "Upload failed"}
-									</p>
-								</TooltipContent>
-							</Tooltip>
-						)}
-						<button
-							type="button"
-							onClick={() => onRemove(file)}
-							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-							aria-label={`Remove ${file.name}`}
-						>
-							<XIcon className="h-3.5 w-3.5" />
-						</button>
-					</div>
-				);
-			})}
-		</div>
-	);
-};
-
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
@@ -547,6 +223,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
+	onEditLastUserMessage,
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -774,11 +451,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
 	);
+	const hasDraftContext =
+		hasContent || attachments.length > 0 || hasFileReferences;
+	const isComposerEffectivelyEmpty = !hasDraftContext;
+	const hasSendableContent =
+		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
 		hasModelOptions &&
-		(hasContent || hasUploadedAttachments || hasFileReferences) &&
+		hasSendableContent &&
 		!isUploading;
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
@@ -836,7 +518,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setPreRecordingValue("");
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
+	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
 			if (editingQueuedMessageID !== null) {
 				e.preventDefault();
@@ -849,6 +531,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				onInterrupt();
 			}
 		}
+	};
+	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+		if (
+			e.key !== "ArrowUp" ||
+			editingQueuedMessageID !== null ||
+			isEditingHistoryMessage ||
+			!onEditLastUserMessage ||
+			!isComposerEffectivelyEmpty
+		) {
+			return;
+		}
+		e.preventDefault();
+		onEditLastUserMessage();
 	};
 
 	const sendButtonLabel =
@@ -892,7 +587,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
-				onKeyDown={handleKeyDown}
+				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
@@ -954,6 +649,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					placeholder={placeholder}
 					initialValue={initialValue}
 					onChange={handleContentChange}
+					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					disabled={isDisabled || isLoading}
 					autoFocus

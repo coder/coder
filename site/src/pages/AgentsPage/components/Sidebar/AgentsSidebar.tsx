@@ -16,7 +16,6 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
@@ -65,8 +64,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
-import type { ModelSelectorOption } from "#/components/ai-elements";
-import { asString } from "#/components/ai-elements/runtimeTypeUtils";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -85,12 +82,16 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import type { ModelSelectorOption } from "../ChatElements";
+import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
 
 type SidebarView =
@@ -129,8 +130,7 @@ interface AgentsSidebarProps {
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
-	isRegeneratingTitle?: boolean;
-	regeneratingTitleChatId?: string | null;
+	regeneratingTitleChatIds: readonly string[];
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -369,10 +369,10 @@ interface ChatTreeContextValue {
 	readonly modelOptions: readonly ModelSelectorOption[];
 	readonly modelConfigs: readonly ChatModelConfig[];
 	readonly chatErrorReasons: Record<string, string>;
+	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
-	readonly isRegeneratingTitle: boolean;
-	readonly regeneratingTitleChatId: string | null;
+	readonly regeneratingTitleChatIds: readonly string[];
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
@@ -410,10 +410,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		modelOptions,
 		modelConfigs,
 		chatErrorReasons,
+		activeChatId,
 		isArchiving,
 		archivingChatId,
-		isRegeneratingTitle,
-		regeneratingTitleChatId,
+		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -423,6 +423,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		onRegenerateTitle,
 	} = useChatTree();
 	const chatID = chat.id;
+	const isActiveChat = activeChatId === chatID;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
 		visibleChatIDs.has(childID),
 	);
@@ -458,8 +459,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-	const isRegeneratingThisChat =
-		isRegeneratingTitle && regeneratingTitleChatId === chat.id;
+	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	return (
@@ -531,6 +531,9 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									>
 										{chat.title}
 									</span>
+									{chat.has_unread && !isActiveChat && (
+										<span className="sr-only">(unread)</span>
+									)}
 									{isRegeneratingThisChat && (
 										<span className="sr-only" role="status">
 											Regenerating title…
@@ -573,7 +576,15 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					) : (
 						<>
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{shortRelativeTime(chat.updated_at)}
+								{chat.has_unread && !isActiveChat ? (
+									<span
+										className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+										data-testid={`unread-indicator-${chat.id}`}
+										aria-hidden="true"
+									/>
+								) : (
+									shortRelativeTime(chat.updated_at)
+								)}
 							</span>
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
@@ -586,7 +597,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
 									{!chat.archived && !isChildNode && (
 										<DropdownMenuItem
 											onSelect={() =>
@@ -619,7 +633,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									) : (
 										<>
 											<DropdownMenuItem
-												disabled={isRegeneratingTitle}
+												disabled={isRegeneratingThisChat}
 												onSelect={() => onRegenerateTitle(chat.id)}
 											>
 												<WandSparklesIcon className="h-3.5 w-3.5" />
@@ -672,8 +686,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 
 const SortableChatTreeNode: FC<{
 	chat: Chat;
-	recentDragRef: React.RefObject<boolean>;
-}> = ({ chat, recentDragRef }) => {
+}> = ({ chat }) => {
 	const {
 		attributes,
 		listeners,
@@ -707,18 +720,6 @@ const SortableChatTreeNode: FC<{
 			className={cn(isDragging && "opacity-50")}
 			{...attributes}
 			{...listeners}
-			onClickCapture={(e) => {
-				// After a drag, the browser synthesizes a click from
-				// pointerup. dnd-kit's sensor calls stopPropagation
-				// but never preventDefault, so the <a> tag inside
-				// NavLink still fires its default navigation action.
-				// Block it here in React's capture phase instead of
-				// racing with a global document listener + rAF.
-				if (recentDragRef.current) {
-					e.stopPropagation();
-					e.preventDefault();
-				}
-			}}
 		>
 			<ChatTreeNode chat={chat} isChildNode={false} />
 		</div>
@@ -743,8 +744,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
-		isRegeneratingTitle = false,
-		regeneratingTitleChatId = null,
+		regeneratingTitleChatIds,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -807,11 +807,25 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 
-	// Ref flag set after drag ends. Checked by SortableChatTreeNode's
-	// onClickCapture to block the synthetic click that the browser
-	// fires from the final pointerup. Cleared after 100ms, which
-	// comfortably exceeds dnd-kit's 50ms sensor cleanup window.
-	const recentDragRef = useRef(false);
+	const lastDragEndedAtRef = useRef(0);
+
+	const pinnedContainerRef = useRef<HTMLDivElement | null>(null);
+	useEffect(() => {
+		const handler = (e: MouseEvent) => {
+			const container = pinnedContainerRef.current;
+			const target = e.target;
+			if (
+				container &&
+				target instanceof Node &&
+				container.contains(target) &&
+				performance.now() - lastDragEndedAtRef.current < 300
+			) {
+				e.preventDefault();
+			}
+		};
+		document.addEventListener("click", handler, true);
+		return () => document.removeEventListener("click", handler, true);
+	}, []);
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
@@ -828,11 +842,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
 
-		recentDragRef.current = true;
-		setTimeout(() => {
-			recentDragRef.current = false;
-		}, 100);
-
+		lastDragEndedAtRef.current = performance.now();
 		if (!over || active.id === over.id) return;
 		const activeId = String(active.id);
 		const overId = String(over.id);
@@ -876,7 +886,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<FilterIcon />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
+			<DropdownMenuContent
+				align="end"
+				className="[&_[role=menuitem]]:text-[13px]"
+			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
 					{archivedFilter === "active" && (
@@ -939,10 +952,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelOptions,
 		modelConfigs,
 		chatErrorReasons,
+		activeChatId,
 		isArchiving,
 		archivingChatId,
-		isRegeneratingTitle,
-		regeneratingTitleChatId,
+		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -953,7 +966,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	};
 
 	const subNavTitle = "Settings";
-
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			{/* ── Panel 1: Chats ── */}
@@ -1087,12 +1099,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																items={pinnedChatIds}
 																strategy={verticalListSortingStrategy}
 															>
-																<div className="flex flex-col gap-0.5">
+																<div
+																	ref={pinnedContainerRef}
+																	className="flex flex-col gap-0.5"
+																>
 																	{sortedPinnedChats.map((chat) => (
 																		<SortableChatTreeNode
 																			key={chat.id}
 																			chat={chat}
-																			recentDragRef={recentDragRef}
 																		/>
 																	))}
 																</div>
@@ -1382,14 +1396,9 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const onLoadMoreRef = useRef(onLoadMore);
-
-	// Keep the callback ref in sync so the observer closure
-	// always calls the latest onLoadMore without needing to
-	// tear down and re-create the observer.
-	useEffect(() => {
-		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
+	const onLoadMoreStable = useEffectEvent(() => {
+		onLoadMore?.();
+	});
 
 	useEffect(() => {
 		// Don't observe while a fetch is in progress. When the
@@ -1405,15 +1414,15 @@ const LoadMoreSentinel: FC<{
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries[0]?.isIntersecting && onLoadMoreRef.current) {
-					onLoadMoreRef.current();
+				if (entries[0]?.isIntersecting) {
+					onLoadMoreStable();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [isFetchingNextPage]);
+	}, [isFetchingNextPage, onLoadMoreStable]);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">

@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import { createContext, type FC, type PropsWithChildren } from "react";
 import { useQuery } from "react-query";
 import { appearance } from "#/api/queries/appearance";
@@ -15,6 +14,7 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { canViewAnyOrganization } from "#/modules/permissions";
 import { selectFeatureVisibility } from "./entitlements";

@@ -10,7 +10,6 @@ import {
 	TrashIcon,
 	UserLockIcon,
 } from "lucide-react";
-import { AISeatCell } from "modules/users/AISeatCell";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type { GroupsByUserId } from "#/api/queries/groups";
@@ -35,6 +34,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 

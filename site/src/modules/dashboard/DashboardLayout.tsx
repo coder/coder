@@ -1,11 +1,11 @@
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
-import { useAuthenticated } from "hooks";
 import { InfoIcon } from "lucide-react";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
 import { cn } from "#/utils/cn";

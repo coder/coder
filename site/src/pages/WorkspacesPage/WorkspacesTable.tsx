@@ -63,6 +63,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,

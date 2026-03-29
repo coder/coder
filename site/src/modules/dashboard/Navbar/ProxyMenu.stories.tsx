@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AuthProvider } from "contexts/auth/AuthProvider";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import { fn, userEvent, within } from "storybook/test";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { AuthProvider } from "#/contexts/auth/AuthProvider";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
 import { permissionChecks } from "#/modules/permissions";
 import {
 	MockAuthMethodsAll,

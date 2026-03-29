@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import {
 	createContext,
 	type FC,
@@ -15,6 +14,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import {
 	type WorkspacePermissions,

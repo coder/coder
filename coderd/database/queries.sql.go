@@ -909,6 +909,58 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 	return i, err
 }
 
+const listAIBridgeClients = `-- name: ListAIBridgeClients :many
+SELECT
+	COALESCE(client, 'Unknown') AS client
+FROM
+	aibridge_interceptions
+WHERE
+	ended_at IS NOT NULL
+	-- Filter client (prefix match to allow B-tree index usage).
+	AND CASE
+		WHEN $1::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE $1::text || '%'
+		ELSE true
+	END
+	-- We use an ` + "`" + `@authorize_filter` + "`" + ` as we are attempting to list clients
+	-- that are relevant to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in
+	-- ListAIBridgeClientsAuthorized.
+	-- @authorize_filter
+GROUP BY
+	client
+LIMIT COALESCE(NULLIF($3::integer, 0), 100)
+OFFSET $2
+`
+
+type ListAIBridgeClientsParams struct {
+	Client string `db:"client" json:"client"`
+	Offset int32  `db:"offset_" json:"offset_"`
+	Limit  int32  `db:"limit_" json:"limit_"`
+}
+
+func (q *sqlQuerier) ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeClients, arg.Client, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var client string
+		if err := rows.Scan(&client); err != nil {
+			return nil, err
+		}
+		items = append(items, client)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
 	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
@@ -4013,7 +4065,7 @@ WHERE
             $3::int
     )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type AcquireChatsParams struct {
@@ -4055,6 +4107,7 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.BuildID,
 			&i.AgentID,
 			&i.PinOrder,
+			&i.LastReadMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -4288,7 +4341,7 @@ func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userI
 
 const getChatByID = `-- name: GetChatByID :one
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 FROM
     chats
 WHERE
@@ -4320,12 +4373,13 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order FROM chats WHERE id = $1::uuid FOR UPDATE
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id FROM chats WHERE id = $1::uuid FOR UPDATE
 `
 
 func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
@@ -4353,6 +4407,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -5264,7 +5319,14 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 
 const getChats = `-- name: GetChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id,
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
 FROM
     chats
 WHERE
@@ -5320,7 +5382,12 @@ type GetChatsParams struct {
 	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, error) {
+type GetChatsRow struct {
+	Chat      Chat `db:"chat" json:"chat"`
+	HasUnread bool `db:"has_unread" json:"has_unread"`
+}
+
+func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChats,
 		arg.OwnerID,
 		arg.Archived,
@@ -5333,31 +5400,33 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Chat
+	var items []GetChatsRow
 	for rows.Next() {
-		var i Chat
+		var i GetChatsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.Archived,
-			&i.LastError,
-			&i.Mode,
-			pq.Array(&i.MCPServerIDs),
-			&i.Labels,
-			&i.BuildID,
-			&i.AgentID,
-			&i.PinOrder,
+			&i.Chat.ID,
+			&i.Chat.OwnerID,
+			&i.Chat.WorkspaceID,
+			&i.Chat.Title,
+			&i.Chat.Status,
+			&i.Chat.WorkerID,
+			&i.Chat.StartedAt,
+			&i.Chat.HeartbeatAt,
+			&i.Chat.CreatedAt,
+			&i.Chat.UpdatedAt,
+			&i.Chat.ParentChatID,
+			&i.Chat.RootChatID,
+			&i.Chat.LastModelConfigID,
+			&i.Chat.Archived,
+			&i.Chat.LastError,
+			&i.Chat.Mode,
+			pq.Array(&i.Chat.MCPServerIDs),
+			&i.Chat.Labels,
+			&i.Chat.BuildID,
+			&i.Chat.AgentID,
+			&i.Chat.PinOrder,
+			&i.Chat.LastReadMessageID,
+			&i.HasUnread,
 		); err != nil {
 			return nil, err
 		}
@@ -5373,7 +5442,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 }
 
 const getChatsByWorkspaceIDs = `-- name: GetChatsByWorkspaceIDs :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 FROM chats
 WHERE archived = false
   AND workspace_id = ANY($1::uuid[])
@@ -5411,6 +5480,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 			&i.BuildID,
 			&i.AgentID,
 			&i.PinOrder,
+			&i.LastReadMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -5476,7 +5546,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 FROM
     chats
 WHERE
@@ -5517,6 +5587,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.BuildID,
 			&i.AgentID,
 			&i.PinOrder,
+			&i.LastReadMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -5598,7 +5669,7 @@ INSERT INTO chats (
     COALESCE($11::jsonb, '{}'::jsonb)
 )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type InsertChatParams struct {
@@ -5652,6 +5723,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -6165,7 +6237,7 @@ UPDATE chats SET
     updated_at = NOW()
 WHERE
     id = $3::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatBuildAgentBindingParams struct {
@@ -6199,6 +6271,7 @@ func (q *sqlQuerier) UpdateChatBuildAgentBinding(ctx context.Context, arg Update
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -6212,7 +6285,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatByIDParams struct {
@@ -6245,6 +6318,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -6284,7 +6358,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatLabelsByIDParams struct {
@@ -6317,6 +6391,7 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -6330,7 +6405,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatLastModelConfigByIDParams struct {
@@ -6363,8 +6438,27 @@ func (q *sqlQuerier) UpdateChatLastModelConfigByID(ctx context.Context, arg Upda
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
+}
+
+const updateChatLastReadMessageID = `-- name: UpdateChatLastReadMessageID :exec
+UPDATE chats
+SET last_read_message_id = $1::bigint
+WHERE id = $2::uuid
+`
+
+type UpdateChatLastReadMessageIDParams struct {
+	LastReadMessageID int64     `db:"last_read_message_id" json:"last_read_message_id"`
+	ID                uuid.UUID `db:"id" json:"id"`
+}
+
+// Updates the last read message ID for a chat. This is used to track
+// which messages the owner has seen, enabling unread indicators.
+func (q *sqlQuerier) UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatLastReadMessageID, arg.LastReadMessageID, arg.ID)
+	return err
 }
 
 const updateChatMCPServerIDs = `-- name: UpdateChatMCPServerIDs :one
@@ -6376,7 +6470,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatMCPServerIDsParams struct {
@@ -6409,6 +6503,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -6544,7 +6639,7 @@ SET
 WHERE
     id = $6::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatStatusParams struct {
@@ -6588,6 +6683,7 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -6605,7 +6701,7 @@ SET
 WHERE
     id = $7::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatStatusPreserveUpdatedAtParams struct {
@@ -6651,6 +6747,7 @@ func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg 
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -6662,7 +6759,7 @@ UPDATE chats SET
     agent_id = $3::uuid,
     updated_at = NOW()
 WHERE id = $4::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id
 `
 
 type UpdateChatWorkspaceBindingParams struct {
@@ -6702,6 +6799,7 @@ func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateC
 		&i.BuildID,
 		&i.AgentID,
 		&i.PinOrder,
+		&i.LastReadMessageID,
 	)
 	return i, err
 }
@@ -10786,7 +10884,7 @@ func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCP
 
 const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 FROM
     mcp_server_configs
 WHERE
@@ -10832,6 +10930,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 			&i.UpdatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ModelIntent,
 		); err != nil {
 			return nil, err
 		}
@@ -10848,7 +10947,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 
 const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 FROM
     mcp_server_configs
 WHERE
@@ -10895,6 +10994,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 			&i.UpdatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ModelIntent,
 		); err != nil {
 			return nil, err
 		}
@@ -10911,7 +11011,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 
 const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 FROM
     mcp_server_configs
 WHERE
@@ -10949,13 +11049,14 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.UpdatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ModelIntent,
 	)
 	return i, err
 }
 
 const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 FROM
     mcp_server_configs
 WHERE
@@ -10993,13 +11094,14 @@ func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) 
 		&i.UpdatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ModelIntent,
 	)
 	return i, err
 }
 
 const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 FROM
     mcp_server_configs
 ORDER BY
@@ -11043,6 +11145,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 			&i.UpdatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ModelIntent,
 		); err != nil {
 			return nil, err
 		}
@@ -11059,7 +11162,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 
 const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 FROM
     mcp_server_configs
 WHERE
@@ -11105,6 +11208,7 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 			&i.UpdatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ModelIntent,
 		); err != nil {
 			return nil, err
 		}
@@ -11221,6 +11325,7 @@ INSERT INTO mcp_server_configs (
     tool_deny_list,
     availability,
     enabled,
+    model_intent,
     created_by,
     updated_by
 ) VALUES (
@@ -11246,11 +11351,12 @@ INSERT INTO mcp_server_configs (
     $20::text[],
     $21::text,
     $22::boolean,
-    $23::uuid,
-    $24::uuid
+    $23::boolean,
+    $24::uuid,
+    $25::uuid
 )
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 `
 
 type InsertMCPServerConfigParams struct {
@@ -11276,6 +11382,7 @@ type InsertMCPServerConfigParams struct {
 	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
 	Availability            string         `db:"availability" json:"availability"`
 	Enabled                 bool           `db:"enabled" json:"enabled"`
+	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
 	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
 }
@@ -11304,6 +11411,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		pq.Array(arg.ToolDenyList),
 		arg.Availability,
 		arg.Enabled,
+		arg.ModelIntent,
 		arg.CreatedBy,
 		arg.UpdatedBy,
 	)
@@ -11336,6 +11444,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.UpdatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ModelIntent,
 	)
 	return i, err
 }
@@ -11366,12 +11475,13 @@ SET
     tool_deny_list = $20::text[],
     availability = $21::text,
     enabled = $22::boolean,
-    updated_by = $23::uuid,
+    model_intent = $23::boolean,
+    updated_by = $24::uuid,
     updated_at = NOW()
 WHERE
-    id = $24::uuid
+    id = $25::uuid
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
 `
 
 type UpdateMCPServerConfigParams struct {
@@ -11397,6 +11507,7 @@ type UpdateMCPServerConfigParams struct {
 	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
 	Availability            string         `db:"availability" json:"availability"`
 	Enabled                 bool           `db:"enabled" json:"enabled"`
+	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
 	ID                      uuid.UUID      `db:"id" json:"id"`
 }
@@ -11425,6 +11536,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		pq.Array(arg.ToolDenyList),
 		arg.Availability,
 		arg.Enabled,
+		arg.ModelIntent,
 		arg.UpdatedBy,
 		arg.ID,
 	)
@@ -11457,6 +11569,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.UpdatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ModelIntent,
 	)
 	return i, err
 }

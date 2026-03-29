@@ -1,7 +1,7 @@
-import { LicenseAIGovernance90PercentWarningText } from "api/typesGenerated";
-import { Link } from "components/Link/Link";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
+import { LicenseAIGovernance90PercentWarningText } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
 
 type AIGovernanceSeatBannerViewProps =
 	| { variant: "over-limit"; actual: number; limit: number }

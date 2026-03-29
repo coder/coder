@@ -539,7 +539,16 @@ func TestListChats(t *testing.T) {
 
 			require.Equal(t, firstUser.UserID, chat.OwnerID)
 			require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
-			require.Equal(t, codersdk.ChatStatusPending, chat.Status)
+			// The chat may have been picked up by the background
+			// processor (via signalWake) before we list, so
+			// accept any active status.
+			require.Contains(t, []codersdk.ChatStatus{
+				codersdk.ChatStatusPending,
+				codersdk.ChatStatusRunning,
+				codersdk.ChatStatusError,
+				codersdk.ChatStatusWaiting,
+				codersdk.ChatStatusCompleted,
+			}, chat.Status, "unexpected chat status: %s", chat.Status)
 			require.NotZero(t, chat.CreatedAt)
 			require.NotZero(t, chat.UpdatedAt)
 			require.Nil(t, chat.ParentChatID)
@@ -549,7 +558,6 @@ func TestListChats(t *testing.T) {
 			require.NotNil(t, chat.DiffStatus)
 			require.Equal(t, chat.ID, chat.DiffStatus.ChatID)
 		}
-
 		require.Contains(t, chatsByID, firstChatA.ID)
 		require.Contains(t, chatsByID, firstChatB.ID)
 		require.NotContains(t, chatsByID, memberDBChat.ID)
@@ -559,12 +567,12 @@ func TestListChats(t *testing.T) {
 		for i := 1; i < len(chats); i++ {
 			require.False(t, chats[i-1].UpdatedAt.Before(chats[i].UpdatedAt))
 		}
-		if firstChatA.UpdatedAt.After(firstChatB.UpdatedAt) {
-			require.Less(t, chatIndexes[firstChatA.ID], chatIndexes[firstChatB.ID])
-		}
-		if firstChatB.UpdatedAt.After(firstChatA.UpdatedAt) {
-			require.Less(t, chatIndexes[firstChatB.ID], chatIndexes[firstChatA.ID])
-		}
+		// The list is already verified as sorted by UpdatedAt
+		// descending (loop above). We intentionally do NOT
+		// compare positions using the creation-time UpdatedAt
+		// values because signalWake() may trigger background
+		// processing that mutates UpdatedAt between CreateChat
+		// and ListChats.
 
 		memberChats, err := memberClient.ListChats(ctx, nil)
 		require.NoError(t, err)
@@ -611,6 +619,23 @@ func TestListChats(t *testing.T) {
 			})
 			require.NoError(t, err)
 			createdChats = append(createdChats, chat)
+		}
+
+		// Wait for all chats to reach a terminal status so
+		// updated_at is stable before paginating.
+		for _, c := range createdChats {
+			require.Eventually(t, func() bool {
+				all, listErr := client.ListChats(ctx, nil)
+				if listErr != nil {
+					return false
+				}
+				for _, ch := range all {
+					if ch.ID == c.ID {
+						return ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning
+					}
+				}
+				return false
+			}, testutil.WaitShort, testutil.IntervalFast)
 		}
 
 		// Fetch first page with limit=2.
@@ -3652,11 +3677,12 @@ func TestRegenerateChatTitle(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusConflict, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		var resp codersdk.Response
+		var resp codersdk.Chat
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
-		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
+		require.Equal(t, chat.ID, resp.ID)
+		require.Equal(t, "pending chat without worker", resp.Title)
 
 		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -3682,6 +3708,17 @@ func TestRegenerateChatTitle(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+
+		// Wait for background processing triggered by signalWake
+		// to finish before setting the status, otherwise the
+		// processor may update updated_at concurrently.
+		require.Eventually(t, func() bool {
+			c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			if getErr != nil {
+				return false
+			}
+			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,

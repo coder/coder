@@ -1,8 +1,16 @@
-import { type FC, useId } from "react";
+import { type FC, useId, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { User } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -73,6 +81,9 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 }) => {
 	const userOverrideAmountId = useId();
 	const isEditing = editingUserOverride !== null;
+	const [pendingDeleteUserId, setPendingDeleteUserId] = useState<string | null>(
+		null,
+	);
 
 	return (
 		<section className="space-y-4">
@@ -80,7 +91,6 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 				label="Per-User Overrides"
 				description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
 			/>
-
 			<div className="space-y-4">
 				{overrides.length > 0 ? (
 					<Table>
@@ -122,7 +132,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 												variant="outline"
 												size="sm"
 												type="button"
-												onClick={() => void onDeleteOverride(override.user_id)}
+												onClick={() => setPendingDeleteUserId(override.user_id)}
 												disabled={deletePending || upsertPending || isEditing}
 											>
 												Delete
@@ -246,6 +256,42 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 					</p>
 				)}
 			</div>
+			{pendingDeleteUserId && (
+				<Dialog
+					open
+					onOpenChange={(open) => !open && setPendingDeleteUserId(null)}
+				>
+					<DialogContent variant="destructive">
+						<DialogHeader>
+							<DialogTitle>Delete user override</DialogTitle>
+							<DialogDescription>
+								Are you sure you want to delete this user limit override? This
+								action is irreversible.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setPendingDeleteUserId(null)}
+								disabled={deletePending}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => {
+									void onDeleteOverride(pendingDeleteUserId);
+									setPendingDeleteUserId(null);
+								}}
+								disabled={deletePending}
+							>
+								{deletePending && <Spinner className="h-4 w-4" loading />}
+								Delete override
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}{" "}
 		</section>
 	);
 };
