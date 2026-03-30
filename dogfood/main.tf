@@ -80,7 +80,7 @@ resource "coderd_template" "dogfood" {
   allow_user_auto_start             = true
   allow_user_auto_stop              = true
   allow_user_cancel_workspace_jobs  = false
-  auto_start_permitted_days_of_week = ["friday", "monday", "saturday", "sunday", "thursday", "tuesday", "wednesday"]
+  auto_start_permitted_days_of_week = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
   auto_stop_requirement = {
     days_of_week = ["sunday"]
     weeks        = 1
@@ -127,7 +127,48 @@ resource "coderd_template" "envbuilder_dogfood" {
   allow_user_auto_start             = true
   allow_user_auto_stop              = true
   allow_user_cancel_workspace_jobs  = false
-  auto_start_permitted_days_of_week = ["friday", "monday", "saturday", "sunday", "thursday", "tuesday", "wednesday"]
+  auto_start_permitted_days_of_week = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+  auto_stop_requirement = {
+    days_of_week = ["sunday"]
+    weeks        = 1
+  }
+  default_ttl_ms                 = 28800000
+  deprecation_message            = null
+  failure_ttl_ms                 = 604800000
+  require_active_version         = true
+  time_til_dormant_autodelete_ms = 7776000000
+  time_til_dormant_ms            = 8640000000
+}
+
+resource "coderd_template" "android_dogfood" {
+  name            = "coder-android"
+  display_name    = "Android Development"
+  description     = "Android development workspace for building coder-mobile-android with Go, NDK, and ADB."
+  icon            = "/emojis/1f4f1.png" # 📱
+  organization_id = data.coderd_organization.default.id
+  versions = [
+    {
+      name      = var.CODER_TEMPLATE_VERSION
+      message   = var.CODER_TEMPLATE_MESSAGE
+      directory = "./coder-android"
+      active    = true
+    }
+  ]
+  acl = {
+    groups = [{
+      id   = data.coderd_organization.default.id
+      role = "use"
+    }]
+    users = [{
+      id   = data.coderd_user.machine.id
+      role = "admin"
+    }]
+  }
+  activity_bump_ms                  = 10800000
+  allow_user_auto_start             = true
+  allow_user_auto_stop              = true
+  allow_user_cancel_workspace_jobs  = false
+  auto_start_permitted_days_of_week = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
   auto_stop_requirement = {
     days_of_week = ["sunday"]
     weeks        = 1
