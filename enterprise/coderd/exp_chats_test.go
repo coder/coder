@@ -30,7 +30,7 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
@@ -93,6 +93,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 		// Create a chat on the first replica
 		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test chat for relay",
@@ -187,7 +188,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 		certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:        db,
 				Pubsub:          pubsub,
@@ -282,6 +283,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 		// Create a chat on the first replica.
 		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test chat for TLS relay",
@@ -382,7 +384,7 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
@@ -452,6 +454,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test cookie-only relay",
@@ -550,7 +553,7 @@ func TestChatStreamRelay(t *testing.T) {
 			dv.HTTPCookies.EnableHostPrefix = true
 			dv.HTTPCookies.Secure = true
 		})
-		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:         db,
 				Pubsub:           pubsub,
@@ -624,6 +627,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test host-prefix relay",
@@ -710,7 +714,7 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
@@ -772,6 +776,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 		// Create a chat on the first replica.
 		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test chat for buffered relay",
