@@ -19,7 +19,10 @@ import type { User } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
-import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
+import {
+	useAISeatFilterMenu,
+	useStatusFilterMenu,
+} from "#/components/Filter/UsersFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -71,6 +74,14 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 			useFilterResult.update({
 				...useFilterResult.values,
 				status: option?.value,
+			}),
+	});
+	const aiSeatMenu = useAISeatFilterMenu({
+		value: useFilterResult.values["has-ai-seat"],
+		onChange: (option) =>
+			useFilterResult.update({
+				...useFilterResult.values,
+				"has-ai-seat": option?.value,
 			}),
 	});
 
@@ -152,7 +163,10 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				filterProps={{
 					filter: useFilterResult,
 					error: usersQuery.error,
-					menus: { status: statusMenu },
+					menus: {
+						status: statusMenu,
+						...(showAISeatColumn ? { aiSeat: aiSeatMenu } : {}),
+					},
 				}}
 				usersQuery={usersQuery}
 				canCreateUser={canCreateUser}

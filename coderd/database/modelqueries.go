@@ -423,6 +423,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
 		arg.IsServiceAccount,
+		arg.HasAISeat,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

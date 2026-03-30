@@ -142,7 +142,27 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	return filter, countFilter, parser.Errors
 }
 
+type usersFilterMutator func(
+	parser *httpapi.QueryParamParser,
+	values url.Values,
+	filter *database.GetUsersParams,
+)
+
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
+	return parseUsers(query, nil)
+}
+
+func UsersWithAISeat(query string) (database.GetUsersParams, []codersdk.ValidationError) {
+	return parseUsers(query, func(
+		parser *httpapi.QueryParamParser,
+		values url.Values,
+		filter *database.GetUsersParams,
+	) {
+		filter.HasAISeat = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-seat")
+	})
+}
+
+func parseUsers(query string, mutate usersFilterMutator) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -166,6 +186,9 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 		CreatedBefore:    parser.Time3339Nano(values, time.Time{}, "created_before"),
 		GithubComUserID:  parser.Int64(values, 0, "github_com_user_id"),
 		LoginType:        httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
+	}
+	if mutate != nil {
+		mutate(parser, values, &filter)
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

@@ -1191,7 +1191,38 @@ func TestGetGroupMembersFilter(t *testing.T) {
 		require.NoError(t, err)
 		return res.Users
 	}
-	coderdtest.UsersFilter(setupCtx, t, client, db, setup, fetch)
+	coderdtest.UsersFilter(setupCtx, t, client, db, setup, coderdtest.UsersFilterOptions{}, fetch)
+}
+
+func TestGetGroupMembersFilterByAISeatUnsupported(t *testing.T) {
+	t.Parallel()
+
+	client, first := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	group, err := userAdminClient.CreateGroup(ctx, first.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "ai-seat-unsupported",
+	})
+	require.NoError(t, err)
+
+	_, err = userAdminClient.GroupMembers(ctx, group.ID, codersdk.UsersRequest{SearchQuery: "has-ai-seat:true"})
+	require.Error(t, err)
+
+	apiErr, ok := codersdk.AsError(err)
+	require.True(t, ok)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Contains(t, apiErr.Message, "Invalid member search query")
+	require.Contains(t, apiErr.Error(), `has-ai-seat: "has-ai-seat" is not a valid query param`)
 }
 
 func TestGetGroupMembersPagination(t *testing.T) {

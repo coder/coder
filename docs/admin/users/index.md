@@ -193,6 +193,8 @@ to use the Coder's filter query:
 - To find users who login using Github:
   `login_type:github`
 - To find service accounts: `service_account:true`.
+- To find users consuming an AI seat when the AI governance add-on is enabled:
+  `has-ai-seat:true`.
 
 The following filters are supported:
 
@@ -210,6 +212,9 @@ The following filters are supported:
 - `service_account` - Can be either `true` to only include service accounts or
   `false` to filter them out. If omitted, both service and regular accounts and
   are returned.
+- `has-ai-seat` - Can be either `true` to only include users currently
+  consuming an AI seat or `false` to exclude them. This filter is available
+  when the AI governance add-on is enabled. If omitted, both are returned.
 
 ## Edit a user's profile
 
