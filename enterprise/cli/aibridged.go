@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/config"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -49,6 +50,17 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}, getBedrockConfig(cfg.Bedrock)),
 		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			// Uses Copilot's default Name and BaseURL.
+			CircuitBreaker: cbConfig,
+		}),
+		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			Name:           agplaibridge.ProviderCopilotBusiness,
+			BaseURL:        "https://" + agplaibridge.HostCopilotBusiness,
+			CircuitBreaker: cbConfig,
+		}),
+		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			Name:           agplaibridge.ProviderCopilotEnterprise,
+			BaseURL:        "https://" + agplaibridge.HostCopilotEnterprise,
 			CircuitBreaker: cbConfig,
 		}),
 	}

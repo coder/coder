@@ -20,6 +20,18 @@ const HeaderCoderToken = "X-Coder-AI-Governance-Token" //nolint:gosec // This is
 // request forwarded to aibridged for cross-service log correlation.
 const HeaderCoderRequestID = "X-Coder-AI-Governance-Request-Id"
 
+// Copilot provider instance names.
+const (
+	ProviderCopilotBusiness   = "copilot-business"
+	ProviderCopilotEnterprise = "copilot-enterprise"
+)
+
+// Copilot upstream hosts.
+const (
+	HostCopilotBusiness   = "api.business.githubcopilot.com"
+	HostCopilotEnterprise = "api.enterprise.githubcopilot.com"
+)
+
 // IsBYOK reports whether the request is using BYOK mode, determined
 // by the presence of the X-Coder-AI-Governance-Token header.
 func IsBYOK(header http.Header) bool {
