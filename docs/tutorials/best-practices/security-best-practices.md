@@ -455,7 +455,7 @@ inbound connections are handled exclusively by the encrypted tunnels.
 [DERP](https://tailscale.com/kb/1232/derp-servers) is a relay protocol developed
 by Tailscale.
 
-Coder Server and Workspace Proxies include a DERP service by default. Tailcale
+Coder Server and Workspace Proxies include a DERP service by default. Tailscale 
 also runs a set of public DERP servers, globally distributed.
 
 All DERP messages are end-to-end encrypted, so the DERP service only learns the
