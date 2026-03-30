@@ -1,10 +1,14 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { workspaceQuota } from "api/queries/workspaceQuota";
-import type * as TypesGen from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { CopyButton } from "components/CopyButton/CopyButton";
+import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { Link as RouterLink } from "react-router";
+import { workspaceQuota } from "#/api/queries/workspaceQuota";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -12,26 +16,22 @@ import {
 	TopbarDivider,
 	TopbarIcon,
 	TopbarIconButton,
-} from "components/FullPageLayout/Topbar";
+} from "#/components/FullPageLayout/Topbar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
+} from "#/components/HelpTooltip/HelpTooltip";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router";
-import { displayDormantDeletion } from "utils/dormant";
-import { formatDate } from "utils/time";
+} from "#/components/Tooltip/Tooltip";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
+import { displayDormantDeletion } from "#/utils/dormant";
+import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";

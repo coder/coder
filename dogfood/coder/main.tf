@@ -342,7 +342,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.0"
+  version  = "1.4.1"
   agent_id = coder_agent.dev.id
 }
 
@@ -579,12 +579,17 @@ resource "coder_agent" "dev" {
     trap cleanup EXIT
     coder exp sync start agent-startup
 
-    # Authenticate GitHub CLI
-    if ! gh auth status >/dev/null 2>&1; then
+    # Authenticate GitHub CLI. `gh api user` is used instead of `gh auth
+    # status` because the latter exits non-zero when a stale token exists
+    # in ~/.config/gh/hosts.yml, even when a valid GITHUB_TOKEN is already
+    # present in the environment and gh commands work fine.
+    if ! gh api user --jq .login >/dev/null 2>&1; then
       echo "Logging into GitHub CLI…"
-      coder external-auth access-token github | gh auth login --hostname github.com --with-token
+      if ! coder external-auth access-token github | gh auth login --hostname github.com --with-token; then
+        echo "GitHub CLI authentication failed; gh commands may not work."
+      fi
     else
-      echo "Already logged into GitHub CLI."
+      echo "GitHub CLI already has working credentials."
     fi
     # Configure Mux GitHub owner login for browser access (skip if
     # already set). See: https://mux.coder.com/config/server-access
@@ -917,7 +922,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.8.1"
+  version             = "4.8.2"
   enable_boundary     = true
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir

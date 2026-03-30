@@ -1,5 +1,5 @@
-import { MockWorkspaceAgent, MockWorkspaceApp } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockWorkspaceAgent, MockWorkspaceApp } from "#/testHelpers/entities";
 import { AgentRowPreview } from "./AgentRowPreview";
 
 const meta: Meta<typeof AgentRowPreview> = {

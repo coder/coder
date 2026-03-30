@@ -209,7 +209,7 @@ if [[ "$windows_resources" == 1 ]] && [[ "$os" == "windows" ]]; then
 	# Remove any trailing data after a "+" or "-".
 	version_windows=$version
 	version_windows="${version_windows%+*}"
-	version_windows="${version_windows%-*}"
+	version_windows="${version_windows%%-*}"
 	# If there wasn't any extra data, add a .0 to the version. Otherwise, add
 	# a .1 to the version to signify that this is not a release build so it can
 	# be distinguished from a release build.

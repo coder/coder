@@ -1016,7 +1016,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 		w := rw.Result()
 		defer w.Body.Close()
-		require.Equal(t, http.StatusBadGateway, w.StatusCode)
+		require.Equal(t, http.StatusNotFound, w.StatusCode)
 		assertConnLogContains(t, rw, r, connLogger, workspace, agentNameUnhealthy, appNameAgentUnhealthy, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 

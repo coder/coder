@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -107,7 +107,7 @@ func (h *TestHarness) Results() Results {
 func (r *Results) PrintText(w io.Writer) {
 	var totalDuration time.Duration
 	keys := maps.Keys(r.Runs)
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		run := r.Runs[key]
 		totalDuration += time.Duration(run.Duration)

@@ -1099,7 +1099,8 @@ CREATE TABLE aibridge_interceptions (
     client character varying(64) DEFAULT 'Unknown'::character varying,
     thread_parent_id uuid,
     thread_root_id uuid,
-    client_session_id character varying(256)
+    client_session_id character varying(256),
+    session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1111,6 +1112,8 @@ COMMENT ON COLUMN aibridge_interceptions.thread_parent_id IS 'The interception w
 COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interception of the thread that this interception belongs to.';
 
 COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
+
+COMMENT ON COLUMN aibridge_interceptions.session_id IS 'Groups related interceptions into a logical session. Determined by a priority chain: (1) client_session_id — an explicit session identifier supplied by the calling client (e.g. Claude Code); (2) thread_root_id — the root of an agentic thread detected by Bridge through tool-call correlation, used when the client does not supply its own session ID; (3) id — the interception''s own ID, used as a last resort so every interception belongs to exactly one session even if it is standalone. This is a generated column stored on disk so it can be indexed and joined without recomputing the COALESCE on every query.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -1291,7 +1294,8 @@ CREATE TABLE chat_messages (
     content_version smallint NOT NULL,
     total_cost_micros bigint,
     runtime_ms bigint,
-    deleted boolean DEFAULT false NOT NULL
+    deleted boolean DEFAULT false NOT NULL,
+    provider_response_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1394,7 +1398,12 @@ CREATE TABLE chats (
     archived boolean DEFAULT false NOT NULL,
     last_error text,
     mode chat_mode,
-    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL,
+    build_id uuid,
+    agent_id uuid,
+    pin_order integer DEFAULT 0 NOT NULL,
+    last_read_message_id bigint
 );
 
 CREATE TABLE connection_logs (
@@ -1619,6 +1628,7 @@ CREATE VIEW group_members_expanded AS
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
     users.is_system AS user_is_system,
+    users.is_service_account AS user_is_service_account,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id
@@ -1626,8 +1636,6 @@ CREATE VIEW group_members_expanded AS
      JOIN users ON ((users.id = all_members.user_id)))
      JOIN groups ON ((groups.id = all_members.group_id)))
   WHERE (users.deleted = false);
-
-COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
 
 CREATE TABLE inbox_notifications (
     id uuid NOT NULL,
@@ -1699,6 +1707,7 @@ CREATE TABLE mcp_server_configs (
     updated_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_intent boolean DEFAULT false NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -3655,6 +3664,10 @@ CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING bt
 
 CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
 
+CREATE INDEX idx_aibridge_interceptions_session_id ON aibridge_interceptions USING btree (session_id) WHERE (ended_at IS NOT NULL);
+
+CREATE INDEX idx_aibridge_interceptions_sessions_filter ON aibridge_interceptions USING btree (initiator_id, started_at DESC, id DESC) WHERE (ended_at IS NOT NULL);
+
 CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);
 
 CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptions USING btree (thread_parent_id);
@@ -3672,6 +3685,8 @@ CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages US
 CREATE INDEX idx_aibridge_tool_usages_provider_tool_call_id ON aibridge_tool_usages USING btree (provider_tool_call_id);
 
 CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_user_prompts_interception_created ON aibridge_user_prompts USING btree (interception_id, created_at DESC, id DESC);
 
 CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts USING btree (interception_id);
 
@@ -3716,6 +3731,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
+CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
@@ -4020,6 +4037,12 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_build_id_fkey FOREIGN KEY (build_id) REFERENCES workspace_builds(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);

@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -324,12 +325,14 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					ExtraEnvs: []*proto.Env{
 						{
-							Name:  "ENV_1",
-							Value: "Env 1",
+							Name:          "ENV_1",
+							Value:         "Env 1",
+							MergeStrategy: "replace",
 						},
 						{
-							Name:  "ENV_2",
-							Value: "Env 2",
+							Name:          "ENV_2",
+							Value:         "Env 2",
+							MergeStrategy: "replace",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -347,8 +350,9 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					ExtraEnvs: []*proto.Env{
 						{
-							Name:  "ENV_3",
-							Value: "Env 3",
+							Name:          "ENV_3",
+							Value:         "Env 3",
+							MergeStrategy: "replace",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -699,22 +703,22 @@ func TestConvertResources(t *testing.T) {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-2",
-				ValidationMin: terraform.PtrInt32(-3),
-				ValidationMax: terraform.PtrInt32(0),
+				ValidationMin: ptr.Ref(int32(-3)),
+				ValidationMax: ptr.Ref(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: ptr.Ref(int32(3)),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(0),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: ptr.Ref(int32(0)),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
@@ -783,34 +787,34 @@ func TestConvertResources(t *testing.T) {
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-3",
 				ValidationMin: nil,
-				ValidationMax: terraform.PtrInt32(0),
+				ValidationMax: ptr.Ref(int32(0)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
+				ValidationMin: ptr.Ref(int32(3)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(3),
-				ValidationMax: terraform.PtrInt32(6),
+				ValidationMin: ptr.Ref(int32(3)),
+				ValidationMax: ptr.Ref(int32(6)),
 				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
-				ValidationMin: terraform.PtrInt32(0),
+				ValidationMin: ptr.Ref(int32(0)),
 				ValidationMax: nil,
 				FormType:      proto.ParameterFormType_INPUT,
 			}},
@@ -1011,8 +1015,9 @@ func TestConvertResources(t *testing.T) {
 								},
 								Envs: []*proto.Env{
 									{
-										Name:  "DEVCONTAINER_ENV",
-										Value: "devcontainer-value",
+										Name:          "DEVCONTAINER_ENV",
+										Value:         "devcontainer-value",
+										MergeStrategy: "replace",
 									},
 								},
 							},

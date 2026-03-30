@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import {
 	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockTemplateVersionParameter1,
@@ -7,9 +9,7 @@ import {
 	MockWorkspaceBuildParameter1,
 	MockWorkspaceBuildParameter2,
 	MockWorkspaceBuildParameter3,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
+} from "#/testHelpers/entities";
 import { WorkspaceParametersPageView } from "./WorkspaceParametersPage";
 
 const meta: Meta<typeof WorkspaceParametersPageView> = {

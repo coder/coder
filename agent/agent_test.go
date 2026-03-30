@@ -713,14 +713,14 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	setSBInterval := func(_ *agenttest.Client, opts *agent.Options) {
-		opts.ServiceBannerRefreshInterval = 5 * time.Millisecond
+		opts.ServiceBannerRefreshInterval = testutil.IntervalFast
 	}
 	//nolint:dogsled // Allow the blank identifiers.
 	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
 	//nolint:paralleltest // These tests need to swap the banner func.
 	for _, port := range sshPorts {
@@ -733,7 +733,10 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 		for i, test := range tests {
 			t.Run(fmt.Sprintf("(:%d)/%d", port, i), func(t *testing.T) {
 				// Set new banner func and wait for the agent to call it to update the
-				// banner.
+				// banner. We wait for two calls to ensure the value has been stored:
+				// the second call can only begin after the first iteration of
+				// fetchServiceBannerLoop completes (call + store), so after
+				// receiving two signals at least one store has happened.
 				ready := make(chan struct{}, 2)
 				client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
 					select {
@@ -742,8 +745,8 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 					}
 					return []codersdk.BannerConfig{test.banner}, nil
 				})
-				<-ready
-				<-ready // Wait for two updates to ensure the value has propagated.
+				testutil.TryReceive(ctx, t, ready)
+				testutil.TryReceive(ctx, t, ready)
 
 				session, err := sshClient.NewSession()
 				require.NoError(t, err)
@@ -3550,8 +3553,17 @@ func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected 
 	require.NoError(t, err)
 
 	ptty.WriteLine("exit 0")
-	err = session.Wait()
-	require.NoError(t, err)
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+	select {
+	case err = <-waitErr:
+		require.NoError(t, err)
+	case <-time.After(testutil.WaitLong):
+		require.Fail(t, "timed out waiting for session to exit")
+	}
 
 	for _, unexpected := range unexpected {
 		require.NotContains(t, stdout.String(), unexpected, "should not show output")

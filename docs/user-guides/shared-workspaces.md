@@ -112,3 +112,13 @@ To allow other users to access workspace apps, configure subdomain-based access:
 
 Subdomain-based apps run in an isolated browser security context, so Coder
 allows other users to access them without additional configuration.
+
+### Policies
+
+There are several sharing policy levels that can be selected on a per-organization basis.
+
+- **Everyone** – Anybody can share their workspace with any individual or group in the same organization.
+- **Service Accounts Only** – Only workspaces owned by service accounts can be shared with any individual or group in the same organization.
+- **Disabled** – Workspaces within the organization cannot be shared.
+
+The **Disabled** policy can also be applied to the entire deployment by [setting the `CODER_DISABLE_WORKSPACE_SHARING` environment variable, or by using the corresponding command argument or config value](https://coder.com/docs/reference/cli/server#--disable-workspace-sharing).

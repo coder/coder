@@ -1,25 +1,25 @@
 import Link from "@mui/material/Link";
-import type { Template } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
-import { MenuSearch } from "components/Menu/MenuSearch";
-import { OverflowY } from "components/OverflowY/OverflowY";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SearchEmpty } from "components/Search/Search";
 import { ExternalLinkIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
 import {
 	Link as RouterLink,
 	type LinkProps as RouterLinkProps,
 } from "react-router";
+import type { Template } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
+import { MenuSearch } from "#/components/Menu/MenuSearch";
+import { OverflowY } from "#/components/OverflowY/OverflowY";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { SearchEmpty } from "#/components/Search/Search";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 

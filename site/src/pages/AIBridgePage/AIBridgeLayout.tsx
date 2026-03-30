@@ -1,11 +1,11 @@
-import { Margins } from "components/Margins/Margins";
+import type { FC, PropsWithChildren } from "react";
+import { Outlet } from "react-router";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import type { FC, PropsWithChildren } from "react";
-import { Outlet } from "react-router";
+} from "#/components/PageHeader/PageHeader";
 import { AIBridgeHelpTooltip } from "./AIBridgeHelpTooltip";
 
 const AIBridgeLayout: FC<PropsWithChildren> = () => {

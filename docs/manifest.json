@@ -1168,6 +1168,11 @@
 									]
 								},
 								{
+									"title": "Auditing AI Sessions",
+									"description": "How to audit AI sessions",
+									"path": "./ai-coder/ai-bridge/audit.md"
+								},
+								{
 									"title": "Monitoring",
 									"description": "How to monitor AI Bridge",
 									"path": "./ai-coder/ai-bridge/monitoring.md"
@@ -1198,6 +1203,12 @@
 					"path": "./ai-coder/agents/index.md",
 					"state": ["early access"],
 					"children": [
+						{
+							"title": "Getting Started",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first chat",
+							"path": "./ai-coder/agents/getting-started.md",
+							"state": ["early access"]
+						},
 						{
 							"title": "Early Access",
 							"description": "About the Coder Agents Early Access program",
