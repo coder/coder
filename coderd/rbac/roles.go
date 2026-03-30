@@ -21,6 +21,7 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
+	chatAccess    string = "chat-access"
 	// customSiteRole is a placeholder for all custom site roles.
 	// This is used for what roles can assign other roles.
 	// TODO: Make this more dynamic to allow other roles to grant.
@@ -142,6 +143,7 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
+func RoleChatAccess() RoleIdentifier    { return RoleIdentifier{Name: chatAccess} }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -316,7 +318,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception, ResourceChat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -426,6 +428,26 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 		userAdmin: func(_ uuid.UUID) Role {
 			return userAdminRole
+		},
+
+		// chatAccess grants all actions on chat resources owned
+		// by the user. Without this role, members cannot create
+		// or interact with chats.
+		chatAccess: func(_ uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleChatAccess(),
+				DisplayName: "Chat Access",
+				Site:        []Permission{},
+				User: Permissions(map[string][]policy.Action{
+					ResourceChat.Type: {
+						policy.ActionCreate,
+						policy.ActionRead,
+						policy.ActionUpdate,
+						policy.ActionDelete,
+					},
+				}),
+				ByOrgID: map[string]OrgPermissions{},
+			}.withCachedRegoValue()
 		},
 
 		// orgAdmin returns a role with all actions allows in a given
@@ -600,6 +622,7 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
+		chatAccess:              true,
 	},
 	owner: {
 		owner:                   true,
@@ -615,10 +638,12 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
+		chatAccess:              true,
 	},
 	userAdmin: {
-		member:    true,
-		orgMember: true,
+		member:     true,
+		orgMember:  true,
+		chatAccess: true,
 	},
 	orgAdmin: {
 		orgAdmin:                true,
@@ -854,11 +879,18 @@ func SiteBuiltInRoles() []Role {
 	for _, roleF := range builtInRoles {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
-		if !role.Identifier.IsOrgRole() {
+		if !role.Identifier.IsOrgRole() && role.Identifier != RoleChatAccess() {
 			roles = append(roles, role)
 		}
 	}
 	return roles
+}
+
+// ChatAccessRole returns the chat-access role for use by callers
+// that need to include it conditionally (e.g. when the agents
+// experiment is enabled).
+func ChatAccessRole() Role {
+	return builtInRoles[chatAccess](uuid.Nil)
 }
 
 // ChangeRoleSet is a helper function that finds the difference of 2 sets of
@@ -1010,8 +1042,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 				policy.ActionRead,
 				policy.ActionDelete,
 				policy.ActionCreate,
-				policy.ActionUpdate,
-				policy.ActionWorkspaceStop,
+				policy.ActionUpdate, policy.ActionWorkspaceStop,
 				policy.ActionCreateAgent,
 				policy.ActionDeleteAgent,
 				policy.ActionUpdateAgent,
@@ -1092,8 +1123,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 				policy.ActionRead,
 				policy.ActionDelete,
 				policy.ActionCreate,
-				policy.ActionUpdate,
-				policy.ActionWorkspaceStop,
+				policy.ActionUpdate, policy.ActionWorkspaceStop,
 				policy.ActionCreateAgent,
 				policy.ActionDeleteAgent,
 				policy.ActionUpdateAgent,

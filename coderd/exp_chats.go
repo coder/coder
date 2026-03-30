@@ -393,6 +393,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	var req codersdk.CreateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -496,6 +501,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 				Message: "Invalid model config ID.",
 				Detail:  err.Error(),
 			})
+			return
+		}
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

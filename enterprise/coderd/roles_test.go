@@ -452,7 +452,13 @@ func TestCustomOrganizationRole(t *testing.T) {
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentAgents)}
+
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
@@ -487,11 +493,11 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
+				{Name: codersdk.RoleChatAccess}:    false,
 			}),
 		},
 		{
-			Name: "OrgMemberListOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			Name: "OrgMemberListOrg", APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return member.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
@@ -520,11 +526,11 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
+				{Name: codersdk.RoleChatAccess}:    false,
 			}),
 		},
 		{
-			Name: "OrgAdminListOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			Name: "OrgAdminListOrg", APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
@@ -553,11 +559,11 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       true,
 				{Name: codersdk.RoleTemplateAdmin}: true,
 				{Name: codersdk.RoleUserAdmin}:     true,
+				{Name: codersdk.RoleChatAccess}:    true,
 			}),
 		},
 		{
-			Name: "AdminListOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			Name: "AdminListOrg", APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return client.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
