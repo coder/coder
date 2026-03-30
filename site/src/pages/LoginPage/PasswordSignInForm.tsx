@@ -1,13 +1,13 @@
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 import { Language } from "./Language";
 
 type PasswordSignInFormProps = {

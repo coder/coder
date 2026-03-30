@@ -57,6 +57,20 @@ var proxyAuthRequiredMsg = []byte(http.StatusText(http.StatusProxyAuthRequired))
 // to GoproxyCa. In production, only one server runs, so this has no impact.
 var loadMITMOnce sync.Once
 
+// blockedIPError is returned by checkBlockedIP and checkBlockedIPAndDial when
+// a connection is blocked because the destination resolves to a private or
+// reserved IP range. ConnectionErrHandler uses this type to return 403
+// Forbidden instead of the generic 502 Bad Gateway, since the block is a
+// policy decision rather than an upstream failure.
+type blockedIPError struct {
+	host string
+	ip   net.IP
+}
+
+func (e *blockedIPError) Error() string {
+	return fmt.Sprintf("connection to %s (%s) blocked: destination is in a private/reserved IP range", e.host, e.ip)
+}
+
 // blockedIPRanges defines private, reserved, and special-purpose IP ranges
 // that are blocked by default to prevent connections to internal networks.
 // Operators can selectively allow specific ranges via AllowedPrivateCIDRs.
@@ -371,9 +385,16 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	// Override goproxy's default CONNECT error handler to avoid leaking
 	// internal error details to clients. Errors are still logged by the caller.
-	proxy.ConnectionErrHandler = func(w io.Writer, _ *goproxy.ProxyCtx, _ error) {
-		msg := "Bad Gateway"
-		_, _ = fmt.Fprintf(w, "HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)
+	// Policy blocks (private/reserved IP ranges) return 403 Forbidden; all
+	// other dial failures return 502 Bad Gateway.
+	proxy.ConnectionErrHandler = func(w io.Writer, _ *goproxy.ProxyCtx, err error) {
+		status := http.StatusBadGateway
+		var blocked *blockedIPError
+		if errors.As(err, &blocked) {
+			status = http.StatusForbidden
+		}
+		statusText := http.StatusText(status)
+		_, _ = fmt.Fprintf(w, "HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", status, statusText, len(statusText), statusText)
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -714,6 +735,17 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
+// extractCoderTokenFromBearerAuth extracts the bearer token from an
+// Authorization header. Returns empty string if the header is not a
+// valid "Bearer <token>" value.
+func extractCoderTokenFromBearerAuth(auth string) string {
+	parts := strings.Fields(auth)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return parts[1]
+}
+
 // newProxyAuthRequiredResponse creates a 407 Proxy Authentication Required
 // response with the appropriate challenge header. This is used both during
 // CONNECT handling and for decrypted requests missing authentication.
@@ -818,7 +850,7 @@ func (s *Server) checkBlockedIP(ctx context.Context, addr string) error {
 				slog.F("port", port),
 				slog.F("resolved_ip", ip.IP.String()),
 			)
-			return xerrors.Errorf("connection to %s (%s) blocked: destination is in a private/reserved IP range", host, ip.IP)
+			return &blockedIPError{host: host, ip: ip.IP}
 		}
 	}
 	return nil
@@ -857,7 +889,7 @@ func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string
 					slog.F("port", port),
 					slog.F("resolved_ip", ip.String()),
 				)
-				return xerrors.Errorf("CONNECT to private/reserved IP %s (%s) is blocked", ip, host)
+				return &blockedIPError{host: host, ip: ip}
 			}
 			return nil
 		},
@@ -866,8 +898,10 @@ func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string
 }
 
 // handleRequest intercepts HTTP requests after MITM decryption.
-//   - Requests to known AI providers are rewritten to aibridged, with the Coder token
-//     (from ctx.UserData, set during CONNECT) set in the X-Coder-Token header.
+//   - Requests to known AI providers are rewritten to point at aibridged.
+//     In centralized mode the Coder token is already in the
+//     Authorization header. For BYOK clients that cannot set custom
+//     headers, the proxy injects the BYOK header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -945,10 +979,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = aiBridgeParsedURL
 	req.Host = aiBridgeParsedURL.Host
 
-	// Set X-Coder-Token header for aibridged authentication.
-	// Using a separate header preserves the original request headers,
-	// which are forwarded to upstream providers.
-	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
+	injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
 
 	// Set custom header for cross-service log correlation.
 	// This allows correlating aibridgeproxyd logs with aibridged logs.
@@ -965,6 +996,27 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 
 	return req, nil
+}
+
+// injectBYOKHeaderIfNeeded sets HeaderCoderToken when the
+// Authorization header carries a bearer token that differs from the
+// Coder token, indicating the client is using its own LLM
+// credentials. Clients that can set custom headers
+// do this themselves; this handles clients that cannot.
+//
+// In centralized mode, Authorization carries the Coder token
+// itself, so aibridged discovers it via ExtractAuthToken
+// without any extra header.
+func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
+	// Don’t overwrite the header if it’s already set.
+	if header.Get(agplaibridge.HeaderCoderToken) != "" {
+		return
+	}
+
+	bearer := extractCoderTokenFromBearerAuth(header.Get("Authorization"))
+	if bearer != "" && bearer != coderToken {
+		header.Set(agplaibridge.HeaderCoderToken, coderToken)
+	}
 }
 
 // handleResponse handles responses received from aibridged.

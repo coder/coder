@@ -1,6 +1,6 @@
-import type { ChatUsageLimitPeriod } from "api/typesGenerated";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, type ReactNode, useId } from "react";
+import type { ChatUsageLimitPeriod } from "#/api/typesGenerated";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {

@@ -1,19 +1,13 @@
 import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
+import { useFormik } from "formik";
+import { type FC, useState } from "react";
+import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
 import type {
 	Organization,
 	ShareableWorkspaceOwners,
 	UpdateOrganizationRequest,
-} from "api/typesGenerated";
-import { useFormik } from "formik";
-import { type FC, useState } from "react";
-import {
-	displayNameValidator,
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -33,6 +27,12 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	displayNameValidator,
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 

@@ -1,30 +1,9 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	insightsTemplate,
-	insightsUserActivity,
-	insightsUserLatency,
-} from "api/queries/insights";
-import type {
-	Template,
-	TemplateAppUsage,
-	TemplateInsightsResponse,
-	TemplateParameterUsage,
-	TemplateParameterValue,
-	UserActivityInsightsResponse,
-	UserLatencyInsightsResponse,
-} from "api/typesGenerated";
 import chroma from "chroma-js";
 import {
 	CircleCheck as CircleCheckIcon,
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import {
-	DateRangePicker as DailyPicker,
-	type DateRangeValue,
-} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
 	Fragment,
@@ -35,20 +14,30 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
-import { cn } from "utils/cn";
-import { getLatencyColor } from "utils/latency";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	addTime,
-	formatDateTime,
-	startOfDay,
-	startOfHour,
-	subtractTime,
-} from "utils/time";
+	insightsTemplate,
+	insightsUserActivity,
+	insightsUserLatency,
+} from "#/api/queries/insights";
+import type {
+	Template,
+	TemplateAppUsage,
+	TemplateInsightsResponse,
+	TemplateParameterUsage,
+	TemplateParameterValue,
+	UserActivityInsightsResponse,
+	UserLatencyInsightsResponse,
+} from "#/api/typesGenerated";
 import {
 	ActiveUserChart,
 	ActiveUsersTitle,
 } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "#/components/DateRangePicker/DateRangePicker";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -65,6 +54,18 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
+import {
+	addTime,
+	formatDateTime,
+	startOfDay,
+	startOfHour,
+	subtractTime,
+} from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
@@ -142,6 +143,7 @@ interface TemplateInsightsControlsProps {
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
+	now?: Date;
 }
 
 export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
@@ -150,6 +152,7 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 	setDateRange,
 	searchParams,
 	setSearchParams,
+	now,
 }) => {
 	return (
 		<>
@@ -165,7 +168,12 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 				}}
 			/>
 			{interval === "day" ? (
-				<DailyPicker value={dateRange} onChange={setDateRange} />
+				<DailyPicker
+					value={dateRange}
+					onChange={setDateRange}
+					now={now}
+					size="lg"
+				/>
 			) : (
 				<WeekPicker value={dateRange} onChange={setDateRange} />
 			)}

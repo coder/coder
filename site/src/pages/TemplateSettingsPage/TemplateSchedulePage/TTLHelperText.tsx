@@ -1,4 +1,4 @@
-import { humanDuration } from "utils/time";
+import { humanDuration } from "#/utils/time";
 
 const hours = (h: number) => (h === 1 ? "hour" : "hours");
 

@@ -47,6 +47,7 @@ interface OrganizationMembersPageViewProps {
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
+	showAISeatColumn?: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	membersQuery: PaginationResultInfo & {
@@ -74,6 +75,7 @@ export const OrganizationMembersPageView: FC<
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
+	showAISeatColumn,
 	me,
 	membersQuery,
 	members,
@@ -120,13 +122,21 @@ export const OrganizationMembersPageView: FC<
 										<TableColumnHelpTooltip variant="roles" />
 									</Stack>
 								</TableHead>
-								<TableHead className="w-2/6">
+								<TableHead className={showAISeatColumn ? "w-1/6" : "w-2/6"}>
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Groups</span>
 										<TableColumnHelpTooltip variant="groups" />
 									</Stack>
 								</TableHead>
-								<TableHead className="w-auto" />
+								{showAISeatColumn && (
+									<TableHead className="w-1/6">
+										<Stack direction="row" spacing={1} alignItems="center">
+											<span>AI add-on</span>
+											<TableColumnHelpTooltip variant="ai_addon" />
+										</Stack>
+									</TableHead>
+								)}
+								<TableHead className="w-px whitespace-nowrap text-right" />
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -165,29 +175,34 @@ export const OrganizationMembersPageView: FC<
 											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />
-										<TableCell>
-											{member.user_id !== me.id && canEditMembers && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															size="icon-lg"
-															variant="subtle"
-															aria-label="Open menu"
-														>
-															<EllipsisVertical aria-hidden="true" />
-															<span className="sr-only">Open menu</span>
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onClick={() => removeMember(member)}
-														>
-															Remove
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
+										{showAISeatColumn && (
+											<AISeatCell hasAISeat={member.has_ai_seat} />
+										)}
+										<TableCell className="w-px whitespace-nowrap text-right">
+											<div className="flex justify-end">
+												{member.user_id !== me.id && canEditMembers && (
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																size="icon-lg"
+																variant="subtle"
+																aria-label="Open menu"
+															>
+																<EllipsisVertical aria-hidden="true" />
+																<span className="sr-only">Open menu</span>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem
+																className="text-content-destructive focus:text-content-destructive"
+																onClick={() => removeMember(member)}
+															>
+																Remove
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
+												)}
+											</div>
 										</TableCell>
 									</TableRow>
 								))

@@ -1,4 +1,3 @@
-import type { User } from "api/typesGenerated";
 import {
 	BellIcon,
 	BrushIcon,
@@ -9,9 +8,8 @@ import {
 	ShieldIcon,
 	UserIcon,
 } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { isDevBuild } from "utils/buildInfo";
+import type { User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { GitIcon } from "#/components/Icons/GitIcon";
 import {
@@ -19,6 +17,8 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { isDevBuild } from "#/utils/buildInfo";
 
 interface SidebarProps {
 	user: User;

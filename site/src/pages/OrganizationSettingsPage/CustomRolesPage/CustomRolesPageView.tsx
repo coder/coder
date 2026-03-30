@@ -1,10 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { AssignableRoles, Role } from "api/typesGenerated";
 import { EllipsisVertical, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import { docs } from "utils/docs";
+import type { AssignableRoles, Role } from "#/api/typesGenerated";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
@@ -28,6 +27,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { docs } from "#/utils/docs";
 import { PermissionPillsList } from "./PermissionPillsList";
 
 interface CustomRolesPageViewProps {

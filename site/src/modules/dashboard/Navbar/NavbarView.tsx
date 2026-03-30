@@ -1,14 +1,8 @@
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
-import { isDevBuild } from "utils/buildInfo";
-import { cn } from "utils/cn";
+import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -18,6 +12,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { ProxyContextValue } from "#/contexts/ProxyContext";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
+import { isDevBuild } from "#/utils/buildInfo";
+import { cn } from "#/utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";

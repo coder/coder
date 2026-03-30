@@ -5,22 +5,23 @@ import {
 	paginatedOrganizationMembers,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
-} from "api/queries/organizations";
-import { organizationRoles } from "api/queries/roles";
-import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
-import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router";
-import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+} from "#/api/queries/organizations";
+import { organizationRoles } from "#/api/queries/roles";
+import type {
+	OrganizationMemberWithUserData,
+	User,
+} from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
 import { Stack } from "#/components/Stack/Stack";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
@@ -106,6 +107,7 @@ const OrganizationMembersPage: FC = () => {
 				}
 				isAddingMember={addMemberMutation.isPending}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
+				showAISeatColumn={showAISeatColumn}
 				me={me}
 				members={members}
 				membersQuery={membersQuery}

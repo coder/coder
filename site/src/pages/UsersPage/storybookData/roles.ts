@@ -1,4 +1,4 @@
-import type { AssignableRoles, RBACAction, Role } from "api/typesGenerated";
+import type { AssignableRoles, RBACAction, Role } from "#/api/typesGenerated";
 
 // The following values were retrieved from the Coder API.
 export const MockRoles: (AssignableRoles | Role)[] = [

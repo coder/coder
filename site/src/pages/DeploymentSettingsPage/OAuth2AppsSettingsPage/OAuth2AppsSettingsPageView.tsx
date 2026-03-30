@@ -1,9 +1,8 @@
 import { useTheme } from "@emotion/react";
-import type * as TypesGen from "api/typesGenerated";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -23,6 +22,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];

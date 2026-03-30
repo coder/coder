@@ -3,6 +3,7 @@ package mcpclient_test
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"net/http/httptest"
 	"sync"
@@ -743,6 +744,212 @@ func TestConnectAll_MCPToolIdentifier_MultipleServers(t *testing.T) {
 	assert.Equal(t, configID2, idByName["srv-b__greet"])
 }
 
+// TestConnectAll_EmbeddedResourceText verifies that a tool returning
+// an EmbeddedResource with TextResourceContents has its text extracted
+// into the response content.
+func TestConnectAll_EmbeddedResourceText(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	srv := mcpserver.NewMCPServer("embedded-text-server", "1.0.0")
+	srv.AddTools(mcpserver.ServerTool{
+		Tool: mcp.NewTool("fetch_doc",
+			mcp.WithDescription("Returns an embedded text resource"),
+		),
+		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: "successfully downloaded text file",
+					},
+					mcp.EmbeddedResource{
+						Type: "resource",
+						Resource: mcp.TextResourceContents{
+							URI:      "file:///example.txt",
+							MIMEType: "text/plain",
+							Text:     "Hello from embedded resource",
+						},
+					},
+				},
+			}, nil
+		},
+	})
+
+	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
+	ts := httptest.NewServer(httpSrv)
+	t.Cleanup(ts.Close)
+
+	cfg := makeConfig("embed-txt", ts.URL)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-embed-txt",
+		Name:  "embed-txt__fetch_doc",
+		Input: "{}",
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Contains(t, resp.Content, "Hello from embedded resource")
+	assert.Contains(t, resp.Content, "successfully downloaded text file")
+	assert.NotContains(t, resp.Content, "unsupported content type")
+}
+
+// TestConnectAll_EmbeddedResourceBlob verifies that a tool returning
+// an EmbeddedResource with BlobResourceContents has its blob decoded
+// into the binary response path, with the Type field reflecting the
+// MIME type.
+func TestConnectAll_EmbeddedResourceBlob(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mimeType     string
+		expectedType string
+	}{
+		{"image", "image/png", "image"},
+		{"non-image", "application/pdf", "media"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			blobData := base64.StdEncoding.EncodeToString([]byte("binary-content"))
+			mime := tt.mimeType
+
+			srv := mcpserver.NewMCPServer("embedded-blob-server", "1.0.0")
+			srv.AddTools(mcpserver.ServerTool{
+				Tool: mcp.NewTool("fetch_blob",
+					mcp.WithDescription("Returns an embedded blob resource"),
+				),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return &mcp.CallToolResult{
+						Content: []mcp.Content{
+							mcp.EmbeddedResource{
+								Type: "resource",
+								Resource: mcp.BlobResourceContents{
+									URI:      "file:///blob",
+									MIMEType: mime,
+									Blob:     blobData,
+								},
+							},
+						},
+					}, nil
+				},
+			})
+
+			httpSrv := mcpserver.NewStreamableHTTPServer(srv)
+			ts := httptest.NewServer(httpSrv)
+			t.Cleanup(ts.Close)
+
+			cfg := makeConfig("embed-blob", ts.URL)
+			tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+			t.Cleanup(cleanup)
+			require.Len(t, tools, 1)
+
+			resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+				ID:    "call-embed-blob",
+				Name:  "embed-blob__fetch_blob",
+				Input: "{}",
+			})
+			require.NoError(t, err)
+			assert.False(t, resp.IsError)
+			// The blob is the only content item, so the binary
+			// path is taken: Content is empty and the decoded
+			// bytes land in Data.
+			assert.Empty(t, resp.Content, "binary-only response should have empty Content")
+			assert.Equal(t, tt.expectedType, resp.Type)
+			assert.Equal(t, []byte("binary-content"), resp.Data)
+			assert.Equal(t, tt.mimeType, resp.MediaType)
+		})
+	}
+}
+
+// TestConnectAll_ResourceLink verifies that a tool returning a
+// ResourceLink renders it as human-readable text containing the
+// resource name, URI, and description when present.
+func TestConnectAll_ResourceLink(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		link        mcp.ResourceLink
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "with_name",
+			link: mcp.ResourceLink{
+				Type: "resource_link",
+				Name: "Example Resource",
+				URI:  "https://example.com/resource",
+			},
+			contains:    []string{"Example Resource", "https://example.com/resource"},
+			notContains: []string{"unsupported content type"},
+		},
+		{
+			name: "with_description",
+			link: mcp.ResourceLink{
+				Type:        "resource_link",
+				Name:        "Deploy Log",
+				URI:         "file:///var/log/deploy.log",
+				Description: "Latest deployment log",
+			},
+			contains: []string{"Deploy Log", "file:///var/log/deploy.log", "Latest deployment log"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			link := tt.link
+			srv := mcpserver.NewMCPServer("resource-link-server", "1.0.0")
+			srv.AddTools(mcpserver.ServerTool{
+				Tool: mcp.NewTool("get_link",
+					mcp.WithDescription("Returns a resource link"),
+				),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return &mcp.CallToolResult{
+						Content: []mcp.Content{link},
+					}, nil
+				},
+			})
+
+			httpSrv := mcpserver.NewStreamableHTTPServer(srv)
+			ts := httptest.NewServer(httpSrv)
+			t.Cleanup(ts.Close)
+
+			cfg := makeConfig("res-link", ts.URL)
+			tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+			t.Cleanup(cleanup)
+			require.Len(t, tools, 1)
+
+			resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+				ID:    "call-res-link",
+				Name:  "res-link__get_link",
+				Input: "{}",
+			})
+			require.NoError(t, err)
+			assert.False(t, resp.IsError)
+			for _, s := range tt.contains {
+				assert.Contains(t, resp.Content, s)
+			}
+			for _, s := range tt.notContains {
+				assert.NotContains(t, resp.Content, s)
+			}
+		})
+	}
+}
+
 func TestConnectAll_CallToolError(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -778,4 +985,163 @@ func TestConnectAll_CallToolError(t *testing.T) {
 	require.NoError(t, err, "Run should not return a Go error for MCP-level errors")
 	assert.True(t, resp.IsError, "response should be flagged as error")
 	assert.Contains(t, resp.Content, "something broke")
+}
+
+func TestModelIntent_Info_WrapsSchema(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("intent-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+
+	// Top-level schema should have model_intent and properties.
+	_, hasModelIntent := info.Parameters["model_intent"]
+	_, hasProperties := info.Parameters["properties"]
+	assert.True(t, hasModelIntent, "schema should contain model_intent")
+	assert.True(t, hasProperties, "schema should contain properties")
+
+	// Required should include both.
+	assert.Contains(t, info.Required, "model_intent")
+	assert.Contains(t, info.Required, "properties")
+
+	// The original "input" parameter should be nested under
+	// properties.properties.
+	propsObj, ok := info.Parameters["properties"].(map[string]any)
+	require.True(t, ok)
+	innerProps, ok := propsObj["properties"].(map[string]any)
+	require.True(t, ok)
+	_, hasInput := innerProps["input"]
+	assert.True(t, hasInput, "original 'input' param should be nested")
+}
+
+func TestModelIntent_Info_NoWrapWhenDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("no-intent", ts.URL)
+	cfg.ModelIntent = false
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+
+	// Original schema should be flat — no model_intent wrapper.
+	_, hasModelIntent := info.Parameters["model_intent"]
+	assert.False(t, hasModelIntent, "schema should NOT contain model_intent")
+	_, hasInput := info.Parameters["input"]
+	assert.True(t, hasInput, "original 'input' param should be at top level")
+}
+
+func TestModelIntent_Run_UnwrapsProperties(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("unwrap-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Correct format: model_intent + properties wrapper.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "unwrap-srv__echo",
+		Input: `{"model_intent":"Testing echo","properties":{"input":"hello"}}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "echo: hello", resp.Content)
+}
+
+func TestModelIntent_Run_UnwrapsFlat(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("flat-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Flat format: model_intent at top level, no properties wrapper.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-2",
+		Name:  "flat-srv__echo",
+		Input: `{"model_intent":"Testing flat","input":"world"}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "echo: world", resp.Content)
+}
+
+func TestModelIntent_Run_PassthroughWhenDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("pass-srv", ts.URL)
+	cfg.ModelIntent = false
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Without model_intent, input is passed through unchanged.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-3",
+		Name:  "pass-srv__echo",
+		Input: `{"input":"direct"}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "echo: direct", resp.Content)
+}
+
+func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("bad-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	// Malformed JSON should not panic — the error is returned
+	// from the JSON unmarshal in Run(), not from unwrap.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-bad",
+		Name:  "bad-srv__echo",
+		Input: `not-json`,
+	})
+	require.NoError(t, err)
+	assert.True(t, resp.IsError, "malformed input should produce an error response")
 }

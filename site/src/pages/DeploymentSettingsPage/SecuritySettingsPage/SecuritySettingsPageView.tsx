@@ -1,10 +1,5 @@
-import type { SerpentOption } from "api/typesGenerated";
 import type { FC } from "react";
-import {
-	deploymentGroupHasParent,
-	useDeploymentOptions,
-} from "utils/deployOptions";
-import { docs } from "utils/docs";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Badges,
 	DisabledBadge,
@@ -18,6 +13,11 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Stack } from "#/components/Stack/Stack";
+import {
+	deploymentGroupHasParent,
+	useDeploymentOptions,
+} from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type SecuritySettingsPageViewProps = {

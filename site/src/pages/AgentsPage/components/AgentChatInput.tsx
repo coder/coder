@@ -1,72 +1,72 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
-import { useSpeechRecognition } from "hooks/useSpeechRecognition";
 import {
-	AlertTriangleIcon,
 	ArrowUpIcon,
+	Check,
 	CheckIcon,
-	ClipboardPasteIcon,
+	ChevronRightIcon,
 	ImageIcon,
 	MicIcon,
+	MonitorIcon,
 	PencilIcon,
+	PlusIcon,
+	ServerIcon,
 	Square,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
 import {
 	type FC,
-	type ReactNode,
 	useEffect,
 	useImperativeHandle,
 	useRef,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
-import { isMobileViewport } from "utils/mobile";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "#/components/ai-elements";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "#/components/ChatMessageInput/ChatMessageInput";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { Separator } from "#/components/Separator/Separator";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import {
-	fetchTextAttachmentContent,
-	formatTextAttachmentPreview,
-} from "../utils/fetchTextAttachment";
+import { Switch } from "#/components/Switch/Switch";
+import { cn } from "#/utils/cn";
+import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
+import { isMobileViewport } from "#/utils/mobile";
+import { useOverflowCount } from "../hooks/useOverflowCount";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { formatProviderLabel } from "../utils/modelOptions";
+import type { UploadState } from "./AttachmentPreview";
+import { AttachmentPreview } from "./AttachmentPreview";
+import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import type { AgentContextUsage } from "./ContextUsageIndicator";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
-import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
 export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
-
-export type UploadState = {
-	status: "uploading" | "uploaded" | "error";
-	fileId?: string;
-	error?: string;
-};
-
-export interface AgentContextUsage {
-	readonly usedTokens?: number;
-	readonly contextLimitTokens?: number;
-	readonly inputTokens?: number;
-	readonly outputTokens?: number;
-	readonly cacheReadTokens?: number;
-	readonly cacheCreationTokens?: number;
-	readonly reasoningTokens?: number;
-	// Percentage (0–100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
-}
+export {
+	ImageThumbnail,
+	type UploadState,
+} from "./AttachmentPreview";
+export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
@@ -85,16 +85,20 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	// Status messages.
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
+	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
 	isInterruptPending?: boolean;
-	// Extra controls rendered in the left action area (e.g. workspace
-	// selector on the create page).
-	leftActions?: ReactNode;
+	// Workspace picker.
+	workspaceOptions?: ReadonlyArray<{
+		id: string;
+		name: string;
+		owner_name: string;
+	}>;
+	selectedWorkspaceId?: string | null;
+	onWorkspaceChange?: (id: string | null) => void;
+	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
@@ -110,6 +114,7 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
+	onEditLastUserMessage?: () => void;
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -128,305 +133,64 @@ interface AgentChatInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 }
-const hasFiniteTokenValue = (value: number | undefined): value is number =>
-	typeof value === "number" && Number.isFinite(value) && value >= 0;
+type ToolBadgeData =
+	| { kind: "workspace"; name: string }
+	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
-const formatTokenCount = (value: number | undefined): string =>
-	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
+const ToolBadge: FC<{
+	badge: ToolBadgeData;
+	onRemoveWorkspace?: () => void;
+	onRemoveMcp?: (serverId: string) => void;
+	className?: string;
+}> = ({ badge, onRemoveWorkspace, onRemoveMcp, className }) => {
+	const badgeCls = cn(
+		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+		className,
+	);
 
-const formatTokenCountCompact = (value: number | undefined): string => {
-	if (!hasFiniteTokenValue(value)) {
-		return "--";
+	if (badge.kind === "workspace") {
+		return (
+			<span className={badgeCls}>
+				<MonitorIcon className="size-3" />
+				{badge.name}
+				{onRemoveWorkspace && (
+					<button
+						type="button"
+						onClick={onRemoveWorkspace}
+						className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+						aria-label={`Remove workspace ${badge.name}`}
+					>
+						<XIcon className="!size-2.5" />
+					</button>
+				)}
+			</span>
+		);
 	}
-	if (value >= 1_000_000) {
-		const m = value / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1).replace(/\.0$/, "")}M`;
-	}
-	if (value >= 1_000) {
-		const k = value / 1_000;
-		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
-	}
-	return String(value);
-};
 
-const getIndicatorToneClassName = (percentUsed: number | null): string => {
-	if (percentUsed === null) {
-		return "text-content-secondary/60";
-	}
-	if (percentUsed >= 95) {
-		return "text-content-destructive";
-	}
-	if (percentUsed >= 85) {
-		return "text-content-warning";
-	}
-	return "text-content-secondary/60";
-};
-
-const RING_SIZE = 18;
-const RING_STROKE = 2.5;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
-	usage,
-}) => {
-	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
-		? usage.usedTokens
-		: undefined;
-	const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
-		? usage.contextLimitTokens
-		: undefined;
-	const percentUsed =
-		usedTokens !== undefined &&
-		contextLimitTokens !== undefined &&
-		contextLimitTokens > 0
-			? (usedTokens / contextLimitTokens) * 100
-			: null;
-	const hasPercent = percentUsed !== null;
-	const percentLabel =
-		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-	const clampedPercent = hasPercent
-		? Math.min(Math.max(percentUsed, 0), 100)
-		: 100;
-	const dashOffset =
-		RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
-	const toneClassName = getIndicatorToneClassName(percentUsed);
-	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
-		: "Context usage";
-
+	const isForceOn = badge.server.availability === "force_on";
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
+		<span className={badgeCls}>
+			{badge.server.icon_url ? (
+				<ExternalImage
+					src={badge.server.icon_url}
+					alt=""
+					className="size-3 rounded-sm"
+				/>
+			) : (
+				<ServerIcon className="size-3" />
+			)}
+			{badge.server.display_name}
+			{!isForceOn && onRemoveMcp && (
 				<button
 					type="button"
-					aria-label={ariaLabel}
-					className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+					onClick={() => onRemoveMcp(badge.server.id)}
+					className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+					aria-label={`Remove ${badge.server.display_name}`}
 				>
-					<svg
-						className={cn("size-icon-sm -rotate-90", toneClassName)}
-						viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-						aria-hidden
-					>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							className="stroke-content-secondary/25"
-						/>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							strokeLinecap="round"
-							className="stroke-current transition-all duration-300 ease-out"
-							style={{
-								strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-								strokeDashoffset: dashOffset,
-							}}
-						/>
-					</svg>
+					<XIcon className="!size-2.5" />
 				</button>
-			</TooltipTrigger>
-			<TooltipContent side="top">
-				<div className="text-xs text-content-primary">
-					{hasPercent
-						? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-						: "Context usage unavailable"}
-					{hasPercent &&
-						usage?.compressionThreshold !== undefined &&
-						usage.compressionThreshold > 0 && (
-							<div className="mt-1 text-content-secondary">
-								Compacts at {usage.compressionThreshold}%
-							</div>
-						)}
-				</div>
-			</TooltipContent>
-		</Tooltip>
-	);
-};
-
-/** Renders an image thumbnail from a pre-created preview URL. */
-export const ImageThumbnail: FC<{
-	previewUrl: string;
-	name: string;
-	className?: string;
-}> = ({ previewUrl, name, className }) => (
-	<img
-		src={previewUrl}
-		alt={name}
-		className={cn(
-			"h-16 w-16 rounded-md border border-border-default object-cover",
-			className,
-		)}
-	/>
-);
-
-/** Renders a horizontal strip of attachment thumbnails above the input. */
-export const AttachmentPreview: FC<{
-	attachments: readonly File[];
-	onRemove: (attachment: number | File) => void;
-	uploadStates?: Map<File, UploadState>;
-	previewUrls?: Map<File, string>;
-	onPreview?: (url: string) => void;
-	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
-	onInlineText?: (file: File, content?: string) => void;
-}> = ({
-	attachments,
-	onRemove,
-	uploadStates,
-	previewUrls,
-	onPreview,
-	textContents,
-	onTextPreview,
-	onInlineText,
-}) => {
-	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => textAttachmentLoadControllerRef.current?.abort();
-	}, []);
-
-	if (attachments.length === 0) return null;
-
-	const loadTextAttachmentContent = async (
-		content: string | undefined,
-		fileId: string | undefined,
-	): Promise<string | undefined> => {
-		textAttachmentLoadControllerRef.current?.abort();
-		if (content !== undefined || !fileId) {
-			textAttachmentLoadControllerRef.current = null;
-			return content;
-		}
-		const controller = new AbortController();
-		textAttachmentLoadControllerRef.current = controller;
-		try {
-			const fetchedContent = await fetchTextAttachmentContent(
-				fileId,
-				controller.signal,
-			);
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			return fetchedContent;
-		} catch (err) {
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			if (err instanceof Error && err.name === "AbortError") {
-				return undefined;
-			}
-			console.error("Failed to load text attachment:", err);
-			return undefined;
-		}
-	};
-
-	return (
-		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
-			{attachments.map((file, index) => {
-				const uploadState = uploadStates?.get(file);
-				const previewUrl = previewUrls?.get(file) ?? "";
-				const textContent = textContents?.get(file);
-				const textFileId =
-					uploadState?.status === "uploaded" ? uploadState.fileId : undefined;
-				const hasTextAttachment =
-					file.type === "text/plain" &&
-					(textContent !== undefined || textFileId !== undefined);
-				return (
-					<div
-						// Key combines file metadata with index as a fallback for
-						// duplicate names. Acceptable for a small, append-only list.
-						key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-						className="group relative"
-					>
-						{file.type.startsWith("image/") && previewUrl ? (
-							<button
-								type="button"
-								className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
-								onClick={() => onPreview?.(previewUrl)}
-							>
-								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
-							</button>
-						) : hasTextAttachment ? (
-							<button
-								type="button"
-								aria-label="View text attachment"
-								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									if (nextContent !== undefined) {
-										onTextPreview?.(nextContent, file.name);
-									}
-								}}
-							>
-								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{formatTextAttachmentPreview(textContent ?? "")}
-								</span>
-							</button>
-						) : (
-							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
-								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
-							</div>
-						)}
-						{hasTextAttachment && (
-							<button
-								type="button"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									onInlineText?.(file, nextContent);
-								}}
-								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-label="Paste inline"
-							>
-								<ClipboardPasteIcon className="h-3.5 w-3.5" />
-							</button>
-						)}
-						{uploadState?.status === "uploading" && (
-							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
-								<Spinner className="h-5 w-5 text-white" loading />
-							</div>
-						)}
-						{uploadState?.status === "error" && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<div
-										className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
-										role="img"
-										aria-label="Upload error"
-									>
-										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
-									</div>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									<p className="max-w-xs text-xs">
-										{uploadState.error ?? "Upload failed"}
-									</p>
-								</TooltipContent>
-							</Tooltip>
-						)}
-						<button
-							type="button"
-							onClick={() => onRemove(index)}
-							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-							aria-label={`Remove ${file.name}`}
-						>
-							<XIcon className="h-3.5 w-3.5" />
-						</button>
-					</div>
-				);
-			})}
-		</div>
+			)}
+		</span>
 	);
 };
 
@@ -443,12 +207,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	inputStatusText,
-	modelCatalogStatusMessage,
+	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
-	leftActions,
+	workspaceOptions,
+	selectedWorkspaceId,
+	onWorkspaceChange,
+	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -457,6 +223,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
+	onEditLastUserMessage,
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -476,6 +243,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
 		null,
 	);
+	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
+	const mcpPopupRef = useRef<Window | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 
@@ -499,8 +270,96 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// so both point to the same ChatMessageInputRef instance.
 	useImperativeHandle(inputRef, () => internalRef.current!, []);
 
-	const fileInputRef = useRef<HTMLInputElement>(null);
+	// Listen for OAuth2 completion postMessage from popup.
+	useEffect(() => {
+		const handler = (event: MessageEvent) => {
+			if (event.origin !== window.location.origin) return;
+			if (
+				event.data?.type === "mcp-oauth2-complete" &&
+				typeof event.data.serverID === "string"
+			) {
+				setMcpConnectingId(null);
+				onMCPAuthComplete?.(event.data.serverID);
+				mcpPopupRef.current = null;
+			}
+		};
+		window.addEventListener("message", handler);
+		return () => window.removeEventListener("message", handler);
+	}, [onMCPAuthComplete]);
 
+	// Poll for popup close and clean up on unmount.
+	useEffect(() => {
+		if (!mcpConnectingId || !mcpPopupRef.current) return;
+		const interval = setInterval(() => {
+			if (mcpPopupRef.current?.closed) {
+				setMcpConnectingId(null);
+				mcpPopupRef.current = null;
+			}
+		}, 500);
+		return () => {
+			clearInterval(interval);
+			if (mcpPopupRef.current && !mcpPopupRef.current.closed) {
+				mcpPopupRef.current.close();
+				mcpPopupRef.current = null;
+			}
+		};
+	}, [mcpConnectingId]);
+
+	const handleMcpToggle = (serverId: string, checked: boolean) => {
+		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
+		if (checked) {
+			onMCPSelectionChange([...selectedMCPServerIds, serverId]);
+		} else {
+			onMCPSelectionChange(
+				selectedMCPServerIds.filter((id) => id !== serverId),
+			);
+		}
+	};
+
+	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
+		setMcpConnectingId(server.id);
+		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		mcpPopupRef.current = window.open(
+			connectUrl,
+			"_blank",
+			"width=900,height=600",
+		);
+	};
+
+	const selectedWorkspace = workspaceOptions?.find(
+		(ws) => ws.id === selectedWorkspaceId,
+	);
+
+	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
+	const activeMcpServers = enabledMcpServers.filter(
+		(s) =>
+			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
+			!(s.auth_type === "oauth2" && !s.auth_connected),
+	);
+
+	const badgeContainerRef = useRef<HTMLDivElement>(null);
+
+	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
+
+	// Ordered list of active tool badge data so we can determine
+	// which ones ended up in the overflow popover.
+	const allBadges: ToolBadgeData[] = [];
+	if (selectedWorkspace && onWorkspaceChange) {
+		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
+	}
+	for (const s of activeMcpServers) {
+		allBadges.push({ kind: "mcp", server: s });
+	}
+
+	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
+	const visibleCount = Math.max(0, allBadges.length - overflowCount);
+	const overflowBadges = allBadges.slice(visibleCount);
+
+	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const handleRemoveMcp = (serverId: string) =>
+		handleMcpToggle(serverId, false);
+
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
 			onAttach(Array.from(e.target.files));
@@ -565,9 +424,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		Boolean(initialValue?.trim()),
 	);
 
+	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
+		countInvisibleCharacters(initialValue ?? ""),
+	);
+
 	const handleContentChange = (content: string, hasRefs: boolean) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
+		setInvisibleCharCount(countInvisibleCharacters(content));
 		onContentChange?.(content);
 	};
 
@@ -587,11 +451,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
 	);
+	const hasDraftContext =
+		hasContent || attachments.length > 0 || hasFileReferences;
+	const isComposerEffectivelyEmpty = !hasDraftContext;
+	const hasSendableContent =
+		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
 		hasModelOptions &&
-		(hasContent || hasUploadedAttachments || hasFileReferences) &&
+		hasSendableContent &&
 		!isUploading;
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
@@ -649,7 +518,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setPreRecordingValue("");
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
+	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
 			if (editingQueuedMessageID !== null) {
 				e.preventDefault();
@@ -662,6 +531,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				onInterrupt();
 			}
 		}
+	};
+	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+		if (
+			e.key !== "ArrowUp" ||
+			editingQueuedMessageID !== null ||
+			isEditingHistoryMessage ||
+			!onEditLastUserMessage ||
+			!isComposerEffectivelyEmpty
+		) {
+			return;
+		}
+		e.preventDefault();
+		onEditLastUserMessage();
 	};
 
 	const sendButtonLabel =
@@ -705,7 +587,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
-				onKeyDown={handleKeyDown}
+				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
@@ -767,66 +649,272 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					placeholder={placeholder}
 					initialValue={initialValue}
 					onChange={handleContentChange}
+					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					disabled={isDisabled || isLoading}
 					autoFocus
 				/>
-
-				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-					<div className="flex min-w-0 items-center gap-2">
-						<ModelSelector
-							value={selectedModel}
-							onValueChange={onModelChange}
-							options={modelOptions}
-							disabled={isDisabled}
-							placeholder={modelSelectorPlaceholder}
-							formatProviderLabel={formatProviderLabel}
-							dropdownSide="top"
-							dropdownAlign="center"
-						/>
-						{mcpServers &&
-							mcpServers.length > 0 &&
-							onMCPSelectionChange &&
-							onMCPAuthComplete && (
-								<MCPServerPicker
-									servers={mcpServers}
-									selectedServerIds={selectedMCPServerIds ?? []}
-									onSelectionChange={onMCPSelectionChange}
-									onAuthComplete={onMCPAuthComplete}
-									disabled={isDisabled}
-								/>
-							)}
-						{leftActions}
-						{inputStatusText && (
-							<span className="hidden text-xs text-content-secondary sm:inline">
-								{inputStatusText}
-							</span>
-						)}
+				{/* Warn about invisible Unicode in the message text.
+				 * Unlike the admin/user prompt textareas (which strip
+				 * invisible chars server-side on save), the chat input
+				 * is the user's free-form message — we don't silently
+				 * mutate it. Instead we surface a warning so the user
+				 * can make an informed decision. This guards against
+				 * social engineering attacks where a user is tricked
+				 * into pasting a "prompt" containing hidden LLM
+				 * instructions encoded as zero-width characters. */}
+				{invisibleCharCount > 0 && (
+					<div className="px-3 pb-1">
+						<Alert severity="warning">
+							This message contains {invisibleCharCount} invisible Unicode
+							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
+							content. Review carefully before sending.
+						</Alert>
 					</div>
-					<div className="flex items-center gap-2">
-						{onAttach && (
-							<>
-								<input
-									ref={fileInputRef}
-									type="file"
-									multiple
-									accept="image/*"
-									onChange={handleFileSelect}
-									className="hidden"
-								/>
+				)}
+				{/* Hidden file input for image attachment */}
+				{onAttach && (
+					<input
+						ref={fileInputRef}
+						type="file"
+						multiple
+						accept="image/*"
+						onChange={handleFileSelect}
+						className="hidden"
+					/>
+				)}
+				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+					<div className="flex min-w-0 items-center gap-1">
+						{/* Plus menu */}
+						<Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
+							<PopoverTrigger asChild>
 								<Button
 									type="button"
 									variant="subtle"
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									onClick={() => fileInputRef.current?.click()}
 									disabled={isDisabled}
-									aria-label="Attach files"
+									aria-label="More options"
 								>
-									<ImageIcon />
+									<PlusIcon />
 								</Button>
-							</>
+							</PopoverTrigger>
+							<PopoverContent
+								side="bottom"
+								align="start"
+								className="w-auto min-w-[200px] p-1"
+							>
+								{onAttach && (
+									<button
+										type="button"
+										onClick={() => {
+											setPlusMenuOpen(false);
+											fileInputRef.current?.click();
+										}}
+										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+									>
+										<ImageIcon className="size-3.5 shrink-0" />
+										Attach image
+									</button>
+								)}
+								{workspaceOptions && onWorkspaceChange && (
+									<Popover
+										open={workspacePickerOpen}
+										onOpenChange={setWorkspacePickerOpen}
+									>
+										<PopoverTrigger asChild>
+											<button
+												type="button"
+												disabled={isDisabled || isWorkspaceLoading}
+												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												<MonitorIcon className="size-3.5 shrink-0" />
+												<span>Attach workspace</span>
+												<ChevronRightIcon
+													className={cn(
+														"ml-auto size-icon-sm transition-transform",
+														workspacePickerOpen && "rotate-180",
+													)}
+												/>
+											</button>
+										</PopoverTrigger>
+										<PopoverContent
+											side="right"
+											align="start"
+											sideOffset={8}
+											className="w-64 p-0"
+										>
+											<Command loop>
+												<CommandInput
+													placeholder="Search workspaces..."
+													className="text-xs"
+												/>
+												<CommandList>
+													<CommandEmpty className="text-xs">
+														No workspaces found
+													</CommandEmpty>
+													<CommandGroup>
+														{workspaceOptions.map((workspace) => (
+															<CommandItem
+																className="text-xs font-normal"
+																key={workspace.id}
+																value={workspace.name}
+																onSelect={() => {
+																	onWorkspaceChange(workspace.id);
+																	setWorkspacePickerOpen(false);
+																	setPlusMenuOpen(false);
+																}}
+															>
+																{workspace.name}
+																{selectedWorkspaceId === workspace.id && (
+																	<Check className="ml-auto size-icon-sm shrink-0" />
+																)}
+															</CommandItem>
+														))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
+								)}
+								{enabledMcpServers.length > 0 && (
+									<>
+										<Separator className="my-1" />
+										{enabledMcpServers.map((server) => {
+											const isForceOn = server.availability === "force_on";
+											const isSelected =
+												isForceOn ||
+												(selectedMCPServerIds?.includes(server.id) ?? false);
+											const needsAuth =
+												server.auth_type === "oauth2" && !server.auth_connected;
+											const isConnecting = mcpConnectingId === server.id;
+											return (
+												<div
+													key={server.id}
+													className="flex items-center gap-1.5 px-1 py-1.5"
+												>
+													{server.icon_url ? (
+														<ExternalImage
+															src={server.icon_url}
+															alt=""
+															className="size-3.5 shrink-0 rounded-sm"
+														/>
+													) : (
+														<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+													)}
+													<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
+														{server.display_name}
+													</span>
+													{needsAuth ? (
+														<Button
+															variant="outline"
+															size="sm"
+															className="h-6 shrink-0 px-2 text-[10px] leading-none"
+															onClick={() => handleMcpConnect(server)}
+															disabled={isDisabled || mcpConnectingId !== null}
+														>
+															{isConnecting ? (
+																<Spinner loading className="size-2.5" />
+															) : null}
+															Auth
+														</Button>
+													) : (
+														<Switch
+															size="sm"
+															checked={isSelected}
+															onCheckedChange={(checked) =>
+																handleMcpToggle(server.id, checked)
+															}
+															disabled={isDisabled || isForceOn}
+															aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+														/>
+													)}
+												</div>
+											);
+										})}
+									</>
+								)}
+							</PopoverContent>
+						</Popover>
+						{isModelCatalogLoading ? (
+							<Skeleton className="h-6 w-24 rounded" />
+						) : (
+							<ModelSelector
+								value={selectedModel}
+								onValueChange={onModelChange}
+								options={modelOptions}
+								disabled={isDisabled}
+								placeholder={modelSelectorPlaceholder}
+								formatProviderLabel={formatProviderLabel}
+								dropdownSide="top"
+								dropdownAlign="center"
+							/>
 						)}
+						{/* Badge row — all badges and the pill always
+						 * render so the DOM structure never changes.
+						 * Overflow badges use invisible + order-1 to
+						 * hide and reorder via CSS. The pill is invisible
+						 * when there's no overflow but still occupies
+						 * layout space, preventing measurement flicker. */}
+						<div
+							ref={badgeContainerRef}
+							className="flex min-w-0 items-center gap-1 overflow-hidden"
+						>
+							{allBadges.map((badge, i) => {
+								const isOverflow = overflowCount > 0 && i >= visibleCount;
+								return (
+									<ToolBadge
+										key={badge.kind === "workspace" ? "ws" : badge.server.id}
+										badge={badge}
+										onRemoveWorkspace={handleRemoveWorkspace}
+										onRemoveMcp={handleRemoveMcp}
+										className={isOverflow ? "invisible order-1" : undefined}
+									/>
+								);
+							})}
+							{/* Pill — always in the DOM so it permanently
+							 * reserves layout space. Invisible when nothing
+							 * overflows. CSS order keeps it before order-1
+							 * (overflow) badges. */}
+							<Popover
+								open={overflowPopoverOpen && overflowCount > 0}
+								onOpenChange={setOverflowPopoverOpen}
+							>
+								<PopoverTrigger asChild>
+									<button
+										type="button"
+										className={cn(
+											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+											overflowCount === 0 && "invisible",
+										)}
+										aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
+										aria-hidden={overflowCount === 0}
+									>
+										+{overflowCount}
+									</button>
+								</PopoverTrigger>
+								<PopoverContent
+									side="top"
+									align="start"
+									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+								>
+									{overflowBadges.map((badge) => (
+										<ToolBadge
+											key={
+												badge.kind === "workspace"
+													? "ws-overflow"
+													: badge.server.id
+											}
+											badge={badge}
+											onRemoveWorkspace={handleRemoveWorkspace}
+											onRemoveMcp={handleRemoveMcp}
+										/>
+									))}
+								</PopoverContent>
+							</Popover>
+						</div>
+					</div>
+					<div className="flex items-center gap-2">
 						{speech.isSupported && !isStreaming && (
 							<>
 								<Button
@@ -897,16 +985,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						)}
 					</div>
 				</div>
-				{inputStatusText && (
-					<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-						{inputStatusText}
-					</div>
-				)}
-				{modelCatalogStatusMessage && (
-					<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-						{modelCatalogStatusMessage}
-					</div>
-				)}
 			</div>
 		</div>
 	);

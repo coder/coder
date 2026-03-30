@@ -1,13 +1,14 @@
-import { MockWorkspace } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { MockWorkspace } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
+
+const modelConfigID = "model-config-1";
 
 const modelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: modelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -27,14 +28,13 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isModelCatalogLoading: false,
 		modelConfigs: [],
 		isModelConfigsLoading: false,
-		modelCatalogError: undefined,
+		workspaceCount: 0,
+		workspaceOptions: [],
+		workspacesError: undefined,
+		isWorkspacesLoading: false,
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: [],
-			count: 0,
-		});
 	},
 };
 
@@ -70,44 +70,51 @@ const mockWorkspaces = [
 ];
 
 export const WithWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		// Open the "+" menu first, then click the workspace trigger inside it.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			const trigger = canvas.getByText("Workspace").closest("button")!;
+			const trigger = body.getByText("Attach workspace").closest("button")!;
 			expect(trigger).toBeEnabled();
 		});
-		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
-		// Wait for the portalled combobox dropdown to appear so Chromatic
-		// captures it.
-		await within(canvasElement.ownerDocument.body).findByRole("dialog");
+		await userEvent.click(
+			body.getByText("Attach workspace").closest("button")!,
+		);
+		// Wait for the workspace combobox dropdown to appear so
+		// Chromatic captures it.
+		await body.findByPlaceholderText("Search workspaces...");
 	},
 };
 
 export const SearchWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		// Open the "+" menu first, then click the workspace trigger inside it.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			const trigger = canvas.getByText("Workspace").closest("button")!;
+			const trigger = body.getByText("Attach workspace").closest("button")!;
 			expect(trigger).toBeEnabled();
 		});
-		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
-
-		const body = within(canvasElement.ownerDocument.body);
-		await body.findByRole("dialog");
+		await userEvent.click(
+			body.getByText("Attach workspace").closest("button")!,
+		);
 
 		// Type in the search input to filter workspaces.
 		const searchInput = body.getByPlaceholderText("Search workspaces...");
@@ -119,44 +126,120 @@ export const SearchWorkspaces: Story = {
 			// "Auto-create Workspace" is filtered out, only
 			// "johndoe/backend-api" matches.
 			expect(options).toHaveLength(1);
-			expect(options[0]).toHaveTextContent("johndoe/backend-api");
+			expect(options[0]).toHaveTextContent("backend-api");
 		});
 	},
 };
 
 export const SelectWorkspaceViaSearch: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		// Open the "+" menu first, then click the workspace trigger inside it.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			const trigger = canvas.getByText("Workspace").closest("button")!;
+			const trigger = body.getByText("Attach workspace").closest("button")!;
 			expect(trigger).toBeEnabled();
 		});
-		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
+		await userEvent.click(
+			body.getByText("Attach workspace").closest("button")!,
+		);
 
-		const body = within(canvasElement.ownerDocument.body);
-		await body.findByRole("dialog");
-
-		// Search for "janedoe" and select the result.
+		// Search for "backend" and select the result.
 		const searchInput = body.getByPlaceholderText("Search workspaces...");
-		await userEvent.type(searchInput, "janedoe");
+		await userEvent.type(searchInput, "backend");
 
 		await waitFor(() => {
 			expect(body.getAllByRole("option")).toHaveLength(1);
 		});
 
-		await userEvent.click(body.getByRole("option", { name: /janedoe/ }));
+		await userEvent.click(body.getByRole("option", { name: /backend-api/ }));
 
-		// The trigger should now show the selected workspace.
+		// Re-open the "+" menu to verify the selected workspace label.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await waitFor(() => {
-			expect(canvas.getByText("janedoe/my-project")).toBeInTheDocument();
+			expect(body.getByText("backend-api")).toBeInTheDocument();
 		});
+	},
+};
+
+export const LoadingModelCatalog: Story = {
+	args: {
+		...defaultArgs,
+		modelCatalog: null,
+		modelOptions: [],
+		isModelCatalogLoading: true,
+		isModelConfigsLoading: true,
+	},
+};
+
+export const NoModelsConfigured: Story = {
+	args: {
+		...defaultArgs,
+		modelCatalog: { providers: [] },
+		modelOptions: [],
+		isModelCatalogLoading: false,
+		isModelConfigsLoading: false,
+	},
+};
+
+export const PreservesAttachmentsOnFailedSend: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockRejectedValue(new Error("server error")),
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		// Pre-persist an uploaded attachment so it is restored on mount.
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "persisted-file-1",
+					fileName: "photo.png",
+					fileType: "image/png",
+					lastModified: 1000,
+				},
+			]),
+		);
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// The restored attachment should appear on mount.
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+
+		// Type a message and submit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("test message");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		// Wait for onCreateChat to have been called (and rejected).
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+
+		// The attachment must still be visible after the failed send.
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+
+		// localStorage must still have the persisted attachment.
+		const stored = localStorage.getItem("agents.persisted-attachments");
+		expect(stored).not.toBeNull();
+		const parsed = JSON.parse(stored!);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].fileId).toBe("persisted-file-1");
 	},
 };
 

@@ -1,14 +1,3 @@
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { templateVersionPresets } from "api/queries/templates";
-import type {
-	Preset,
-	Task,
-	Template,
-	TemplateVersionExternalAuth,
-} from "api/typesGenerated";
-import { useAuthenticated } from "hooks/useAuthenticated";
-import { useExternalAuth } from "hooks/useExternalAuth";
 import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -17,8 +6,15 @@ import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
-import { getOSKey } from "utils/platform";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { templateVersionPresets } from "#/api/queries/templates";
+import type {
+	Preset,
+	Task,
+	Template,
+	TemplateVersionExternalAuth,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -38,6 +34,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useExternalAuth } from "#/hooks/useExternalAuth";
+import { docs } from "#/utils/docs";
+import { getOSKey } from "#/utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 

@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -9,8 +8,9 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "#/components/HelpTooltip/HelpTooltip";
+import { docs } from "#/utils/docs";
 
-type ColumnHeader = "roles" | "groups";
+type ColumnHeader = "roles" | "groups" | "ai_addon";
 
 type TooltipData = {
 	title: string;
@@ -34,6 +34,14 @@ const Language = {
 			"to specific templates. View our docs on how to use groups.",
 		links: [{ text: "User Groups", href: docs("/admin/users/groups-roles") }],
 	},
+
+	ai_addon: {
+		title: "What is the AI add-on?",
+		text:
+			"Users with access to AI features like AI Bridge or Tasks " +
+			"who are actively consuming a seat.",
+		links: [],
+	},
 } as const satisfies Record<ColumnHeader, TooltipData>;
 
 type Props = {
@@ -49,13 +57,15 @@ export const TableColumnHelpTooltip: FC<Props> = ({ variant }) => {
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{variantLang.title}</HelpTooltipTitle>
 				<HelpTooltipText>{variantLang.text}</HelpTooltipText>
-				<HelpTooltipLinksGroup>
-					{variantLang.links.map((link) => (
-						<HelpTooltipLink key={link.text} href={link.href}>
-							{link.text}
-						</HelpTooltipLink>
-					))}
-				</HelpTooltipLinksGroup>
+				{variantLang.links.length > 0 && (
+					<HelpTooltipLinksGroup>
+						{variantLang.links.map((link) => (
+							<HelpTooltipLink key={link.text} href={link.href}>
+								{link.text}
+							</HelpTooltipLink>
+						))}
+					</HelpTooltipLinksGroup>
+				)}
 			</HelpTooltipContent>
 		</HelpTooltip>
 	);

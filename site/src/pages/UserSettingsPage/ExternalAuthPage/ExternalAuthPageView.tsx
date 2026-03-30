@@ -1,14 +1,13 @@
 import { useTheme } from "@emotion/react";
-import { externalAuthProvider } from "api/queries/externalAuth";
+import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
+import { type FC, useCallback, useEffect, useState } from "react";
+import { useQuery } from "react-query";
+import { externalAuthProvider } from "#/api/queries/externalAuth";
 import type {
 	ExternalAuthLink,
 	ExternalAuthLinkProvider,
 	ListUserExternalAuthResponse,
-} from "api/typesGenerated";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
-import { type FC, useCallback, useEffect, useState } from "react";
-import { useQuery } from "react-query";
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -35,6 +34,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 
 type ExternalAuthPageViewProps = {
 	isLoading: boolean;

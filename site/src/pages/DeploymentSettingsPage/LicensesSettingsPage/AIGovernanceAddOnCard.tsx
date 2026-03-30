@@ -41,7 +41,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 								<TooltipTrigger asChild>
 									<button
 										type="button"
-										aria-label="AI governance seat information"
+										aria-label="AI Governance seat information"
 										className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
 									>
 										<InfoIcon className="size-3" />

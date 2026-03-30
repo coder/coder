@@ -1,3 +1,5 @@
+import { type FormikContextType, getIn } from "formik";
+import type { FC } from "react";
 import {
 	type FieldSchema,
 	getVisibleGeneralFields,
@@ -5,10 +7,7 @@ import {
 	resolveProvider,
 	snakeToCamel,
 	toFormFieldKey,
-} from "api/chatModelOptions";
-import { type FormikContextType, getIn } from "formik";
-import type { FC } from "react";
-import { cn } from "utils/cn";
+} from "#/api/chatModelOptions";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -19,6 +18,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { cn } from "#/utils/cn";
 import { normalizeProvider } from "./helpers";
 import type {
 	ModelConfigFormBuildResult,

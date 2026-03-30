@@ -1,23 +1,23 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { spyOn, userEvent, within } from "storybook/test";
+import {
+	reactRouterOutlet,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import {
+	getGroupMembersQueryKey,
+	getGroupQueryKey,
+	groupPermissionsKey,
+} from "#/api/queries/groups";
+import { organizationMembersKey } from "#/api/queries/organizations";
 import {
 	MockDefaultOrganization,
 	MockGroup,
 	MockGroupWithoutMembers,
 	MockOrganizationMember,
 	MockOrganizationMember2,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import {
-	getGroupMembersQueryKey,
-	getGroupQueryKey,
-	groupPermissionsKey,
-} from "api/queries/groups";
-import { organizationMembersKey } from "api/queries/organizations";
-import { spyOn, userEvent, within } from "storybook/test";
-import {
-	reactRouterOutlet,
-	reactRouterParameters,
-} from "storybook-addon-remix-react-router";
+} from "#/testHelpers/entities";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 
@@ -70,7 +70,10 @@ const permissionsQuery = (data: unknown, id?: string) => ({
 });
 
 const membersQuery = (data: unknown) => ({
-	key: organizationMembersKey(MockDefaultOrganization.id),
+	key: organizationMembersKey(MockDefaultOrganization.id, {
+		limit: 25,
+		q: "",
+	}),
 	data,
 });
 

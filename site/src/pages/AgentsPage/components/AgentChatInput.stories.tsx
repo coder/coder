@@ -1,13 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type * as TypesGen from "api/typesGenerated";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 import { AgentChatInput, type UploadState } from "./AgentChatInput";
 
+const defaultModelConfigID = "model-config-1";
+
 const defaultModelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -28,8 +30,6 @@ const meta: Meta<typeof AgentChatInput> = {
 		modelOptions: [...defaultModelOptions],
 		modelSelectorPlaceholder: "Select model",
 		hasModelOptions: true,
-		inputStatusText: null,
-		modelCatalogStatusMessage: null,
 	},
 };
 
@@ -480,6 +480,7 @@ const makeMCPServer = (
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
+	model_intent: overrides.model_intent ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -561,5 +562,94 @@ export const WithMCPNoneActive: Story = {
 			},
 		],
 		selectedMCPServerIds: [],
+	},
+};
+
+/** Plus menu open showing attach, MCP servers, and workspace placeholder. */
+export const PlusMenuOpen: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+const confluenceMCP = makeMCPServer({
+	id: "mcp-confluence",
+	display_name: "Confluence Cloud",
+	slug: "confluence",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogMCP = makeMCPServer({
+	id: "mcp-datadog",
+	display_name: "Datadog Monitoring",
+	slug: "datadog",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const pagerdutyMCP = makeMCPServer({
+	id: "mcp-pagerduty",
+	display_name: "PagerDuty",
+	slug: "pagerduty",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
+export const OverflowBadges: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			confluenceMCP,
+			datadogMCP,
+			pagerdutyMCP,
+		],
+		selectedMCPServerIds: [
+			sentryMCP.id,
+			linearMCP.id,
+			githubMCPConnected.id,
+			confluenceMCP.id,
+			datadogMCP.id,
+			pagerdutyMCP.id,
+		],
+		workspaceOptions: [
+			{ id: "ws-1", name: "my-long-workspace-name", owner_name: "admin" },
+		],
+		selectedWorkspaceId: "ws-1",
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		chromatic: { viewports: [414] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Wait for the overflow hook to measure and show the pill.
+		const pill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(pill).toBeVisible();
+		});
+		await userEvent.click(pill);
+		// The popover renders via a Radix portal outside the
+		// canvas. Find it by role, then assert content within it.
+		const popover = await within(document.body).findByRole("dialog");
+		expect(within(popover).getByText("Confluence Cloud")).toBeInTheDocument();
 	},
 };

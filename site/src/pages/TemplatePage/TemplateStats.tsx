@@ -1,12 +1,12 @@
-import type { Template, TemplateVersion } from "api/typesGenerated";
 import type { FC } from "react";
 import { Link } from "react-router";
-import { createDayString } from "utils/createDayString";
+import type { Template, TemplateVersion } from "#/api/typesGenerated";
+import { Stats, StatsItem } from "#/components/Stats/Stats";
+import { createDayString } from "#/utils/createDayString";
 import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
-} from "utils/templates";
-import { Stats, StatsItem } from "#/components/Stats/Stats";
+} from "#/utils/templates";
 
 const Language = {
 	usedByLabel: "Used by",

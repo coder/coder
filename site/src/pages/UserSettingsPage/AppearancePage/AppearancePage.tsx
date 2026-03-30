@@ -1,12 +1,12 @@
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	appearanceSettings,
 	updateAppearanceSettings,
-} from "api/queries/users";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+} from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { AppearanceForm } from "./AppearanceForm";
 
 const AppearancePage: FC = () => {

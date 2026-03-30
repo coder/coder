@@ -1,7 +1,6 @@
-import type { WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
-import { docs } from "utils/docs";
+import type { WorkspaceAgentLifecycle } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import {
@@ -10,6 +9,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
 
 type TaskStartupWarningButtonProps = {
 	lifecycleState?: WorkspaceAgentLifecycle | null;

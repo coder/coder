@@ -1,15 +1,12 @@
+import { useFormik } from "formik";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import * as Yup from "yup";
 import type {
 	Group,
 	GroupSyncSettings,
 	Organization,
-} from "api/typesGenerated";
-import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { isEveryoneGroup } from "modules/groups";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
-import * as Yup from "yup";
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Combobox,
@@ -42,6 +39,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { isEveryoneGroup } from "#/modules/groups";
+import { docs } from "#/utils/docs";
+import { isUUID } from "#/utils/uuid";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";

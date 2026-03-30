@@ -1,4 +1,4 @@
-import { startOfDay, subtractTime } from "utils/time";
+import { startOfDay, subtractTime } from "#/utils/time";
 
 export const lastWeeks = (numberOfWeeks: number) => {
 	const now = new Date();

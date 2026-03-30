@@ -1,3 +1,5 @@
+import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import type {
 	Group,
 	ReducedUser,
@@ -5,10 +7,7 @@ import type {
 	TemplateGroup,
 	TemplateRole,
 	TemplateUser,
-} from "api/typesGenerated";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import { type FC, useState } from "react";
+} from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -41,6 +40,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "#/modules/groups";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,

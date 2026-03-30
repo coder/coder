@@ -19,6 +19,10 @@ const (
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"
 )
 
+func WorkspaceTransitionEnums() []WorkspaceTransition {
+	return []WorkspaceTransition{WorkspaceTransitionStart, WorkspaceTransitionStop, WorkspaceTransitionDelete}
+}
+
 type WorkspaceStatus string
 
 const (

@@ -1,7 +1,5 @@
-import type { SerpentOption } from "api/typesGenerated";
 import type { FC } from "react";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Badges,
 	EnterpriseBadge,
@@ -20,6 +18,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { deploymentGroupHasParent } from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type ObservabilitySettingsPageViewProps = {
@@ -71,7 +71,7 @@ export const ObservabilitySettingsPageView: FC<
 							<PopoverPaywall
 								message="Observability"
 								description="With a Premium license, you can monitor your application with logs and metrics."
-								documentationLink="https://coder.com/docs/admin/appearance"
+								documentationLink={docs("/admin/monitoring")}
 							/>
 						</TooltipContent>
 					</Tooltip>

@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 )
 
 // toolResponse builds a fantasy.ToolResponse from a JSON-serializable
@@ -30,4 +31,18 @@ func truncateRunes(value string, maxLen int) string {
 		maxLen = len(runes)
 	}
 	return string(runes[:maxLen])
+}
+
+// isTemplateAllowed checks whether a template ID is permitted by the
+// configured allowlist. A nil function or an empty allowlist means
+// all templates are allowed.
+func isTemplateAllowed(getAllowlist func() map[uuid.UUID]bool, id uuid.UUID) bool {
+	if getAllowlist == nil {
+		return true
+	}
+	allowlist := getAllowlist()
+	if len(allowlist) == 0 {
+		return true
+	}
+	return allowlist[id]
 }

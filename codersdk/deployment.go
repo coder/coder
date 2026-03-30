@@ -88,7 +88,7 @@ var (
 func (a Addon) Features() []FeatureName {
 	switch a {
 	case AddonAIGovernance:
-		// Return all AI governance features.
+		// Return all AI Governance features.
 		var features []FeatureName
 		for _, featureName := range FeatureNames {
 			if featureName.IsAIGovernanceAddon() {
@@ -306,7 +306,7 @@ func (n FeatureName) UsesUsagePeriod() bool {
 	}[n]
 }
 
-// IsAIGovernanceAddon returns true if the feature is an AI governance addon feature.
+// IsAIGovernanceAddon returns true if the feature is an AI Governance addon feature.
 func (n FeatureName) IsAIGovernanceAddon() bool {
 	return n == FeatureAIBridge || n == FeatureBoundary
 }

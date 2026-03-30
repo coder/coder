@@ -1,6 +1,6 @@
-import type { WorkspaceAgent } from "api/typesGenerated";
 import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	HelpTooltip,
 	HelpTooltipAction,

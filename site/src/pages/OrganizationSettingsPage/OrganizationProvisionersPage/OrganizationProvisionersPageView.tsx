@@ -1,7 +1,6 @@
-import type { ProvisionerDaemon } from "api/typesGenerated";
 import { XIcon } from "lucide-react";
 import type { FC } from "react";
-import { docs } from "utils/docs";
+import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -27,6 +26,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
 import { ProvisionerRow } from "./ProvisionerRow";
 
@@ -98,7 +98,7 @@ export const OrganizationProvisionersPageView: FC<
 				<PaywallPremium
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/")}
+					documentationLink={docs("/admin/provisioners")}
 				/>
 			) : (
 				<>

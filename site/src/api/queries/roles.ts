@@ -1,6 +1,6 @@
-import { API } from "api/api";
-import type { Role } from "api/typesGenerated";
 import type { QueryClient } from "react-query";
+import { API } from "#/api/api";
+import type { Role } from "#/api/typesGenerated";
 
 const getRoleQueryKey = (organizationId: string, roleName: string) => [
 	"organization",

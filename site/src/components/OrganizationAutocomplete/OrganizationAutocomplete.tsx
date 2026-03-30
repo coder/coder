@@ -1,9 +1,9 @@
-import { checkAuthorization } from "api/queries/authCheck";
-import { organizations } from "api/queries/organizations";
-import type { AuthorizationCheck, Organization } from "api/typesGenerated";
 import { Check } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { organizations } from "#/api/queries/organizations";
+import type { AuthorizationCheck, Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";

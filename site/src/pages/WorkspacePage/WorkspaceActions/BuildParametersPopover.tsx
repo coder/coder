@@ -1,19 +1,13 @@
-import { richParameters } from "api/queries/templates";
-import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
+import { useFormik } from "formik";
+import { type FC, useState } from "react";
+import { useQuery } from "react-query";
+import { richParameters } from "#/api/queries/templates";
+import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
 import type {
 	TemplateVersionParameter,
 	Workspace,
 	WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { useFormik } from "formik";
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
-import { docs } from "utils/docs";
-import { getFormHelpers } from "utils/formUtils";
-import {
-	type AutofillBuildParameter,
-	getInitialRichParameterValues,
-} from "utils/richParameters";
+} from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { FormFields } from "#/components/Form/Form";
@@ -32,6 +26,12 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
+import {
+	type AutofillBuildParameter,
+	getInitialRichParameterValues,
+} from "#/utils/richParameters";
 
 interface BuildParametersPopoverProps {
 	workspace: Workspace;

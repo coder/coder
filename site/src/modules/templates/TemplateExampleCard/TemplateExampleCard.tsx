@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import type { TemplateExample } from "api/typesGenerated";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
+import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Pill } from "#/components/Pill/Pill";

@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type * as TypesGen from "api/typesGenerated";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
@@ -44,128 +43,32 @@ const createModelConfig = (
 	updated_at: overrides.updated_at ?? now,
 });
 
-/**
- * Set up spies for all chat admin API methods. The mutable `state`
- * object lets mutation spies update what queries return on refetch,
- * mimicking the real server round-trip.
- */
-const setupChatSpies = (state: {
-	providerConfigs: TypesGen.ChatProviderConfig[];
-	modelConfigs: TypesGen.ChatModelConfig[];
-	modelCatalog: TypesGen.ChatModelsResponse;
-}) => {
-	spyOn(API.experimental, "getChatProviderConfigs").mockImplementation(
-		async () => {
-			return state.providerConfigs;
-		},
-	);
-	spyOn(API.experimental, "getChatModelConfigs").mockImplementation(
-		async () => {
-			return state.modelConfigs;
-		},
-	);
-	spyOn(API.experimental, "getChatModels").mockImplementation(async () => {
-		return state.modelCatalog;
-	});
-
-	spyOn(API.experimental, "createChatProviderConfig").mockImplementation(
-		async (req) => {
-			const created = createProviderConfig({
-				id: `provider-${Date.now()}`,
-				provider: req.provider,
-				display_name: req.display_name ?? "",
-				has_api_key: (req.api_key ?? "").trim().length > 0,
-				base_url: req.base_url ?? "",
-				source: "database",
-			});
-			state.providerConfigs = [
-				...state.providerConfigs.filter((p) => p.provider !== req.provider),
-				created,
-			];
-			return created;
-		},
-	);
-
-	spyOn(API.experimental, "updateChatProviderConfig").mockImplementation(
-		async (providerConfigId, req) => {
-			const idx = state.providerConfigs.findIndex(
-				(p) => p.id === providerConfigId,
-			);
-			if (idx < 0) {
-				throw new Error("Provider config not found.");
-			}
-			const current = state.providerConfigs[idx];
-			const updated: TypesGen.ChatProviderConfig = {
-				...current,
-				display_name:
-					typeof req.display_name === "string"
-						? req.display_name
-						: current.display_name,
-				has_api_key:
-					typeof req.api_key === "string"
-						? req.api_key.trim().length > 0
-						: current.has_api_key,
-				base_url:
-					typeof req.base_url === "string" ? req.base_url : current.base_url,
-				updated_at: now,
-			};
-			state.providerConfigs = state.providerConfigs.map((p, i) =>
-				i === idx ? updated : p,
-			);
-			return updated;
-		},
-	);
-
-	spyOn(API.experimental, "createChatModelConfig").mockImplementation(
-		async (req) => {
-			const created = createModelConfig({
-				id: `model-${state.modelConfigs.length + 1}`,
-				provider: req.provider,
-				model: req.model,
-				display_name: req.display_name || req.model,
-				context_limit:
-					typeof req.context_limit === "number" &&
-					Number.isFinite(req.context_limit)
-						? req.context_limit
-						: 200000,
-				compression_threshold:
-					typeof req.compression_threshold === "number" &&
-					Number.isFinite(req.compression_threshold)
-						? req.compression_threshold
-						: 70,
-				model_config: req.model_config,
-			});
-			state.modelConfigs = [...state.modelConfigs, created];
-			return created;
-		},
-	);
-
-	spyOn(API.experimental, "deleteChatModelConfig").mockImplementation(
-		async (modelConfigId) => {
-			state.modelConfigs = state.modelConfigs.filter(
-				(m) => m.id !== modelConfigId,
-			);
-		},
-	);
-
-	// Unused but mock to avoid errors.
-	spyOn(API.experimental, "deleteChatProviderConfig").mockResolvedValue(
-		undefined,
-	);
-	spyOn(API.experimental, "updateChatModelConfig").mockResolvedValue(
-		createModelConfig({
-			id: "stub",
-			provider: "stub",
-			model: "stub",
-		}),
-	);
-};
-
 // ── Meta ───────────────────────────────────────────────────────
 
 const meta: Meta<typeof ChatModelAdminPanel> = {
 	title: "pages/AgentsPage/ChatModelAdminPanel",
 	component: ChatModelAdminPanel,
+	args: {
+		providerConfigsData: [],
+		modelConfigsData: [],
+		modelCatalogData: { providers: [] },
+		isLoading: false,
+		providerConfigsError: null,
+		modelConfigsError: null,
+		modelCatalogError: null,
+		onCreateProvider: fn(async () => ({})),
+		onUpdateProvider: fn(async () => ({})),
+		onDeleteProvider: fn(async () => undefined),
+		isProviderMutationPending: false,
+		providerMutationError: null,
+		onCreateModel: fn(async () => ({})),
+		onUpdateModel: fn(async () => ({})),
+		onDeleteModel: fn(async () => undefined),
+		isCreatingModel: false,
+		isUpdatingModel: false,
+		isDeletingModel: false,
+		modelMutationError: null,
+	},
 };
 
 export default meta;
@@ -174,21 +77,17 @@ type Story = StoryObj<typeof ChatModelAdminPanel>;
 // ── Providers section stories ──────────────────────────────────
 
 export const ProviderAccordionCards: Story = {
-	args: { section: "providers" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: nilProviderConfigID,
-					provider: "openrouter",
-					display_name: "OpenRouter",
-					source: "supported",
-					enabled: false,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: nilProviderConfigID,
+				provider: "openrouter",
+				display_name: "OpenRouter",
+				source: "supported",
+				enabled: false,
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -202,30 +101,26 @@ export const ProviderAccordionCards: Story = {
 };
 
 export const EnvPresetProviders: Story = {
-	args: { section: "providers" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: nilProviderConfigID,
-					provider: "openai",
-					display_name: "OpenAI",
-					has_api_key: true,
-					source: "env_preset",
-					enabled: true,
-				}),
-				createProviderConfig({
-					id: nilProviderConfigID,
-					provider: "anthropic",
-					display_name: "Anthropic",
-					has_api_key: true,
-					source: "env_preset",
-					enabled: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: nilProviderConfigID,
+				provider: "openai",
+				display_name: "OpenAI",
+				has_api_key: true,
+				source: "env_preset",
+				enabled: true,
+			}),
+			createProviderConfig({
+				id: nilProviderConfigID,
+				provider: "anthropic",
+				display_name: "Anthropic",
+				has_api_key: true,
+				source: "env_preset",
+				enabled: true,
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -274,33 +169,30 @@ export const EnvPresetProviders: Story = {
 };
 
 export const CreateAndUpdateProvider: Story = {
-	args: { section: "providers" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: nilProviderConfigID,
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: nilProviderConfigID,
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "supported",
+				enabled: false,
+				has_api_key: false,
+			}),
+		],
+		modelCatalogData: {
+			providers: [
+				{
 					provider: "openai",
-					display_name: "OpenAI",
-					source: "supported",
-					enabled: false,
-					has_api_key: false,
-				}),
+					available: false,
+					unavailable_reason: "missing_api_key",
+					models: [],
+				},
 			],
-			modelConfigs: [],
-			modelCatalog: {
-				providers: [
-					{
-						provider: "openai",
-						available: false,
-						unavailable_reason: "missing_api_key",
-						models: [],
-					},
-				],
-			},
-		});
+		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Navigate to the OpenAI detail view.
@@ -319,32 +211,59 @@ export const CreateAndUpdateProvider: Story = {
 			body.getByRole("button", { name: "Create provider config" }),
 		);
 
-		// The create spy should have been called.
+		// The create callback should have been called.
 		await waitFor(() => {
-			expect(API.experimental.createChatProviderConfig).toHaveBeenCalledTimes(
-				1,
-			);
+			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createChatProviderConfig).toHaveBeenCalledWith(
+		expect(args.onCreateProvider).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "openai",
 				api_key: "sk-provider-key",
 				base_url: "https://proxy.example.com/v1",
 			}),
 		);
+	},
+};
 
-		// After creation, queries refetch and the component re-keys
-		// because providerConfig now exists. Navigate back to the list
-		// and re-enter the detail view to interact with the updated form.
-		await waitFor(() => {
-			expect(
-				body.getByRole("button", { name: "Save changes" }),
-			).toBeInTheDocument();
-		});
+/**
+ * Update an existing provider config: clear and re-type the API key
+ * and base URL, then save.
+ */
+export const UpdateProvider: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+				base_url: "https://proxy.example.com/v1",
+			}),
+		],
+		modelCatalogData: {
+			providers: [
+				{
+					provider: "openai",
+					available: true,
+					models: [],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
 
-		// The form was re-rendered with the new providerConfig.
-		// Focus the API key field, type a new key, update the base URL,
-		// and save.
+		// Navigate to the OpenAI detail view.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+
+		// The form should be in edit mode with "Save changes".
+		await expect(
+			body.findByRole("button", { name: "Save changes" }),
+		).resolves.toBeInTheDocument();
+
+		// Update the API key and base URL.
 		const apiKeyInput = body.getByLabelText(/API key/i);
 		await userEvent.clear(apiKeyInput);
 		await userEvent.type(apiKeyInput, "sk-updated-provider-key");
@@ -354,12 +273,10 @@ export const CreateAndUpdateProvider: Story = {
 		await userEvent.click(body.getByRole("button", { name: "Save changes" }));
 
 		await waitFor(() => {
-			expect(API.experimental.updateChatProviderConfig).toHaveBeenCalledTimes(
-				1,
-			);
+			expect(args.onUpdateProvider).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.updateChatProviderConfig).toHaveBeenCalledWith(
-			expect.any(String),
+		expect(args.onUpdateProvider).toHaveBeenCalledWith(
+			"provider-openai",
 			expect.objectContaining({
 				api_key: "sk-updated-provider-key",
 				base_url: "https://internal-proxy.example.com/v2",
@@ -393,23 +310,19 @@ const openAddModelForm = async (
 };
 
 export const NoModelConfigByDefault: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Open "Add model" dropdown and select the OpenAI provider.
@@ -427,42 +340,38 @@ export const NoModelConfigByDefault: Story = {
 		// The submit button in ModelForm also says "Add model".
 		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
-			expect(API.experimental.createChatModelConfig).toHaveBeenCalledTimes(1);
+			expect(args.onCreateModel).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
+		expect(args.onCreateModel).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "openai",
 				model: "gpt-5-pro",
 			}),
 		);
 		// Blank pricing fields should remain unset in the payload.
-		const callArgs = (
-			API.experimental.createChatModelConfig as unknown as ReturnType<
-				typeof spyOn
-			>
-		).mock.calls[0][0] as Record<string, unknown>;
+		const createModelMock = args.onCreateModel as ReturnType<typeof fn>;
+		const callArgs = createModelMock.mock.calls[0][0] as Record<
+			string,
+			unknown
+		>;
 		expect(callArgs).not.toHaveProperty("model_config");
 	},
 };
 
 export const SubmitModelConfigExplicitly: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Open "Add model" dropdown and select the OpenAI provider.
@@ -488,9 +397,9 @@ export const SubmitModelConfigExplicitly: Story = {
 
 		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
-			expect(API.experimental.createChatModelConfig).toHaveBeenCalledTimes(1);
+			expect(args.onCreateModel).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
+		expect(args.onCreateModel).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "openai",
 				model: "gpt-5-pro-custom",
@@ -507,26 +416,66 @@ export const SubmitModelConfigExplicitly: Story = {
 	},
 };
 
+export const UpdateModelEnabledToggle: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-enabled",
+				provider: "openai",
+				model: "gpt-test-enabled",
+				display_name: "GPT Test Enabled",
+				enabled: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByText("GPT Test Enabled"));
+
+		const enabledSwitch = await body.findByRole("switch", { name: "Enabled" });
+		await expect(enabledSwitch).toBeChecked();
+		await userEvent.click(enabledSwitch);
+		await expect(enabledSwitch).not.toBeChecked();
+
+		await userEvent.click(body.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onUpdateModel).toHaveBeenCalledWith(
+			"model-enabled",
+			expect.objectContaining({ enabled: false }),
+		);
+	},
+};
+
 // ── Per-provider model form stories ────────────────────────────
 // Each story opens the "Add model" form for a specific provider
 // so you can visually verify the schema-driven fields render.
 
 const providerFormSetup = (provider: string, displayName: string) => ({
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: `provider-${provider}`,
-					provider,
-					display_name: displayName,
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: `provider-${provider}`,
+				provider,
+				display_name: displayName,
+				source: "database",
+				has_api_key: true,
+			}),
+		],
 	},
 });
 
@@ -640,28 +589,25 @@ export const ModelFormBedrock: Story = {
 };
 
 export const ModelPricingWarningInList: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [
-				createModelConfig({
-					id: "model-warning",
-					provider: "openai",
-					model: "gpt-4.1",
-					display_name: "GPT-4.1",
-				}),
-			],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-warning",
+				provider: "openai",
+				model: "gpt-4.1",
+				display_name: "GPT-4.1",
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -673,28 +619,25 @@ export const ModelPricingWarningInList: Story = {
 };
 
 export const ModelDeleteConfirmation: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [
-				createModelConfig({
-					id: "model-1",
-					provider: "openai",
-					model: "gpt-4o",
-					display_name: "GPT-4o",
-				}),
-			],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-1",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -706,14 +649,15 @@ export const ModelDeleteConfirmation: Story = {
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
 		await expect(deleteButton).toBeInTheDocument();
 
-		// Click Delete to show the inline confirmation.
+		// Click Delete to show the confirmation dialog.
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear — leave it visible
+		// The confirmation dialog should appear — leave it visible
 		// so the Chromatic snapshot captures this state.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this model/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete model" }),
 		).toBeInTheDocument();
@@ -724,108 +668,97 @@ export const ModelDeleteConfirmation: Story = {
 };
 
 export const ModelDeleteCancelled: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [
-				createModelConfig({
-					id: "model-1",
-					provider: "openai",
-					model: "gpt-4o",
-					display_name: "GPT-4o",
-				}),
-			],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-1",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to edit form, trigger confirmation, then cancel.
+		// Navigate to edit form, open delete dialog, then cancel.
 		await userEvent.click(await body.findByText("GPT-4o"));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
+		// The dialog should be closed and the form footer restored.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByRole("button", { name: "Save" }),
-		).toBeInTheDocument();
+			body.findByRole("button", { name: "Delete" }),
+		).resolves.toBeInTheDocument();
+		expect(body.getByRole("button", { name: "Save" })).toBeInTheDocument();
 	},
 };
 
 export const ModelDeleteConfirmed: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [
-				createModelConfig({
-					id: "model-1",
-					provider: "openai",
-					model: "gpt-4o",
-					display_name: "GPT-4o",
-				}),
-			],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-1",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to edit form, trigger delete confirmation, then confirm.
+		// Navigate to edit form, open delete dialog, then confirm.
 		await userEvent.click(await body.findByText("GPT-4o"));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await userEvent.click(
 			await body.findByRole("button", { name: "Delete model" }),
 		);
 
-		// The delete API should have been called.
+		// The delete callback should have been called.
 		await waitFor(() => {
-			expect(API.experimental.deleteChatModelConfig).toHaveBeenCalledTimes(1);
+			expect(args.onDeleteModel).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.deleteChatModelConfig).toHaveBeenCalledWith(
-			"model-1",
-		);
+		expect(args.onDeleteModel).toHaveBeenCalledWith("model-1");
 	},
 };
 
 export const ProviderDeleteConfirmation: Story = {
-	args: { section: "providers" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -833,15 +766,16 @@ export const ProviderDeleteConfirmation: Story = {
 		// Navigate to the provider detail view.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 
-		// Click Delete to show the inline confirmation.
+		// Click Delete to show the confirmation dialog.
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear — leave it visible
+		// The confirmation dialog should appear — leave it visible
 		// so the Chromatic snapshot captures this state.
 		await expect(
-			await body.findByText(/Are you sure\? This action is irreversible/i),
+			await body.findByText(/Are you sure you want to delete this provider/i),
 		).toBeInTheDocument();
+		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete provider" }),
 		).toBeInTheDocument();
@@ -852,98 +786,85 @@ export const ProviderDeleteConfirmation: Story = {
 };
 
 export const ProviderDeleteCancelled: Story = {
-	args: { section: "providers" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to provider detail, trigger confirmation, then cancel.
+		// Navigate to provider detail, open delete dialog, then cancel.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
-		// Normal footer should be restored.
+		// The dialog should be closed and the form footer restored.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
 		await expect(
-			await body.findByRole("button", { name: "Delete" }),
-		).toBeInTheDocument();
-		await expect(
-			await body.findByRole("button", { name: "Save changes" }),
+			body.findByRole("button", { name: "Delete" }),
+		).resolves.toBeInTheDocument();
+		expect(
+			body.getByRole("button", { name: /Save changes/i }),
 		).toBeInTheDocument();
 	},
 };
 
 export const ProviderDeleteConfirmed: Story = {
-	args: { section: "providers" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Navigate to provider detail, trigger delete, then confirm.
+		// Navigate to provider detail, open delete dialog, then confirm.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await userEvent.click(
 			await body.findByRole("button", { name: "Delete provider" }),
 		);
 
-		// The delete API should have been called.
+		// The delete callback should have been called.
 		await waitFor(() => {
-			expect(API.experimental.deleteChatProviderConfig).toHaveBeenCalledTimes(
-				1,
-			);
+			expect(args.onDeleteProvider).toHaveBeenCalledTimes(1);
 		});
-		expect(API.experimental.deleteChatProviderConfig).toHaveBeenCalledWith(
-			"provider-openai",
-		);
+		expect(args.onDeleteProvider).toHaveBeenCalledWith("provider-openai");
 	},
 };
 
 export const ValidatesModelConfigFields: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Open "Add model" dropdown and select the OpenAI provider.
@@ -959,7 +880,7 @@ export const ValidatesModelConfigFields: Story = {
 		await waitFor(() => {
 			expect(body.getByRole("button", { name: "Add model" })).toBeDisabled();
 		});
-		// No API call should have been made.
-		expect(API.experimental.createChatModelConfig).not.toHaveBeenCalled();
+		// No callback should have been invoked.
+		expect(args.onCreateModel).not.toHaveBeenCalled();
 	},
 };

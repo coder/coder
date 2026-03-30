@@ -5,7 +5,6 @@ import {
 	useCallback,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Command,
@@ -21,6 +20,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 
 interface AutocompleteProps<TOption> {
 	value: TOption | null;

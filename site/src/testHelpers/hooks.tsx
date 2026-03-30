@@ -1,4 +1,3 @@
-import { AppProviders } from "App";
 import {
 	act,
 	type RenderHookOptions,
@@ -6,7 +5,6 @@ import {
 	renderHook,
 	waitFor,
 } from "@testing-library/react";
-import { RequireAuth } from "contexts/auth/RequireAuth";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -20,6 +18,8 @@ import {
 	RouterProvider,
 	useLocation,
 } from "react-router";
+import { AppProviders } from "#/App";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import {
 	createTestQueryClient,
 	type RenderWithAuthOptions,

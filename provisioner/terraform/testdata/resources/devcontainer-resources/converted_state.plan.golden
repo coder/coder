@@ -45,7 +45,8 @@
               "envs": [
                 {
                   "name": "DEVCONTAINER_ENV",
-                  "value": "devcontainer-value"
+                  "value": "devcontainer-value",
+                  "merge_strategy": "replace"
                 }
               ]
             }

@@ -2,8 +2,11 @@ package chaterror_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
+	"time"
 
+	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -22,7 +25,7 @@ func TestClassify(t *testing.T) {
 			name: "AmbiguousOverloadKeepsProviderUnknown",
 			err:  xerrors.New("status 529 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is temporarily overloaded (HTTP 529). Please try again later.",
+				Message:    "The AI provider is temporarily overloaded (HTTP 529).",
 				Kind:       chaterror.KindOverloaded,
 				Provider:   "",
 				Retryable:  true,
@@ -33,7 +36,7 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitAnthropicOverload",
 			err:  xerrors.New("anthropic overloaded_error"),
 			want: chaterror.ClassifiedError{
-				Message:    "Anthropic is temporarily overloaded. Please try again later.",
+				Message:    "Anthropic is temporarily overloaded.",
 				Kind:       chaterror.KindOverloaded,
 				Provider:   "anthropic",
 				Retryable:  true,
@@ -110,7 +113,7 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitStatus429ClassifiesAsRateLimit",
 			err:  xerrors.New("status 429 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is rate limiting requests (HTTP 429). Please try again later.",
+				Message:    "The AI provider is rate limiting requests (HTTP 429).",
 				Kind:       chaterror.KindRateLimit,
 				Provider:   "",
 				Retryable:  true,
@@ -132,7 +135,7 @@ func TestClassify(t *testing.T) {
 			name: "ServiceUnavailableClassifiesAsRetryableTimeout",
 			err:  xerrors.New("service unavailable"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider is temporarily unavailable. Please try again later.",
+				Message:    "The AI provider is temporarily unavailable.",
 				Kind:       chaterror.KindTimeout,
 				Provider:   "",
 				Retryable:  true,
@@ -176,7 +179,7 @@ func TestClassify(t *testing.T) {
 			name: "DeadlineExceededStaysNonRetryableTimeout",
 			err:  context.DeadlineExceeded,
 			want: chaterror.ClassifiedError{
-				Message:    "The request timed out before it completed. Please try again.",
+				Message:    "The request timed out before it completed.",
 				Kind:       chaterror.KindTimeout,
 				Provider:   "",
 				Retryable:  false,
@@ -279,7 +282,7 @@ func TestClassify_TransportFailuresUseBroaderRetryMessage(t *testing.T) {
 			require.True(t, classified.Retryable)
 			require.Equal(
 				t,
-				"The AI provider is temporarily unavailable. Please try again later.",
+				"The AI provider is temporarily unavailable.",
 				classified.Message,
 			)
 		})
@@ -299,7 +302,7 @@ func TestClassify_StartupTimeoutWrappedClassificationWins(t *testing.T) {
 	)
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI did not start responding in time. Please try again.",
+		Message:    "OpenAI did not start responding in time.",
 		Kind:       chaterror.KindStartupTimeout,
 		Provider:   "openai",
 		Retryable:  true,
@@ -315,7 +318,7 @@ func TestWithProviderUsesExplicitHint(t *testing.T) {
 
 	enriched := classified.WithProvider("azure openai")
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "Azure OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Message:    "Azure OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -331,10 +334,101 @@ func TestWithProviderAddsProviderWhenUnknown(t *testing.T) {
 
 	enriched := classified.WithProvider("openai")
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Message:    "OpenAI is rate limiting requests (HTTP 429).",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 429,
 	}, enriched)
+}
+
+func TestClassify_UsesStructuredProviderStatusAndRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		429,
+		map[string]string{"Retry-After": "30"},
+	))
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "The AI provider is rate limiting requests (HTTP 429).",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "",
+		Retryable:  true,
+		StatusCode: 429,
+		RetryAfter: 30 * time.Second,
+	}, classified)
+}
+
+func TestClassify_PrefersRetryAfterMsOverRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{
+			"Retry-After":    "30",
+			"ReTrY-AfTeR-Ms": "1500",
+		},
+	))
+
+	require.Equal(t, 429, classified.StatusCode)
+	require.Equal(t, 1500*time.Millisecond, classified.RetryAfter)
+}
+
+func TestClassify_ParsesRetryAfterHTTPDate(t *testing.T) {
+	t.Parallel()
+
+	retryAt := time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{"Retry-After": retryAt},
+	))
+
+	require.Equal(t, 429, classified.StatusCode)
+	require.GreaterOrEqual(t, classified.RetryAfter, 2*time.Second)
+	require.LessOrEqual(t, classified.RetryAfter, 4*time.Second)
+}
+
+func TestClassify_IgnoresInvalidRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{"Retry-After": "definitely not a delay"},
+	))
+
+	require.Zero(t, classified.RetryAfter)
+}
+
+func TestWithProviderPreservesRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		429,
+		map[string]string{"Retry-After": "30"},
+	))
+
+	enriched := classified.WithProvider("openai")
+	require.Equal(t, 30*time.Second, enriched.RetryAfter)
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "OpenAI is rate limiting requests (HTTP 429).",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 429,
+		RetryAfter: 30 * time.Second,
+	}, enriched)
+}
+
+func testProviderError(message string, statusCode int, headers map[string]string) error {
+	return &fantasy.ProviderError{
+		Message:         message,
+		StatusCode:      statusCode,
+		ResponseHeaders: headers,
+	}
 }

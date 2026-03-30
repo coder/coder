@@ -14,8 +14,10 @@ import (
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -116,11 +118,6 @@ func (k ProviderAPIKeys) APIKey(provider string) string {
 	}
 }
 
-//nolint:revive // Intentional: apiKey is the unexported helper for APIKey.
-func (k ProviderAPIKeys) apiKey(provider string) string {
-	return k.APIKey(provider)
-}
-
 // BaseURL returns the configured base URL for a provider.
 func (k ProviderAPIKeys) BaseURL(provider string) string {
 	normalized := NormalizeProvider(provider)
@@ -217,7 +214,7 @@ func (c *ModelCatalog) ListConfiguredModels(
 	providerSet := make(map[string]struct{})
 
 	for _, provider := range configuredProviders {
-		normalized := normalizeProvider(provider.Provider)
+		normalized := NormalizeProvider(provider.Provider)
 		if normalized == "" {
 			continue
 		}
@@ -262,7 +259,7 @@ func (c *ModelCatalog) ListConfiguredModels(
 			Provider: provider,
 			Models:   models,
 		}
-		if keys.apiKey(provider) == "" {
+		if keys.APIKey(provider) == "" {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
 		} else {
@@ -290,7 +287,7 @@ func (c *ModelCatalog) ListConfiguredProviderAvailability(
 			Provider: provider,
 			Models:   []codersdk.ChatModel{},
 		}
-		if keys.apiKey(provider) == "" {
+		if keys.APIKey(provider) == "" {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
 		} else {
@@ -369,11 +366,6 @@ func NormalizeProvider(provider string) string {
 	}
 }
 
-//nolint:revive // Intentional: normalizeProvider is the unexported helper for NormalizeProvider.
-func normalizeProvider(provider string) string {
-	return NormalizeProvider(provider)
-}
-
 func ResolveModelWithProviderHint(modelName, providerHint string) (provider string, model string, err error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
@@ -384,7 +376,7 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 		return provider, modelID, nil
 	}
 
-	if provider := normalizeProvider(providerHint); provider != "" {
+	if provider := NormalizeProvider(providerHint); provider != "" {
 		return provider, modelName, nil
 	}
 
@@ -420,7 +412,7 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 			continue
 		}
 
-		provider := normalizeProvider(parts[0])
+		provider := NormalizeProvider(parts[0])
 		modelID := strings.TrimSpace(parts[1])
 		if provider != "" && modelID != "" {
 			return provider, modelID, true
@@ -431,7 +423,7 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 }
 
 func isChatModelForProvider(provider, modelID string) bool {
-	normalizedProvider := normalizeProvider(provider)
+	normalizedProvider := NormalizeProvider(provider)
 	normalizedModel := strings.ToLower(strings.TrimSpace(modelID))
 	switch normalizedProvider {
 	case fantasyopenai.Name:
@@ -487,6 +479,7 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 			string(fantasyopenai.ReasoningEffortLow),
 			string(fantasyopenai.ReasoningEffortMedium),
 			string(fantasyopenai.ReasoningEffortHigh),
+			string(fantasyopenai.ReasoningEffortXHigh),
 		)
 	case fantasyanthropic.Name:
 		return normalizedEnumValue(
@@ -887,15 +880,71 @@ func MergeMissingProviderOptions(
 	}
 }
 
+// Header constants sent on upstream LLM API requests so that
+// intermediaries (e.g. aibridged) can correlate traffic back to
+// Coder entities.
+const (
+	// HeaderCoderOwnerID identifies the Coder user who owns the chat.
+	HeaderCoderOwnerID = "X-Coder-Owner-Id"
+	// HeaderCoderChatID identifies the top-level (parent) chat.
+	// For root chats this is the chat's own ID; for subchats it
+	// is the parent chat's ID.
+	HeaderCoderChatID = "X-Coder-Chat-Id"
+	// HeaderCoderSubchatID identifies the current subchat. Only
+	// present when the request originates from a child chat.
+	HeaderCoderSubchatID = "X-Coder-Subchat-Id"
+	// HeaderCoderWorkspaceID identifies the workspace associated
+	// with the chat, if any.
+	HeaderCoderWorkspaceID = "X-Coder-Workspace-Id"
+)
+
+// CoderHeaders builds the set of Coder identity headers to attach
+// to outgoing LLM API requests for the given chat.
+func CoderHeaders(chat database.Chat) map[string]string {
+	chatID := chat.ID
+	if chat.ParentChatID.Valid {
+		chatID = chat.ParentChatID.UUID
+	}
+	h := map[string]string{
+		HeaderCoderOwnerID: chat.OwnerID.String(),
+		HeaderCoderChatID:  chatID.String(),
+	}
+	if chat.ParentChatID.Valid {
+		h[HeaderCoderSubchatID] = chat.ID.String()
+	}
+	if chat.WorkspaceID.Valid {
+		h[HeaderCoderWorkspaceID] = chat.WorkspaceID.UUID.String()
+	}
+	return h
+}
+
+// CoderHeadersFromIDs is a convenience form of CoderHeaders for call
+// sites that do not have a full database.Chat in scope.
+func CoderHeadersFromIDs(
+	ownerID uuid.UUID,
+	chatID uuid.UUID,
+	parentChatID uuid.NullUUID,
+	workspaceID uuid.NullUUID,
+) map[string]string {
+	return CoderHeaders(database.Chat{
+		ID:           chatID,
+		OwnerID:      ownerID,
+		ParentChatID: parentChatID,
+		WorkspaceID:  workspaceID,
+	})
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
-// API request.
+// API request. extraHeaders, when non-nil, are sent as additional
+// HTTP headers on every request.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
 	providerKeys ProviderAPIKeys,
 	userAgent string,
+	extraHeaders map[string]string,
 ) (fantasy.LanguageModel, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
@@ -915,6 +964,9 @@ func ModelFromConfig(
 			fantasyanthropic.WithAPIKey(apiKey),
 			fantasyanthropic.WithUserAgent(userAgent),
 		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyanthropic.WithHeaders(extraHeaders))
+		}
 		if baseURL != "" {
 			options = append(options, fantasyanthropic.WithBaseURL(baseURL))
 		}
@@ -923,21 +975,32 @@ func ModelFromConfig(
 		if baseURL == "" {
 			return nil, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
 		}
-		providerClient, err = fantasyazure.New(
+		azureOpts := []fantasyazure.Option{
 			fantasyazure.WithAPIKey(apiKey),
 			fantasyazure.WithBaseURL(baseURL),
 			fantasyazure.WithUseResponsesAPI(),
 			fantasyazure.WithUserAgent(userAgent),
-		)
+		}
+		if len(extraHeaders) > 0 {
+			azureOpts = append(azureOpts, fantasyazure.WithHeaders(extraHeaders))
+		}
+		providerClient, err = fantasyazure.New(azureOpts...)
 	case fantasybedrock.Name:
-		providerClient, err = fantasybedrock.New(
+		bedrockOpts := []fantasybedrock.Option{
 			fantasybedrock.WithAPIKey(apiKey),
 			fantasybedrock.WithUserAgent(userAgent),
-		)
+		}
+		if len(extraHeaders) > 0 {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHeaders(extraHeaders))
+		}
+		providerClient, err = fantasybedrock.New(bedrockOpts...)
 	case fantasygoogle.Name:
 		options := []fantasygoogle.Option{
 			fantasygoogle.WithGeminiAPIKey(apiKey),
 			fantasygoogle.WithUserAgent(userAgent),
+		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasygoogle.WithHeaders(extraHeaders))
 		}
 		if baseURL != "" {
 			options = append(options, fantasygoogle.WithBaseURL(baseURL))
@@ -949,6 +1012,9 @@ func ModelFromConfig(
 			fantasyopenai.WithUseResponsesAPI(),
 			fantasyopenai.WithUserAgent(userAgent),
 		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyopenai.WithHeaders(extraHeaders))
+		}
 		if baseURL != "" {
 			options = append(options, fantasyopenai.WithBaseURL(baseURL))
 		}
@@ -958,19 +1024,29 @@ func ModelFromConfig(
 			fantasyopenaicompat.WithAPIKey(apiKey),
 			fantasyopenaicompat.WithUserAgent(userAgent),
 		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyopenaicompat.WithHeaders(extraHeaders))
+		}
 		if baseURL != "" {
 			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
 		}
 		providerClient, err = fantasyopenaicompat.New(options...)
 	case fantasyopenrouter.Name:
-		providerClient, err = fantasyopenrouter.New(
+		routerOpts := []fantasyopenrouter.Option{
 			fantasyopenrouter.WithAPIKey(apiKey),
 			fantasyopenrouter.WithUserAgent(userAgent),
-		)
+		}
+		if len(extraHeaders) > 0 {
+			routerOpts = append(routerOpts, fantasyopenrouter.WithHeaders(extraHeaders))
+		}
+		providerClient, err = fantasyopenrouter.New(routerOpts...)
 	case fantasyvercel.Name:
 		options := []fantasyvercel.Option{
 			fantasyvercel.WithAPIKey(apiKey),
 			fantasyvercel.WithUserAgent(userAgent),
+		}
+		if len(extraHeaders) > 0 {
+			options = append(options, fantasyvercel.WithHeaders(extraHeaders))
 		}
 		if baseURL != "" {
 			options = append(options, fantasyvercel.WithBaseURL(baseURL))
