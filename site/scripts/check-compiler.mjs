@@ -11,8 +11,11 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { transformSync } from "@babel/core";
 
+// Resolve the site/ directory (ESM equivalent of __dirname + "..").
 const siteDir = new URL("..", import.meta.url).pathname;
 
+// Only AgentsPage is currently opted in to React Compiler. Add new
+// directories here as more pages are migrated.
 const targetDirs = [
 	"src/pages/AgentsPage",
 ];
@@ -28,8 +31,19 @@ const skipPatterns = [".test.", ".stories.", ".jest."];
  * story files. Returns paths relative to `siteDir`.
  */
 function collectFiles(dir) {
+	let entries;
+	try {
+		entries = readdirSync(dir, { withFileTypes: true });
+	} catch (e) {
+		if (e.code === "ENOENT") {
+			console.error(`Target directory not found: ${relative(siteDir, dir)}`);
+			process.exitCode = 1;
+			return [];
+		}
+		throw e;
+	}
 	const results = [];
-	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+	for (const entry of entries) {
 		const full = join(dir, entry.name);
 		if (entry.isDirectory()) {
 			results.push(...collectFiles(full));
@@ -60,7 +74,7 @@ function collectFiles(dir) {
  * one-line report stays readable.
  *
  * Example:
- *   "Error: Ref values are not allowed. Use ref types instead (https://react.dev/...)."
+ *   "Error: Ref values are not allowed. Use ref types instead (https://…)."
  *   → "Ref values are not allowed"
  */
 function shortenMessage(msg) {
@@ -69,16 +83,20 @@ function shortenMessage(msg) {
 	}
 	return msg
 		.replace(/^Error: /, "")
-		.split(".")[0]
+		.split(/\.\s/)[0]
 		.split("(http")[0]
 		.trim();
 }
 
-/** Remove diagnostics that share the same line + message. */
+/**
+ * Remove diagnostics that share the same line + message. The compiler
+ * can emit duplicate events for the same function when it retries
+ * compilation, so we deduplicate before reporting.
+ */
 function deduplicateDiagnostics(diagnostics) {
 	const seen = new Set();
 	return diagnostics.filter((d) => {
-		const key = `${d.line}:${d.short}`;
+		const key = `${d.line ?? "?"}:${d.short}`;
 		if (seen.has(key)) return false;
 		seen.add(key);
 		return true;
@@ -87,7 +105,9 @@ function deduplicateDiagnostics(diagnostics) {
 
 /**
  * Run the React Compiler over a single file and return the number of
- * successfully compiled functions plus any diagnostics.
+ * successfully compiled functions plus any diagnostics. Transform
+ * errors are caught and returned as a diagnostic with line 0 rather
+ * than thrown, so the caller always gets a result.
  */
 function compileFile(file) {
 	const code = readFileSync(join(siteDir, file), "utf-8");
@@ -113,6 +133,10 @@ function compileFile(file) {
 				}],
 			],
 			filename: file,
+			// Skip config-file resolution. No babel.config.js exists in the
+			// repo, so the search is wasted I/O on every file.
+			configFile: false,
+			babelrc: false,
 		});
 
 		// The compiler inserts `const $ = _c(N)` at the top of every
@@ -130,7 +154,8 @@ function compileFile(file) {
 			compiled: 0,
 			diagnostics: [{
 				line: 0,
-				short: `Transform error: ${String(e.message).substring(0, 120)}`,
+				// Truncate to keep the one-line report readable.
+				short: `Transform error: ${(e instanceof Error ? e.message : String(e)).substring(0, 120)}`,
 			}],
 		};
 	}
@@ -141,7 +166,7 @@ function compileFile(file) {
 // ---------------------------------------------------------------------------
 
 /**
- * Derive a short display path by stripping the longest matching target
+ * Derive a short display path by stripping the first matching target
  * dir prefix so the output stays compact.
  */
 function shortPath(file) {
@@ -154,6 +179,7 @@ function shortPath(file) {
 	return file;
 }
 
+/** Print a summary of compilation results and per-file diagnostics. */
 function printReport(failures, totalCompiled, fileCount) {
 	console.log(`\nTotal: ${totalCompiled} functions compiled across ${fileCount} files`);
 	console.log(`Files with diagnostics: ${failures.length}\n`);
