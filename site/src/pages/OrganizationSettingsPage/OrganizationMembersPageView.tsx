@@ -1,14 +1,12 @@
+import { EllipsisVertical, TriangleAlert } from "lucide-react";
+import type { ComponentProps, FC } from "react";
+import { toast } from "sonner";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
 	SlimRole,
 	User,
-} from "api/typesGenerated";
-import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
-import { EllipsisVertical, TriangleAlert } from "lucide-react";
-import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
-import type { ComponentProps, FC } from "react";
-import { toast } from "sonner";
+} from "#/api/typesGenerated";
 import { AddUsersMenu } from "#/components/AddUsersMenu/AddUsersMenu";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -36,6 +34,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { AISeatCell } from "#/modules/users/AISeatCell";
+import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 

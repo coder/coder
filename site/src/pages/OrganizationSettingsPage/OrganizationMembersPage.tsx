@@ -1,5 +1,9 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { groupsByUserIdInOrganization } from "api/queries/groups";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useParams, useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
 	addOrganizationMember,
 	paginatedOrganizationMembers,
@@ -31,6 +35,9 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { entitlements } = useDashboard();
+	const searchParamsResult = useSearchParams();
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
@@ -39,7 +46,7 @@ const OrganizationMembersPage: FC = () => {
 	);
 
 	const membersQuery = usePaginatedQuery(
-		paginatedOrganizationMembers(organizationName, searchParams),
+		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
 	);
 
 	const useFilterResult = useFilter({

@@ -1,12 +1,9 @@
-import { getErrorMessage } from "api/errors";
-import { users } from "api/queries/users";
-import type { User } from "api/typesGenerated";
-import { useDebouncedValue } from "hooks/debounce";
 import { ChevronDown, UserPlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
-import { prepareQuery } from "utils/filters";
+import { getErrorMessage } from "#/api/errors";
+import { users } from "#/api/queries/users";
+import type { User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -17,6 +14,8 @@ import {
 } from "#/components/Popover/Popover";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useDebouncedValue } from "#/hooks/debounce";
+import { prepareQuery } from "#/utils/filters";
 import { EmptyState } from "../EmptyState/EmptyState";
 
 type AddUsersMenuProps = {

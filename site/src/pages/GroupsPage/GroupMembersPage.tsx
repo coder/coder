@@ -1,34 +1,20 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	addMember,
-	groupMembersByOrganizationQueryKey,
-	removeMember,
-} from "api/queries/groups";
-import type { Group, ReducedUser } from "api/typesGenerated";
 import { EllipsisVertical } from "lucide-react";
-import { isEveryoneGroup } from "modules/groups";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
-import { AddUsersMenu } from "#/components/AddUsersMenu/AddUsersMenu";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { useOutletContext } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { addMembers, removeMember } from "#/api/queries/groups";
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-	ReducedUser,
-} from "#/api/typesGenerated";
+import {
+	addMember,
+	groupMembersByOrganizationQueryKey,
+	removeMember,
+} from "#/api/queries/groups";
+import type { Group, ReducedUser } from "#/api/typesGenerated";
+import { AddUsersMenu } from "#/components/AddUsersMenu/AddUsersMenu";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -38,7 +24,6 @@ import {
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
-import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	Table,

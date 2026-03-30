@@ -26,8 +26,7 @@ import {
 	type WorkspacePermissions,
 	workspacePermissionChecks,
 } from "#/modules/permissions/workspaces";
-import type { QueryClient, UseQueryOptions } from "react-query";
-import { prepareQuery } from "utils/filters";
+import { prepareQuery } from "#/utils/filters";
 import { meKey } from "./users";
 import { cachedQuery } from "./util";
 
