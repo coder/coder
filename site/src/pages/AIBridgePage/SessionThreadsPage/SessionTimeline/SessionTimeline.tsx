@@ -81,6 +81,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 					<Button
 						size="sm"
 						variant="outline"
+						className="bg-surface-primary shadow-sm"
 						onClick={() => setIsExpanded((v) => !v)}
 					>
 						{isExpanded ? "Collapse" : "Show more"}
