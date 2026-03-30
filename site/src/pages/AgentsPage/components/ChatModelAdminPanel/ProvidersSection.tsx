@@ -16,6 +16,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { cn } from "#/utils/cn";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
@@ -242,7 +243,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 										className="gap-2"
 									>
 										<ProviderIcon provider={ps.provider} className="h-5 w-5" />
-										{ps.label}
+										{formatProviderLabel(ps.provider)}
 									</DropdownMenuItem>
 								))}
 							</DropdownMenuContent>
