@@ -127,12 +127,12 @@ const OrganizationMembersPage: FC = () => {
 					toast.promise(addAllMembersPromise, {
 						loading:
 							usersToAdd.length === 1
-								? `Adding "${usersToAdd[0].username}" to "${organization.display_name}"...`
-								: `Adding ${usersToAdd.length} members to "${organization.display_name}"...`,
+								? `Adding "${usersToAdd[0].username}" to organization "${organization.display_name}"...`
+								: `Adding ${usersToAdd.length} members to organization "${organization.display_name}"...`,
 						success:
 							usersToAdd.length === 1
-								? `Added "${usersToAdd[0].username}" to "${organization.display_name}".`
-								: `Added ${usersToAdd.length} members to "${organization.display_name}".`,
+								? `Added "${usersToAdd[0].username}" to organization "${organization.display_name}".`
+								: `Added ${usersToAdd.length} members to organization "${organization.display_name}".`,
 						error: (error) => ({
 							message: getErrorMessage(error, "Failed to add members."),
 							description: getErrorDetail(error),
