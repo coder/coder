@@ -21,11 +21,9 @@ variable "docker_socket" {
 }
 
 provider "docker" {
-  host = var.docker_socket != "" ? var.docker_socket : (
-    data.coder_provisioner.me.operating_system == "windows" ?
-    "npipe:////.//pipe//docker_engine" :
-    "unix:///var/run/docker.sock"
-  )
+  # Defaulting to null if the variable is an empty string lets us have
+  # an optional variable without having to set our own default.
+  host = var.docker_socket != "" ? var.docker_socket : null
 }
 
 locals {
