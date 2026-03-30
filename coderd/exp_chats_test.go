@@ -1998,6 +1998,59 @@ func TestGetChat(t *testing.T) {
 		require.Equal(t, "hydrated.png", f.Name)
 		require.NotZero(t, f.CreatedAt)
 	})
+
+	// ToolCreatedFilesLinked exercises the DB path that chatd uses
+	// when a tool (e.g. propose_plan) creates a file: InsertChatFile
+	// then AppendChatFileIDs. This is a DB-level test because driving
+	// the full chatd tool-call pipeline requires an LLM mock.
+	t.Run("ToolCreatedFilesLinked", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a chat via the API so all metadata is set up.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "tool file test"},
+			},
+		})
+		require.NoError(t, err)
+		_ = modelConfig
+
+		// Mimic what chatd's StoreFile closure does:
+		// 1. InsertChatFile
+		// 2. AppendChatFileIDs
+		//nolint:gocritic // Using AsChatd to mimic the chatd background worker.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		fileRow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "plan.md",
+			Mimetype:       "text/markdown",
+			Data:           []byte("# Plan"),
+		})
+		require.NoError(t, err)
+
+		err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
+			ChatID:  chat.ID,
+			FileIDs: []uuid.UUID{fileRow.ID},
+		})
+		require.NoError(t, err)
+
+		// Verify via the API that the file appears in the chat.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		f := chatResult.Files[0]
+		require.Equal(t, fileRow.ID, f.ID)
+		require.Equal(t, firstUser.UserID, f.OwnerID)
+		require.Equal(t, firstUser.OrganizationID, f.OrganizationID)
+		require.Equal(t, "plan.md", f.Name)
+		require.Equal(t, "text/markdown", f.MimeType)
+	})
 }
 
 func TestArchiveChat(t *testing.T) {
