@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -46,8 +47,10 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 
 	siteRoles := rbac.SiteBuiltInRoles()
 	// Hide the chat-access role when the agents experiment is
-	// not enabled, since chat is an experimental feature.
-	if !api.Experiments.Enabled(codersdk.ExperimentAgents) {
+	// not enabled, since chat is an experimental feature. Dev
+	// builds bypass the experiment gate, matching the behavior
+	// of RequireExperimentWithDevBypass on chat routes.
+	if !api.Experiments.Enabled(codersdk.ExperimentAgents) && !buildinfo.IsDev() {
 		siteRoles = slices.DeleteFunc(siteRoles, func(r rbac.Role) bool {
 			return r.Identifier == rbac.RoleChatAccess()
 		})
