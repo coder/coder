@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/gohugoio/hugo/parser/pageparser"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -36,6 +38,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		provisionerTags      []string
 		uploadFlags          templateUploadFlags
 		activate             bool
+		displayName          string
+		icon                 string
+		description          string
 		orgContext           = NewOrganizationContext()
 	)
 	cmd := &serpent.Command{
@@ -182,10 +187,29 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
+			// Read frontmatter from README.md if pushing from a
+			// directory (not stdin). CLI flags take precedence.
+			var fm templateFrontmatter
+			if !uploadFlags.stdin(inv) {
+				fm, _ = readTemplateFrontmatter(uploadFlags.directory)
+			}
+			if !userSetOption(inv, "display-name") {
+				displayName = fm.DisplayName
+			}
+			if !userSetOption(inv, "description") {
+				description = fm.Description
+			}
+			if !userSetOption(inv, "icon") {
+				icon = fm.Icon
+			}
+
 			if createTemplate {
 				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
-					Name:      name,
-					VersionID: job.ID,
+					Name:        name,
+					DisplayName: displayName,
+					Description: description,
+					Icon:        icon,
+					VersionID:   job.ID,
 				})
 				if err != nil {
 					return err
@@ -204,13 +228,38 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
-			return nil
-		},
-	}
+			// Update template metadata if frontmatter or flags
+			// provided values that differ from the current
+			// template.
+			if !createTemplate && (displayName != "" || description != "" || icon != "") {
+				updatedDisplayName := displayName
+				if updatedDisplayName == "" {
+					updatedDisplayName = template.DisplayName
+				}
+				updatedDescription := description
+				if updatedDescription == "" {
+					updatedDescription = template.Description
+				}
+				updatedIcon := icon
+				if updatedIcon == "" {
+					updatedIcon = template.Icon
+				}
+				_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, codersdk.UpdateTemplateMeta{
+					DisplayName: &updatedDisplayName,
+					Description: &updatedDescription,
+					Icon:        &updatedIcon,
+				})
+				if err != nil {
+					return xerrors.Errorf("update template metadata: %w", err)
+				}
+			}
 
-	cmd.Options = serpent.OptionSet{
-		{
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
+				return nil
+			},
+		}
+
+		cmd.Options = serpent.OptionSet{		{
 			Flag:        "test.provisioner",
 			Description: "Customize the provisioner backend.",
 			Default:     "terraform",
@@ -261,6 +310,21 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
 			Value:       serpent.BoolOf(&activate),
+		},
+		{
+			Flag:        "display-name",
+			Description: "Set the display name of the template. If unset, the display_name field from the template's README.md frontmatter will be used, if available.",
+			Value:       serpent.StringOf(&displayName),
+		},
+		{
+			Flag:        "description",
+			Description: "Set the description of the template. If unset, the description field from the template's README.md frontmatter will be used, if available.",
+			Value:       serpent.StringOf(&description),
+		},
+		{
+			Flag:        "icon",
+			Description: "Set the icon of the template. If unset, the icon field from the template's README.md frontmatter will be used, if available.",
+			Value:       serpent.StringOf(&icon),
 		},
 		cliui.SkipPromptOption(),
 	}
@@ -682,4 +746,47 @@ func createVariableValidator(variable codersdk.TemplateVersionVariable) func(str
 		}
 		return nil
 	}
+}
+
+// templateFrontmatter holds metadata parsed from the YAML frontmatter
+// of a template's README.md. This uses the same schema as
+// coder/registry and our example templates.
+type templateFrontmatter struct {
+	DisplayName string
+	Description string
+	Icon        string
+}
+
+// readTemplateFrontmatter reads and parses YAML frontmatter from a
+// README.md in the given directory. It returns zero values without
+// error when the file is missing or has no frontmatter.
+func readTemplateFrontmatter(dir string) (templateFrontmatter, error) {
+	var fm templateFrontmatter
+	readme, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	if err != nil {
+		return fm, nil //nolint:nilerr // Missing README is not an error.
+	}
+
+	parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
+	if err != nil {
+		return fm, xerrors.Errorf("parse README.md frontmatter: %w", err)
+	}
+
+	if v, ok := parsed.FrontMatter["display_name"]; ok {
+		if s, ok := v.(string); ok {
+			fm.DisplayName = s
+		}
+	}
+	if v, ok := parsed.FrontMatter["description"]; ok {
+		if s, ok := v.(string); ok {
+			fm.Description = s
+		}
+	}
+	if v, ok := parsed.FrontMatter["icon"]; ok {
+		if s, ok := v.(string); ok {
+			fm.Icon = s
+		}
+	}
+
+	return fm, nil
 }

@@ -1285,6 +1285,165 @@ cli_overrides_file_var: from-file`)
 			require.Equal(t, "from-cli-override", varMap["cli_overrides_file_var"])
 		})
 	})
+
+	t.Run("Frontmatter", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("CreateTemplateFromFrontmatter", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+
+			readme := `---
+display_name: My Template
+description: A template from frontmatter
+icon: /icon/docker.png
+---
+# My Template
+`
+			err := os.WriteFile(filepath.Join(source, "README.md"), []byte(readme), 0o600)
+			require.NoError(t, err)
+
+			const templateName = "frontmatter-test"
+			inv, root := clitest.New(t, "templates", "push", templateName,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--yes",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			err = inv.WithContext(ctx).Run()
+			require.NoError(t, err)
+
+			template, err := client.TemplateByName(ctx, owner.OrganizationID, templateName)
+			require.NoError(t, err)
+			require.Equal(t, "My Template", template.DisplayName)
+			require.Equal(t, "A template from frontmatter", template.Description)
+			require.Equal(t, "/icon/docker.png", template.Icon)
+		})
+
+		t.Run("CLIFlagsOverrideFrontmatter", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+
+			readme := `---
+display_name: Frontmatter Name
+description: Frontmatter description
+icon: /icon/frontmatter.png
+---
+# My Template
+`
+			err := os.WriteFile(filepath.Join(source, "README.md"), []byte(readme), 0o600)
+			require.NoError(t, err)
+
+			const templateName = "flag-override-test"
+			inv, root := clitest.New(t, "templates", "push", templateName,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--display-name", "CLI Name",
+				"--description", "CLI description",
+				"--icon", "/icon/cli.png",
+				"--yes",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			err = inv.WithContext(ctx).Run()
+			require.NoError(t, err)
+
+			template, err := client.TemplateByName(ctx, owner.OrganizationID, templateName)
+			require.NoError(t, err)
+			require.Equal(t, "CLI Name", template.DisplayName)
+			require.Equal(t, "CLI description", template.Description)
+			require.Equal(t, "/icon/cli.png", template.Icon)
+		})
+
+		t.Run("UpdateExistingTemplateMetadata", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+
+			readme := `---
+display_name: Updated Name
+description: Updated description
+icon: /icon/updated.png
+---
+# Updated
+`
+			err := os.WriteFile(filepath.Join(source, "README.md"), []byte(readme), 0o600)
+			require.NoError(t, err)
+
+			inv, root := clitest.New(t, "templates", "push", template.Name,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--yes",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			err = inv.WithContext(ctx).Run()
+			require.NoError(t, err)
+
+			updated, err := client.Template(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, "Updated Name", updated.DisplayName)
+			require.Equal(t, "Updated description", updated.Description)
+			require.Equal(t, "/icon/updated.png", updated.Icon)
+		})
+
+		t.Run("NoReadmeNoError", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+			// No README.md written — should still succeed.
+
+			const templateName = "no-readme-test"
+			inv, root := clitest.New(t, "templates", "push", templateName,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--yes",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			err := inv.WithContext(ctx).Run()
+			require.NoError(t, err)
+
+			template, err := client.TemplateByName(ctx, owner.OrganizationID, templateName)
+			require.NoError(t, err)
+			require.Empty(t, template.Icon)
+		})
+	})
 }
 
 func createEchoResponsesWithTemplateVariables(templateVariables []*proto.TemplateVariable) *echo.Responses {
