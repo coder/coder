@@ -1,18 +1,18 @@
+import { ArrowLeftIcon, InfoIcon } from "lucide-react";
+import type { FC, PropsWithChildren } from "react";
+import { Link as RouterLink } from "react-router";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ArrowLeftIcon, InfoIcon } from "lucide-react";
-import type { FC, PropsWithChildren } from "react";
-import { Link as RouterLink } from "react-router";
-import { Loader } from "#/components/Loader/Loader";
+} from "#/components/Tooltip/Tooltip";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 

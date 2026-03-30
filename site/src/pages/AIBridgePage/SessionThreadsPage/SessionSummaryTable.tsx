@@ -40,7 +40,7 @@ export const SessionSummaryTable = ({
 	tokenUsageMetadata,
 }: SessionSummaryTableProps) => {
 	const durationInMs =
-		endTime != null
+		endTime !== undefined
 			? new Date(endTime).getTime() - new Date(startTime).getTime()
 			: undefined;
 
@@ -69,9 +69,11 @@ export const SessionSummaryTable = ({
 			<dt>Duration</dt>
 			<dd
 				className="font-mono"
-				title={durationInMs != null ? `${durationInMs} ms` : undefined}
+				title={durationInMs !== undefined ? `${durationInMs} ms` : undefined}
 			>
-				{durationInMs != null ? `${Math.round(durationInMs / 1000)} s` : "—"}
+				{durationInMs !== undefined
+					? `${Math.round(durationInMs / 1000)} s`
+					: "—"}
 			</dd>
 
 			<dt>Initiator</dt>

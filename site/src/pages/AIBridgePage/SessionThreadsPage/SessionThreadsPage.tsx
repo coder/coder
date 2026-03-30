@@ -1,7 +1,7 @@
-import { infiniteSessionThreads } from "api/queries/aiBridge";
 import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
 import { useParams } from "react-router";
+import { infiniteSessionThreads } from "#/api/queries/aiBridge";
 import { SessionThreadsPageView } from "./SessionThreadsPageView";
 
 const SessionThreadsPage: FC = () => {
