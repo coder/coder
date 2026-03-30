@@ -1326,13 +1326,16 @@ jobs:
       - name: Resolve Docker image digests for attestation
         id: docker_digests
         if: github.ref == 'refs/heads/main'
+        env:
+          IMAGE_BASE: ghcr.io/coder/coder-preview
+          BUILD_TAG: ${{ steps.build-docker.outputs.tag }}
         run: |
           set -euxo pipefail
-          main_digest=$(docker buildx imagetools inspect --raw "ghcr.io/coder/coder-preview:main" | sha256sum | awk '{print "sha256:"$1}')
+          main_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:main" | sha256sum | awk '{print "sha256:"$1}')
           echo "main_digest=${main_digest}" >> "$GITHUB_OUTPUT"
-          latest_digest=$(docker buildx imagetools inspect --raw "ghcr.io/coder/coder-preview:latest" | sha256sum | awk '{print "sha256:"$1}')
+          latest_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:latest" | sha256sum | awk '{print "sha256:"$1}')
           echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
-          version_digest=$(docker buildx imagetools inspect --raw "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}" | sha256sum | awk '{print "sha256:"$1}')
+          version_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:${BUILD_TAG}" | sha256sum | awk '{print "sha256:"$1}')
           echo "version_digest=${version_digest}" >> "$GITHUB_OUTPUT"
 
       - name: GitHub Attestation for Docker image
