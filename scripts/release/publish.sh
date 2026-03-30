@@ -34,16 +34,21 @@ if [[ "${CI:-}" == "" ]]; then
 fi
 
 stable=0
+rc=0
 version=""
 release_notes_file=""
 dry_run=0
 
-args="$(getopt -o "" -l stable,version:,release-notes-file:,dry-run -- "$@")"
+args="$(getopt -o "" -l stable,rc,version:,release-notes-file:,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
 	--stable)
 		stable=1
+		shift
+		;;
+	--rc)
+		rc=1
 		shift
 		;;
 	--version)
@@ -162,6 +167,11 @@ if [[ "$stable" == 1 ]]; then
 	latest=true
 fi
 
+prerelease_flag=()
+if [[ "$rc" == 1 ]]; then
+	prerelease_flag=(--prerelease)
+fi
+
 target_commitish=main # This is the default.
 # Skip during dry-runs
 if [[ "$dry_run" == 0 ]]; then
@@ -176,6 +186,7 @@ fi
 true |
 	maybedryrun "$dry_run" gh release create \
 		--latest="$latest" \
+		"${prerelease_flag[@]}" \
 		--title "$new_tag" \
 		--target "$target_commitish" \
 		--notes-file "$release_notes_file" \
