@@ -222,7 +222,7 @@ jobs:
           fetch-depth: 1
           path: ./.github/actions/create-task-action
           persist-credentials: false
-          ref: main
+          ref: a89819fd195cf920224a3236eb05ff02e23bcbc5 # main
           repository: coder/create-task-action
 
       - name: Create Coder Task for Severity Classification
