@@ -484,6 +484,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
 	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().UpdateChatLastWorkspaceContext(gomock.Any(), gomock.Any()).Return(database.Chat{}, nil).AnyTimes()
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)

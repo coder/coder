@@ -541,6 +541,10 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
+		LastWorkspaceContext: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`[{"type":"text","text":"ctx"}]`),
+			Valid:      true,
+		},
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
