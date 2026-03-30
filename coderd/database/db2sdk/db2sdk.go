@@ -1519,6 +1519,9 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
+// When diffStatus is non-nil the response includes diff metadata.
+// When files is non-empty the response includes file metadata;
+// pass nil to omit the files field (e.g. list endpoints).
 func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByIDsRow) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
