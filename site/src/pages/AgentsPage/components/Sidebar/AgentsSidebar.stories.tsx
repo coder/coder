@@ -765,6 +765,145 @@ export const WithPRStateIcons: Story = {
 	},
 };
 
+export const WithPRReviewStatus: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pr-approved",
+				title: "PR approved by reviewer",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "pr-approved",
+					url: "https://github.com/coder/coder/pull/200",
+					pull_request_state: "open",
+					pull_request_title: "feat: add approval badges",
+					pull_request_draft: false,
+					changes_requested: false,
+					approved: true,
+					reviewer_count: 1,
+					additions: 85,
+					deletions: 12,
+					changed_files: 6,
+				},
+			}),
+			buildChat({
+				id: "pr-changes-requested",
+				title: "PR with changes requested",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "pr-changes-requested",
+					url: "https://github.com/coder/coder/pull/201",
+					pull_request_state: "open",
+					pull_request_title: "fix: update error handling",
+					pull_request_draft: false,
+					changes_requested: true,
+					approved: false,
+					reviewer_count: 2,
+					additions: 30,
+					deletions: 8,
+					changed_files: 3,
+				},
+			}),
+			buildChat({
+				id: "pr-no-review",
+				title: "PR with no reviews yet",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "pr-no-review",
+					url: "https://github.com/coder/coder/pull/202",
+					pull_request_state: "open",
+					pull_request_title: "chore: cleanup",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 15,
+					deletions: 5,
+					changed_files: 2,
+				},
+			}),
+			buildChat({
+				id: "pr-draft-approved",
+				title: "Draft PR (no badge despite approval)",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "pr-draft-approved",
+					url: "https://github.com/coder/coder/pull/203",
+					pull_request_state: "open",
+					pull_request_title: "wip: experimental feature",
+					pull_request_draft: true,
+					changes_requested: false,
+					approved: true,
+					reviewer_count: 1,
+					additions: 45,
+					deletions: 0,
+					changed_files: 3,
+				},
+			}),
+			buildChat({
+				id: "pr-merged-approved",
+				title: "Merged PR (no badge)",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "pr-merged-approved",
+					url: "https://github.com/coder/coder/pull/204",
+					pull_request_state: "merged",
+					pull_request_title: "feat: completed work",
+					pull_request_draft: false,
+					changes_requested: false,
+					approved: true,
+					reviewer_count: 2,
+					additions: 100,
+					deletions: 20,
+					changed_files: 8,
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			// Approved PR should show the "Approved" badge
+			const approvedNode = canvas.getByTestId("agents-tree-node-pr-approved");
+			expect(within(approvedNode).getByText("Approved")).toBeInTheDocument();
+
+			// Changes requested PR should show the badge
+			const changesNode = canvas.getByTestId(
+				"agents-tree-node-pr-changes-requested",
+			);
+			expect(
+				within(changesNode).getByText("Changes requested"),
+			).toBeInTheDocument();
+
+			// No-review PR should NOT show any review badge
+			const noReviewNode = canvas.getByTestId("agents-tree-node-pr-no-review");
+			expect(
+				within(noReviewNode).queryByTestId("review-status-badge"),
+			).not.toBeInTheDocument();
+
+			// Draft PR should NOT show review badge even if approved
+			const draftNode = canvas.getByTestId(
+				"agents-tree-node-pr-draft-approved",
+			);
+			expect(
+				within(draftNode).queryByTestId("review-status-badge"),
+			).not.toBeInTheDocument();
+
+			// Merged PR should NOT show review badge
+			const mergedNode = canvas.getByTestId(
+				"agents-tree-node-pr-merged-approved",
+			);
+			expect(
+				within(mergedNode).queryByTestId("review-status-badge"),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
 export const WithUnreadChats: Story = {
 	args: {
 		chats: [

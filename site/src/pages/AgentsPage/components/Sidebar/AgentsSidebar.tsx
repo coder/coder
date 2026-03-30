@@ -554,6 +554,30 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											</span>
 										</span>
 									)}
+									{hasLinkedDiffStatus &&
+										diffStatus?.pull_request_state === "open" &&
+										!diffStatus?.pull_request_draft && (
+											<>
+												{diffStatus?.approved === true && (
+													<span
+														className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 text-git-added-bright"
+														data-testid="review-status-badge"
+													>
+														<CheckIcon className="h-3 w-3" />
+														Approved
+													</span>
+												)}
+												{diffStatus?.changes_requested === true && (
+													<span
+														className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 text-content-warning"
+														data-testid="review-status-badge"
+													>
+														<AlertTriangleIcon className="h-3 w-3" />
+														Changes requested
+													</span>
+												)}
+											</>
+										)}
 									<div
 										className={cn(
 											"min-w-0 overflow-hidden text-[13px] leading-4",
