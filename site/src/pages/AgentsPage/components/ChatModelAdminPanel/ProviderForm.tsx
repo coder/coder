@@ -1,5 +1,5 @@
 import { ChevronLeftIcon, InfoIcon } from "lucide-react";
-import { type FC, type FormEvent, useId, useState } from "react";
+import React, { type FC, type FormEvent, useId, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -13,13 +13,13 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "../../utils/modelOptions";
-import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
 
@@ -29,7 +29,11 @@ import { ProviderIcon } from "./ProviderIcon";
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
 interface ProviderFormProps {
-	providerState: ProviderState;
+	provider: string;
+	providerConfig: TypesGen.ChatProviderConfig | undefined;
+	hasManagedAPIKey: boolean;
+	isEnvPreset: boolean;
+	baseURL: string;
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
 	onCreateProvider: (
@@ -44,7 +48,11 @@ interface ProviderFormProps {
 }
 
 export const ProviderForm: FC<ProviderFormProps> = ({
-	providerState,
+	provider,
+	providerConfig,
+	hasManagedAPIKey,
+	isEnvPreset,
+	baseURL,
 	providerConfigsUnavailable,
 	isProviderMutationPending,
 	onCreateProvider,
@@ -52,8 +60,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onDeleteProvider,
 	onBack,
 }) => {
-	const { provider, providerConfig, baseURL, isEnvPreset } = providerState;
-
 	const apiKeyInputId = useId();
 	const baseURLInputId = useId();
 
@@ -73,7 +79,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	const [displayName, setDisplayName] = useState(initialValues.displayName);
 	const [apiKey, setApiKey] = useState(
-		providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
+		hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
@@ -207,6 +213,20 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						Uses the {formatProviderLabel(provider)} API specification
 					</TooltipContent>
 				</Tooltip>
+				{providerConfig && (
+					<Switch
+						checked={providerConfig.enabled}
+						onCheckedChange={(nextValue) => {
+							void onUpdateProvider(providerConfig.id, {
+								enabled: nextValue,
+							}).catch(() => {
+								// Error is surfaced via the mutation's error state
+								// in ChatModelAdminPanel, no toast needed.
+							});
+						}}
+						disabled={isProviderMutationPending || providerConfigsUnavailable}
+					/>
+				)}
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 

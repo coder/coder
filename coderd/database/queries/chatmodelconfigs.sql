@@ -34,12 +34,9 @@ SELECT
     cmc.*
 FROM
     chat_model_configs cmc
-JOIN
-    chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -57,7 +54,8 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    provider_config_id
 ) VALUES (
     @provider::text,
     @model::text,
@@ -68,7 +66,8 @@ INSERT INTO chat_model_configs (
     @is_default::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
-    @options::jsonb
+    @options::jsonb,
+    sqlc.narg('provider_config_id')::uuid
 )
 RETURNING
     *;

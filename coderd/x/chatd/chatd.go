@@ -1781,10 +1781,11 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
+	modelKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		modelKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -1813,10 +1814,11 @@ func (p *Server) resolveFallbackManualTitleModel(
 			err,
 		)
 	}
+	modelKeys := p.resolveProviderAPIKeysForModel(ctx, config, keys)
 	model, err := chatprovider.ModelFromConfig(
 		config.Provider,
 		config.Model,
-		keys,
+		modelKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
 	)
@@ -4794,6 +4796,7 @@ func (p *Server) resolveChatModel(
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
 
+	keys = p.resolveProviderAPIKeysForModel(ctx, dbConfig, keys)
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
@@ -4827,6 +4830,67 @@ func (p *Server) resolveProviderAPIKeys(
 		})
 	}
 	return chatprovider.MergeProviderAPIKeys(p.providerAPIKeys, dbProviders), nil
+}
+
+// resolveProviderAPIKeysForModel returns provider API keys, optionally
+// overridden by a model's stored provider config binding. If the model
+// has a valid provider_config_id, the specific provider's API key and
+// base URL replace the family-level values in the merged key set. If
+// the binding is missing, deleted, or disabled, it falls back to the
+// family-level keys.
+func (p *Server) resolveProviderAPIKeysForModel(
+	ctx context.Context,
+	modelConfig database.ChatModelConfig,
+	baseKeys chatprovider.ProviderAPIKeys,
+) chatprovider.ProviderAPIKeys {
+	if !modelConfig.ProviderConfigID.Valid {
+		return baseKeys
+	}
+
+	providerConfig, err := p.db.GetChatProviderByID(ctx, modelConfig.ProviderConfigID.UUID)
+	if err != nil || !providerConfig.Enabled {
+		return baseKeys
+	}
+
+	normalizedProvider := chatprovider.NormalizeProvider(providerConfig.Provider)
+	if normalizedProvider == "" {
+		return baseKeys
+	}
+
+	overridden := chatprovider.ProviderAPIKeys{
+		OpenAI:            strings.TrimSpace(baseKeys.OpenAI),
+		Anthropic:         strings.TrimSpace(baseKeys.Anthropic),
+		ByProvider:        make(map[string]string, len(baseKeys.ByProvider)),
+		BaseURLByProvider: make(map[string]string, len(baseKeys.BaseURLByProvider)),
+	}
+	for provider, apiKey := range baseKeys.ByProvider {
+		overridden.ByProvider[provider] = apiKey
+	}
+	for provider, baseURL := range baseKeys.BaseURLByProvider {
+		overridden.BaseURLByProvider[provider] = baseURL
+	}
+
+	apiKey := strings.TrimSpace(providerConfig.APIKey)
+	if apiKey == "" {
+		delete(overridden.ByProvider, normalizedProvider)
+	} else {
+		overridden.ByProvider[normalizedProvider] = apiKey
+	}
+	baseURL := strings.TrimSpace(providerConfig.BaseUrl)
+	if baseURL == "" {
+		delete(overridden.BaseURLByProvider, normalizedProvider)
+	} else {
+		overridden.BaseURLByProvider[normalizedProvider] = baseURL
+	}
+
+	switch normalizedProvider {
+	case "openai":
+		overridden.OpenAI = apiKey
+	case "anthropic":
+		overridden.Anthropic = apiKey
+	}
+
+	return overridden
 }
 
 // resolveModelConfig looks up the chat's model config by its

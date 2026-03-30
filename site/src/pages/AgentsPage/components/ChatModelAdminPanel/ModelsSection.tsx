@@ -25,6 +25,11 @@ import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
+import {
+	buildModelProviderOptions,
+	type ModelProviderOption,
+	resolveDefaultOption,
+} from "./modelProviderOptions";
 import { ProviderIcon } from "./ProviderIcon";
 import { hasCustomPricing } from "./pricingFields";
 
@@ -41,6 +46,8 @@ interface ModelsSectionProps {
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
 	onSelectedProviderChange: (provider: string) => void;
+	selectedModelOptionKey: string | null;
+	onSelectedModelOptionChange: (key: string | null) => void;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsUnavailable: boolean;
 	isCreating: boolean;
@@ -64,6 +71,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	selectedProvider,
 	selectedProviderState,
 	onSelectedProviderChange,
+	selectedModelOptionKey,
+	onSelectedModelOptionChange,
 	modelConfigs,
 	modelConfigsUnavailable,
 	isCreating,
@@ -98,6 +107,18 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		}
 		return { mode: "list" };
 	})();
+
+	const providerOptions: readonly ModelProviderOption[] =
+		buildModelProviderOptions(providerStates);
+	const addModelProvider = view.mode === "add" ? view.provider : null;
+	const selectedModelOption = selectedModelOptionKey
+		? providerOptions.find((option) => option.key === selectedModelOptionKey)
+		: undefined;
+	const resolvedSelectedModelOptionKey =
+		addModelProvider !== null &&
+		selectedModelOption?.provider !== addModelProvider
+			? (resolveDefaultOption(providerOptions, addModelProvider)?.key ?? null)
+			: selectedModelOptionKey;
 
 	// Clear model-related search params and return to the list.
 	const clearModelView = () => {
@@ -156,6 +177,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				selectedProvider={effectiveProvider}
 				selectedProviderState={effectiveProviderState}
 				onSelectedProviderChange={onSelectedProviderChange}
+				selectedModelOptionKey={resolvedSelectedModelOptionKey}
+				onSelectedModelOptionChange={onSelectedModelOptionChange}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
 				isDeleting={isDeleting}
@@ -182,12 +205,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// ── List view ──────────────────────────────────────────────
 
-	// Only show providers that have an API key configured.
-	const addableProviders = providerStates.filter(
-		(ps) => ps.providerConfig && ps.hasEffectiveAPIKey,
-	);
-
-	const addButton = addableProviders.length > 0 && (
+	const addButton = providerOptions.length > 0 && (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button size="sm" className="gap-1.5" aria-label="Add model">
@@ -197,20 +215,21 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				{addableProviders.map((ps) => (
+				{providerOptions.map((option) => (
 					<DropdownMenuItem
-						key={ps.provider}
+						key={option.key}
 						onClick={() => {
-							onSelectedProviderChange(ps.provider);
+							onSelectedProviderChange(option.provider);
+							onSelectedModelOptionChange(option.key);
 							setSearchParams(
-								{ newModel: ps.provider },
+								{ newModel: option.provider },
 								{ state: { pushed: true } },
 							);
 						}}
 						className="gap-2"
 					>
-						<ProviderIcon provider={ps.provider} className="h-5 w-5" />
-						{ps.label}
+						<ProviderIcon provider={option.iconProvider} className="h-5 w-5" />
+						{option.label}
 					</DropdownMenuItem>
 				))}
 			</DropdownMenuContent>
@@ -240,8 +259,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					<p className="m-0 text-sm text-content-secondary">
 						No models configured yet.
 					</p>
-					{addableProviders.length > 0 && addButton}
-					{addableProviders.length === 0 && (
+					{providerOptions.length > 0 && addButton}
+					{providerOptions.length === 0 && (
 						<p className="m-0 text-xs text-content-secondary">
 							Connect a provider first to add models.
 						</p>

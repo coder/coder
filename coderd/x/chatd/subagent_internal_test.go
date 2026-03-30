@@ -149,6 +149,100 @@ func seedInternalChatDeps(
 	return user, model
 }
 
+func TestResolveProviderAPIKeysForModel(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
+	user := dbgen.User(t, db, database.User{})
+
+	boundProvider, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "Bound OpenAI",
+		APIKey:      "bound-key",
+		BaseUrl:     "",
+		ApiKeyKeyID: sql.NullString{},
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	disabledProvider, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "Disabled OpenAI",
+		APIKey:      "disabled-key",
+		BaseUrl:     "https://disabled.example.com",
+		ApiKeyKeyID: sql.NullString{},
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:     false,
+	})
+	require.NoError(t, err)
+
+	server := &Server{db: db}
+	baseKeys := chatprovider.ProviderAPIKeys{
+		OpenAI:    "family-key",
+		Anthropic: "anthropic-key",
+		ByProvider: map[string]string{
+			"openai":    "family-key",
+			"anthropic": "anthropic-key",
+		},
+		BaseURLByProvider: map[string]string{
+			"openai": "https://family.example.com",
+		},
+	}
+
+	tests := []struct {
+		name       string
+		model      database.ChatModelConfig
+		wantAPIKey string
+		wantURL    string
+	}{
+		{
+			name:       "NoBinding",
+			model:      database.ChatModelConfig{},
+			wantAPIKey: "family-key",
+			wantURL:    "https://family.example.com",
+		},
+		{
+			name: "BoundProviderOverridesFamilyKeys",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: boundProvider.ID, Valid: true},
+			},
+			wantAPIKey: "bound-key",
+			wantURL:    "",
+		},
+		{
+			name: "DisabledBindingFallsBack",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: disabledProvider.ID, Valid: true},
+			},
+			wantAPIKey: "family-key",
+			wantURL:    "https://family.example.com",
+		},
+		{
+			name: "MissingBindingFallsBack",
+			model: database.ChatModelConfig{
+				ProviderConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			},
+			wantAPIKey: "family-key",
+			wantURL:    "https://family.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolved := server.resolveProviderAPIKeysForModel(ctx, tt.model, baseKeys)
+			require.Equal(t, tt.wantAPIKey, resolved.APIKey("openai"))
+			require.Equal(t, tt.wantURL, resolved.BaseURL("openai"))
+		})
+	}
+
+	require.Equal(t, "family-key", baseKeys.APIKey("openai"))
+	require.Equal(t, "https://family.example.com", baseKeys.BaseURL("openai"))
+}
+
 func seedWorkspaceBinding(
 	t *testing.T,
 	db database.Store,

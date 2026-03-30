@@ -755,6 +755,7 @@ type CreateChatModelConfigRequest struct {
 	IsDefault            *bool                `json:"is_default,omitempty"`
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
+	ProviderConfigID     *uuid.UUID           `json:"provider_config_id,omitempty" format:"uuid"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 

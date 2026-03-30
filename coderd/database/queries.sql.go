@@ -3445,7 +3445,7 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, provider_config_id
 FROM
     chat_model_configs
 WHERE
@@ -3472,13 +3472,14 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.ProviderConfigID,
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, provider_config_id
 FROM
     chat_model_configs
 WHERE
@@ -3515,6 +3516,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
+			&i.ProviderConfigID,
 		); err != nil {
 			return nil, err
 		}
@@ -3531,7 +3533,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, provider_config_id
 FROM
     chat_model_configs
 WHERE
@@ -3558,21 +3560,19 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.ProviderConfigID,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.provider_config_id
 FROM
     chat_model_configs cmc
-JOIN
-    chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -3605,6 +3605,7 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
+			&i.ProviderConfigID,
 		); err != nil {
 			return nil, err
 		}
@@ -3630,7 +3631,8 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    provider_config_id
 ) VALUES (
     $1::text,
     $2::text,
@@ -3641,10 +3643,11 @@ INSERT INTO chat_model_configs (
     $7::boolean,
     $8::bigint,
     $9::integer,
-    $10::jsonb
+    $10::jsonb,
+    $11::uuid
 )
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, provider_config_id
 `
 
 type InsertChatModelConfigParams struct {
@@ -3658,6 +3661,7 @@ type InsertChatModelConfigParams struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
+	ProviderConfigID     uuid.NullUUID   `db:"provider_config_id" json:"provider_config_id"`
 }
 
 func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
@@ -3672,6 +3676,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		arg.ContextLimit,
 		arg.CompressionThreshold,
 		arg.Options,
+		arg.ProviderConfigID,
 	)
 	var i ChatModelConfig
 	err := row.Scan(
@@ -3690,6 +3695,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.ProviderConfigID,
 	)
 	return i, err
 }
@@ -3728,7 +3734,7 @@ WHERE
     id = $10::uuid
     AND deleted = FALSE
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, provider_config_id
 `
 
 type UpdateChatModelConfigParams struct {
@@ -3774,6 +3780,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.ProviderConfigID,
 	)
 	return i, err
 }
@@ -3817,40 +3824,15 @@ func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (Cha
 	return i, err
 }
 
-const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
-FROM
-    chat_providers
-WHERE
-    provider = $1::text
-`
-
-func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, getChatProviderByProvider, provider)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-	)
-	return i, err
-}
-
 const getChatProviders = `-- name: GetChatProviders :many
 SELECT
     id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
 FROM
     chat_providers
 ORDER BY
-    provider ASC
+    provider ASC,
+    created_at ASC,
+    id ASC
 `
 
 func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, error) {
@@ -3885,6 +3867,41 @@ func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const getEnabledChatProviderByProvider = `-- name: GetEnabledChatProviderByProvider :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+FROM
+    chat_providers
+WHERE
+    provider = $1::text
+    AND enabled = TRUE
+ORDER BY
+    created_at ASC,
+    id ASC
+LIMIT 1
+`
+
+// Returns the oldest enabled provider config for a given provider family.
+// Multiple enabled configs may exist per family; this returns the
+// first-created one.
+func (q *sqlQuerier) GetEnabledChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getEnabledChatProviderByProvider, provider)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+	)
+	return i, err
 }
 
 const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many
