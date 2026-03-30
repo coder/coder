@@ -45,6 +45,13 @@ function collectFiles(dir) {
 
 // ---------------------------------------------------------------------------
 // Compilation & diagnostics
+//
+// We use transformSync deliberately. The React Compiler plugin is
+// CPU-bound (~90% of wall time is spent inside its dataflow analysis),
+// so transformAsync + Promise.all gives no speedup — Node still runs
+// all transforms on a single thread. Benchmarked at 939 files:
+// sync, async-sequential, and async-parallel all land within noise of
+// each other (~18-19s). The sync API keeps the code simple.
 // ---------------------------------------------------------------------------
 
 /**
