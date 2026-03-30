@@ -35,7 +35,7 @@ describe("shortenMessage", () => {
 		expect(shortenMessage("Single sentence.")).toBe("Single sentence");
 	});
 
-	it("returns (unknown) for empty input", () => {
+	it("preserves empty string and (unknown) sentinel", () => {
 		expect(shortenMessage("")).toBe("");
 		expect(shortenMessage("(unknown)")).toBe("(unknown)");
 	});
