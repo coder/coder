@@ -1,4 +1,3 @@
-import { useAuthenticated } from "hooks";
 import {
 	BanIcon,
 	CloudIcon,
