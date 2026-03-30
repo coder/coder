@@ -99,7 +99,7 @@ interface AgentChatPageViewProps {
 	diffStatusData: ChatDiffStatus | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
-		refresh: () => void;
+		refresh: () => boolean;
 	};
 
 	// Workspace action handlers.

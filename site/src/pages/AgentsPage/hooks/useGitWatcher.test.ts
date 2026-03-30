@@ -331,12 +331,58 @@ describe("useGitWatcher", () => {
 
 		act(() => socket.simulateOpen());
 
-		act(() => result.current.refresh());
+		let sent: boolean | undefined;
+		act(() => {
+			sent = result.current.refresh();
+		});
 
+		expect(sent).toBe(true);
 		expect(socket.send).toHaveBeenCalledTimes(1);
 		expect(socket.send).toHaveBeenCalledWith(
 			JSON.stringify({ type: "refresh" }),
 		);
+	});
+
+	it("refresh returns false when the socket is not connected", () => {
+		vi.useFakeTimers();
+
+		try {
+			const socket = createMockSocket();
+
+			const { result } = renderHook(() =>
+				useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+			);
+
+			act(() => socket.simulateOpen());
+
+			// Close the socket. The close handler sets socketRef to
+			// null and schedules a reconnect timer, but we don't
+			// advance timers so the socket stays null.
+			act(() => socket.simulateClose());
+
+			let sent: boolean | undefined;
+			act(() => {
+				sent = result.current.refresh();
+			});
+
+			expect(sent).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("refresh returns false before the socket connects", () => {
+		// Don't connect at all — agentStatus prevents effect from running.
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connecting" }),
+		);
+
+		let sent: boolean | undefined;
+		act(() => {
+			sent = result.current.refresh();
+		});
+
+		expect(sent).toBe(false);
 	});
 
 	it("cleans up WebSocket and timers on unmount", () => {
