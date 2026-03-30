@@ -541,6 +541,13 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
+		LastInjectedContext: pqtype.NullRawMessage{
+			// Use a context-file part to verify internal
+			// fields are not present (they are stripped at
+			// write time by chatd, not at read time).
+			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
+			Valid:      true,
+		},
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
