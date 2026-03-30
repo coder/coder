@@ -698,9 +698,13 @@ const StickyUserMessage = memo<{
 				}
 			}
 			setIsReady(true);
+			// Use the scroll container as root so the observer is
+			// insensitive to viewport changes (e.g. Safari address
+			// bar show/hide), which would otherwise fire spurious
+			// isStuck toggles and trigger re-renders.
 			const observer = new IntersectionObserver(
 				([entry]) => setIsStuck(!entry.isIntersecting),
-				{ threshold: 0 },
+				{ threshold: 0, root: scroller },
 			);
 			observer.observe(sentinel);
 			return () => observer.disconnect();
@@ -866,7 +870,7 @@ const StickyUserMessage = memo<{
 				<div
 					ref={containerRef}
 					className={cn(
-						"relative px-3 -mx-3 -mt-3",
+						"relative px-3 -mx-3 -mt-3 [contain:layout_style]",
 						!isTooTall && "sticky z-10",
 						!isReady && "invisible",
 						isStuck && !isTooTall && "pointer-events-none",
