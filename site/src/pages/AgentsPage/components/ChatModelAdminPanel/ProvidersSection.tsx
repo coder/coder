@@ -2,6 +2,7 @@ import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
@@ -46,8 +47,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	const canGoBack =
 		(location.state as { pushed?: boolean } | null)?.pushed === true;
 
-	// Derive the current view from URL search params so that
-	// browser back/forward navigation works as expected.
 	const view: ProviderView = (() => {
 		const providerParam = searchParams.get("provider");
 		if (providerParam) {
@@ -59,7 +58,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		return { mode: "list" };
 	})();
 
-	// Clear provider search param and return to the list.
 	const clearProviderView = () => {
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
@@ -68,15 +66,28 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		});
 	};
 
-	// ── Detail view ───────────────────────────────────────────
 	const detailProvider =
 		view.mode === "detail"
 			? providerStates.find((ps) => ps.provider === view.provider)
 			: undefined;
 
 	if (view.mode === "detail" && detailProvider) {
+		const providerFormKey = [
+			detailProvider.provider,
+			detailProvider.providerConfig?.id ?? "new",
+			detailProvider.providerConfig?.display_name ?? "",
+			detailProvider.providerConfig?.base_url ?? detailProvider.baseURL,
+			detailProvider.providerConfig?.central_api_key_enabled ?? true,
+			detailProvider.providerConfig?.allow_user_api_key ?? false,
+			detailProvider.providerConfig?.allow_central_api_key_fallback ?? false,
+			detailProvider.providerConfig?.has_api_key ??
+				detailProvider.hasManagedAPIKey,
+			detailProvider.providerConfig?.updated_at ?? "",
+		].join("|");
+
 		return (
 			<ProviderForm
+				key={providerFormKey}
 				providerState={detailProvider}
 				providerConfigsUnavailable={providerConfigsUnavailable}
 				isProviderMutationPending={isProviderMutationPending}
@@ -102,8 +113,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 		);
 	}
 
-	// ── List view ─────────────────────────────────────────────
-
 	if (providerStates.length === 0) {
 		return (
 			<div className="rounded-lg border border-dashed border-border bg-surface-primary p-6 text-center text-[13px] text-content-secondary">
@@ -124,7 +133,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				/>
 			)}
 			<div>
-				{providerStates.map((providerState, i) => (
+				{providerStates.map((providerState, index) => (
 					<button
 						type="button"
 						key={providerState.provider}
@@ -137,17 +146,26 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 							);
 						}}
 						className={cn(
-							"flex w-full cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",
-							i > 0 && "border-0 border-t border-solid border-border/50",
+							"flex w-full cursor-pointer items-center gap-3.5 border-0 bg-transparent p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",
+							index > 0 && "border-0 border-t border-solid border-border/50",
 						)}
 					>
 						<ProviderIcon
 							provider={providerState.provider}
 							className="h-8 w-8 shrink-0"
 						/>
-						<span className="min-w-0 flex-1 truncate text-[15px] font-medium text-content-primary text-left">
-							{providerState.label}
-						</span>
+						<div className="min-w-0 flex-1 space-y-1">
+							<div className="flex flex-wrap items-center gap-2">
+								<span className="min-w-0 truncate text-[15px] font-medium text-content-primary">
+									{providerState.label}
+								</span>
+								{providerState.providerConfig?.allow_user_api_key && (
+									<Badge size="xs" className="text-content-secondary">
+										User keys enabled
+									</Badge>
+								)}
+							</div>
+						</div>
 						{providerState.hasEffectiveAPIKey ? (
 							<CheckCircleIcon className="h-4 w-4 shrink-0 text-content-success" />
 						) : (

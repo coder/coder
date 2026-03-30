@@ -181,6 +181,9 @@ const UserOAuth2ProviderSettingsPage = lazy(
 	() =>
 		import("./pages/UserSettingsPage/OAuth2ProviderPage/OAuth2ProviderPage"),
 );
+const UserProviderSettingsPage = lazy(
+	() => import("./pages/UserSettingsPage/ProvidersPage/ProvidersPage"),
+);
 const TemplateVersionPage = lazy(
 	() => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
@@ -606,6 +609,7 @@ export const router = createBrowserRouter(
 							path="external-auth"
 							element={<UserExternalAuthSettingsPage />}
 						/>
+						<Route path="providers" element={<UserProviderSettingsPage />} />
 						<Route
 							path="oauth2-provider"
 							element={<UserOAuth2ProviderSettingsPage />}
@@ -696,7 +700,7 @@ export const router = createBrowserRouter(
 				>
 					<Route index element={<AgentCreatePage />} />
 					<Route path="settings" element={<AgentSettingsPage />}>
-						<Route index element={<AgentSettingsBehaviorPage />} />
+						<Route index element={<Navigate to="behavior" replace />} />
 						<Route path="behavior" element={<AgentSettingsBehaviorPage />} />
 						<Route path="providers" element={<AgentSettingsProvidersPage />} />
 						<Route path="models" element={<AgentSettingsModelsPage />} />

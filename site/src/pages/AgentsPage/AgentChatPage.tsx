@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useOutletContext, useParams } from "react-router";
+import { Link, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { API, watchWorkspace } from "#/api/api";
@@ -37,13 +37,13 @@ import {
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
+import type { AgentsOutletContext } from "./AgentsPage";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
-} from "./AgentChatPageView";
-import type { AgentsOutletContext } from "./AgentsPage";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
+} from "./components/AgentChatPageView";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -64,6 +64,7 @@ import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
@@ -583,11 +584,29 @@ const AgentChatPage: FC = () => {
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
+		modelCatalog,
 	);
+	const modelSelectorHelp =
+		!isModelCatalogLoading &&
+		!hasModelOptions &&
+		hasConfiguredModels &&
+		hasUserFixableModelProviders ? (
+			<>
+				Configure your API keys in{" "}
+				<Link
+					to="/settings/providers"
+					className="underline transition-colors hover:text-content-primary"
+				>
+					Settings
+				</Link>{" "}
+				to enable models.
+			</>
+		) : undefined;
 	const isSubmissionPending =
 		sendMutation.isPending ||
 		editMutation.isPending ||
@@ -923,6 +942,7 @@ const AgentChatPage: FC = () => {
 				setSelectedModel={setSelectedModel}
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
+				modelSelectorHelp={modelSelectorHelp}
 				hasModelOptions={hasModelOptions}
 				isModelCatalogLoading={isModelCatalogLoading}
 				isSidebarCollapsed={isSidebarCollapsed}
@@ -957,6 +977,7 @@ const AgentChatPage: FC = () => {
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			modelSelectorHelp={modelSelectorHelp}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			compressionThreshold={compressionThreshold}

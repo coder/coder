@@ -12,6 +12,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
+	hasUserFixableProviders,
 } from "../utils/modelOptions";
 import {
 	formatUsageLimitMessage,
@@ -164,11 +165,29 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
 		isModelCatalogLoading,
 		hasConfiguredModels,
+		modelCatalog,
 	);
+	const modelSelectorHelp =
+		!isModelCatalogLoading &&
+		!hasModelOptions &&
+		hasConfiguredModels &&
+		hasUserFixableModelProviders ? (
+			<>
+				Configure your API keys in{" "}
+				<Link
+					to="/settings/providers"
+					className="underline transition-colors hover:text-content-primary"
+				>
+					Settings
+				</Link>{" "}
+				to enable models.
+			</>
+		) : undefined;
 	useEffect(() => {
 		if (!initialLastModelConfigID) {
 			return;
@@ -318,6 +337,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onModelChange={handleModelChange}
 					modelOptions={modelOptions}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
+					modelSelectorHelp={modelSelectorHelp}
 					isModelCatalogLoading={isModelCatalogLoading}
 					hasModelOptions={hasModelOptions}
 					attachments={attachments}
