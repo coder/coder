@@ -1,11 +1,12 @@
+-- The old FK (chat_model_configs.provider -> chat_providers.provider)
+-- depends on the unique provider index. Drop it before removing that
+-- uniqueness constraint, then replace it with a proper ID-based binding
+-- below.
+ALTER TABLE chat_model_configs DROP CONSTRAINT IF EXISTS chat_model_configs_provider_fkey;
+
 -- Drop the unique constraint on chat_providers.provider so multiple
 -- configs per provider family are allowed.
 ALTER TABLE chat_providers DROP CONSTRAINT IF EXISTS chat_providers_provider_key;
-
--- The old FK (chat_model_configs.provider -> chat_providers.provider)
--- targeted the now-dropped unique column. Replace it with a proper
--- ID-based binding below.
-ALTER TABLE chat_model_configs DROP CONSTRAINT IF EXISTS chat_model_configs_provider_fkey;
 
 -- Bind each model config to a specific provider config by ID.
 -- ON DELETE CASCADE removes bound models when the provider config is deleted,
