@@ -647,9 +647,12 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
-      # Complete the matching Linear release when a .0 minor release is
-      # published.  Patch releases (v2.32.1, v2.32.2, ...) are grouped
-      # under the same Linear release and must not re-complete it.
+      # Complete the matching Linear release. All releases (v2.32.0,
+      # v2.32.1, ...) target the same Linear release ("2.32"). Running
+      # complete on an already-completed release is harmless — the
+      # server either no-ops or errors out, caught by continue-on-error.
+      # This makes the step self-healing: if the .0 release fails before
+      # completing, the next patch will pick it up.
       #
       # This runs here instead of in linear-release.yaml because that
       # workflow listens on `release: published`, but releases created
@@ -661,13 +664,6 @@ jobs:
         run: |
           set -euo pipefail
           version="$VERSION"
-          tag="v${version}"
-
-          # Only complete on .0 minor releases.
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.0$ ]]; then
-            echo "Patch release ${tag}, skipping Linear release completion."
-            exit 0
-          fi
 
           # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
           linear_version=$(echo "$version" | cut -d. -f1,2)
