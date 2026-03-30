@@ -75,7 +75,7 @@ interface AgentChatInputProps {
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
-	// Initial text to seed the editor with.
+	// Initial text to seed the editor on first mount only.
 	initialValue?: string;
 	// Called on every text change inside the editor.
 	onContentChange?: (content: string) => void;
