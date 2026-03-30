@@ -48,7 +48,7 @@ jobs:
 
       # TODO: Remove this workaround once action-linkspector sets
       # package-manager-cache: false in its internal setup-node step.
-      # See: https://github.com/coder/coder/actions/runs/23751836569
+      # See: https://github.com/UmbrellaDocs/action-linkspector/issues/54
       - name: Enable corepack
         run: corepack enable pnpm
 
