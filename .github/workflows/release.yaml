@@ -350,16 +350,6 @@ jobs:
         env:
           IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
-      # GitHub attestation provides SLSA provenance for Docker images,
-      # establishing a verifiable record that these images were built in
-      # GitHub Actions with specific inputs and environment. This
-      # complements our existing cosign attestations (which focus on
-      # SBOMs) by adding GitHub-specific build provenance.
-      #
-      # NOTE: subject-name must be the image reference WITHOUT a tag,
-      # and subject-digest must be the manifest digest (sha256:...).
-      # The actions/attest action requires exactly one of subject-path,
-      # subject-digest, or subject-checksums to identify the artifact.
       - name: GitHub Attestation for Base Docker image
         id: attest_base
         if: ${{ !inputs.dry_run && steps.build_base_image.outputs.digest != '' }}
@@ -418,7 +408,6 @@ jobs:
           # being pushed so will automatically push them.
           make push/build/coder_"$version"_linux.tag
 
-          # Save multiarch image tag and digest for attestation.
           multiarch_image="$(./scripts/image_tag.sh)"
           echo "multiarch_image=${multiarch_image}" >> "$GITHUB_OUTPUT"
           multiarch_digest=$(docker buildx imagetools inspect --raw "${multiarch_image}" | sha256sum | awk '{print "sha256:"$1}')
@@ -460,7 +449,6 @@ jobs:
           echo "Generating SBOM for multi-arch image: ${MULTIARCH_IMAGE}"
           syft "${MULTIARCH_IMAGE}" -o spdx-json > "coder_${VERSION}_sbom.spdx.json"
 
-          # Attest SBOM to multi-arch image.
           echo "Attesting SBOM to multi-arch image: ${MULTIARCH_IMAGE}"
           cosign attest --type spdxjson \
             --predicate "coder_${VERSION}_sbom.spdx.json" \
@@ -518,8 +506,6 @@ jobs:
             }
           push-to-registry: true
 
-      # If this is the highest version according to semver, also attest
-      # the "latest" tag.
       - name: GitHub Attestation for "latest" Docker image
         id: attest_latest
         if: ${{ !inputs.dry_run && steps.build_docker.outputs.latest_digest != '' }}
