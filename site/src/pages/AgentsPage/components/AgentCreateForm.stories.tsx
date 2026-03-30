@@ -303,5 +303,8 @@ export const ForbiddenNoAgentsRole: Story = {
 		await expect(
 			canvas.queryByRole("heading", { name: "Forbidden." }),
 		).not.toBeInTheDocument();
+		// The textarea should be disabled so the user cannot
+		// re-trigger the generic error.
+		await expect(canvas.getByRole("textbox")).toBeDisabled();
 	},
 };

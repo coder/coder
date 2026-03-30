@@ -285,6 +285,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
+	const isForbidden =
+		isApiError(createError) && createError.response?.status === 403;
+
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -303,8 +306,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						>
 							{formatUsageLimitMessage(createError.response.data)}
 						</Alert>
-					) : isApiError(createError) &&
-						createError.response?.status === 403 ? (
+					) : isForbidden ? (
 						<ChatAccessDeniedAlert />
 					) : (
 						<ErrorAlert error={createError} />
@@ -314,7 +316,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
-					isDisabled={isCreating}
+					isDisabled={isCreating || isForbidden}
 					isLoading={isCreating}
 					initialValue={initialInputValue}
 					onContentChange={handleContentChange}
