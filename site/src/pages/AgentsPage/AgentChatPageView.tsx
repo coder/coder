@@ -850,15 +850,21 @@ const ScrollAnchoredContainer: FC<{
 					);
 					setShowScrollToBottom(false);
 					restoreGuardRafIdRef.current = requestAnimationFrame(() => {
-						isRestoringScrollRef.current = false;
 						restoreGuardRafIdRef.current = null;
+						// Content may have grown between the pin and
+						// this callback. Re-pin instead of dropping the
+						// guard if we drifted off-bottom.
+						if (!isNearBottom(container)) {
+							scheduleBottomPin();
+							return;
+						}
+						isRestoringScrollRef.current = false;
 					});
 				});
 			});
 		};
 
 		cancelPendingPinsRef.current = cancelPendingPins;
-
 		const observer = new ResizeObserver((entries) => {
 			const entry = entries[0];
 			const nextHeight =
@@ -975,12 +981,25 @@ const ScrollAnchoredContainer: FC<{
 				0,
 			);
 			restoreGuardRafIdRef.current = requestAnimationFrame(() => {
-				isRestoringScrollRef.current = false;
 				restoreGuardRafIdRef.current = null;
+				if (!isNearBottom(container)) {
+					// Content grew between the pin and this frame.
+					// Re-pin directly since scheduleBottomPin is in
+					// a different effect closure.
+					container.scrollTop = Math.max(
+						container.scrollHeight - container.clientHeight,
+						0,
+					);
+					restoreGuardRafIdRef.current = requestAnimationFrame(() => {
+						restoreGuardRafIdRef.current = null;
+						isRestoringScrollRef.current = false;
+					});
+					return;
+				}
+				isRestoringScrollRef.current = false;
 			});
 		});
 		observer.observe(container);
-
 		return () => {
 			observer.disconnect();
 			// The shared restoreGuardRafIdRef is cancelled by the
@@ -1005,7 +1024,7 @@ const ScrollAnchoredContainer: FC<{
 			// scroll-to-bottom), suppress normal handling. Clear the
 			// guard once the scroll reaches the bottom so normal
 			// tracking resumes. User-input interruptions are handled
-			// separately via wheel/touchstart listeners.
+			// separately via wheel/touchstart/pointerdown listeners.
 			if (isRestoringScrollRef.current) {
 				if (isNearBottom(container)) {
 					isRestoringScrollRef.current = false;
@@ -1016,7 +1035,44 @@ const ScrollAnchoredContainer: FC<{
 			}
 
 			const nearBottom = isNearBottom(container);
-			autoScrollRef.current = nearBottom;
+			// Only ENABLE follow mode from the scroll handler.
+			// Never disable it here. WebKit internally adjusts
+			// scrollTop during layout when content above the
+			// viewport changes height (a form of scroll anchoring
+			// it applies even with overflow-anchor:none). These
+			// browser-initiated adjustments fire scroll events
+			// that see isNearBottom=false and would permanently
+			// kill follow mode. Disabling follow is exclusive to
+			// user-interaction handlers (wheel, touch, scrollbar
+			// pointer) which call handleUserInterrupt directly.
+			if (nearBottom) {
+				autoScrollRef.current = true;
+			} else if (
+				autoScrollRef.current &&
+				!isWheelScrollingRef.current &&
+				activeTouchCountRef.current === 0
+			) {
+				// Follow mode is on but we are not at bottom, and
+				// the user is not actively scrolling. This indicates
+				// WebKit adjusted scrollTop during layout (a form of
+				// scroll anchoring it applies even with
+				// overflow-anchor:none). Re-pin immediately and keep
+				// the restore guard up so the next scroll event from
+				// this pin is suppressed.
+				isRestoringScrollRef.current = true;
+				container.scrollTop = Math.max(
+					container.scrollHeight - container.clientHeight,
+					0,
+				);
+				if (restoreGuardRafIdRef.current !== null) {
+					cancelAnimationFrame(restoreGuardRafIdRef.current);
+				}
+				restoreGuardRafIdRef.current = requestAnimationFrame(() => {
+					restoreGuardRafIdRef.current = null;
+					isRestoringScrollRef.current = false;
+				});
+				return;
+			}
 
 			// Throttle the button visibility state update to once per
 			// frame. This is the only part that triggers a re-render.
@@ -1135,6 +1191,19 @@ const ScrollAnchoredContainer: FC<{
 		container.addEventListener("wheel", handleWheel, {
 			passive: true,
 		});
+		// Scrollbar-track drags don't fire wheel or touch events.
+		// Detect them via pointerdown on the container element
+		// itself (content clicks target child elements, scrollbar
+		// clicks target the scroller). This is the only non-wheel,
+		// non-touch user interaction that scrolls.
+		const handlePointerDown = (event: PointerEvent) => {
+			if (event.target === container) {
+				handleUserInterrupt();
+			}
+		};
+		container.addEventListener("pointerdown", handlePointerDown, {
+			passive: true,
+		});
 		container.addEventListener("touchstart", handleTouchStart, {
 			passive: true,
 		});
@@ -1160,6 +1229,7 @@ const ScrollAnchoredContainer: FC<{
 		return () => {
 			container.removeEventListener("scroll", handleScroll);
 			container.removeEventListener("wheel", handleWheel);
+			container.removeEventListener("pointerdown", handlePointerDown);
 			container.removeEventListener("touchstart", handleTouchStart);
 			container.removeEventListener("touchend", handleTouchEnd);
 			container.removeEventListener("touchcancel", handleTouchEnd);
