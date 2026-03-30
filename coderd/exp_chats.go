@@ -508,7 +508,21 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// Link any user-uploaded files referenced in the initial
 	// message to this newly created chat.
 	api.linkFilesToChat(ctx, chat.ID, fileIDs)
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat, nil, nil))
+
+	// Hydrate file metadata so the response includes files.
+	var chatFiles []database.GetChatFileMetadataByIDsRow
+	if len(fileIDs) > 0 {
+		var err error
+		chatFiles, err = api.Database.GetChatFileMetadataByIDs(ctx, fileIDs)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to fetch chat file metadata",
+				slog.F("chat_id", chat.ID),
+				slog.F("file_ids", fileIDs),
+				slog.Error(err),
+			)
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat, nil, chatFiles))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

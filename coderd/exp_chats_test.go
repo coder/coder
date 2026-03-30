@@ -3051,7 +3051,13 @@ func TestChatMessageWithFiles(t *testing.T) {
 		// With no text, chatTitleFromMessage("") returns "New Chat".
 		require.Equal(t, "New Chat", chat.Title)
 		require.Len(t, chat.Files, 1)
-		require.Equal(t, uploadResp.ID, chat.Files[0].ID)
+		f := chat.Files[0]
+		require.Equal(t, uploadResp.ID, f.ID)
+		require.Equal(t, firstUser.UserID, f.OwnerID)
+		require.NotEqual(t, uuid.Nil, f.OrganizationID)
+		require.Equal(t, "image/png", f.MimeType)
+		require.Equal(t, "test.png", f.Name)
+		require.NotZero(t, f.CreatedAt)
 	})
 
 	t.Run("InvalidFileID", func(t *testing.T) {
