@@ -141,7 +141,6 @@ export const WorkspaceTerminal = ({
 		[refit],
 	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable refs
 	useEffect(() => {
 		const mountNode = terminalWrapperRef.current;
 		if (!mountNode) {
@@ -240,6 +239,7 @@ export const WorkspaceTerminal = ({
 		};
 	}, [
 		copyToClipboard,
+		handleOpenLink,
 		refit,
 		renderer,
 		reportTerminalError,
@@ -254,7 +254,6 @@ export const WorkspaceTerminal = ({
 		refit();
 	}, [isVisible, refit]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable refs
 	useEffect(() => {
 		if (!terminal || !isVisible) {
 			return;
@@ -366,11 +365,17 @@ export const WorkspaceTerminal = ({
 					handleStatusChange("connected");
 				});
 				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
+					if (disposed) {
+						return;
+					}
 					console.error("WebSocket error:", event);
 					terminal.options.disableStdin = true;
 					handleStatusChange("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.close, () => {
+					if (disposed) {
+						return;
+					}
 					terminal.options.disableStdin = true;
 					handleStatusChange("disconnected");
 				});
@@ -431,6 +436,7 @@ export const WorkspaceTerminal = ({
 		containerUser,
 		errorMessage,
 		getTerminalDimensions,
+		handleStatusChange,
 		initialCommand,
 		isVisible,
 		loading,
