@@ -241,7 +241,7 @@ unchanged.
 | `pin_order` | `int32`             | `0` to unpin; `>0` on an unpinned chat to pin it; `>0` on a pinned chat to reorder. |
 | `labels`    | `map[string]string` | Replace all labels. Use `null`/omit to leave unchanged, `{}` to clear.   |
 
-**Response**: `200 OK` with the updated `Chat` object.
+**Response**: `204 No Content`.
 
 ### Regenerate title
 
@@ -321,9 +321,11 @@ validates actual file content regardless of the declared `Content-Type`.
 
 ## Chat statuses
 
-| Status    | Meaning                                                      |
-|-----------|--------------------------------------------------------------|
-| `waiting` | Idle — newly created, finished successfully, or interrupted. |
-| `pending` | Queued for processing.                                       |
-| `running` | Agent is actively working.                                   |
-| `error`   | Agent encountered an error.                                  |
+| Status      | Meaning                                                      |
+|-------------|--------------------------------------------------------------|
+| `waiting`   | Idle — newly created, finished successfully, or interrupted. |
+| `pending`   | Queued for processing.                                       |
+| `running`   | Agent is actively working.                                   |
+| `paused`    | Agent is paused (e.g. waiting for user input).               |
+| `completed` | Agent finished and the task is complete.                     |
+| `error`     | Agent encountered an error.                                  |
