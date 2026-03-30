@@ -29,6 +29,7 @@ import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
+import { TerminalPanel } from "./components/TerminalPanel";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -65,6 +66,8 @@ interface AgentChatPageViewProps {
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	workspace?: TypesGen.Workspace;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -152,6 +155,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	persistedError,
 	isArchived,
 	hasWorkspace,
+	workspaceAgent,
+	workspace,
 	store,
 	editing,
 	pendingEditMessageId,
@@ -385,6 +390,23 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									/>
 								),
 							},
+							...(hasWorkspace
+								? [
+										{
+											id: "terminal",
+											label: "Terminal",
+											content: (
+												<TerminalPanel
+													isVisible={
+														shouldShowSidebar && sidebarTabId === "terminal"
+													}
+													workspace={workspace}
+													workspaceAgent={workspaceAgent}
+												/>
+											),
+										},
+									]
+								: []),
 						]}
 						onClose={() => onSetShowSidebarPanel(false)}
 						isExpanded={visualExpanded}
