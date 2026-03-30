@@ -412,7 +412,6 @@ func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 		CentralApiKeyEnabled:       true,
 		AllowCentralApiKeyFallback: true,
 	}}, nil)
-	db.EXPECT().GetUserChatProviderKeys(gomock.Any(), ownerID).Return(nil, nil)
 
 	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
 	require.NoError(t, err)

@@ -945,6 +945,26 @@ func TestListChatModels(t *testing.T) {
 		require.NotNil(t, googleProvider)
 		require.True(t, googleProvider.Available)
 	})
+
+	t.Run("DisabledProvidersAreFilteredOut", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := chatDeploymentValues(t)
+		values.AI.BridgeConfig.OpenAI.Key = serpent.String("deployment-openai-key")
+		client := newChatClientWithDeploymentValues(t, values)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			Enabled:  ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		require.Empty(t, models.Providers)
+	})
 }
 
 func TestWatchChats(t *testing.T) {

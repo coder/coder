@@ -4916,19 +4916,30 @@ func (p *Server) resolveUserProviderAPIKeys(
 			},
 		)
 	}
-	userKeyRows, err := p.db.GetUserChatProviderKeys(ctx, ownerID)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-			"get user chat provider keys: %w",
-			err,
-		)
+	allowAnyUserAPIKey := false
+	for _, provider := range configuredProviders {
+		if provider.AllowUserAPIKey {
+			allowAnyUserAPIKey = true
+			break
+		}
 	}
-	userKeys := make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
-	for _, userKey := range userKeyRows {
-		userKeys = append(userKeys, chatprovider.UserProviderKey{
-			ChatProviderID: userKey.ChatProviderID,
-			APIKey:         userKey.APIKey,
-		})
+
+	userKeys := []chatprovider.UserProviderKey{}
+	if allowAnyUserAPIKey {
+		userKeyRows, err := p.db.GetUserChatProviderKeys(ctx, ownerID)
+		if err != nil {
+			return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+				"get user chat provider keys: %w",
+				err,
+			)
+		}
+		userKeys = make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
+		for _, userKey := range userKeyRows {
+			userKeys = append(userKeys, chatprovider.UserProviderKey{
+				ChatProviderID: userKey.ChatProviderID,
+				APIKey:         userKey.APIKey,
+			})
+		}
 	}
 	keys, _ := chatprovider.ResolveUserProviderKeys(
 		p.providerAPIKeys,

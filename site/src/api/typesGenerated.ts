@@ -1837,9 +1837,9 @@ export interface ChatProviderConfig {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
-	readonly central_api_key_enabled?: boolean;
-	readonly allow_user_api_key?: boolean;
-	readonly allow_central_api_key_fallback?: boolean;
+	readonly central_api_key_enabled: boolean;
+	readonly allow_user_api_key: boolean;
+	readonly allow_central_api_key_fallback: boolean;
 	readonly base_url?: string;
 	readonly source: ChatProviderConfigSource;
 	readonly created_at?: string;
