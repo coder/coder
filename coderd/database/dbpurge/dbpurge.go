@@ -36,8 +36,8 @@ const (
 	maxTelemetryHeartbeatAge = 24 * time.Hour
 	// Chat files retention period. Chats are currently experimental,
 	// so we hard-code this rather than exposing a deployment config
-	// knob. This can be promoted to a configurable setting if and
-	// when chats graduate from experimental status.
+	// knob. This can be promoted to a configurable setting when
+	// chats graduate from experimental status.
 	maxChatFileAge     = 30 * 24 * time.Hour // 30 days
 	chatFilesBatchSize = 1000
 )
