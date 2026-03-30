@@ -397,7 +397,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 											label: "Terminal",
 											content: (
 												<TerminalPanel
-													isVisible={shouldShowSidebar && sidebarTabId === "terminal"}
+													isVisible={
+														shouldShowSidebar && sidebarTabId === "terminal"
+													}
 													workspace={workspace}
 													workspaceAgent={workspaceAgent}
 												/>
