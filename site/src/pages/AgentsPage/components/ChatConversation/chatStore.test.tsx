@@ -963,6 +963,112 @@ describe("useChatStore", () => {
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
+	it("writes WebSocket message events into the chat query cache", async () => {
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
+			messages: [existingMessage],
+			queued_messages: [],
+			has_more: false,
+		};
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [initialChatMessagesData],
+			pageParams: [undefined],
+		});
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatMessagesData: initialChatMessagesData,
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		const newMessage = makeMessage(chatID, 2, "assistant", "hi there");
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: newMessage,
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedIDs).toContain(2);
+		});
+
+		// The React Query cache should also contain the new message.
+		const cachedData = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		const cachedMessages = cachedData?.pages[0]?.messages ?? [];
+		// Verifies insertion, preservation, and DESC order.
+		expect(cachedMessages.map((m) => m.id)).toEqual([2, 1]);
+		// Emitting the same message again should not change the
+		// cache reference (reference stability).
+		const refBefore = queryClient.getQueryData(chatMessagesKey(chatID));
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: newMessage,
+			});
+		});
+		const refAfter = queryClient.getQueryData(chatMessagesKey(chatID));
+		expect(refAfter).toBe(refBefore);
+
+		// Emitting the same message ID with different content should
+		// update the cached entry (content-update path).
+		const revised = makeMessage(chatID, 2, "assistant", "revised");
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: revised,
+			});
+		});
+		const updatedCache = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		const updatedFirst = updatedCache?.pages[0]?.messages[0];
+		expect(updatedFirst?.content).toEqual([{ type: "text", text: "revised" }]);
+	});
+
 	it("closes old WebSocket and resets state when chatID changes", async () => {
 		immediateAnimationFrame();
 
