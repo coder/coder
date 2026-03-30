@@ -1233,7 +1233,6 @@ func TestListRoles(t *testing.T) {
 		"auditor",
 		"template-admin",
 		"user-admin",
-		"chat-access",
 	},
 		siteRoleNames)
 	orgID := uuid.New()

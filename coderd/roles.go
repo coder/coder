@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"net/http"
-	"slices"
 
 	"github.com/google/uuid"
 
@@ -46,14 +45,11 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	siteRoles := rbac.SiteBuiltInRoles()
-	// Hide the chat-access role when the agents experiment is
-	// not enabled, since chat is an experimental feature. Dev
-	// builds bypass the experiment gate, matching the behavior
-	// of RequireExperimentWithDevBypass on chat routes.
-	if !api.Experiments.Enabled(codersdk.ExperimentAgents) && !buildinfo.IsDev() {
-		siteRoles = slices.DeleteFunc(siteRoles, func(r rbac.Role) bool {
-			return r.Identifier == rbac.RoleChatAccess()
-		})
+	// Include the chat-access role only when the agents
+	// experiment is enabled or this is a dev build, matching
+	// the RequireExperimentWithDevBypass gate on chat routes.
+	if api.Experiments.Enabled(codersdk.ExperimentAgents) || buildinfo.IsDev() {
+		siteRoles = append(siteRoles, rbac.ChatAccessRole())
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK,

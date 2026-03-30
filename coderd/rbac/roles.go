@@ -879,11 +879,18 @@ func SiteBuiltInRoles() []Role {
 	for _, roleF := range builtInRoles {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
-		if !role.Identifier.IsOrgRole() {
+		if !role.Identifier.IsOrgRole() && role.Identifier != RoleChatAccess() {
 			roles = append(roles, role)
 		}
 	}
 	return roles
+}
+
+// ChatAccessRole returns the chat-access role for use by callers
+// that need to include it conditionally (e.g. when the agents
+// experiment is enabled).
+func ChatAccessRole() Role {
+	return builtInRoles[chatAccess](uuid.Nil)
 }
 
 // ChangeRoleSet is a helper function that finds the difference of 2 sets of
