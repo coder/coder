@@ -1277,23 +1277,28 @@
 					"description": "Learn about image management with Coder",
 					"path": "./admin/templates/managing-templates/image-management.md"
 				},
-				{
-					"title": "Configuring Okta",
-					"description": "Custom claims/scopes with Okta for group/role sync",
-					"path": "./tutorials/configuring-okta.md"
-				},
-				{
-					"title": "Google to AWS Federation",
-					"description": "Federating a Google Cloud service account to AWS",
-					"path": "./tutorials/gcp-to-aws.md"
-				},
-				{
-					"title": "JFrog Artifactory Integration",
-					"description": "Integrate Coder with JFrog Artifactory",
-					"path": "./admin/integrations/jfrog-artifactory.md"
-				},
-				{
-					"title": "Mirror Coder Registry with Artifactory",
+					{
+						"title": "Configuring Okta",
+						"description": "Custom claims/scopes with Okta for group/role sync",
+						"path": "./tutorials/configuring-okta.md"
+					},
+					{
+						"title": "Persistent Shared Workspaces",
+						"description": "Set up long-lived shared workspaces with service accounts and workspace sharing",
+						"path": "./tutorials/persistent-shared-workspaces.md"
+					},
+					{
+						"title": "Google to AWS Federation",
+						"description": "Federating a Google Cloud service account to AWS",
+						"path": "./tutorials/gcp-to-aws.md"
+					},
+					{
+						"title": "JFrog Artifactory Integration",
+						"description": "Integrate Coder with JFrog Artifactory",
+						"path": "./admin/integrations/jfrog-artifactory.md"
+					},
+					{
+						"title": "Mirror Coder Registry with Artifactory",
 					"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
 					"path": "./install/registry-mirror-artifactory.md"
 				},
