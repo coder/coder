@@ -74,24 +74,32 @@ discoverable descriptions, restricting template visibility, configuring network
 boundaries, scoping credentials, and designing template parameters for agent
 use.
 
+### MCP servers
+
+Administrators can register external MCP (Model Context Protocol) servers that
+provide additional tools for agent chat sessions. This includes configuring
+authentication, controlling which tools are exposed via allow/deny lists, and
+setting availability policies that determine whether a server is mandatory,
+opt-out, or opt-in for each chat.
+
+See [MCP Servers](./mcp-servers.md) for configuration details.
+
+### Usage limits and insights
+
+Administrators can set spend limits to cap LLM usage per user within a rolling
+time period, with per-user and per-group overrides. The cost tracking dashboard
+provides visibility into per-user spending, token consumption, and per-model
+breakdowns. The PR insights dashboard shows merge rates, cost per merged PR, and
+per-model effectiveness.
+
+See [Usage & Insights](./usage-insights.md) for details.
+
 ## Where we are headed
 
-Coder Agents is in its early stages. The controls above — providers, models,
-and system prompt — are what is available today. We are actively building
-toward a broader set of platform controls based on what we are hearing from
-customers deploying agents in regulated and enterprise environments.
-
-The areas we are investing in include:
-
-### Usage controls and analytics
-
-We plan to give platform teams visibility into how agents are being used across
-the organization: token consumption per user, cost per PR, merge rates by model,
-and average time from prompt to merged pull request.
-
-The goal is to let platform teams make data-driven decisions — like switching
-the default model when analytics show one model produces higher merge rates —
-rather than relying on anecdotal feedback from individual developers.
+The controls above cover providers, models, system prompts, templates, MCP
+servers, and usage limits. We are continuing to invest in platform controls
+based on what we hear from customers deploying agents in regulated and
+enterprise environments.
 
 ### Infrastructure-level enforcement
 
@@ -106,13 +114,6 @@ Examples of what this looks like:
   from the control plane, agent workspaces do not need outbound access to LLM
   providers. You can create templates that only permit access to your git
   provider and nothing else.
-
-### Tool customization
-
-The agent ships with a standard set of tools (file read/write, shell execution,
-sub-agents). We intend to let platform teams customize the available tool set —
-adding organization-specific tools or restricting default ones — without
-modifying agent source code.
 
 ## Why we take this approach
 
