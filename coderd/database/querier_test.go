@@ -1251,8 +1251,12 @@ func TestGetAuthorizedChats(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{
 		RBACRoles: []string{rbac.RoleOwner().String()},
 	})
-	member := dbgen.User(t, db, database.User{})
-	secondMember := dbgen.User(t, db, database.User{})
+	member := dbgen.User(t, db, database.User{
+		RBACRoles: pq.StringArray{rbac.RoleChatAccess().String()},
+	})
+	secondMember := dbgen.User(t, db, database.User{
+		RBACRoles: pq.StringArray{rbac.RoleChatAccess().String()},
+	})
 
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)

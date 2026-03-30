@@ -498,6 +498,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat.",
 			Detail:  err.Error(),

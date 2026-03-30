@@ -318,7 +318,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception, ResourceChat),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceAibridgeInterception, ResourceChat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -1027,7 +1027,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			ResourceUser,
 			ResourceOrganizationMember,
 			ResourceAibridgeInterception,
-			ResourceChat,
 		),
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
@@ -1036,8 +1035,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 				policy.ActionRead,
 				policy.ActionDelete,
 				policy.ActionCreate,
-				policy.ActionUpdate,
-				policy.ActionWorkspaceStop,
+				policy.ActionUpdate, policy.ActionWorkspaceStop,
 				policy.ActionCreateAgent,
 				policy.ActionDeleteAgent,
 				policy.ActionUpdateAgent,
@@ -1110,7 +1108,6 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			ResourceUser,
 			ResourceOrganizationMember,
 			ResourceAibridgeInterception,
-			ResourceChat,
 		),
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
@@ -1119,8 +1116,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 				policy.ActionRead,
 				policy.ActionDelete,
 				policy.ActionCreate,
-				policy.ActionUpdate,
-				policy.ActionWorkspaceStop,
+				policy.ActionUpdate, policy.ActionWorkspaceStop,
 				policy.ActionCreateAgent,
 				policy.ActionDeleteAgent,
 				policy.ActionUpdateAgent,

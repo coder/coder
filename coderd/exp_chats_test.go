@@ -271,7 +271,7 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID, rbac.RoleChatAccess())
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -307,6 +307,7 @@ func TestPostChats(t *testing.T) {
 			adminClient.Client,
 			firstUser.OrganizationID,
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+			rbac.RoleChatAccess(),
 		)
 		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
 
@@ -518,7 +519,7 @@ func TestListChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleChatAccess())
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		memberDBChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           member.ID,
@@ -1958,7 +1959,7 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleChatAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -3530,7 +3531,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleChatAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.RegenerateChatTitle(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -3855,7 +3856,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleChatAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -4088,7 +4089,7 @@ func TestGetChatDiffContents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleChatAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChatDiffContents(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -4884,7 +4885,7 @@ func TestGetChatFile(t *testing.T) {
 		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleChatAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, _, err = otherClient.GetChatFile(ctx, uploaded.ID)
 		requireSDKError(t, err, http.StatusNotFound)

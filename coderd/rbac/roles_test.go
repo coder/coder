@@ -1077,6 +1077,22 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:     "ChatFileUsage",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
+			Resource: rbac.ResourceChat.WithOwner(currentUser.String()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin},
+				false: {
+					chatAccessUser,
+					memberMe,
+					otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
 	}
 
 	// Build coverage set from test case definitions statically,
