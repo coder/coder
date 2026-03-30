@@ -25,10 +25,7 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 	return (
 		<TableCell>
 			{userGroups === undefined ? (
-				// Felt right to add emphasis to the undefined state for semantics
-				// ("hey, this isn't normal"), but the default italics looked weird in
-				// the table UI
-				<em className="not-italic">N/A</em>
+				<span>No groups</span>
 			) : (
 				<TooltipProvider>
 					<Tooltip delayDuration={0}>
@@ -56,10 +53,9 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 							<OverflowY maxHeight={400}>
 								<List
 									component="ul"
-									className="flex flex-col flex-nowrap gap-0"
+									className="flex flex-col flex-nowrap gap-0 px-0.5 py-1"
 									style={{
 										fontSize: theme.typography.body2.fontSize,
-										padding: "4px 2px",
 									}}
 								>
 									{userGroups.map((group) => {

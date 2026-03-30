@@ -53,14 +53,14 @@ export const CreateTemplateGalleryPageView: FC<
 						</h2>
 					</div>
 					<div className="flex flex-wrap gap-8 h-max">
-						<Card variant="outlined" className="w-[320px] !rounded-[6px]">
+						<Card variant="outlined" className="w-[320px] rounded-[6px]">
 							<CardActionArea
 								component={RouterLink}
 								to="/templates/new"
 								sx={{ height: 115, padding: 1 }}
 							>
 								<CardContent>
-									<Stack direction="row" spacing={3} className="!items-center">
+									<Stack direction="row" spacing={3} className="items-center">
 										<div css={styles.icon}>
 											<ExternalImage
 												src="/emojis/1f4e1.png"

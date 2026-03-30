@@ -71,7 +71,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 				open={isVariantMenuOpen}
 				anchorEl={menuAnchorRef.current}
 				onClose={() => setIsVariantMenuOpen(false)}
-				sx={{
+				css={{
 					"& .MuiMenu-paper": {
 						width: menuAnchorRef.current?.clientWidth,
 					},

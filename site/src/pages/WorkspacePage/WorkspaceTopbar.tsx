@@ -74,7 +74,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 }) => {
 	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
-	const theme = useTheme();
 
 	// Quota
 	const hasDailyCost = workspace.latest_build.daily_cost > 0;

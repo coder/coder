@@ -4,6 +4,7 @@ import {
 	containerWidthMedium,
 	sidePadding,
 } from "#/theme/constants";
+import { cn } from "#/utils/cn";
 
 type Size = "regular" | "medium" | "small";
 
@@ -20,6 +21,7 @@ type MarginsProps = JSX.IntrinsicElements["div"] & {
 export const Margins: FC<MarginsProps> = ({
 	size = "regular",
 	children,
+	className,
 	...divProps
 }) => {
 	const maxWidth = widthBySize[size];
@@ -31,7 +33,7 @@ export const Margins: FC<MarginsProps> = ({
 				paddingLeft: sidePadding,
 				paddingRight: sidePadding,
 			}}
-			className="mx-auto w-full"
+			className={cn("mx-auto w-full", className)}
 		>
 			{children}
 		</div>

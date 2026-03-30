@@ -67,13 +67,13 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			>
 				<MenuSearch
 					value={searchTerm}
-					autoFocus={true}
+					autoFocus
 					onChange={setSearchTerm}
 					placeholder="Type/select a workspace template"
 					aria-label="Template select for workspace"
 				/>
 
-				<OverflowY maxHeight={380} className="flex flex-col pt-2 pb-2">
+				<OverflowY maxHeight={380} className="flex flex-col py-2">
 					{templatesFetchStatus === "pending" ? (
 						<Loader size="sm" />
 					) : (

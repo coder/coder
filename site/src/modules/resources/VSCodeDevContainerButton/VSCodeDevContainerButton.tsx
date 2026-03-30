@@ -75,7 +75,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 				open={isVariantMenuOpen}
 				anchorEl={menuAnchorRef.current}
 				onClose={() => setIsVariantMenuOpen(false)}
-				sx={{
+				css={{
 					"& .MuiMenu-paper": {
 						width: menuAnchorRef.current?.clientWidth,
 					},

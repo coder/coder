@@ -117,7 +117,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							</p>
 							<CodeExample
 								code={fullNewSecret.client_secret_full}
-								className="min-h-0 select-all w-full mt-6"
+								className="min-h-auto select-all w-full mt-6"
 							/>
 						</>
 					}

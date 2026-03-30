@@ -216,7 +216,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 						})}
 					>
 						<img src="/open-in-coder.svg" alt="Open in Coder button" />
-						<div className="px-4 pt-12 pb-0 absolute bottom-0 left-0 flex justify-center w-full">
+						<div className="px-4 py-12 absolute bottom-0 left-0 flex justify-center w-full">
 							<Button
 								className="rounded-full"
 								disabled={clipboard.showCopiedSuccess}
