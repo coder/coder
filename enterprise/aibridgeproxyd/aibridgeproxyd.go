@@ -388,13 +388,13 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Policy blocks (private/reserved IP ranges) return 403 Forbidden; all
 	// other dial failures return 502 Bad Gateway.
 	proxy.ConnectionErrHandler = func(w io.Writer, _ *goproxy.ProxyCtx, err error) {
-		status, msg := http.StatusBadGateway, "Bad Gateway"
+		status := http.StatusBadGateway
 		var blocked *blockedIPError
 		if errors.As(err, &blocked) {
-			status, msg = http.StatusForbidden, "Forbidden"
+			status = http.StatusForbidden
 		}
 		statusText := http.StatusText(status)
-		_, _ = fmt.Fprintf(w, "HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", status, statusText, len(msg), msg)
+		_, _ = fmt.Fprintf(w, "HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", status, statusText, len(statusText), statusText)
 	}
 
 	// Reject CONNECT requests to non-standard ports.

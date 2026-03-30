@@ -2003,6 +2003,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 		allowedCIDRs     []string
 		coderAccessURLFn func(targetHostname, port string) string
 		expectBlocked    bool
+		expectDialFail   bool
 	}{
 		{
 			// Direct IP: by default, all private/reserved IPs are blocked.
@@ -2062,6 +2063,14 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 			},
 			expectBlocked: false,
 		},
+		{
+			// A domain reserved by RFC 2606 that never resolves causes a plain dial
+			// failure (not a blocked IP). The proxy should return 502 Bad Gateway,
+			// not 403, to confirm the two error paths are distinguished correctly.
+			name:           "DialFailureReturns502",
+			targetHostname: "host.invalid",
+			expectDialFail: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2113,6 +2122,15 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusForbidden, resp.StatusCode)
 				require.Equal(t, "Forbidden", string(body), "error details should not be leaked to the client")
+			} else if tt.expectDialFail {
+				// Use a raw CONNECT to observe the 502 returned when ConnectDial fails
+				// for a reason other than a blocked IP (e.g. unresolvable hostname).
+				resp := sendConnect(t, srv.Addr(), connectTarget, makeProxyAuthHeader("test-token"))
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+				require.Equal(t, "Bad Gateway", string(body))
 			} else {
 				certPool := x509.NewCertPool()
 				certPool.AddCert(targetServer.Certificate())
