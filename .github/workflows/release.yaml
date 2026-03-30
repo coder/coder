@@ -73,6 +73,8 @@ jobs:
       id-token: write
       # Required for GitHub Actions attestation
       attestations: write
+      # Required for artifact storage records (linked artifacts)
+      artifact-metadata: write
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
