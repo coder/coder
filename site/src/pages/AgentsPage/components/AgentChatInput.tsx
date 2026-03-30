@@ -1126,7 +1126,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 													) : (
 														<ServerIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 													)}
-													<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
+													<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 														{server.display_name}
 													</span>
 													{needsAuth ? (
