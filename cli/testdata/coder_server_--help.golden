@@ -811,6 +811,11 @@ that data type.
           indefinitely). We advise keeping audit logs for at least a year, and
           in accordance with your compliance requirements.
 
+      --chat-files-retention duration, $CODER_CHAT_FILES_RETENTION (default: 30d)
+          How long uploaded chat files are retained. Orphaned files and files
+          from long-archived chats older than this are automatically deleted.
+          Set to 0 to disable.
+
       --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
           How long connection log entries are retained. Set to 0 to disable
           (keep indefinitely).

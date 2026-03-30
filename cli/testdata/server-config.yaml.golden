@@ -908,3 +908,8 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+  # How long uploaded chat files are retained. Orphaned files and files from
+  # long-archived chats older than this are automatically deleted. Set to 0 to
+  # disable.
+  # (default: 30d, type: duration)
+  chat_files: 720h0m0s

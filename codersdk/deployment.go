@@ -1062,6 +1062,11 @@ type RetentionConfig struct {
 	// Logs from the latest build are always retained regardless of age.
 	// Defaults to 7 days to preserve existing behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
+	// ChatFiles controls how long uploaded chat files are retained.
+	// Orphaned files (not linked to any chat) and files belonging
+	// to chats archived longer than this duration are deleted. Set
+	// to 0 to disable (keep indefinitely).
+	ChatFiles serpent.Duration `json:"chat_files" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -4013,6 +4018,17 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "7d",
 			Group:       &deploymentGroupRetention,
 			YAML:        "workspace_agent_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Chat Files Retention",
+			Description: "How long uploaded chat files are retained. Orphaned files and files from long-archived chats older than this are automatically deleted. Set to 0 to disable.",
+			Flag:        "chat-files-retention",
+			Env:         "CODER_CHAT_FILES_RETENTION",
+			Value:       &c.Retention.ChatFiles,
+			Default:     "30d",
+			Group:       &deploymentGroupRetention,
+			YAML:        "chat_files",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
