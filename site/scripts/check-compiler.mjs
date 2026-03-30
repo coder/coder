@@ -115,11 +115,11 @@ export function deduplicateDiagnostics(diagnostics) {
  * than thrown, so the caller always gets a result.
  */
 function compileFile(file) {
-	const code = readFileSync(join(siteDir, file), "utf-8");
 	const isTSX = file.endsWith(".tsx");
 	const diagnostics = [];
 
 	try {
+		const code = readFileSync(join(siteDir, file), "utf-8");
 		const result = transformSync(code, {
 			plugins: [
 				["@babel/plugin-syntax-typescript", { isTSX }],
