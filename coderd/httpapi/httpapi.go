@@ -488,6 +488,16 @@ func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r 
 		}()
 
 		sendEvent := func(event codersdk.ServerSentEvent) error {
+			// Prioritize context cancellation over sending to the
+			// buffered channel. Without this check, both cases in
+			// the select below can fire simultaneously when the
+			// context is already done and the channel has capacity,
+			// making the result nondeterministic.
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			select {
 			case eventC <- event:
 			case <-ctx.Done():
