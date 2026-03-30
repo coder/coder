@@ -516,15 +516,25 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hydrate file metadata so the response includes files.
+	// Re-read the chat so the response reflects the authoritative
+	// database state (including SQL DISTINCT dedup of file_ids)
+	// rather than the request-local fileIDs.
+	chat, err = api.Database.GetChatByID(ctx, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to read back chat after creation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	var chatFiles []database.GetChatFileMetadataByIDsRow
-	if len(fileIDs) > 0 {
-		var err error
-		chatFiles, err = api.Database.GetChatFileMetadataByIDs(ctx, fileIDs)
+	if len(chat.FileIDs) > 0 {
+		chatFiles, err = api.Database.GetChatFileMetadataByIDs(ctx, chat.FileIDs)
 		if err != nil {
 			api.Logger.Error(ctx, "failed to fetch chat file metadata",
 				slog.F("chat_id", chat.ID),
-				slog.F("file_ids", fileIDs),
+				slog.F("file_ids", chat.FileIDs),
 				slog.Error(err),
 			)
 		}
