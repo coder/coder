@@ -1052,7 +1052,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												disabled={isDisabled || isWorkspaceLoading}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<MonitorIcon className="size-3.5 shrink-0" />{" "}
+												<MonitorIcon className="size-3.5 shrink-0" />
 												<span>Attach workspace</span>
 												<ChevronRightIcon
 													className={cn(
