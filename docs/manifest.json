@@ -1363,6 +1363,11 @@
 					"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
 				},
 				{
+					"title": "Configure AWS Bedrock for Agents",
+					"description": "Configure AWS Bedrock as the LLM provider for coding agents in Coder",
+					"path": "./tutorials/aws-bedrock-agents.md"
+				},
+				{
 					"title": "FAQs",
 					"description": "Miscellaneous FAQs from our community",
 					"path": "./tutorials/faqs.md"
