@@ -454,6 +454,11 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const additions = diffStatus?.additions ?? 0;
 	const deletions = diffStatus?.deletions ?? 0;
 	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
+	const hasReviewBadge =
+		hasLinkedDiffStatus &&
+		diffStatus?.pull_request_state === "open" &&
+		!diffStatus?.pull_request_draft &&
+		(diffStatus?.approved === true || diffStatus?.changes_requested === true);
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
 	}`;
@@ -560,7 +565,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											<>
 												{diffStatus?.approved === true && (
 													<span
-														className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 text-git-added-bright"
+														className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 text-content-secondary"
 														data-testid="review-status-badge"
 													>
 														<CheckIcon className="h-3 w-3" />
@@ -569,7 +574,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												)}
 												{diffStatus?.changes_requested === true && (
 													<span
-														className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 text-content-warning"
+														className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 text-content-secondary"
 														data-testid="review-status-badge"
 													>
 														<AlertTriangleIcon className="h-3 w-3" />
@@ -578,17 +583,19 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												)}
 											</>
 										)}
-									<div
-										className={cn(
-											"min-w-0 overflow-hidden text-[13px] leading-4",
-											errorReason
-												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-												: "truncate text-content-secondary",
-										)}
-										title={subtitle}
-									>
-										{subtitle}
-									</div>
+									{(!hasReviewBadge || errorReason) && (
+										<div
+											className={cn(
+												"min-w-0 overflow-hidden text-[13px] leading-4",
+												errorReason
+													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+													: "truncate text-content-secondary",
+											)}
+											title={subtitle}
+										>
+											{subtitle}
+										</div>
+									)}
 								</div>
 							</div>
 						</>
