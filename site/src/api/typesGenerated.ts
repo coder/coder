@@ -1498,7 +1498,8 @@ export type ChatMessagePart =
 	| ChatSourcePart
 	| ChatFilePart
 	| ChatFileReferencePart
-	| ChatContextFilePart;
+	| ChatContextFilePart
+	| ChatSkillPart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -1506,6 +1507,7 @@ export type ChatMessagePartType =
 	| "file"
 	| "file-reference"
 	| "reasoning"
+	| "skill"
 	| "source"
 	| "text"
 	| "tool-call"
@@ -1516,6 +1518,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file",
 	"file-reference",
 	"reasoning",
+	"skill",
 	"source",
 	"text",
 	"tool-call",
@@ -1855,6 +1858,21 @@ export interface ChatQueuedMessage {
 export interface ChatReasoningPart {
 	readonly type: "reasoning";
 	readonly text: string;
+}
+
+// From codersdk/chats.go
+export interface ChatSkillPart {
+	readonly type: "skill";
+	/**
+	 * SkillName is the kebab-case name of a discovered skill
+	 * from the workspace's .agents/skills/ directory.
+	 */
+	readonly skill_name: string;
+	/**
+	 * SkillDescription is the short description from the skill's
+	 * SKILL.md frontmatter.
+	 */
+	readonly skill_description?: string;
 }
 
 // From codersdk/chats.go

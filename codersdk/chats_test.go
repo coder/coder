@@ -238,6 +238,7 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"context_file_content":   "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":        "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory": "internal only, used during prompt expansion (typescript:\"-\")",
+		"skill_dir":              "internal only, used by read_skill tools (typescript:\"-\")",
 	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
