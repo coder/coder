@@ -150,9 +150,8 @@ export const WorkspaceTerminal = ({
 
 		const mountNode = terminalWrapperRef.current;
 		if (!mountNode) {
-			const error = new Error("Terminal mount container is unavailable");
-			reportTerminalError(error);
-			throw error;
+			reportTerminalError(new Error("Terminal mount container is unavailable"));
+			return;
 		}
 
 		const nextTerminal = new Terminal({

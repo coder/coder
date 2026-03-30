@@ -392,7 +392,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									/>
 								),
 							},
-							...(hasWorkspace
+							...(hasWorkspace && workspaceAgent
 								? [
 										{
 											id: "terminal",
