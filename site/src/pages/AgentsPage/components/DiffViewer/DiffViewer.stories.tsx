@@ -63,6 +63,27 @@ export const SplitView: Story = {
 	},
 };
 
+export const WithCollapsedFile: Story = {
+	args: {
+		storageKey: "storybook-collapsed",
+	},
+	play: async ({ canvasElement }) => {
+		await waitFor(() => {
+			const toggle = canvasElement.querySelector<HTMLButtonElement>(
+				'[data-testid="collapse-file-toggle"]',
+			);
+			expect(toggle).not.toBeNull();
+			toggle!.click();
+		});
+		await waitFor(() => {
+			const toggle = canvasElement.querySelector<HTMLButtonElement>(
+				'[data-testid="collapse-file-toggle"]',
+			);
+			expect(toggle?.getAttribute("aria-label")).toBe("Expand file");
+		});
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		parsedFiles: [],
