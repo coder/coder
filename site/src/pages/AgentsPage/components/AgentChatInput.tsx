@@ -1038,7 +1038,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										}}
 										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 									>
-										<ImageIcon className="size-3.5 shrink-0" /> Attach image
+										<ImageIcon className="size-3.5 shrink-0" />
+										Attach image
 									</button>
 								)}
 								{workspaceOptions && onWorkspaceChange && (
