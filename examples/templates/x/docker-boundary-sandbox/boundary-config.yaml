@@ -1,0 +1,43 @@
+# Agent Boundaries policy for the hidden chat agent sandbox.
+# Each allowlist rule exists because the sandboxed agent needs that specific
+# destination to register, serve chat traffic, or reach an approved model API.
+# All other outbound HTTP and HTTPS requests are denied.
+#
+# See: https://coder.com/docs/ai-coder/agent-boundaries
+
+allowlist:
+  # Required so the hidden agent can reach a host-local Coder deployment from
+  # inside Docker.
+  - "domain=host.docker.internal"
+
+  # Uncomment this when the same template targets Coder Cloud instead of a
+  # local deployment.
+  # - "domain=*.coder.com"
+
+  # Required for Claude API calls from the hidden chat agent.
+  - "domain=api.anthropic.com"
+  # Required because Anthropic uses Statsig for feature flags and telemetry.
+  - "domain=statsig.anthropic.com"
+
+  # Uncomment this if the hidden chat agent should talk to OpenAI instead.
+  # - "domain=api.openai.com"
+
+  # Uncomment these when the hidden chat agent needs to fetch Git content.
+  # - "domain=github.com"
+  # - "domain=*.github.com"
+
+# Use nsjail for transparent network namespace isolation with deny-by-default
+# policy enforcement.
+jail_type: nsjail
+
+# Write operational logs locally so blocked requests are easy to inspect during
+# smoke tests.
+log_dir: /tmp/boundary_logs
+
+# Keep the proxy on a fixed internal port so the wrapper does not need runtime
+# discovery logic.
+proxy_port: 8087
+
+# Warn-level logging keeps denied requests visible without flooding the example
+# with routine allow entries.
+log_level: warn
