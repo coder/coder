@@ -278,6 +278,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			_ = sub.Close()
 		})
 
+		// GIVEN an initial subscription with one visible agent and one hidden chat agent.
 		update := testutil.TryReceive(ctx, t, sub.Updates())
 		require.Equal(t, &proto.WorkspaceUpdate{
 			UpsertedWorkspaces: []*proto.Workspace{
@@ -298,6 +299,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			DeletedAgents:     []*proto.Agent{},
 		}, update)
 
+		// WHEN only the hidden chat agent changes.
 		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
 			{
 				ID:         chatWorkspaceID,
@@ -326,6 +328,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 		default:
 		}
 
+		// THEN adding a new visible agent still produces an update.
 		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
 			{
 				ID:         chatWorkspaceID,

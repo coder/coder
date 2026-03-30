@@ -8,20 +8,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatagent"
 )
-
-// chatAgentSuffix is a PoC naming convention, not a long-term contract.
-// Template authors can name one root coder_agent with this suffix to
-// direct chat traffic to that agent. If the PoC succeeds, revisit with
-// an explicit field or role-based model.
-const chatAgentSuffix = "-coderd-chat"
 
 // SelectChatAgent picks the best workspace agent for a chat session from
 // the provided candidates. It applies these rules in order:
 //  1. Filter to root agents only (ParentID is null).
 //  2. Sort stably and deterministically by DisplayOrder ASC, then
 //     Name ASC (case-insensitive), then Name ASC, then ID ASC.
-//  3. If exactly one root agent name ends with "-coderd-chat"
+//  3. If exactly one root agent name ends with chatagent.Suffix
 //     (case-insensitive), return it.
 //  4. If zero root agents match the suffix, return the first root agent
 //     after sorting (deterministic fallback).
@@ -32,11 +27,15 @@ func SelectChatAgent(
 	agents []database.WorkspaceAgent,
 ) (database.WorkspaceAgent, error) {
 	rootAgents := make([]database.WorkspaceAgent, 0, len(agents))
+	matchingAgents := make([]database.WorkspaceAgent, 0, 1)
 	for _, agent := range agents {
 		if agent.ParentID.Valid {
 			continue
 		}
 		rootAgents = append(rootAgents, agent)
+		if chatagent.IsChatAgent(agent.Name) {
+			matchingAgents = append(matchingAgents, agent)
+		}
 	}
 
 	if len(rootAgents) == 0 {
@@ -45,7 +44,7 @@ func SelectChatAgent(
 		)
 	}
 
-	slices.SortStableFunc(rootAgents, func(a, b database.WorkspaceAgent) int {
+	compareAgents := func(a, b database.WorkspaceAgent) int {
 		if order := cmp.Compare(a.DisplayOrder, b.DisplayOrder); order != 0 {
 			return order
 		}
@@ -56,14 +55,9 @@ func SelectChatAgent(
 			return order
 		}
 		return cmp.Compare(a.ID.String(), b.ID.String())
-	})
-
-	matchingAgents := make([]database.WorkspaceAgent, 0, 1)
-	for _, agent := range rootAgents {
-		if strings.HasSuffix(strings.ToLower(agent.Name), chatAgentSuffix) {
-			matchingAgents = append(matchingAgents, agent)
-		}
 	}
+	slices.SortStableFunc(rootAgents, compareAgents)
+	slices.SortStableFunc(matchingAgents, compareAgents)
 
 	switch len(matchingAgents) {
 	case 0:
@@ -77,7 +71,7 @@ func SelectChatAgent(
 		}
 		return database.WorkspaceAgent{}, xerrors.Errorf(
 			"multiple agents match the chat suffix %q: %s; only one agent should use this suffix",
-			chatAgentSuffix,
+			chatagent.Suffix,
 			strings.Join(names, ", "),
 		)
 	}

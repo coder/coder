@@ -1187,42 +1187,6 @@ func (api *API) convertWorkspaceBuilds(
 	return apiBuilds, nil
 }
 
-// hiddenChatAgentIDsFromAgents computes the set of agent IDs that should
-// be filtered from API responses. A root agent (no parent) whose name
-// ends with the chat-agent suffix is hidden, along with all of its
-// transitive descendants, so responses never contain orphaned child
-// agents whose parent was filtered out.
-func hiddenChatAgentIDsFromAgents(agents []database.WorkspaceAgent) map[uuid.UUID]struct{} {
-	hidden := make(map[uuid.UUID]struct{})
-	childrenByParent := make(map[uuid.UUID][]uuid.UUID)
-	queue := make([]uuid.UUID, 0)
-
-	for _, agent := range agents {
-		if agent.ParentID.Valid {
-			childrenByParent[agent.ParentID.UUID] = append(childrenByParent[agent.ParentID.UUID], agent.ID)
-			continue
-		}
-		if isChatAgent(agent.Name) {
-			hidden[agent.ID] = struct{}{}
-			queue = append(queue, agent.ID)
-		}
-	}
-
-	for len(queue) > 0 {
-		parentID := queue[0]
-		queue = queue[1:]
-		for _, childID := range childrenByParent[parentID] {
-			if _, ok := hidden[childID]; ok {
-				continue
-			}
-			hidden[childID] = struct{}{}
-			queue = append(queue, childID)
-		}
-	}
-
-	return hidden
-}
-
 func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
@@ -1275,7 +1239,6 @@ func (api *API) convertWorkspaceBuild(
 	}
 
 	resources := resourcesByJobID[job.ProvisionerJob.ID]
-	hiddenAgents := hiddenChatAgentIDsFromAgents(resourceAgents)
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
@@ -1291,9 +1254,6 @@ func (api *API) convertWorkspaceBuild(
 		resourceAgentsMinOrder[resource.ID] = math.MaxInt32
 
 		for _, agent := range agents {
-			if _, hidden := hiddenAgents[agent.ID]; hidden {
-				continue
-			}
 			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
 
 			apps := appsByAgentID[agent.ID]

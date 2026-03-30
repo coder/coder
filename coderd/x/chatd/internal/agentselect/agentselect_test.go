@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatagent"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 )
 
@@ -100,7 +101,7 @@ func TestSelectChatAgent(t *testing.T) {
 			wantErrContains: []string{
 				fmt.Sprintf(
 					"multiple agents match the chat suffix %q",
-					"-coderd-chat",
+					chatagent.Suffix,
 				),
 				"alpha-coderd-chat",
 				"beta-coderd-chat",
