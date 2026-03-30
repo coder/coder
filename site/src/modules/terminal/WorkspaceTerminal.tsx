@@ -262,6 +262,7 @@ export const WorkspaceTerminal = ({
 		hasBeenVisible,
 		copyToClipboard,
 		handleOpenLink,
+		isVisible,
 		refit,
 		renderer,
 		reportTerminalError,
