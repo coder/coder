@@ -292,7 +292,11 @@ const AgentChatPage: FC = () => {
 	>(null);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
-	const initialInputValueRef = useRef(getPersistedDraftInputValue(agentId));
+	// Read once on mount — agentId is stable because KeyedAgentChatPage
+	// remounts the entire component when the route param changes.
+	const [initialInputValue] = useState(() =>
+		getPersistedDraftInputValue(agentId),
+	);
 
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
@@ -932,7 +936,7 @@ const AgentChatPage: FC = () => {
 			isArchived={isArchived}
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
-			initialInputValue={initialInputValueRef.current}
+			initialInputValue={initialInputValue}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}
 			effectiveSelectedModel={effectiveSelectedModel}

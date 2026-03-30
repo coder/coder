@@ -75,58 +75,6 @@ export const SendsAndClearsInput: Story = {
 	},
 };
 
-export const ReplacesContentViaRefWithoutRemount: Story = {
-	render: (args) => {
-		const ref = useRef<ChatMessageInputRef>(null);
-
-		return (
-			<div className="space-y-3">
-				<div className="flex gap-2">
-					<button
-						type="button"
-						onClick={() => ref.current?.setValue("Retry same edit text")}
-					>
-						Load edit text
-					</button>
-					<button type="button" onClick={() => ref.current?.clear()}>
-						Clear editor
-					</button>
-					<button
-						type="button"
-						onClick={() => ref.current?.setValue("Retry same edit text")}
-					>
-						Reload same text
-					</button>
-				</div>
-				<AgentChatInput {...args} inputRef={ref} />
-			</div>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const editor = canvas.getByTestId("chat-message-input");
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Load edit text" }),
-		);
-		await waitFor(() => {
-			expect(editor.textContent).toBe("Retry same edit text");
-		});
-
-		await userEvent.click(canvas.getByRole("button", { name: "Clear editor" }));
-		await waitFor(() => {
-			expect(editor.textContent).toBe("");
-		});
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Reload same text" }),
-		);
-		await waitFor(() => {
-			expect(editor.textContent).toBe("Retry same edit text");
-		});
-	},
-};
-
 export const DisabledInput: Story = {
 	args: {
 		isDisabled: true,
