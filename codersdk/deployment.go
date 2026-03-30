@@ -819,6 +819,17 @@ type OIDCConfig struct {
 	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
 	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
 
+	// JWKSUri overrides the JWKS URI discovered from the OIDC
+	// provider's well-known configuration. Useful when the IDP
+	// exposes an alternative JWKS endpoint for compatibility.
+	JWKSUri serpent.String `json:"jwks_uri" typescript:",notnull"`
+
+	// SigningAlgs specifies accepted signing algorithms for ID tokens.
+	// By default, the provider's supported algorithms are used. Set
+	// this to add algorithms like PS512 or ES256 if your IDP uses a
+	// non-default algorithm.
+	SigningAlgs serpent.StringArray `json:"signing_algs" typescript:",notnull"`
+
 	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	// situations where the OIDC callback domain is different from the ACCESS_URL
 	// domain.
@@ -2439,6 +2450,24 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.OIDC.SkipIssuerChecks,
 			Group: &deploymentGroupOIDC,
 			YAML:  "dangerousSkipIssuerChecks",
+		},
+		{
+			Name:        "OIDC JWKS URI",
+			Description: "Override the JWKS URI discovered from the OIDC provider's well-known configuration. Useful when the IDP exposes an alternative JWKS endpoint for compatibility.",
+			Flag:        "oidc-jwks-uri",
+			Env:         "CODER_OIDC_JWKS_URI",
+			Value:       &c.OIDC.JWKSUri,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "jwksURI",
+		},
+		{
+			Name:        "OIDC Signing Algorithms",
+			Description: "Specify additional accepted signing algorithms for OIDC ID tokens (e.g. PS512, ES256). If your identity provider uses a non-default algorithm, add it here.",
+			Flag:        "oidc-signing-algs",
+			Env:         "CODER_OIDC_SIGNING_ALGS",
+			Value:       &c.OIDC.SigningAlgs,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "signingAlgs",
 		},
 		{
 			Name: "OIDC Redirect URL",

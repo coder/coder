@@ -203,15 +203,28 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		return nil, xerrors.Errorf("pkce detect in claims: %w", err)
 	}
 
+	verifierConfig := &oidc.Config{
+		ClientID: vals.OIDC.ClientID.String(),
+		// Enabling this skips checking the "iss" claim in the token
+		// matches the issuer URL. This is not recommended.
+		SkipIssuerCheck:      vals.OIDC.SkipIssuerChecks.Value(),
+		SupportedSigningAlgs: vals.OIDC.SigningAlgs.Value(),
+	}
+
+	var verifier *oidc.IDTokenVerifier
+	if jwksURI := vals.OIDC.JWKSUri.String(); jwksURI != "" {
+		logger.Warn(ctx, "custom OIDC JWKS URI in use, overriding provider discovery",
+			slog.F("jwks_uri", jwksURI))
+		keySet := oidc.NewRemoteKeySet(ctx, jwksURI)
+		verifier = oidc.NewVerifier(vals.OIDC.IssuerURL.String(), keySet, verifierConfig)
+	} else {
+		verifier = oidcProvider.Verifier(verifierConfig)
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
-		Verifier: oidcProvider.Verifier(&oidc.Config{
-			ClientID: vals.OIDC.ClientID.String(),
-			// Enabling this skips checking the "iss" claim in the token
-			// matches the issuer URL. This is not recommended.
-			SkipIssuerCheck: vals.OIDC.SkipIssuerChecks.Value(),
-		}),
+		Verifier:     verifier,
 		EmailDomain:         vals.OIDC.EmailDomain,
 		AllowSignups:        vals.OIDC.AllowSignups.Value(),
 		UsernameField:       vals.OIDC.UsernameField.String(),
