@@ -4215,6 +4215,22 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modelConfigCount, err := api.Database.CountChatModelConfigsByProviderConfigID(ctx, providerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to check provider config usage.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if modelConfigCount > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot delete provider config: models still reference it.",
+			Detail:  fmt.Sprintf("%d model(s) are bound to this provider config. Delete or rebind them first.", modelConfigCount),
+		})
+		return
+	}
+
 	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
 		if database.IsForeignKeyViolation(err,
 			database.ForeignKeyChatMessagesModelConfigID,

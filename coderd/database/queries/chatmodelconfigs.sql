@@ -43,6 +43,14 @@ ORDER BY
     cmc.updated_at DESC,
     cmc.id DESC;
 
+-- name: CountChatModelConfigsByProviderConfigID :one
+SELECT
+    COUNT(*)
+FROM
+    chat_model_configs
+WHERE
+    provider_config_id = @provider_config_id::uuid;
+
 -- name: InsertChatModelConfig :one
 INSERT INTO chat_model_configs (
     provider,

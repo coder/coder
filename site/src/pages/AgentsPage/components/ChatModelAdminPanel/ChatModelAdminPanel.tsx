@@ -1,6 +1,5 @@
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getErrorStatus } from "#/api/errors";
 import {
 	chatModelConfigs,
 	chatModels,
@@ -359,19 +358,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			{modelCatalogQuery.isError && (
 				<ErrorAlert error={modelCatalogQuery.error} />
 			)}
-			{providerMutationError &&
-				(getErrorStatus(providerMutationError) === 409 ? (
-					<Alert severity="warning">
-						<AlertTitle>Provider conflict</AlertTitle>
-						<AlertDescription>
-							Another provider config in this family is already enabled. Disable
-							it first, or the backend will reject enabling a second config in
-							the same provider family.
-						</AlertDescription>
-					</Alert>
-				) : (
-					<ErrorAlert error={providerMutationError} />
-				))}
+			{providerMutationError && <ErrorAlert error={providerMutationError} />}
 			{modelMutationError && <ErrorAlert error={modelMutationError} />}
 
 			{providerConfigsUnavailable && (

@@ -3427,6 +3427,22 @@ func (q *sqlQuerier) GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsig
 	return items, nil
 }
 
+const countChatModelConfigsByProviderConfigID = `-- name: CountChatModelConfigsByProviderConfigID :one
+SELECT
+    COUNT(*)
+FROM
+    chat_model_configs
+WHERE
+    provider_config_id = $1::uuid
+`
+
+func (q *sqlQuerier) CountChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatModelConfigsByProviderConfigID, providerConfigID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
 UPDATE
     chat_model_configs

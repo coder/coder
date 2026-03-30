@@ -1454,6 +1454,45 @@ func TestDeleteChatProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("RejectsBoundModelConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:         "openai",
+			Model:            "gpt-4o-mini",
+			ContextLimit:     &contextLimit,
+			ProviderConfigID: &provider.ID,
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteChatProvider(ctx, provider.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Cannot delete provider config: models still reference it.", sdkErr.Message)
+		require.Equal(t, "1 model(s) are bound to this provider config. Delete or rebind them first.", sdkErr.Detail)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+		found := false
+		for _, listed := range providers {
+			if listed.ID == provider.ID {
+				found = true
+				break
+			}
+		}
+		require.True(t, found)
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
