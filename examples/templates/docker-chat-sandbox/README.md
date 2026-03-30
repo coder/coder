@@ -17,7 +17,7 @@ This template provisions a workspace with two agents:
 | Agent             | Purpose                                           | Visible in UI |
 |-------------------|---------------------------------------------------|---------------|
 | `dev`             | Regular development agent with code-server        | Yes           |
-| `dev-coderd-chat` | AI chat agent running inside a bubblewrap sandbox | No (hidden)   |
+| `dev-coderd-chat` | AI chat agent running inside a bubblewrap sandbox | Yes           |
 
 ## How it works
 
@@ -27,7 +27,9 @@ dashboard, SSH, and Coder Connect.
 
 The `dev-coderd-chat` agent is designated for AI chat sessions via the
 `-coderd-chat` naming suffix. Chatd routes chat traffic to this agent
-automatically. It is hidden from the dashboard UI and Coder Connect DNS.
+automatically. The dashboard and REST API still expose it like any other
+agent, but this template treats it as a chatd-managed sandbox rather
+than a normal user interaction surface.
 
 ## Bubblewrap sandbox
 
@@ -54,7 +56,11 @@ namespace.
   during startup, tool calls can use it).
 - **Shared /proc and /dev**: bind-mounted from the container so CLI
   tools and the agent work normally.
-- **Shared network**: the agent can reach coderd.
+- **Outbound TCP allowlist**: before entering bwrap, the wrapper
+  installs `iptables` OUTPUT rules that allow loopback,
+  `ESTABLISHED,RELATED`, and new TCP connections only to the
+  control-plane host and port used by the agent. All other outbound TCP
+  is rejected.
 - **Near-zero capabilities**: bwrap drops all Linux capabilities
   except `CAP_DAC_OVERRIDE` before exec'ing the agent. This prevents
   mount escape (`mount --bind`), ptrace, raw network access, and all
@@ -64,9 +70,10 @@ namespace.
 
 ### How the capability lifecycle works
 
-1. Docker starts the container as root with `CAP_SYS_ADMIN` and
-   `CAP_DAC_OVERRIDE`.
-2. The entrypoint runs `bwrap-agent`.
+1. Docker starts the container as root with `CAP_SYS_ADMIN`,
+   `CAP_NET_ADMIN`, and `CAP_DAC_OVERRIDE`.
+2. The entrypoint runs `bwrap-agent`, which resolves the control-plane
+   host and installs the outbound TCP allowlist with `iptables`.
 3. bwrap creates the mount namespace using `CAP_SYS_ADMIN`.
 4. bwrap drops all capabilities except `DAC_OVERRIDE`.
 5. bwrap exec's the agent binary with only `DAC_OVERRIDE`.
@@ -86,6 +93,14 @@ sandbox runs as root.
 - **No user namespace isolation**: Docker blocks nested user namespaces.
   The container runs as root uid 0, but with zero capabilities the
   effective privilege level is lower than an unprivileged user.
+- **Only outbound TCP is filtered**: UDP, ICMP, and inbound traffic
+  still follow Docker's normal container networking rules. DNS usually
+  continues to work over UDP, but DNS-over-TCP is blocked unless it uses
+  the control-plane endpoint.
+- **IPv4 resolution at startup**: the outbound allowlist resolves the
+  control-plane hostname once with `getent ahostsv4`. If that lookup
+  fails, or if the endpoint later moves to a different IP, the chat
+  container must restart to refresh the rules.
 - **seccomp=unconfined**: Docker's default seccomp profile blocks
   `pivot_root`, which bwrap needs. A custom seccomp profile that allows
   only `pivot_root` and `mount` would be more restrictive.

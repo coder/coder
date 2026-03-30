@@ -10,7 +10,8 @@ terraform {
 }
 
 locals {
-  username = data.coder_workspace_owner.me.name
+  username               = data.coder_workspace_owner.me.name
+  chat_control_plane_url = replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")
 }
 
 variable "docker_socket" {
@@ -83,7 +84,7 @@ module "code-server" {
 }
 
 # -------------------------------------------------------------------
-# Agent 2: Chat agent (hidden from UI, used by chatd for AI chat)
+# Agent 2: Chat agent (designated for chatd-managed AI chat)
 #
 # This agent runs inside a bubblewrap (bwrap) sandbox. The entire
 # agent process and all its children (tool calls, SSH sessions, etc.)
@@ -92,8 +93,9 @@ module "code-server" {
 # shell.
 #
 # The agent name "dev-coderd-chat" ends with the -coderd-chat suffix
-# that tells chatd to route chats here and tells the dashboard and
-# Coder Connect to hide it from users.
+# that tells chatd to route chats here. The dashboard still shows the
+# agent, but the template reserves it for chatd-managed sessions rather
+# than normal user interaction.
 #
 # NOTE: Terraform resource labels cannot contain hyphens, but the
 # Coder provisioner uses the label as the agent name (and rejects
@@ -109,7 +111,7 @@ locals {
   # provisioner registers the agent name as "dev-coderd-chat".
   # These locals let the rest of the config reference its attributes
   # without Terraform misinterpreting the hyphens.
-  chat_agent_init  = coder_agent.dev-coderd-chat.init_script
+  chat_agent_init  = replace(coder_agent.dev-coderd-chat.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")
   chat_agent_token = coder_agent.dev-coderd-chat.token
 }
 
@@ -225,8 +227,8 @@ resource "docker_container" "dev" {
 #   - Read-only root filesystem (cannot modify system files)
 #   - Read-write /home/coder (shared project files)
 #   - Private /tmp (tmpfs scratch space)
-#   - Private PID namespace (process isolation)
-#   - Shared network (agent must reach coderd)
+#   - Shared network namespace with outbound TCP restricted to the
+#     Coder control-plane endpoint used by the agent
 #
 # Because the agent itself runs inside bwrap, there is no way for
 # a tool call to escape the sandbox by invoking /bin/bash or any
@@ -240,13 +242,15 @@ resource "docker_container" "chat" {
 
   # Capability budget:
   # - SYS_ADMIN: bwrap needs this to create mount namespaces.
+  # - NET_ADMIN: the wrapper needs this to install iptables OUTPUT
+  #   rules before entering bwrap.
   # - DAC_OVERRIDE: passed through to the sandbox so the agent
   #   (running as root) can read/write files owned by uid 1000 on
   #   the shared home volume without changing ownership.
   # - seccomp=unconfined: Docker's default seccomp profile blocks
   #   pivot_root, which bwrap uses during namespace setup.
   capabilities {
-    add  = ["SYS_ADMIN", "DAC_OVERRIDE"]
+    add  = ["SYS_ADMIN", "NET_ADMIN", "DAC_OVERRIDE"]
     drop = ["ALL"]
   }
   security_opts = ["seccomp=unconfined"]
@@ -257,9 +261,12 @@ resource "docker_container" "chat" {
   # issues, then decoded and executed at container startup.
   entrypoint = [
     "sh", "-c",
-    "echo ${base64encode(replace(local.chat_agent_init, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"))} | base64 -d > /tmp/coder-init.sh && chmod +x /tmp/coder-init.sh && exec bwrap-agent sh /tmp/coder-init.sh"
+    "echo ${base64encode(local.chat_agent_init)} | base64 -d > /tmp/coder-init.sh && chmod +x /tmp/coder-init.sh && exec bwrap-agent sh /tmp/coder-init.sh"
   ]
-  env = ["CODER_AGENT_TOKEN=${local.chat_agent_token}"]
+  env = [
+    "CODER_AGENT_TOKEN=${local.chat_agent_token}",
+    "CODER_SANDBOX_CONTROL_PLANE_URL=${local.chat_control_plane_url}",
+  ]
 
   host {
     host = "host.docker.internal"

@@ -2,9 +2,9 @@ FROM codercom/enterprise-base:ubuntu
 
 USER root
 
-# Install bubblewrap for sandboxed agent execution.
+# Install bubblewrap and iptables for sandboxed agent execution.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends bubblewrap && \
+    apt-get install -y --no-install-recommends bubblewrap iptables && \
     rm -rf /var/lib/apt/lists/*
 
 # Wrapper script that starts the agent inside a bwrap sandbox.
