@@ -327,7 +327,7 @@ export const MockWorkspaceCreationBanRole: TypesGen.Role = {
 	organization_member_permissions: [],
 };
 
-export const MockChatAccessRole: TypesGen.Role = {
+const MockChatAccessRole: TypesGen.Role = {
 	name: "chat-access",
 	display_name: "Chat Access",
 	site_permissions: [],
