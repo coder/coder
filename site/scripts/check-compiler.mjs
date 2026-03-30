@@ -83,7 +83,7 @@ function collectFiles(dir) {
  *   "Error: Ref values are not allowed. Use ref types instead (https://…)."
  *   → "Ref values are not allowed"
  */
-function shortenMessage(msg) {
+export function shortenMessage(msg) {
 	const str = typeof msg === "string" ? msg : String(msg);
 	return str
 		.replace(/^Error: /, "")
@@ -98,7 +98,7 @@ function shortenMessage(msg) {
  * can emit duplicate events for the same function when it retries
  * compilation, so we deduplicate before reporting.
  */
-function deduplicateDiagnostics(diagnostics) {
+export function deduplicateDiagnostics(diagnostics) {
 	const seen = new Set();
 	return diagnostics.filter((d) => {
 		const key = `${d.line}:${d.short}`;
@@ -174,8 +174,8 @@ function compileFile(file) {
  * Derive a short display path by stripping the first matching target
  * dir prefix so the output stays compact.
  */
-function shortPath(file) {
-	for (const dir of targetDirs) {
+export function shortPath(file, dirs = targetDirs) {
+	for (const dir of dirs) {
 		const prefix = `${dir}/`;
 		if (file.startsWith(prefix)) {
 			return file.slice(prefix.length);
