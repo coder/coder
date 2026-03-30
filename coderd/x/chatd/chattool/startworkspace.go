@@ -94,22 +94,27 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			// If a build is already in progress, wait for it.
 			switch job.JobStatus {
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning:
-				if err := waitForBuild(ctx, options.DB, ws.ID); err != nil {
-					return fantasy.NewTextErrorResponse(
-						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
-					), nil
-				}
-				return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
+				// Build already in progress — return immediately.
+				// Workspace tools will wait via getWorkspaceConn.
+				return toolResponse(map[string]any{
+					"started":        true,
+					"workspace_name": ws.OwnerUsername + "/" + ws.Name,
+					"status":         "building",
+					"message":        "Workspace build is in progress. Workspace tools will wait for it automatically.",
+				}), nil
 
 			case database.ProvisionerJobStatusSucceeded:
-				// If the latest successful build is a start
-				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
+					// Already running — return immediately.
+					return toolResponse(map[string]any{
+						"started":        true,
+						"workspace_name": ws.OwnerUsername + "/" + ws.Name,
+						"status":         "running",
+						"message":        "Workspace is already running.",
+					}), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -133,43 +138,15 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			if err := waitForBuild(ctx, options.DB, ws.ID); err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("workspace start build failed: %w", err).Error(),
-				), nil
-			}
-
-			return waitForAgentAndRespond(ctx, options.DB, options.AgentConnFn, ws)
+			// Return immediately — workspace tools will
+			// transparently wait for the build to complete via
+			// getWorkspaceConn when they are actually invoked.
+			return toolResponse(map[string]any{
+				"started":        true,
+				"workspace_name": ws.OwnerUsername + "/" + ws.Name,
+				"status":         "starting",
+				"message":        "Workspace start initiated. Workspace tools will wait for it automatically.",
+			}), nil
 		},
 	)
-}
-
-// waitForAgentAndRespond looks up the first agent in the workspace's
-// latest build, waits for it to become reachable, and returns a
-// success response.
-func waitForAgentAndRespond(
-	ctx context.Context,
-	db database.Store,
-	agentConnFn AgentConnFunc,
-	ws database.Workspace,
-) (fantasy.ToolResponse, error) {
-	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
-	if err != nil || len(agents) == 0 {
-		// Workspace started but no agent found — still report
-		// success so the model knows the workspace is up.
-		return toolResponse(map[string]any{
-			"started":        true,
-			"workspace_name": ws.Name,
-			"agent_status":   "no_agent",
-		}), nil
-	}
-
-	result := map[string]any{
-		"started":        true,
-		"workspace_name": ws.Name,
-	}
-	for k, v := range waitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
-		result[k] = v
-	}
-	return toolResponse(result), nil
 }

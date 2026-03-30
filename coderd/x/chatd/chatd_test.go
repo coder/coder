@@ -1973,25 +1973,22 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 			created, ok := result["created"].(bool)
 			require.True(t, ok)
 			require.True(t, created)
+			// create_workspace now returns immediately with
+			// a "building" status instead of blocking until
+			// the build completes. Workspace tools wait
+			// transparently via getWorkspaceConn.
+			status, _ := result["status"].(string)
+			require.Equal(t, "building", status)
 			foundCreateWorkspaceResult = true
 		}
 	}
 	require.True(t, foundCreateWorkspaceResult, "expected create_workspace tool result message")
 
-	// Verify that the tool waited for startup scripts to
-	// complete. The agent should be in "ready" state by the
-	// time create_workspace returns its result.
+	// Since create_workspace returns immediately with
+	// status="building", the agent may not yet be ready.
+	// The workspace should still exist and be accessible.
 	workspace, err = client.Workspace(ctx, workspaceID)
 	require.NoError(t, err)
-	var agentLifecycle codersdk.WorkspaceAgentLifecycle
-	for _, res := range workspace.LatestBuild.Resources {
-		for _, agt := range res.Agents {
-			agentLifecycle = agt.LifecycleState
-		}
-	}
-	require.Equal(t, codersdk.WorkspaceAgentLifecycleReady, agentLifecycle,
-		"agent should be ready after create_workspace returns; startup scripts were not awaited")
-
 	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 	streamedCallsMu.Lock()
 	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)

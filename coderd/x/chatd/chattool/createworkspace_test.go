@@ -43,7 +43,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, agentID, connFn)
+		result := WaitForAgentReady(context.Background(), db, agentID, connFn)
 		require.Empty(t, result)
 	})
 
@@ -62,7 +62,7 @@ func TestWaitForAgentReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		result := waitForAgentReady(ctx, db, agentID, connFn)
+		result := WaitForAgentReady(ctx, db, agentID, connFn)
 		require.Equal(t, "not_ready", result["agent_status"])
 		require.NotEmpty(t, result["agent_error"])
 	})
@@ -84,7 +84,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), db, agentID, connFn)
+		result := WaitForAgentReady(context.Background(), db, agentID, connFn)
 		require.Equal(t, "startup_scripts_failed", result["startup_scripts"])
 		require.Equal(t, "start_error", result["lifecycle_state"])
 	})
@@ -102,7 +102,7 @@ func TestWaitForAgentReady(t *testing.T) {
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			}, nil)
 
-		result := waitForAgentReady(context.Background(), db, agentID, nil)
+		result := WaitForAgentReady(context.Background(), db, agentID, nil)
 		require.Empty(t, result)
 	})
 
@@ -113,7 +113,7 @@ func TestWaitForAgentReady(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		result := waitForAgentReady(context.Background(), nil, uuid.New(), connFn)
+		result := WaitForAgentReady(context.Background(), nil, uuid.New(), connFn)
 		require.Empty(t, result)
 	})
 }
@@ -159,8 +159,6 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			ownerID := uuid.New()
 			templateID := uuid.New()
 			workspaceID := uuid.New()
-			jobID := uuid.New()
-
 			db.EXPECT().
 				GetAuthorizationUserRoles(gomock.Any(), ownerID).
 				Return(database.GetAuthorizationUserRolesRow{
@@ -173,23 +171,6 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 			db.EXPECT().
 				GetChatWorkspaceTTL(gomock.Any()).
 				Return(tc.ttlReturn, tc.ttlErr)
-
-			db.EXPECT().
-				GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
-				Return(database.WorkspaceBuild{
-					WorkspaceID: workspaceID,
-					JobID:       jobID,
-				}, nil)
-			db.EXPECT().
-				GetProvisionerJobByID(gomock.Any(), jobID).
-				Return(database.ProvisionerJob{
-					ID:        jobID,
-					JobStatus: database.ProvisionerJobStatusSucceeded,
-				}, nil)
-
-			db.EXPECT().
-				GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-				Return([]database.WorkspaceAgent{}, nil)
 
 			var capturedReq codersdk.CreateWorkspaceRequest
 			createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
