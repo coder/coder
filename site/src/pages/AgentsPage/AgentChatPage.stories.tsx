@@ -1242,10 +1242,10 @@ export const WithWaitAgentComputerUseVNC: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The wait_agent card should show "Waiting for" (running state)
-		// rendered via SubagentTool with VNC preview.
+		// The wait_agent card should show "Using the computer..." (running
+		// state) rendered via SubagentTool with VNC preview.
 		await waitFor(() => {
-			expect(canvas.getByText(/Waiting for/)).toBeInTheDocument();
+			expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
 		});
 	},
 };
