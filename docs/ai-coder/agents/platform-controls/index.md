@@ -61,9 +61,18 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
+Administrators can also restrict which templates are available to agents using
+the template allowlist in **Agents** > **Settings** > **Templates**. When the
+allowlist is configured, the agent can only see and provision workspaces from
+the selected templates. When the allowlist is empty, all templates are
+available. This is separate from what developers see when manually creating
+workspaces, so you can apply stricter policies to agent-created workspaces
+without affecting the manual workspace experience.
+
 See [Template Optimization](./template-optimization.md) for best practices on writing
-discoverable descriptions, configuring network boundaries, scoping credentials,
-and designing template parameters for agent use.
+discoverable descriptions, restricting template visibility, configuring network
+boundaries, scoping credentials, and designing template parameters for agent
+use.
 
 ## Where we are headed
 
@@ -97,11 +106,6 @@ Examples of what this looks like:
   from the control plane, agent workspaces do not need outbound access to LLM
   providers. You can create templates that only permit access to your git
   provider and nothing else.
-- **Template scoping for agents.** We intend to let administrators restrict
-  which templates are available in the agentic interface, separate from what
-  developers see when manually creating workspaces. This lets you apply stricter
-  policies to agent-created workspaces without affecting the developer
-  experience for manually-created ones.
 
 ### Tool customization
 
