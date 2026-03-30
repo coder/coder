@@ -541,7 +541,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
-		LastWorkspaceContext: pqtype.NullRawMessage{
+		LastInjectedContext: pqtype.NullRawMessage{
 			// Use a context-file part to verify internal
 			// fields are not present (they are stripped at
 			// write time by chatd, not at read time).

@@ -1,1 +1,1 @@
-ALTER TABLE chats ADD COLUMN last_workspace_context JSONB;
+ALTER TABLE chats ADD COLUMN last_injected_context JSONB;

@@ -4961,18 +4961,16 @@ func (p *Server) persistInstructionFiles(
 		if len(discoveredSkills) > 0 {
 			skillParts := make([]codersdk.ChatMessagePart, 0, len(discoveredSkills))
 			for _, s := range discoveredSkills {
-				p := codersdk.ChatMessagePart{
+				skillParts = append(skillParts, codersdk.ChatMessagePart{
 					Type:             codersdk.ChatMessagePartTypeSkill,
 					SkillName:        s.Name,
 					SkillDescription: s.Description,
-				}
-				skillParts = append(skillParts, p)
+				})
 			}
-			p.updateLastWorkspaceContext(ctx, chat.ID, skillParts)
+			p.updateLastInjectedContext(ctx, chat.ID, skillParts)
 		}
 		return "", discoveredSkills, nil
 	}
-
 	// Build context-file parts (one per instruction file) and
 	// skill parts (one per discovered skill).
 	parts := make([]codersdk.ChatMessagePart, 0, len(sections)+len(discoveredSkills))
@@ -5023,7 +5021,7 @@ func (p *Server) persistInstructionFiles(
 	for i := range stripped {
 		stripped[i].StripInternal()
 	}
-	p.updateLastWorkspaceContext(ctx, chat.ID, stripped)
+	p.updateLastInjectedContext(ctx, chat.ID, stripped)
 
 	// Return the formatted instruction text and discovered skills
 	// so the caller can inject them into this turn's prompt (since
@@ -5031,25 +5029,25 @@ func (p *Server) persistInstructionFiles(
 	return formatSystemInstructions(agent.OperatingSystem, directory, sections), discoveredSkills, nil
 }
 
-// updateLastWorkspaceContext persists the workspace context
+// updateLastInjectedContext persists the injected context
 // parts (AGENTS.md files and skills) on the chat row so they
 // are directly queryable without scanning messages. This is
 // best-effort — a failure here is logged but does not block
 // the turn.
-func (p *Server) updateLastWorkspaceContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
+func (p *Server) updateLastInjectedContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
 	raw, err := json.Marshal(parts)
 	if err != nil {
-		p.logger.Warn(ctx, "failed to marshal workspace context",
+		p.logger.Warn(ctx, "failed to marshal injected context",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
 		return
 	}
-	if _, err := p.db.UpdateChatLastWorkspaceContext(ctx, database.UpdateChatLastWorkspaceContextParams{
-		ID:                   chatID,
-		LastWorkspaceContext: json.RawMessage(raw),
+	if _, err := p.db.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
+		ID:                  chatID,
+		LastInjectedContext: json.RawMessage(raw),
 	}); err != nil {
-		p.logger.Warn(ctx, "failed to update workspace context",
+		p.logger.Warn(ctx, "failed to update injected context",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)

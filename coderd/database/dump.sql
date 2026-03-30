@@ -1404,7 +1404,7 @@ CREATE TABLE chats (
     agent_id uuid,
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
-    last_workspace_context jsonb
+    last_injected_context jsonb
 );
 
 CREATE TABLE connection_logs (

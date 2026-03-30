@@ -484,14 +484,14 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
 	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	db.EXPECT().UpdateChatLastWorkspaceContext(gomock.Any(),
+	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
 		gomock.Cond(func(x any) bool {
-			arg, ok := x.(database.UpdateChatLastWorkspaceContextParams)
+			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
 			if !ok || arg.ID != chat.ID {
 				return false
 			}
 			var parts []codersdk.ChatMessagePart
-			if err := json.Unmarshal(arg.LastWorkspaceContext, &parts); err != nil {
+			if err := json.Unmarshal(arg.LastInjectedContext, &parts); err != nil {
 				return false
 			}
 			// Expect at least one context-file part for the
