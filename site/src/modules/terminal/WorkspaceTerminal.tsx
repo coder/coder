@@ -140,8 +140,8 @@ export const WorkspaceTerminal = ({
 		}),
 		[refit],
 	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable refs
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable references
 	useEffect(() => {
 		const mountNode = terminalWrapperRef.current;
 		if (!mountNode) {
@@ -254,8 +254,8 @@ export const WorkspaceTerminal = ({
 		refit();
 	}, [isVisible, refit]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable refs
 	useEffect(() => {
-		// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable references
 		if (!terminal || !isVisible) {
 			return;
 		}
