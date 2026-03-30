@@ -4017,13 +4017,16 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	inserted, err := api.Database.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    provider,
-		DisplayName: strings.TrimSpace(req.DisplayName),
-		APIKey:      strings.TrimSpace(req.APIKey),
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: sql.NullString{},
-		CreatedBy:   uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
-		Enabled:     enabled,
+		Provider:                   provider,
+		DisplayName:                strings.TrimSpace(req.DisplayName),
+		APIKey:                     strings.TrimSpace(req.APIKey),
+		BaseUrl:                    baseURL,
+		ApiKeyKeyID:                sql.NullString{},
+		CreatedBy:                  uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		Enabled:                    enabled,
+		CentralApiKeyEnabled:       true,
+		AllowUserApiKey:            false,
+		AllowCentralApiKeyFallback: false,
 	})
 	if err != nil {
 		switch {
@@ -4121,12 +4124,15 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	updated, err := api.Database.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		DisplayName: displayName,
-		APIKey:      apiKey,
-		BaseUrl:     baseURL,
-		ApiKeyKeyID: apiKeyKeyID,
-		Enabled:     enabled,
-		ID:          existing.ID,
+		DisplayName:                displayName,
+		APIKey:                     apiKey,
+		BaseUrl:                    baseURL,
+		ApiKeyKeyID:                apiKeyKeyID,
+		Enabled:                    enabled,
+		CentralApiKeyEnabled:       existing.CentralApiKeyEnabled,
+		AllowUserApiKey:            existing.AllowUserApiKey,
+		AllowCentralApiKeyFallback: existing.AllowCentralApiKeyFallback,
+		ID:                         existing.ID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
