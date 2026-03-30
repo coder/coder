@@ -46,6 +46,12 @@ jobs:
             echo "    replacement: \"https://github.com/coder/coder/tree/${HEAD_SHA}/\""
           } >> .github/.linkspector.yml
 
+      # TODO: Remove this workaround once action-linkspector sets
+      # package-manager-cache: false in its internal setup-node step.
+      # See: https://github.com/coder/coder/actions/runs/23751836569
+      - name: Enable corepack
+        run: corepack enable pnpm
+
       - name: Check Markdown links
         uses: umbrelladocs/action-linkspector@37c85bcde51b30bf929936502bac6bfb7e8f0a4d # v1.4.1
         id: markdown-link-check
