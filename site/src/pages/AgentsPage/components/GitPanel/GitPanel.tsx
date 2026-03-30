@@ -12,13 +12,13 @@ import {
 	RowsIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
-import { cn } from "utils/cn";
 import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {

@@ -61,9 +61,14 @@ type Chat struct {
 	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
 	Archived          bool               `json:"archived"`
+	PinOrder          int32              `json:"pin_order"`
 	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string  `json:"labels"`
 	Files             []ChatFileMetadata `json:"files,omitempty"`
+	// HasUnread is true when assistant messages exist beyond
+	// the owner's read cursor, which updates on stream
+	// connect and disconnect.
+	HasUnread bool `json:"has_unread"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -123,6 +128,7 @@ const (
 	ChatMessagePartTypeFile          ChatMessagePartType = "file"
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
+	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -136,6 +142,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeFile,
 		ChatMessagePartTypeFileReference,
 		ChatMessagePartTypeContextFile,
+		ChatMessagePartTypeSkill,
 	}
 }
 
@@ -218,6 +225,16 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
+	// SkillName is the kebab-case name of a discovered skill
+	// from the workspace's .agents/skills/ directory.
+	SkillName string `json:"skill_name" variants:"skill"`
+	// SkillDescription is the short description from the skill's
+	// SKILL.md frontmatter.
+	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
+	// SkillDir is the absolute path to the skill directory inside
+	// the workspace filesystem. Internal only: used by
+	// read_skill/read_skill_file tools to locate skill files.
+	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -234,6 +251,7 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileContent = ""
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
+	p.SkillDir = ""
 }
 
 // ChatMessageText builds a text chat message part.
@@ -335,8 +353,18 @@ type CreateChatRequest struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title    *string            `json:"title,omitempty"`
-	Archived *bool              `json:"archived,omitempty"`
+	Title    *string `json:"title,omitempty"`
+	Archived *bool   `json:"archived,omitempty"`
+	// PinOrder controls the chat's pinned state and position.
+	// - nil: no change to pin state.
+	// - 0: unpin the chat.
+	// - >0 (chat is unpinned): pin the chat, appending it to
+	//   the end of the pinned list. The specific value is
+	//   ignored; the server assigns the next available position.
+	// - >0 (chat is already pinned): move the chat to the
+	//   requested position, shifting neighbors as needed. The
+	//   value is clamped to [1, pinned_count].
+	PinOrder *int32             `json:"pin_order,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
 }
 
@@ -1866,6 +1894,21 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// RegenerateChatTitle requests the server to regenerate the chat's
+// title using richer conversation context.
+func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, readBodyAsChatUsageLimitError(res)
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)

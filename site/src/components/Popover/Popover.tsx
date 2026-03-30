@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/popover}
  */
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 export type PopoverContentProps = PopoverPrimitive.PopoverContentProps;
 

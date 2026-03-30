@@ -1,4 +1,3 @@
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type Ref, useLayoutEffect, useRef } from "react";
 import {
@@ -12,6 +11,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 
 export type SearchFieldProps = {
 	value: string;

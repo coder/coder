@@ -1,5 +1,3 @@
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
 import {
 	keepPreviousData,
@@ -9,10 +7,6 @@ import {
 } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { existsFile, type FileTree, traverse } from "utils/filetree";
-import { pageTitle } from "utils/page";
-import { TarReader, TarWriter } from "utils/tar";
-import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { file, uploadFile } from "#/api/queries/files";
@@ -29,6 +23,12 @@ import type {
 	TemplateVersion,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
+import { existsFile, type FileTree, traverse } from "#/utils/filetree";
+import { pageTitle } from "#/utils/page";
+import { TarReader, TarWriter } from "#/utils/tar";
+import { createTemplateVersionFileTree } from "#/utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const TemplateVersionEditorPage: FC = () => {

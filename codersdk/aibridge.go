@@ -324,3 +324,17 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 	var resp AIBridgeSessionThreadsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+// AIBridgeListClients returns the distinct AI clients visible to the caller.
+func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/clients", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var clients []string
+	return clients, json.NewDecoder(res.Body).Decode(&clients)
+}

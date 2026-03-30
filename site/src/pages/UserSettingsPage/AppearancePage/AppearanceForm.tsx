@@ -1,11 +1,4 @@
 import type { FC } from "react";
-import { DEFAULT_THEME } from "theme";
-import {
-	DEFAULT_TERMINAL_FONT,
-	terminalFontLabels,
-	terminalFonts,
-} from "theme/constants";
-import { cn } from "utils/cn";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -16,6 +9,13 @@ import { PreviewBadge } from "#/components/Badges/Badges";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { DEFAULT_THEME } from "#/theme";
+import {
+	DEFAULT_TERMINAL_FONT,
+	terminalFontLabels,
+	terminalFonts,
+} from "#/theme/constants";
+import { cn } from "#/utils/cn";
 import { Section } from "../Section";
 
 // Display Geist Mono (the default monospace font) first, then the rest

@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { formatDate } from "utils/time";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -14,6 +13,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "#/components/HelpTooltip/HelpTooltip";
+import { formatDate } from "#/utils/time";
 
 const chartConfig = {
 	amount: {

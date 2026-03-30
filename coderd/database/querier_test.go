@@ -1311,7 +1311,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, memberRows, 2)
 		for _, row := range memberRows {
-			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+			require.Equal(t, member.ID, row.Chat.OwnerID, "member should only see own chats")
 		}
 
 		// Owner should see at least the 5 pre-created chats (site-wide
@@ -1381,7 +1381,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, memberRows, 2)
 		for _, row := range memberRows {
-			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+			require.Equal(t, member.ID, row.Chat.OwnerID, "member should only see own chats")
 		}
 
 		// As owner: should see at least the 5 pre-created chats.
@@ -1429,13 +1429,13 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, page1, 2)
 		for _, row := range page1 {
-			require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
+			require.Equal(t, paginationUser.ID, row.Chat.OwnerID, "paginated results must belong to pagination user")
 		}
 
 		// Fetch remaining pages and collect all chat IDs.
 		allIDs := make(map[uuid.UUID]struct{})
 		for _, row := range page1 {
-			allIDs[row.ID] = struct{}{}
+			allIDs[row.Chat.ID] = struct{}{}
 		}
 		offset := int32(2)
 		for {
@@ -1445,8 +1445,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 			}, preparedMember)
 			require.NoError(t, err)
 			for _, row := range page {
-				require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
-				allIDs[row.ID] = struct{}{}
+				require.Equal(t, paginationUser.ID, row.Chat.OwnerID, "paginated results must belong to pagination user")
+				allIDs[row.Chat.ID] = struct{}{}
 			}
 			if len(page) < 2 {
 				break
@@ -10487,6 +10487,185 @@ func TestGetPRInsights(t *testing.T) {
 	})
 }
 
+func TestChatPinOrderQueries(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	setup := func(t *testing.T) (context.Context, database.Store, uuid.UUID, uuid.UUID) {
+		t.Helper()
+
+		db, _ := dbtestutil.NewDB(t)
+		owner := dbgen.User(t, db, database.User{})
+
+		// Use background context for fixture setup so the
+		// timed test context doesn't tick during DB init.
+		bg := context.Background()
+		_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+			APIKey:      "test-key",
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+
+		modelCfg, err := db.InsertChatModelConfig(bg, database.InsertChatModelConfigParams{
+			Provider:             "openai",
+			Model:                "test-model",
+			DisplayName:          "Test Model",
+			CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+			Enabled:              true,
+			IsDefault:            true,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		return ctx, db, owner.ID, modelCfg.ID
+	}
+
+	createChat := func(t *testing.T, ctx context.Context, db database.Store, ownerID, modelCfgID uuid.UUID, title string) database.Chat {
+		t.Helper()
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           ownerID,
+			LastModelConfigID: modelCfgID,
+			Title:             title,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	requirePinOrders := func(t *testing.T, ctx context.Context, db database.Store, want map[uuid.UUID]int32) {
+		t.Helper()
+
+		for chatID, wantPinOrder := range want {
+			chat, err := db.GetChatByID(ctx, chatID)
+			require.NoError(t, err)
+			require.EqualValues(t, wantPinOrder, chat.PinOrder)
+		}
+	}
+
+	t.Run("PinChatByIDAppendsWithinOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		otherOwner := dbgen.User(t, db, database.User{})
+		other := createChat(t, ctx, db, otherOwner.ID, modelCfgID, "other-owner")
+
+		require.NoError(t, db.PinChatByID(ctx, other.ID))
+		require.NoError(t, db.PinChatByID(ctx, first.ID))
+		require.NoError(t, db.PinChatByID(ctx, second.ID))
+		require.NoError(t, db.PinChatByID(ctx, third.ID))
+
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 2,
+			third.ID:  3,
+			other.ID:  1,
+		})
+	})
+
+	t.Run("UpdateChatPinOrderShiftsNeighborsAndClamps", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		for _, chat := range []database.Chat{first, second, third} {
+			require.NoError(t, db.PinChatByID(ctx, chat.ID))
+		}
+
+		require.NoError(t, db.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+			ID:       third.ID,
+			PinOrder: 1,
+		}))
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  2,
+			second.ID: 3,
+			third.ID:  1,
+		})
+
+		require.NoError(t, db.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+			ID:       third.ID,
+			PinOrder: 99,
+		}))
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 2,
+			third.ID:  3,
+		})
+	})
+
+	t.Run("UnpinChatByIDCompactsPinnedChats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		for _, chat := range []database.Chat{first, second, third} {
+			require.NoError(t, db.PinChatByID(ctx, chat.ID))
+		}
+
+		require.NoError(t, db.UnpinChatByID(ctx, second.ID))
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 0,
+			third.ID:  2,
+		})
+	})
+
+	t.Run("ArchiveClearsPinAndExcludesFromRanking", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, ownerID, modelCfgID := setup(t)
+		first := createChat(t, ctx, db, ownerID, modelCfgID, "first")
+		second := createChat(t, ctx, db, ownerID, modelCfgID, "second")
+		third := createChat(t, ctx, db, ownerID, modelCfgID, "third")
+
+		for _, chat := range []database.Chat{first, second, third} {
+			require.NoError(t, db.PinChatByID(ctx, chat.ID))
+		}
+
+		// Archive the middle pin.
+		require.NoError(t, db.ArchiveChatByID(ctx, second.ID))
+
+		// Archived chat should have pin_order cleared. Remaining
+		// pins keep their original positions; the next mutation
+		// compacts via ROW_NUMBER().
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  1,
+			second.ID: 0,
+			third.ID:  3,
+		})
+
+		// Reorder among remaining active pins — archived chat
+		// should not interfere with position calculation.
+		require.NoError(t, db.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+			ID:       third.ID,
+			PinOrder: 1,
+		}))
+		// After reorder, ROW_NUMBER() compacts the sequence.
+		requirePinOrders(t, ctx, db, map[uuid.UUID]int32{
+			first.ID:  2,
+			second.ID: 0,
+			third.ID:  1,
+		})
+	})
+}
+
 func TestChatLabels(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -10670,7 +10849,7 @@ func TestChatLabels(t *testing.T) {
 
 		titles := make([]string, 0, len(results))
 		for _, c := range results {
-			titles = append(titles, c.Title)
+			titles = append(titles, c.Chat.Title)
 		}
 		require.Contains(t, titles, "filter-a")
 		require.Contains(t, titles, "filter-b")
@@ -10688,8 +10867,7 @@ func TestChatLabels(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		require.Equal(t, "filter-a", results[0].Title)
-
+		require.Equal(t, "filter-a", results[0].Chat.Title)
 		// No filter — should return all chats for this owner.
 		allChats, err := db.GetChats(ctx, database.GetChatsParams{
 			OwnerID: owner.ID,
@@ -10697,4 +10875,122 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(allChats), 3)
 	})
+}
+
+func TestChatHasUnread(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model-" + uuid.NewString(),
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "test-chat-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	getHasUnread := func() bool {
+		rows, err := store.GetChats(ctx, database.GetChatsParams{
+			OwnerID: user.ID,
+		})
+		require.NoError(t, err)
+		for _, row := range rows {
+			if row.Chat.ID == chat.ID {
+				return row.HasUnread
+			}
+		}
+		t.Fatal("chat not found in GetChats result")
+		return false
+	}
+
+	// New chat with no messages: not unread.
+	require.False(t, getHasUnread(), "new chat with no messages should not be unread")
+
+	// Helper to insert a single chat message.
+	insertMsg := func(role database.ChatMessageRole, text string) {
+		t.Helper()
+		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{user.ID},
+			ModelConfigID:       []uuid.UUID{modelCfg.ID},
+			Role:                []database.ChatMessageRole{role},
+			Content:             []string{fmt.Sprintf(`[{"type":"text","text":%q}]`, text)},
+			ContentVersion:      []int16{0},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+			ProviderResponseID:  []string{""},
+		})
+		require.NoError(t, err)
+	}
+
+	// Insert an assistant message: becomes unread.
+	insertMsg(database.ChatMessageRoleAssistant, "hello")
+	require.True(t, getHasUnread(), "chat with unread assistant message should be unread")
+
+	// Mark as read: no longer unread.
+	lastMsg, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	require.NoError(t, err)
+	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chat.ID,
+		LastReadMessageID: lastMsg.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, getHasUnread(), "chat should not be unread after marking as read")
+
+	// Insert another assistant message: becomes unread again.
+	insertMsg(database.ChatMessageRoleAssistant, "new message")
+	require.True(t, getHasUnread(), "new assistant message after read should be unread")
+
+	// Mark as read again, then verify user messages don't
+	// trigger unread.
+	lastMsg, err = store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	require.NoError(t, err)
+	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chat.ID,
+		LastReadMessageID: lastMsg.ID,
+	})
+	require.NoError(t, err)
+	insertMsg(database.ChatMessageRoleUser, "user msg")
+	require.False(t, getHasUnread(), "user messages should not trigger unread")
 }

@@ -732,7 +732,7 @@ class ApiMethods {
 	 */
 	getOrganizationPaginatedMembers = async (
 		organization: string,
-		options?: TypesGen.Pagination,
+		options?: TypesGen.UsersRequest,
 	) => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/paginated-members`,
@@ -2181,6 +2181,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	addMembers = async (groupId: string, userIds: string[]) => {
+		return this.patchGroup(groupId, {
+			name: "",
+			add_users: userIds,
+			remove_users: [],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
+		});
+	};
+
 	addMember = async (groupId: string, userId: string) => {
 		return this.patchGroup(groupId, {
 			name: "",
@@ -3008,6 +3019,13 @@ class ApiMethods {
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
+
+	getAIBridgeClients = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
@@ -3113,6 +3131,13 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatRequest,
 	): Promise<void> => {
 		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
+	};
+
+	regenerateChatTitle = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/title/regenerate`,
+		);
+		return response.data;
 	};
 
 	createChatMessage = async (

@@ -1,5 +1,4 @@
 import { isAxiosError } from "axios";
-import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "react-query";
@@ -17,6 +16,7 @@ import {
 } from "#/components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
 import { Welcome } from "#/components/Welcome/Welcome";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {

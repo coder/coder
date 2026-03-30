@@ -1,3 +1,8 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { templateVersionPresetsKey } from "#/api/queries/templates";
+import type { Task } from "#/api/typesGenerated";
 import {
 	MockPresets,
 	MockTask,
@@ -9,13 +14,8 @@ import {
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 	mockApiError,
-} from "testHelpers/entities";
-import { withAuthProvider, withToaster } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { API } from "#/api/api";
-import { templateVersionPresetsKey } from "#/api/queries/templates";
-import type { Task } from "#/api/typesGenerated";
+} from "#/testHelpers/entities";
+import { withAuthProvider, withToaster } from "#/testHelpers/storybook";
 import type TasksPage from "../../../pages/TasksPage/TasksPage";
 import { TaskPrompt } from "./TaskPrompt";
 

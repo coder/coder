@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { docs } from "utils/docs";
+import { docs } from "#/utils/docs";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,

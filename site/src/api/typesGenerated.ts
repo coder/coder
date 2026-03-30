@@ -1191,9 +1191,16 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
 	readonly files?: readonly ChatFileMetadata[];
+	/**
+	 * HasUnread is true when assistant messages exist beyond
+	 * the owner's read cursor, which updates on stream
+	 * connect and disconnect.
+	 */
+	readonly has_unread: boolean;
 }
 
 // From codersdk/chats.go
@@ -1506,7 +1513,8 @@ export type ChatMessagePart =
 	| ChatSourcePart
 	| ChatFilePart
 	| ChatFileReferencePart
-	| ChatContextFilePart;
+	| ChatContextFilePart
+	| ChatSkillPart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -1514,6 +1522,7 @@ export type ChatMessagePartType =
 	| "file"
 	| "file-reference"
 	| "reasoning"
+	| "skill"
 	| "source"
 	| "text"
 	| "tool-call"
@@ -1524,6 +1533,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file",
 	"file-reference",
 	"reasoning",
+	"skill",
 	"source",
 	"text",
 	"tool-call",
@@ -1863,6 +1873,21 @@ export interface ChatQueuedMessage {
 export interface ChatReasoningPart {
 	readonly type: "reasoning";
 	readonly text: string;
+}
+
+// From codersdk/chats.go
+export interface ChatSkillPart {
+	readonly type: "skill";
+	/**
+	 * SkillName is the kebab-case name of a discovered skill
+	 * from the workspace's .agents/skills/ directory.
+	 */
+	readonly skill_name: string;
+	/**
+	 * SkillDescription is the short description from the skill's
+	 * SKILL.md frontmatter.
+	 */
+	readonly skill_description?: string;
 }
 
 // From codersdk/chats.go
@@ -2420,6 +2445,7 @@ export interface CreateMCPServerConfigRequest {
 	readonly tool_deny_list?: readonly string[];
 	readonly availability: string;
 	readonly enabled: boolean;
+	readonly model_intent: boolean;
 }
 
 // From codersdk/organizations.go
@@ -3864,6 +3890,14 @@ export interface License {
 }
 
 // From codersdk/licenses.go
+export const LicenseAIGovernance90PercentWarningText =
+	"You have used %d%% of your AI Governance add-on seats.";
+
+// From codersdk/licenses.go
+export const LicenseAIGovernanceOverLimitWarningText =
+	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
+
+// From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
@@ -4007,6 +4041,7 @@ export interface MCPServerConfig {
 	 */
 	readonly availability: string; // "force_on", "default_on", "default_off"
 	readonly enabled: boolean;
+	readonly model_intent: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -7125,6 +7160,18 @@ export interface UpdateChatProviderConfigRequest {
 export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
+	/**
+	 * PinOrder controls the chat's pinned state and position.
+	 * - nil: no change to pin state.
+	 * - 0: unpin the chat.
+	 * - >0 (chat is unpinned): pin the chat, appending it to
+	 *   the end of the pinned list. The specific value is
+	 *   ignored; the server assigns the next available position.
+	 * - >0 (chat is already pinned): move the chat to the
+	 *   requested position, shifting neighbors as needed. The
+	 *   value is clamped to [1, pinned_count].
+	 */
+	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
 }
 
@@ -7226,6 +7273,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly tool_deny_list?: string[];
 	readonly availability?: string;
 	readonly enabled?: boolean;
+	readonly model_intent?: boolean;
 }
 
 // From codersdk/notifications.go

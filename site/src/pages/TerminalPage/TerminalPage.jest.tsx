@@ -1,16 +1,16 @@
 import "jest-canvas-mock";
-import {
-	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceAgent,
-} from "testHelpers/entities";
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { API } from "#/api/api";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import TerminalPage, { Language } from "./TerminalPage";
 
 const renderTerminal = async (

@@ -1,9 +1,6 @@
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	setGroupRole,
@@ -11,6 +8,9 @@ import {
 	templateACL,
 } from "#/api/queries/templates";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 

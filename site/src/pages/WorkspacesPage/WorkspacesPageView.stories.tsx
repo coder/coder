@@ -1,19 +1,3 @@
-import {
-	MockBuildInfo,
-	MockOrganization,
-	MockPendingProvisionerJob,
-	MockTaskWorkspace,
-	MockTemplate,
-	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceAgent,
-	mockApiError,
-} from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withProxyProvider,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
@@ -28,6 +12,22 @@ import {
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
+import {
+	MockBuildInfo,
+	MockOrganization,
+	MockPendingProvisionerJob,
+	MockTaskWorkspace,
+	MockTemplate,
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	mockApiError,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "#/testHelpers/storybook";
 import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
@@ -192,6 +192,13 @@ export const AllStates: Story = {
 	args: {
 		workspaces: allWorkspaces,
 		count: allWorkspaces.length,
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		workspaces: undefined,
+		count: undefined,
 	},
 };
 

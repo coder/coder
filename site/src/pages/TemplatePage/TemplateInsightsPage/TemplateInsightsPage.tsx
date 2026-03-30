@@ -4,12 +4,6 @@ import {
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import {
-	DateRangePicker as DailyPicker,
-	type DateRangeValue,
-} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
 	Fragment,
@@ -20,15 +14,6 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
-import { cn } from "utils/cn";
-import { getLatencyColor } from "utils/latency";
-import {
-	addTime,
-	formatDateTime,
-	startOfDay,
-	startOfHour,
-	subtractTime,
-} from "utils/time";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	insightsTemplate,
@@ -50,6 +35,10 @@ import {
 } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "#/components/DateRangePicker/DateRangePicker";
+import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipIconTrigger,
@@ -65,6 +54,18 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
+import {
+	addTime,
+	formatDateTime,
+	startOfDay,
+	startOfHour,
+	subtractTime,
+} from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";

@@ -6,7 +6,6 @@ const siteDir = new URL("..", import.meta.url).pathname;
 
 const targetDirs = [
 	"src/pages/AgentsPage",
-	"src/components/ai-elements",
 ];
 
 const skipPatterns = [".test.", ".stories.", ".jest."];
@@ -83,7 +82,7 @@ console.log(`\nTotal: ${totalCompiled} functions compiled across ${files.length}
 console.log(`Files with diagnostics: ${failures.length}\n`);
 
 for (const f of failures) {
-	const short = f.file.replace("src/pages/AgentsPage/", "").replace("src/components/ai-elements/", "ai/");
+	const short = f.file.replace("src/pages/AgentsPage/", "");
 	console.log(`✗ ${short} (${f.compiled} compiled)`);
 	for (const d of f.diagnostics) {
 		console.log(`    line ${d.line}: ${d.short}`);

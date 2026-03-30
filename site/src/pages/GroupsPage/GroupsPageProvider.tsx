@@ -1,7 +1,7 @@
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { createContext, type FC, useContext } from "react";
 import { Navigate, Outlet, useParams } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 const GroupsPageContext = createContext<OrganizationSettingsValue | undefined>(
 	undefined,

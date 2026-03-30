@@ -1,8 +1,8 @@
-import { chromatic } from "testHelpers/chromatic";
-import { MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, fn, within } from "storybook/test";
+import { chromatic } from "#/testHelpers/chromatic";
+import { MockLicenseResponse } from "#/testHelpers/entities";
 
 import { LicenseCard } from "./LicenseCard";
 

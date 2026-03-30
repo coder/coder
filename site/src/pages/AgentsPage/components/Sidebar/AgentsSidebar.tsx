@@ -1,4 +1,21 @@
-import { useAuthenticated } from "hooks";
+import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	KeyboardSensor,
+	MouseSensor,
+	TouchSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
@@ -20,6 +37,8 @@ import {
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
+	PinIcon,
+	PinOffIcon,
 	SettingsIcon,
 	ShieldAlertIcon,
 	ShieldIcon,
@@ -28,8 +47,6 @@ import {
 	UserIcon,
 	WandSparklesIcon,
 } from "lucide-react";
-import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
@@ -39,8 +56,6 @@ import {
 	useState,
 } from "react";
 import { Link, NavLink, useLocation, useParams } from "react-router";
-import { cn } from "utils/cn";
-import { shortRelativeTime } from "utils/time";
 import type {
 	Chat,
 	ChatDiffStatus,
@@ -49,13 +64,12 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
-import type { ModelSelectorOption } from "#/components/ai-elements";
-import { asString } from "#/components/ai-elements/runtimeTypeUtils";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -68,8 +82,16 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { cn } from "#/utils/cn";
+import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import type { ModelSelectorOption } from "../ChatElements";
+import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
 
 type SidebarView =
@@ -100,10 +122,15 @@ interface AgentsSidebarProps {
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
+	onPinAgent: (chatId: string) => void;
+	onUnpinAgent: (chatId: string) => void;
+	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle: (chatId: string) => void;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
+	regeneratingTitleChatIds: readonly string[];
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -342,8 +369,10 @@ interface ChatTreeContextValue {
 	readonly modelOptions: readonly ModelSelectorOption[];
 	readonly modelConfigs: readonly ChatModelConfig[];
 	readonly chatErrorReasons: Record<string, string>;
+	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
+	readonly regeneratingTitleChatIds: readonly string[];
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
@@ -351,6 +380,9 @@ interface ChatTreeContextValue {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	readonly onPinAgent: (chatId: string) => void;
+	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onRegenerateTitle: (chatId: string) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -378,14 +410,20 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		modelOptions,
 		modelConfigs,
 		chatErrorReasons,
+		activeChatId,
 		isArchiving,
 		archivingChatId,
+		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinAgent,
+		onUnpinAgent,
+		onRegenerateTitle,
 	} = useChatTree();
 	const chatID = chat.id;
+	const isActiveChat = activeChatId === chatID;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
 		visibleChatIDs.has(childID),
 	);
@@ -421,6 +459,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
+	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	return (
@@ -482,13 +521,24 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							<div className="min-w-0 flex-1 overflow-hidden text-left">
 								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 									<span
+										aria-busy={isRegeneratingThisChat}
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											isActive && "font-medium",
+											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
+											isRegeneratingThisChat && "animate-pulse",
 										)}
 									>
 										{chat.title}
 									</span>
+									{chat.has_unread && !isActiveChat && (
+										<span className="sr-only">(unread)</span>
+									)}
+									{isRegeneratingThisChat && (
+										<span className="sr-only" role="status">
+											Regenerating title…
+										</span>
+									)}
 								</div>
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
@@ -526,7 +576,15 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					) : (
 						<>
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{shortRelativeTime(chat.updated_at)}
+								{chat.has_unread && !isActiveChat ? (
+									<span
+										className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+										data-testid={`unread-indicator-${chat.id}`}
+										aria-hidden="true"
+									/>
+								) : (
+									shortRelativeTime(chat.updated_at)
+								)}
 							</span>
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
@@ -539,7 +597,31 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
+									{!chat.archived && !isChildNode && (
+										<DropdownMenuItem
+											onSelect={() =>
+												chat.pin_order > 0
+													? onUnpinAgent(chat.id)
+													: onPinAgent(chat.id)
+											}
+										>
+											{chat.pin_order > 0 ? (
+												<>
+													<PinOffIcon className="h-3.5 w-3.5" />
+													Unpin agent
+												</>
+											) : (
+												<>
+													<PinIcon className="h-3.5 w-3.5" />
+													Pin agent
+												</>
+											)}
+										</DropdownMenuItem>
+									)}
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
@@ -550,6 +632,14 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										</DropdownMenuItem>
 									) : (
 										<>
+											<DropdownMenuItem
+												disabled={isRegeneratingThisChat}
+												onSelect={() => onRegenerateTitle(chat.id)}
+											>
+												<WandSparklesIcon className="h-3.5 w-3.5" />
+												Generate new title
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
 											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
@@ -594,6 +684,48 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 };
 
+const SortableChatTreeNode: FC<{
+	chat: Chat;
+}> = ({ chat }) => {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({
+		id: chat.id,
+		// Skip the derived-transform measurement after drop.
+		// localPinOrder already repositions items in the DOM,
+		// so the two-frame snap-back dance produces stale deltas
+		// and a visible jitter. This makes items snap directly.
+		animateLayoutChanges: () => false,
+	});
+
+	// Strip scaleX/scaleY that dnd-kit adds by default.
+	const adjustedTransform = transform
+		? { ...transform, scaleX: 1, scaleY: 1 }
+		: null;
+
+	const style = {
+		transform: CSS.Transform.toString(adjustedTransform),
+		transition: isDragging ? "opacity 200ms" : transition,
+	};
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className={cn(isDragging && "opacity-50")}
+			{...attributes}
+			{...listeners}
+		>
+			<ChatTreeNode chat={chat} isChildNode={false} />
+		</div>
+	);
+};
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -604,10 +736,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinAgent,
+		onUnpinAgent,
+		onReorderPinnedAgent,
+		onRegenerateTitle,
 		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
+		regeneratingTitleChatIds,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -642,13 +779,131 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		visibleChatIDs.has(chatID),
 	);
 
-	// Pre-compute the first non-empty time group so the filter
-	// dropdown renders next to it without needing a mutable IIFE.
-	const firstNonEmptyGroup = TIME_GROUPS.find((group) =>
-		visibleRootIDs.some((id) => {
-			const chat = chatById.get(id);
-			return chat !== undefined && getTimeGroup(chat.updated_at) === group;
+	const pinnedChats = visibleRootIDs
+		.map((id) => chatById.get(id))
+		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
+		.sort((a, b) => a.pin_order - b.pin_order);
+
+	// Local override for pinned order during drag — applied
+	// synchronously so there's no flash between the dnd-kit
+	// transform clearing and the server data arriving.
+	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+
+	// Clear the local override when fresh data arrives from
+	// the server (the mutation's onSettled invalidates queries).
+	const chatsRef = useRef(chats);
+	useEffect(() => {
+		if (chats !== chatsRef.current) {
+			chatsRef.current = chats;
+			setLocalPinOrder(null);
+		}
+	}, [chats]);
+
+	const sortedPinnedChats = localPinOrder
+		? localPinOrder
+				.map((id) => pinnedChats.find((c) => c.id === id))
+				.filter((c) => c !== undefined)
+		: pinnedChats;
+
+	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
+
+	const lastDragEndedAtRef = useRef(0);
+
+	const pinnedContainerRef = useRef<HTMLDivElement | null>(null);
+	useEffect(() => {
+		const handler = (e: MouseEvent) => {
+			const container = pinnedContainerRef.current;
+			const target = e.target;
+			if (
+				container &&
+				target instanceof Node &&
+				container.contains(target) &&
+				performance.now() - lastDragEndedAtRef.current < 300
+			) {
+				e.preventDefault();
+			}
+		};
+		document.addEventListener("click", handler, true);
+		return () => document.removeEventListener("click", handler, true);
+	}, []);
+
+	const sensors = useSensors(
+		useSensor(MouseSensor, {
+			activationConstraint: { distance: 5 },
 		}),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 200, tolerance: 5 },
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	);
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+
+		lastDragEndedAtRef.current = performance.now();
+		if (!over || active.id === over.id) return;
+		const activeId = String(active.id);
+		const overId = String(over.id);
+		const oldIndex = pinnedChatIds.indexOf(activeId);
+		const newIndex = pinnedChatIds.indexOf(overId);
+		if (oldIndex === -1 || newIndex === -1) return;
+
+		const reordered = arrayMove(pinnedChatIds, oldIndex, newIndex);
+		setLocalPinOrder(reordered);
+		onReorderPinnedAgent?.(activeId, newIndex + 1);
+	};
+
+	// The filter dropdown attaches to the first visible section
+	// header. When pinned chats exist, that's the Pinned header;
+	// otherwise it falls through to the first non-empty time group.
+	const showFilterOnPinned = pinnedChats.length > 0;
+	const firstNonEmptyGroup = showFilterOnPinned
+		? undefined
+		: TIME_GROUPS.find((group) =>
+				visibleRootIDs.some((id) => {
+					const chat = chatById.get(id);
+					return (
+						chat !== undefined &&
+						getTimeGroup(chat.updated_at) === group &&
+						chat.pin_order === 0
+					);
+				}),
+			);
+	const filterDropdown = (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Filter agents"
+					className={cn(
+						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+						archivedFilter === "archived" && "text-content-primary",
+					)}
+				>
+					<FilterIcon />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="end"
+				className="[&_[role=menuitem]]:text-[13px]"
+			>
+				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
+					Active
+					{archivedFilter === "active" && (
+						<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					)}
+				</DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
+					Archived
+					{archivedFilter === "archived" && (
+						<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					)}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -697,16 +952,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelOptions,
 		modelConfigs,
 		chatErrorReasons,
+		activeChatId,
 		isArchiving,
 		archivingChatId,
+		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
+		onPinAgent,
+		onUnpinAgent,
+		onRegenerateTitle,
 	};
 
 	const subNavTitle = "Settings";
-
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			{/* ── Panel 1: Chats ── */}
@@ -824,13 +1083,46 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									<div>
 										{visibleRootIDs.length > 0 && (
 											<div className="pb-2">
+												{/* ── Pinned section ── */}
+												{pinnedChats.length > 0 && (
+													<div className="[&:not(:first-child)]:mt-3">
+														<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+															<span>Pinned</span>
+															{showFilterOnPinned && filterDropdown}
+														</div>
+														<DndContext
+															sensors={sensors}
+															collisionDetection={closestCenter}
+															onDragEnd={handleDragEnd}
+														>
+															<SortableContext
+																items={pinnedChatIds}
+																strategy={verticalListSortingStrategy}
+															>
+																<div
+																	ref={pinnedContainerRef}
+																	className="flex flex-col gap-0.5"
+																>
+																	{sortedPinnedChats.map((chat) => (
+																		<SortableChatTreeNode
+																			key={chat.id}
+																			chat={chat}
+																		/>
+																	))}
+																</div>
+															</SortableContext>
+														</DndContext>
+													</div>
+												)}
+												{/* ── Time-grouped sections ── */}
 												{TIME_GROUPS.map((group) => {
 													const groupChats = visibleRootIDs
 														.map((id) => chatById.get(id))
 														.filter(
 															(chat): chat is Chat =>
 																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group,
+																getTimeGroup(chat.updated_at) === group &&
+																chat.pin_order === 0,
 														);
 													if (groupChats.length === 0) return null;
 													return (
@@ -840,46 +1132,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														>
 															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 																<span>{group}</span>
-																{group === firstNonEmptyGroup && (
-																	<DropdownMenu>
-																		<DropdownMenuTrigger asChild>
-																			<Button
-																				variant="subtle"
-																				size="icon"
-																				aria-label="Filter agents"
-																				className={cn(
-																					"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-																					archivedFilter === "archived" &&
-																						"text-content-primary",
-																				)}
-																			>
-																				<FilterIcon />
-																			</Button>
-																		</DropdownMenuTrigger>
-																		<DropdownMenuContent align="end">
-																			<DropdownMenuItem
-																				onSelect={() =>
-																					onArchivedFilterChange?.("active")
-																				}
-																			>
-																				Active
-																				{archivedFilter === "active" && (
-																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																				)}
-																			</DropdownMenuItem>
-																			<DropdownMenuItem
-																				onSelect={() =>
-																					onArchivedFilterChange?.("archived")
-																				}
-																			>
-																				Archived
-																				{archivedFilter === "archived" && (
-																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																				)}
-																			</DropdownMenuItem>
-																		</DropdownMenuContent>
-																	</DropdownMenu>
-																)}
+																{group === firstNonEmptyGroup && filterDropdown}
 															</div>
 															<div className="flex flex-col gap-0.5">
 																{groupChats.map((chat) => (
@@ -892,7 +1145,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 															</div>
 														</div>
 													);
-												})}{" "}
+												})}
 											</div>
 										)}
 									</div>
@@ -910,7 +1163,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="hidden border-0 border-t border-solid md:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
-							{" "}
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"
@@ -946,7 +1198,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</div>
 			</div>
-			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
@@ -1049,7 +1301,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									to="/agents/settings/insights"
 									state={location.state}
 									adminOnly
-								/>{" "}
+								/>
 							</>
 						)}
 					</nav>
@@ -1144,14 +1396,9 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const onLoadMoreRef = useRef(onLoadMore);
-
-	// Keep the callback ref in sync so the observer closure
-	// always calls the latest onLoadMore without needing to
-	// tear down and re-create the observer.
-	useEffect(() => {
-		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
+	const onLoadMoreStable = useEffectEvent(() => {
+		onLoadMore?.();
+	});
 
 	useEffect(() => {
 		// Don't observe while a fetch is in progress. When the
@@ -1167,15 +1414,15 @@ const LoadMoreSentinel: FC<{
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries[0]?.isIntersecting && onLoadMoreRef.current) {
-					onLoadMoreRef.current();
+				if (entries[0]?.isIntersecting) {
+					onLoadMoreStable();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [isFetchingNextPage]);
+	}, [isFetchingNextPage, onLoadMoreStable]);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">

@@ -8,8 +8,8 @@ import {
 	ChevronUp,
 	ChevronDown as LucideChevronDown,
 } from "lucide-react";
-import { cn } from "utils/cn";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { cn } from "#/utils/cn";
 
 export const Select = SelectPrimitive.Root;
 

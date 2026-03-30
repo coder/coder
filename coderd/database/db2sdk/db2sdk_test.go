@@ -538,6 +538,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,
+		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
 		FileIds:           []uuid.UUID{uuid.New()},
@@ -565,8 +566,15 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
+	// HasUnread is populated by ChatRows (which joins the
+	// read-cursor query), not by Chat, so it is expected
+	// to remain zero here.
+	skip := map[string]bool{"HasUnread": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
+		if skip[field.Name] {
+			continue
+		}
 		require.False(t, v.Field(i).IsZero(),
 			"codersdk.Chat field %q is zero-valued — db2sdk.Chat may not be populating it",
 			field.Name,

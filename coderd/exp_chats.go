@@ -336,7 +336,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		LimitOpt: int32(paginationParams.Limit),
 	}
 
-	chats, err := api.Database.GetChats(ctx, params)
+	chatRows, err := api.Database.GetChats(ctx, params)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -345,7 +345,13 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, chats)
+	// Extract the Chat objects for diff status lookup.
+	dbChats := make([]database.Chat, len(chatRows))
+	for i, row := range chatRows {
+		dbChats[i] = row.Chat
+	}
+
+	diffStatusesByChatID, err := api.getChatDiffStatusesByChatID(ctx, dbChats)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -354,7 +360,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chats(chats, diffStatusesByChatID))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRows(chatRows, diffStatusesByChatID))
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -1573,8 +1579,8 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Supports updating labels and
-// toggling the archived state.
+// patchChat updates a chat resource. Supports updating labels,
+// archiving, pinning, and pinned-chat ordering.
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1655,6 +1661,54 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Failed to %s chat.", action),
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	if req.PinOrder != nil {
+		pinOrder := *req.PinOrder
+		if pinOrder < 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Pin order must be non-negative.",
+			})
+			return
+		}
+
+		if pinOrder > 0 && chat.Archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin an archived chat.",
+			})
+			return
+		}
+
+		// The behavior depends on current pin state:
+		// - pinOrder == 0: unpin.
+		// - pinOrder > 0 && already pinned: reorder (shift
+		//   neighbors, clamp to [1, count]).
+		// - pinOrder > 0 && not pinned: append to end. The
+		//   requested value is intentionally ignored because
+		//   PinChatByID also bumps updated_at to keep the
+		//   chat visible in the paginated sidebar.
+		var err error
+		errMsg := "Failed to pin chat."
+		switch {
+		case pinOrder == 0:
+			errMsg = "Failed to unpin chat."
+			err = api.Database.UnpinChatByID(ctx, chat.ID)
+		case chat.PinOrder > 0:
+			errMsg = "Failed to reorder pinned chat."
+			err = api.Database.UpdateChatPinOrder(ctx, database.UpdateChatPinOrderParams{
+				ID:       chat.ID,
+				PinOrder: pinOrder,
+			})
+		default:
+			err = api.Database.PinChatByID(ctx, chat.ID)
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: errMsg,
 				Detail:  err.Error(),
 			})
 			return
@@ -1923,6 +1977,39 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatMessage(promoteResult.PromotedMessage))
 }
 
+// markChatAsRead updates the last read message ID for a chat to the
+// latest message, so subsequent unread checks treat all current
+// messages as seen. This is called on stream connect and disconnect
+// to avoid per-message API calls during active streaming.
+func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
+	lastMsg, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		// No assistant messages yet, nothing to mark as read.
+		return
+	}
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to get last assistant message for read marker",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	err = api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chatID,
+		LastReadMessageID: lastMsg.ID,
+	})
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to update chat last read message ID",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1978,6 +2065,12 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 	defer cancel()
+
+	// Mark the chat as read when the stream connects and again
+	// when it disconnects so we avoid per-message API calls while
+	// messages are actively streaming.
+	api.markChatAsRead(ctx, chatID)
+	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {
@@ -2079,6 +2172,50 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
+	if err != nil {
+		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Title regeneration already in progress for this chat.",
+			})
+			return
+		}
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to regenerate chat title.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

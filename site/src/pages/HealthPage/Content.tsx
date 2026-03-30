@@ -13,8 +13,8 @@ import {
 	type HTMLAttributes,
 	type ReactElement,
 } from "react";
-import { docs } from "utils/docs";
 import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
+import { docs } from "#/utils/docs";
 import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;

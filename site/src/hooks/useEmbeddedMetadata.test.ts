@@ -1,3 +1,5 @@
+import { act, renderHook } from "@testing-library/react";
+import type { Region, User } from "#/api/typesGenerated";
 import {
 	MockAgentsTabVisible,
 	MockAppearanceConfig,
@@ -9,9 +11,7 @@ import {
 	MockTasksTabVisible,
 	MockUserAppearanceSettings,
 	MockUserOwner,
-} from "testHelpers/entities";
-import { act, renderHook } from "@testing-library/react";
-import type { Region, User } from "#/api/typesGenerated";
+} from "#/testHelpers/entities";
 import {
 	DEFAULT_METADATA_KEY,
 	type MetadataKey,

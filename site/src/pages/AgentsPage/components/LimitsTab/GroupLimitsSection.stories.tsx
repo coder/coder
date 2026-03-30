@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { Group } from "#/api/typesGenerated";
 import { GroupLimitsSection } from "./GroupLimitsSection";
 
@@ -129,5 +129,48 @@ export const EditForm: Story = {
 			editingGroupOverride.group_display_name,
 		);
 		expect(nameElements.length).toBeGreaterThanOrEqual(2);
+	},
+};
+
+export const DeleteGroupOverride: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Click the Delete button for the first group override.
+		const deleteButtons = await body.findAllByRole("button", {
+			name: "Delete",
+		});
+		await userEvent.click(deleteButtons[0]);
+
+		// The confirmation dialog should appear.
+		const dialog = await body.findByRole("dialog");
+		await expect(dialog).toBeInTheDocument();
+		await expect(
+			body.getByText(
+				/Are you sure you want to delete this group limit override/i,
+			),
+		).toBeInTheDocument();
+	},
+};
+
+export const DeleteGroupOverrideCancelled: Story = {
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Click the Delete button for the first group override.
+		const deleteButtons = await body.findAllByRole("button", {
+			name: "Delete",
+		});
+		await userEvent.click(deleteButtons[0]);
+
+		// Cancel the dialog.
+		await body.findByRole("dialog");
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		// The dialog should be closed and the callback should not have been called.
+		await waitFor(() => {
+			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+		});
+		expect(args.onDeleteGroupOverride).not.toHaveBeenCalled();
 	},
 };

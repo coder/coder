@@ -89,8 +89,37 @@ export const readInfiniteChatsCache = (
 	return undefined;
 };
 
-/**
- * Invalidate only the sidebar chat-list queries (flat + infinite)
+const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
+	let maxPinOrder = 0;
+	const queries = queryClient.getQueriesData<
+		TypesGen.Chat[] | { pages: TypesGen.Chat[][]; pageParams: unknown[] }
+	>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
+
+	for (const [, data] of queries) {
+		if (!data) {
+			continue;
+		}
+
+		if (Array.isArray(data)) {
+			for (const chat of data) {
+				maxPinOrder = Math.max(maxPinOrder, chat.pin_order);
+			}
+			continue;
+		}
+
+		for (const page of data.pages) {
+			for (const chat of page) {
+				maxPinOrder = Math.max(maxPinOrder, chat.pin_order);
+			}
+		}
+	}
+
+	return maxPinOrder + 1;
+};
+
 /**
  * Predicate that matches only chat-list queries (the sidebar), not
  * per-chat queries (detail, messages, diffs, cost).
@@ -200,12 +229,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -263,12 +287,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -316,6 +335,200 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		});
 		await queryClient.invalidateQueries({
 			queryKey: chatsByWorkspaceKeyPrefix,
+		});
+	},
+});
+
+export const pinChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) =>
+		API.experimental.updateChat(chatId, { pin_order: 1 }),
+	onMutate: async (chatId: string) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, pin_order: optimisticPinOrder } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				pin_order: optimisticPinOrder,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const unpinChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) =>
+		API.experimental.updateChat(chatId, { pin_order: 0 }),
+	onMutate: async (chatId: string) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, pin_order: 0 } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
+				...previousChat,
+				pin_order: 0,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const reorderPinnedChat = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, pinOrder }: { chatId: string; pinOrder: number }) =>
+		API.experimental.updateChat(chatId, { pin_order: pinOrder }),
+	onMutate: async ({
+		chatId,
+		pinOrder,
+	}: {
+		chatId: string;
+		pinOrder: number;
+	}) => {
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+
+		// Optimistically reorder pinned chats in the cache so the
+		// sidebar reflects the new order immediately without waiting
+		// for the server round-trip.
+		const allChats = readInfiniteChatsCache(queryClient) ?? [];
+		const pinned = allChats
+			.filter((c) => c.pin_order > 0)
+			.sort((a, b) => a.pin_order - b.pin_order);
+		const oldIdx = pinned.findIndex((c) => c.id === chatId);
+		if (oldIdx !== -1) {
+			const moved = pinned.splice(oldIdx, 1)[0];
+			pinned.splice(pinOrder - 1, 0, moved);
+			const newOrders = new Map(pinned.map((c, i) => [c.id, i + 1]));
+			updateInfiniteChatsCache(queryClient, (chats) =>
+				chats.map((c) => {
+					const order = newOrders.get(c.id);
+					return order !== undefined ? { ...c, pin_order: order } : c;
+				}),
+			);
+		}
+	},
+	onSettled: async (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: { chatId: string; pinOrder: number },
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const regenerateChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.regenerateChatTitle(chatId),
+
+	onSuccess: (updatedChat: TypesGen.Chat) => {
+		queryClient.setQueryData<TypesGen.Chat>(
+			chatKey(updatedChat.id),
+			(previousChat) =>
+				previousChat ? { ...previousChat, ...updatedChat } : updatedChat,
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === updatedChat.id
+					? { ...chat, title: updatedChat.title }
+					: chat,
+			),
+		);
+	},
+
+	onSettled: async (
+		_data: TypesGen.Chat | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
 		});
 	},
 });

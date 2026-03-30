@@ -1535,6 +1535,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
+		PinOrder:          c.PinOrder,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
 		MCPServerIDs:      mcpServerIDs,
@@ -1587,23 +1588,24 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	return chat
 }
 
-// Chats converts a slice of database.Chat to codersdk.Chat, looking
-// up diff statuses from the provided map. When diffStatusesByChatID
-// is non-nil, chats without an entry receive an empty DiffStatus.
-func Chats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
-	result := make([]codersdk.Chat, len(chats))
-	for i, c := range chats {
-		diffStatus, ok := diffStatusesByChatID[c.ID]
+// ChatRows converts a slice of database.GetChatsRow (which embeds
+// Chat plus HasUnread) to codersdk.Chat, looking up diff statuses
+// from the provided map. When diffStatusesByChatID is non-nil,
+// chats without an entry receive an empty DiffStatus.
+func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
+	result := make([]codersdk.Chat, len(rows))
+	for i, row := range rows {
+		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
 		if ok {
-			result[i] = Chat(c, &diffStatus, nil)
-			continue
+			result[i] = Chat(row.Chat, &diffStatus, nil)
+		} else {
+			result[i] = Chat(row.Chat, nil, nil)
+			if diffStatusesByChatID != nil {
+				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
+				result[i].DiffStatus = &emptyDiffStatus
+			}
 		}
-
-		result[i] = Chat(c, nil, nil)
-		if diffStatusesByChatID != nil {
-			emptyDiffStatus := ChatDiffStatus(c.ID, nil)
-			result[i].DiffStatus = &emptyDiffStatus
-		}
+		result[i].HasUnread = row.HasUnread
 	}
 	return result
 }

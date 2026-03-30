@@ -1,14 +1,14 @@
-import { Badge } from "components/Badge/Badge";
+import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { AIBridgeModelIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeModelIcon";
-import type { FC } from "react";
-import { cn } from "utils/cn";
-import { formatDate } from "utils/time";
+} from "#/components/Tooltip/Tooltip";
+import { AIBridgeModelIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeModelIcon";
+import { cn } from "#/utils/cn";
+import { formatDate } from "#/utils/time";
 import { TokenBadges } from "../../TokenBadges";
 
 interface PromptTableProps {

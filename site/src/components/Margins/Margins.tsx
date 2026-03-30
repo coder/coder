@@ -3,7 +3,7 @@ import {
 	containerWidth,
 	containerWidthMedium,
 	sidePadding,
-} from "theme/constants";
+} from "#/theme/constants";
 
 type Size = "regular" | "medium" | "small";
 

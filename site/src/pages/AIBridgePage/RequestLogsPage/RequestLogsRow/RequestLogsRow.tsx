@@ -1,7 +1,5 @@
 import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
-import { cn } from "utils/cn";
-import { formatDate, humanDuration } from "utils/time";
 import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -12,6 +10,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import { formatDate, humanDuration } from "#/utils/time";
 import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 

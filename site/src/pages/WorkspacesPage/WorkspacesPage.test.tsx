@@ -1,3 +1,13 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { API } from "#/api/api";
+import type {
+	Workspace,
+	WorkspaceApp,
+	WorkspaceAppHealth,
+	WorkspacesResponse,
+} from "#/api/typesGenerated";
 import {
 	MockDormantOutdatedWorkspace,
 	MockDormantWorkspace,
@@ -8,23 +18,13 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspacesResponse,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import * as CreateDayString from "utils/createDayString";
-import { API } from "#/api/api";
-import type {
-	Workspace,
-	WorkspaceApp,
-	WorkspaceAppHealth,
-	WorkspacesResponse,
-} from "#/api/typesGenerated";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import * as CreateDayString from "#/utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
 
 describe("WorkspacesPage", () => {

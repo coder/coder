@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
-import { getApplicationName, getLogoURL } from "utils/appearance";
 import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { getApplicationName, getLogoURL } from "#/utils/appearance";
 
 /**
  * Enterprise customers can set a custom logo for their Coder application. Use

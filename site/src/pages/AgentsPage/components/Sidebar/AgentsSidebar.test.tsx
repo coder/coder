@@ -1,20 +1,20 @@
+import { act, render } from "@testing-library/react";
+import type { FC, PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
+import { MemoryRouter } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockUserOwner,
-} from "testHelpers/entities";
-import { act, render } from "@testing-library/react";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
-import themes, { DEFAULT_THEME } from "theme";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type * as TypesGen from "#/api/typesGenerated";
-import type { Chat } from "#/api/typesGenerated";
+} from "#/testHelpers/entities";
+import themes, { DEFAULT_THEME } from "#/theme";
 import { AgentsSidebar } from "./AgentsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -37,10 +37,8 @@ class MockIntersectionObserver {
 
 // ---- Auth mock ----
 
-vi.mock("hooks", async () => {
-	const actual = await vi.importActual("hooks");
+vi.mock("#/hooks/useAuthenticated", async () => {
 	return {
-		...actual,
 		useAuthenticated: () => ({
 			user: MockUserOwner,
 			permissions: {},
@@ -62,6 +60,8 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	pin_order: 0,
+	has_unread: false,
 	last_error: null,
 	mcp_server_ids: [],
 	labels: {},
@@ -105,6 +105,10 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onArchiveAndDeleteWorkspace: vi.fn(),
+	onPinAgent: vi.fn(),
+	onUnpinAgent: vi.fn(),
+	onRegenerateTitle: vi.fn(),
+	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,
 	archivedFilter: "active" as const,

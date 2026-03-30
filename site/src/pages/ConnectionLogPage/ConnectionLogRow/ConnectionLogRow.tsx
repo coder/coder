@@ -2,7 +2,6 @@ import { InfoIcon, NetworkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
-import { connectionTypeIsWeb } from "utils/connection";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
@@ -14,6 +13,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { connectionTypeIsWeb } from "#/utils/connection";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
 
 interface ConnectionLogRowProps {

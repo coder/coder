@@ -6,19 +6,9 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import { useProxy } from "contexts/ProxyContext";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import { useClipboard } from "hooks/useClipboard";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import themes from "theme";
-import { DEFAULT_TERMINAL_FONT, terminalFonts } from "theme/constants";
-import { pageTitle } from "utils/page";
-import { openMaybePortForwardedURL } from "utils/portForward";
-import { terminalWebsocketUrl } from "utils/terminal";
-import { getMatchingAgentOrFirst } from "utils/workspace";
 import { v4 as uuidv4 } from "uuid";
 // Use websocket-ts for better WebSocket handling and auto-reconnection.
 import {
@@ -33,6 +23,16 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "#/api/queries/workspaces";
+import { useProxy } from "#/contexts/ProxyContext";
+import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { useClipboard } from "#/hooks/useClipboard";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import themes from "#/theme";
+import { DEFAULT_TERMINAL_FONT, terminalFonts } from "#/theme/constants";
+import { pageTitle } from "#/utils/page";
+import { openMaybePortForwardedURL } from "#/utils/portForward";
+import { terminalWebsocketUrl } from "#/utils/terminal";
+import { getMatchingAgentOrFirst } from "#/utils/workspace";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 

@@ -1,25 +1,25 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
+import { API } from "#/api/api";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersion2,
 	MockTemplateVersionVariable1,
 	MockTemplateVersionVariable2,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
-import { API } from "#/api/api";
+} from "#/testHelpers/renderHelpers";
 import TemplateVariablesPage from "./TemplateVariablesPage";
 
 // The createAndBuildTemplateVersion mutation polls getTemplateVersion behind
 // a real `delay(1000)` call. Without this mock the 1 s wall-clock wait races
 // against the default `waitFor` timeout (also 1 s), making the "submit"
 // assertion flaky in CI.
-jest.mock("utils/delay", () => ({
+jest.mock("#/utils/delay", () => ({
 	delay: () => Promise.resolve(),
 }));
 

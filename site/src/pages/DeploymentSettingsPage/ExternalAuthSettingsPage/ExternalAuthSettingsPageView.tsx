@@ -1,6 +1,5 @@
 import { css } from "@emotion/react";
 import type { FC } from "react";
-import { docs } from "utils/docs";
 import type {
 	DeploymentValues,
 	ExternalAuthConfig,
@@ -21,6 +20,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { docs } from "#/utils/docs";
 
 type ExternalAuthSettingsPageViewProps = {
 	config: DeploymentValues;

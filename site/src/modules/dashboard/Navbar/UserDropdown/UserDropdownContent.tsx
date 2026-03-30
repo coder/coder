@@ -1,4 +1,3 @@
-import { useClipboard } from "hooks/useClipboard";
 import {
 	CircleUserIcon,
 	CopyIcon,
@@ -19,6 +18,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { SupportIcon } from "../SupportIcon";
 
 export const Language = {

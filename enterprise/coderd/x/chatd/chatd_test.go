@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -94,12 +95,19 @@ func seedChatDependencies(
 ) (database.User, database.ChatModelConfig) {
 	t.Helper()
 
+	safetyNet := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusInternalServerError)
+		_, _ = rw.Write([]byte(`{"error":{"message":"unexpected OpenAI request in chatd relay test safety net"}}`))
+	}))
+	t.Cleanup(safetyNet.Close)
+
 	user := dbgen.User(t, db, database.User{})
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:    "openai",
 		DisplayName: "OpenAI",
 		APIKey:      "test-key",
-		BaseUrl:     "",
+		BaseUrl:     safetyNet.URL,
 		ApiKeyKeyID: sql.NullString{},
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
@@ -119,6 +127,50 @@ func seedChatDependencies(
 	})
 	require.NoError(t, err)
 	return user, model
+}
+
+func seedWaitingChat(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user database.User,
+	model database.ChatModelConfig,
+	title string,
+) database.Chat {
+	t.Helper()
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             title,
+		MCPServerIDs:      []uuid.UUID{},
+	})
+	require.NoError(t, err)
+	return chat
+}
+
+func seedRemoteRunningChat(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user database.User,
+	model database.ChatModelConfig,
+	workerID uuid.UUID,
+	title string,
+) database.Chat {
+	t.Helper()
+
+	chat := seedWaitingChat(ctx, t, db, user, model, title)
+	now := time.Now()
+	chat, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: now, Valid: true},
+		HeartbeatAt: sql.NullTime{Time: now, Valid: true},
+	})
+	require.NoError(t, err)
+	return chat
 }
 
 func setOpenAIProviderBaseURL(
@@ -192,23 +244,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	// Create a chat and mark it as running on a remote worker.
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "relay-reconnect",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	chat := seedRemoteRunningChat(ctx, t, db, user, model, workerID, "relay-reconnect")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -286,14 +322,9 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	// Create a chat in pending status.
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "relay-async-nonblock",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
+	// Seed a waiting chat so Subscribe does not trigger a synchronous
+	// relay.
+	chat := seedWaitingChat(ctx, t, db, user, model, "relay-async-nonblock")
 
 	// Subscribe before the chat is marked running so the relay opens
 	// via pubsub notification (openRelayAsync path).
@@ -393,23 +424,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	// Create a chat already running on a remote worker.
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "relay-snapshot",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	chat := seedRemoteRunningChat(ctx, t, db, user, model, workerID, "relay-snapshot")
 
 	initialSnapshot, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -633,20 +648,9 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "stale-dial-test",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// Start chat in waiting state so Subscribe does NOT try an initial relay.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:     chat.ID,
-		Status: database.ChatStatusWaiting,
-	})
-	require.NoError(t, err)
+	// Seed the chat in waiting state so Subscribe does not try an initial
+	// relay.
+	chat := seedWaitingChat(ctx, t, db, user, model, "stale-dial-test")
 
 	// Subscribe while chat is in "waiting" state — no relay opened.
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
@@ -655,7 +659,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 
 	// Now simulate the chat being picked up by the OLD worker via pubsub.
 	// This triggers openRelayAsync in the merge loop.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{UUID: oldWorkerID, Valid: true},
@@ -796,21 +800,9 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "cancel-inflight-dial",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// Put the chat in waiting state so Subscribe does not open a
+	// Seed the chat in waiting state so Subscribe does not open a
 	// synchronous relay.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:     chat.ID,
-		Status: database.ChatStatusWaiting,
-	})
-	require.NoError(t, err)
+	chat := seedWaitingChat(ctx, t, db, user, model, "cancel-inflight-dial")
 
 	_, _, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -894,20 +886,8 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "running-to-running",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// Start in waiting state so Subscribe does not open a relay.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:     chat.ID,
-		Status: database.ChatStatusWaiting,
-	})
-	require.NoError(t, err)
+	// Seed the chat in waiting state so Subscribe does not open a relay.
+	chat := seedWaitingChat(ctx, t, db, user, model, "running-to-running")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -1014,23 +994,9 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	// Create a chat in waiting state so Subscribe does not open a
-	// synchronous relay.
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "failed-dial-retry",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// Keep the chat in waiting state so Subscribe does not attempt
-	// a synchronous relay dial.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:     chat.ID,
-		Status: database.ChatStatusWaiting,
-	})
-	require.NoError(t, err)
+	// Seed the chat in waiting state so Subscribe does not open a
+	// synchronous relay dial.
+	chat := seedWaitingChat(ctx, t, db, user, model, "failed-dial-retry")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -1040,7 +1006,7 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 	// The reconnect timer calls params.DB.GetChatByID to check if
 	// the chat is still running on a remote worker, so this must be
 	// set before we advance the clock.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{UUID: remoteWorkerID, Valid: true},
@@ -1124,24 +1090,15 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	// Create the chat already running on a remote worker so Subscribe
-	// opens a synchronous relay.
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "local-worker-closes-relay",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: remoteWorkerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	chat := seedRemoteRunningChat(
+		ctx,
+		t,
+		db,
+		user,
+		model,
+		remoteWorkerID,
+		"local-worker-closes-relay",
+	)
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -1232,24 +1189,15 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	// Create a chat already running on a remote worker so
-	// Subscribe opens a synchronous relay immediately.
-	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "multiple-reconnects",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	chat := seedRemoteRunningChat(
+		ctx,
+		t,
+		db,
+		user,
+		model,
+		workerID,
+		"multiple-reconnects",
+	)
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
