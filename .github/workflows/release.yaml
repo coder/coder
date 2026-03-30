@@ -658,33 +658,26 @@ jobs:
       # `release: published` trigger there would not fire — releases
       # created with GITHUB_TOKEN do not trigger downstream workflows
       # (GitHub infinite-loop prevention).
+      - name: Extract Linear release version
+        if: ${{ !inputs.dry_run }}
+        id: linear_version
+        run: |
+          # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
+          linear_version=$(echo "$VERSION" | cut -d. -f1,2)
+          echo "version=$linear_version" >> "$GITHUB_OUTPUT"
+          echo "Completing Linear release ${linear_version}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
       - name: Complete Linear release
         if: ${{ !inputs.dry_run }}
         continue-on-error: true
-        run: |
-          set -euo pipefail
-          version="$VERSION"
-
-          # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
-          linear_version=$(echo "$version" | cut -d. -f1,2)
-          echo "Completing Linear release ${linear_version}"
-
-          # Download and run the Linear Release CLI directly. Pin to a
-          # specific version for reproducibility and supply-chain safety.
-          # When upgrading, also update the action SHA in linear-release.yaml.
-          curl -fsSL \
-            "https://github.com/linear/linear-release/releases/download/v0.6.4/linear-release-linux-x64" \
-            -o /tmp/linear-release
-          chmod +x /tmp/linear-release
-          /tmp/linear-release complete \
-            --release-version="${linear_version}" \
-            --timeout=300 || {
-            echo "::warning::Linear release completion failed — this does not block the release."
-            exit 1
-          }
-        env:
-          LINEAR_ACCESS_KEY: ${{ secrets.LINEAR_ACCESS_KEY }}
-          VERSION: ${{ steps.version.outputs.version }}
+        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          version: ${{ steps.linear_version.outputs.version }}
+          timeout: 300
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
