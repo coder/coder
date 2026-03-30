@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/chat"
+	"github.com/coder/coder/v2/scaletest/chatcontrol"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
@@ -47,6 +48,9 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		template           string
 		prompt             string
 		turns              int64
+		toolCallsPerChat   int64
+		toolCallSeed       int64
+		toolCallCommand    string
 		followUpPrompt     string
 		followUpStartDelay time.Duration
 		llmMockURL         string
@@ -82,6 +86,9 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				return xerrors.Errorf("--summary-output must be a file path, not stdout")
 			}
 			if err := validateChatWorkspaceSelection(workspaceID, template, workspaceCount, chatsPerWorkspace); err != nil {
+				return err
+			}
+			if err := validateChatToolCallConfig(llmMockURL, turns, toolCallsPerChat); err != nil {
 				return err
 			}
 
@@ -269,12 +276,17 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 						if followUpReadyWG != nil {
 							followUpReadyWG.Add(1)
 						}
+						chatSeed := chatcontrol.DeriveChatSeed(toolCallSeed, runID, fmt.Sprintf("workspace-%d", workspaceIndex), fmt.Sprintf("chat-%d", chatIndex))
 						cfg := chat.Config{
 							RunID:                  runID,
 							WorkspaceID:            targetWorkspaceID,
 							Prompt:                 prompt,
 							ModelConfigID:          modelConfigID,
 							Turns:                  int(turns),
+							ToolCallsPerChat:       int(toolCallsPerChat),
+							ToolCallSeed:           chatSeed,
+							ToolCallTool:           chatcontrol.DefaultToolName,
+							ToolCallCommand:        toolCallCommand,
 							FollowUpPrompt:         followUpPrompt,
 							FollowUpStartDelay:     followUpStartDelay,
 							ReadyWaitGroup:         readyWG,
@@ -393,6 +405,10 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					ModelConfigID:         modelConfigID,
 					Count:                 totalChats,
 					Turns:                 int(turns),
+					ToolCallsPerChat:      int(toolCallsPerChat),
+					ToolCallSeed:          toolCallSeed,
+					ToolCallTool:          chatcontrol.DefaultToolName,
+					ToolCallCommand:       toolCallCommand,
 					Prompt:                prompt,
 					FollowUpPrompt:        followUpPrompt,
 					FollowUpStartDelay:    followUpStartDelay,
@@ -487,6 +503,24 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Value:       serpent.Int64Of(&turns),
 		},
 		{
+			Flag:        "tool-calls-per-chat",
+			Description: "Total number of mock tool-call rounds to distribute across each chat. --turns already controls the number of assistant messages.",
+			Default:     "0",
+			Value:       serpent.Int64Of(&toolCallsPerChat),
+		},
+		{
+			Flag:        "tool-call-seed",
+			Description: "Optional deterministic seed for distributing tool calls across turns. Defaults to 0, which derives per-chat seeds from the run id.",
+			Default:     "0",
+			Value:       serpent.Int64Of(&toolCallSeed),
+		},
+		{
+			Flag:        "tool-call-command",
+			Description: "Harmless execute command used when the mock emits a tool call.",
+			Default:     chatcontrol.DefaultToolCommand,
+			Value:       serpent.StringOf(&toolCallCommand),
+		},
+		{
 			Flag:        "follow-up-prompt",
 			Description: "Text prompt to send for follow-up turns (turns 2 through N).",
 			Default:     "Continue.",
@@ -516,6 +550,23 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
+}
+
+func validateChatToolCallConfig(llmMockURL string, turns int64, toolCallsPerChat int64) error {
+	if toolCallsPerChat < 0 {
+		return xerrors.Errorf("--tool-calls-per-chat must not be negative")
+	}
+	if toolCallsPerChat == 0 {
+		return nil
+	}
+	if llmMockURL == "" {
+		return xerrors.Errorf("--tool-calls-per-chat requires --llm-mock-url")
+	}
+	maxToolCallsPerChat := turns * chat.MaxToolCallStepsPerTurn
+	if toolCallsPerChat > maxToolCallsPerChat {
+		return xerrors.Errorf("--tool-calls-per-chat must be at most %d for %d turns", maxToolCallsPerChat, turns)
+	}
+	return nil
 }
 
 func validateChatWorkspaceSelection(workspaceID string, template string, workspaceCount int64, chatsPerWorkspace int64) error {
