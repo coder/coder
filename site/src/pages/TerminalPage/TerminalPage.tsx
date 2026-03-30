@@ -231,6 +231,25 @@ const TerminalPage: FC = () => {
 		copyToClipboard,
 	]);
 
+	// Re-focus the terminal when the window regains focus. This is especially
+	// useful when the terminal is embedded in an iframe (e.g. the Tasks view or
+	// third-party dashboards): the parent page can call
+	// `iframe.contentWindow.focus()` on tab switch, which fires the window
+	// "focus" event and lets the user start typing immediately without an
+	// extra click.
+	useEffect(() => {
+		if (!terminal) {
+			return;
+		}
+		const handleWindowFocus = () => {
+			terminal.focus();
+		};
+		window.addEventListener("focus", handleWindowFocus);
+		return () => {
+			window.removeEventListener("focus", handleWindowFocus);
+		};
+	}, [terminal]);
+
 	// Updates the reconnection token into the URL if necessary.
 	useEffect(() => {
 		if (searchParams.get("reconnect") === reconnectionToken) {
