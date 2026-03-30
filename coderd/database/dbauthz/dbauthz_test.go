@@ -405,7 +405,7 @@ func (s *MethodTestSuite) TestChats() {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.AppendChatFileIDsParams{
 			ChatID:  chat.ID,
-			FileIds: []uuid.UUID{uuid.New()},
+			FileIDs: []uuid.UUID{uuid.New()},
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().AppendChatFileIDs(gomock.Any(), arg).Return(nil).AnyTimes()

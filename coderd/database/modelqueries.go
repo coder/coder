@@ -795,7 +795,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.AgentID,
 			&i.Chat.PinOrder,
 			&i.Chat.LastReadMessageID,
-			pq.Array(&i.Chat.FileIds), &i.HasUnread); err != nil {
+			pq.Array(&i.Chat.FileIDs), &i.HasUnread); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -4378,12 +4378,12 @@ func (p *Server) runChat(
 				}
 
 				// Enforce the file cap before linking.
-				if len(chatSnapshot.FileIds)+1 > codersdk.MaxChatFileIDs {
-					return uuid.Nil, xerrors.Errorf("chat file limit reached (%d/%d)", len(chatSnapshot.FileIds), codersdk.MaxChatFileIDs)
+				if len(chatSnapshot.FileIDs)+1 > codersdk.MaxChatFileIDs {
+					return uuid.Nil, xerrors.Errorf("chat file limit reached (%d/%d)", len(chatSnapshot.FileIDs), codersdk.MaxChatFileIDs)
 				}
 				if err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
 					ChatID:  chatSnapshot.ID,
-					FileIds: []uuid.UUID{row.ID},
+					FileIDs: []uuid.UUID{row.ID},
 				}); err != nil {
 					p.logger.Error(ctx, "failed to append file ID to chat",
 						slog.F("chat_id", chatSnapshot.ID),

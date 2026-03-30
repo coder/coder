@@ -1257,13 +1257,13 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	// Hydrate file metadata from the chat's file_ids array.
 	var chatFiles []database.GetChatFileMetadataByIDsRow
-	if len(chat.FileIds) > 0 {
+	if len(chat.FileIDs) > 0 {
 		var err error
-		chatFiles, err = api.Database.GetChatFileMetadataByIDs(ctx, chat.FileIds)
+		chatFiles, err = api.Database.GetChatFileMetadataByIDs(ctx, chat.FileIDs)
 		if err != nil {
 			api.Logger.Error(ctx, "failed to fetch chat file metadata",
 				slog.F("chat_id", chat.ID),
-				slog.F("file_ids", chat.FileIds),
+				slog.F("file_ids", chat.FileIDs),
 				slog.Error(err),
 			)
 		}
@@ -1829,7 +1829,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 
 	// Link any user-uploaded files referenced in this message
 	// to the chat.
-	if err := api.linkFilesToChat(ctx, chatID, len(chat.FileIds), fileIDs); err != nil {
+	if err := api.linkFilesToChat(ctx, chatID, len(chat.FileIDs), fileIDs); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many files associated with chat.",
 			Detail:  err.Error(),
@@ -1919,7 +1919,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	// Link any user-uploaded files referenced in the edited
 	// message to the chat.
-	if err := api.linkFilesToChat(ctx, chat.ID, len(chat.FileIds), fileIDs); err != nil {
+	if err := api.linkFilesToChat(ctx, chat.ID, len(chat.FileIDs), fileIDs); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many files associated with chat.",
 			Detail:  err.Error(),
@@ -3907,7 +3907,7 @@ func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, existingF
 	}
 	if err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
 		ChatID:  chatID,
-		FileIds: fileIDs,
+		FileIDs: fileIDs,
 	}); err != nil {
 		return xerrors.Errorf("append file IDs: %w", err)
 	}

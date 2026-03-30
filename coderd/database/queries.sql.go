@@ -4155,7 +4155,7 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.AgentID,
 			&i.PinOrder,
 			&i.LastReadMessageID,
-			pq.Array(&i.FileIds),
+			pq.Array(&i.FileIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -4301,7 +4301,7 @@ WHERE id = $2::uuid
 `
 
 type AppendChatFileIDsParams struct {
-	FileIds []uuid.UUID `db:"file_ids" json:"file_ids"`
+	FileIDs []uuid.UUID `db:"file_ids" json:"file_ids"`
 	ChatID  uuid.UUID   `db:"chat_id" json:"chat_id"`
 }
 
@@ -4309,7 +4309,7 @@ type AppendChatFileIDsParams struct {
 // updated_at is always set to NOW() when this is called, even if no new file IDs are added.
 // A null argument for file_ids is treated as an empty array.
 func (q *sqlQuerier) AppendChatFileIDs(ctx context.Context, arg AppendChatFileIDsParams) error {
-	_, err := q.db.ExecContext(ctx, appendChatFileIDs, pq.Array(arg.FileIds), arg.ChatID)
+	_, err := q.db.ExecContext(ctx, appendChatFileIDs, pq.Array(arg.FileIDs), arg.ChatID)
 	return err
 }
 
@@ -4446,7 +4446,7 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -4481,7 +4481,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -5500,7 +5500,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 			&i.Chat.AgentID,
 			&i.Chat.PinOrder,
 			&i.Chat.LastReadMessageID,
-			pq.Array(&i.Chat.FileIds),
+			pq.Array(&i.Chat.FileIDs),
 			&i.HasUnread,
 		); err != nil {
 			return nil, err
@@ -5556,7 +5556,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 			&i.AgentID,
 			&i.PinOrder,
 			&i.LastReadMessageID,
-			pq.Array(&i.FileIds),
+			pq.Array(&i.FileIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -5664,7 +5664,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.AgentID,
 			&i.PinOrder,
 			&i.LastReadMessageID,
-			pq.Array(&i.FileIds),
+			pq.Array(&i.FileIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -5801,7 +5801,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6350,7 +6350,7 @@ func (q *sqlQuerier) UpdateChatBuildAgentBinding(ctx context.Context, arg Update
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6398,7 +6398,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6472,7 +6472,7 @@ func (q *sqlQuerier) UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLab
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6520,7 +6520,7 @@ func (q *sqlQuerier) UpdateChatLastModelConfigByID(ctx context.Context, arg Upda
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6586,7 +6586,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6767,7 +6767,7 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6832,7 +6832,7 @@ func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg 
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }
@@ -6885,7 +6885,7 @@ func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateC
 		&i.AgentID,
 		&i.PinOrder,
 		&i.LastReadMessageID,
-		pq.Array(&i.FileIds),
+		pq.Array(&i.FileIDs),
 	)
 	return i, err
 }

@@ -541,7 +541,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PinOrder:          1,
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
-		FileIds:           []uuid.UUID{uuid.New()},
+		FileIDs:           []uuid.UUID{uuid.New()},
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus
@@ -553,7 +553,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	fileRows := []database.GetChatFileMetadataByIDsRow{
 		{
-			ID:             input.FileIds[0],
+			ID:             input.FileIDs[0],
 			OwnerID:        input.OwnerID,
 			OrganizationID: uuid.New(),
 			Name:           "test.png",
@@ -598,7 +598,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,
 		UpdatedAt:         now,
-		FileIds:           []uuid.UUID{fileID},
+		FileIDs:           []uuid.UUID{fileID},
 	}
 
 	rows := []database.GetChatFileMetadataByIDsRow{
@@ -662,7 +662,7 @@ func TestChat_MultipleFiles(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 		CreatedAt:         now,
 		UpdatedAt:         now,
-		FileIds:           []uuid.UUID{file1, file2},
+		FileIDs:           []uuid.UUID{file1, file2},
 	}
 
 	rows := []database.GetChatFileMetadataByIDsRow{
