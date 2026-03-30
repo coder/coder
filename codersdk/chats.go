@@ -116,6 +116,7 @@ const (
 	ChatMessagePartTypeFile          ChatMessagePartType = "file"
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
+	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -129,6 +130,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeFile,
 		ChatMessagePartTypeFileReference,
 		ChatMessagePartTypeContextFile,
+		ChatMessagePartTypeSkill,
 	}
 }
 
@@ -211,6 +213,16 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
+	// SkillName is the kebab-case name of a discovered skill
+	// from the workspace's .agents/skills/ directory.
+	SkillName string `json:"skill_name" variants:"skill"`
+	// SkillDescription is the short description from the skill's
+	// SKILL.md frontmatter.
+	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
+	// SkillDir is the absolute path to the skill directory inside
+	// the workspace filesystem. Internal only: used by
+	// read_skill/read_skill_file tools to locate skill files.
+	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -227,6 +239,7 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileContent = ""
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
+	p.SkillDir = ""
 }
 
 // ChatMessageText builds a text chat message part.

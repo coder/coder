@@ -179,6 +179,9 @@ export const applyMessagePartToStreamState = (
 		// context-file parts are metadata-only; no streaming
 		// render needed.
 		case "context-file":
+		// skill parts are metadata-only; no streaming render
+		// needed.
+		case "skill":
 			return prev;
 		default: {
 			const _exhaustive: never = part;
