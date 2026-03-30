@@ -169,7 +169,8 @@ describe("useGitWatcher", () => {
 			expect(result.current.isConnected).toBe(false);
 
 			// Simulate the browser firing the close event after
-			// socket.close() — the disposedRef guard must prevent
+			// socket.close(). The dispose guard inside
+			// createReconnectingWebSocket must prevent
 			// the reconnect handler from scheduling a new attempt.
 			mockWatchChatGit.mockClear();
 			act(() => socket.simulateClose());
@@ -403,7 +404,8 @@ describe("useGitWatcher", () => {
 			expect(socket.close).toHaveBeenCalledTimes(1);
 
 			// Simulate the browser firing the close event after
-			// socket.close() — the disposedRef guard must prevent
+			// socket.close(). The dispose guard inside
+			// createReconnectingWebSocket must prevent
 			// the reconnect handler from scheduling a new attempt.
 			mockWatchChatGit.mockClear();
 			act(() => socket.simulateClose());
