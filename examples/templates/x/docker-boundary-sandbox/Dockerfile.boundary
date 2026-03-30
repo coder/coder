@@ -1,0 +1,21 @@
+FROM codercom/enterprise-base:ubuntu
+
+USER root
+
+# Install the Coder CLI so Agent Boundaries is available in the image.
+# Matching the CLI version to your deployment avoids boundary drift.
+RUN curl -fsSL https://coder.com/install.sh | sh
+
+# Start the hidden chat agent through a small wrapper so every child process
+# inherits the same network policy.
+COPY boundary-agent.sh /usr/local/bin/boundary-agent
+RUN chmod 755 /usr/local/bin/boundary-agent
+
+# Bake the allowlist into the image so the hidden agent always starts with a
+# known-good policy, even on a fresh shared home volume.
+RUN mkdir -p /etc/coder_boundary
+COPY boundary-config.yaml /etc/coder_boundary/config.yaml
+
+# Keep HOME aligned with the shared Docker volume because the boundary wrapper
+# copies its config into the per-user config directory at startup.
+ENV HOME=/home/coder
