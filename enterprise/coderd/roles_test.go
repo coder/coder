@@ -497,7 +497,8 @@ func TestListRoles(t *testing.T) {
 			}),
 		},
 		{
-			Name: "OrgMemberListOrg", APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			Name: "OrgMemberListOrg",
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return member.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
@@ -530,7 +531,8 @@ func TestListRoles(t *testing.T) {
 			}),
 		},
 		{
-			Name: "OrgAdminListOrg", APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			Name: "OrgAdminListOrg",
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
@@ -563,7 +565,8 @@ func TestListRoles(t *testing.T) {
 			}),
 		},
 		{
-			Name: "AdminListOrg", APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			Name: "AdminListOrg",
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return client.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
