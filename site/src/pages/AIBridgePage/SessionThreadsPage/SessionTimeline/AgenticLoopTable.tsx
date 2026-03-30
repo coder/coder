@@ -19,16 +19,21 @@ export const AgenticLoopTable: FC<AgenticLoopTableProps> = ({
 	className,
 }) => {
 	return (
-		<div className={cn(className, "text-sm text-content-secondary")}>
-			<div className="flex items-center justify-between">
+		<div
+			className={cn(
+				"text-xs text-content-secondary flex flex-col gap-1",
+				className,
+			)}
+		>
+			<div className="flex items-center justify-between h-6">
 				<span className="pr-4">In / out tokens</span>
 				<TokenBadges inputTokens={inputTokens} outputTokens={outputTokens} />
 			</div>
-			<div className="flex items-center justify-between my-2">
+			<div className="flex items-center justify-between h-6">
 				<span className="pr-4">Tool calls</span>
 				<span>{toolCalls}</span>
 			</div>
-			<div className="flex items-center justify-between">
+			<div className="flex items-center justify-between h-6">
 				<span className="pr-4">Duration</span>
 				<span title={`${duration}ms`}>{roundDurationDisplay(duration)}</span>
 			</div>
