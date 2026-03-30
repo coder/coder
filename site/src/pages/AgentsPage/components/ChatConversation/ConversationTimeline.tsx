@@ -37,6 +37,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
+import { registerStickyUpdate } from "./stickyCoordinator";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -711,6 +712,13 @@ const StickyUserMessage = memo<{
 		// Sets a single CSS custom property (--clip-h) on the sticky
 		// container. All visual behaviour (max-height, mask fade) is
 		// driven by CSS using this variable.
+		//
+		// Instead of creating per-instance ResizeObserver and scroll
+		// listeners, we register read/write callbacks with a shared
+		// coordinator (stickyCoordinator.ts). The coordinator runs
+		// ALL reads before ANY writes each frame, preventing the
+		// layout thrashing that occurs when N instances each
+		// interleave getBoundingClientRect() with style mutations.
 		useLayoutEffect(() => {
 			const sentinel = sentinelRef.current;
 			const container = containerRef.current;
@@ -721,115 +729,104 @@ const StickyUserMessage = memo<{
 			if (!scroller) return;
 
 			const MIN_HEIGHT = 72;
-			let scrollerTop = scroller.getBoundingClientRect().top;
-			let scrollerHeight = scroller.clientHeight;
 
-			const update = () => {
-				const fullHeight = container.offsetHeight;
+			// Mutable state populated during the read phase and
+			// consumed during the write phase.
+			let readFullHeight = 0;
+			let readTooTall = false;
+			let readSentinelTop = 0;
+			let readNextSentinelTop: number | null = null;
+			let readScrollerTop = 0;
 
-				// Skip sticky behavior for messages that take up
-				// most of the visible area — accounting for the
-				// chat input and some breathing room.
-				const tooTall = fullHeight > scrollerHeight * 0.75;
-				setIsTooTall(tooTall);
-				if (tooTall) {
-					container.style.setProperty("--clip-h", `${fullHeight}px`);
-					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = "0px";
-					return;
-				}
-				const sentinelTop = sentinel.getBoundingClientRect().top;
-				const scrolledPast = scrollerTop - sentinelTop;
+			// Read phase: measure DOM positions without any
+			// style writes so the browser computes layout once
+			// for all StickyUserMessage instances.
+			const read = (scrollerTop: number, scrollerHeight: number) => {
+				readScrollerTop = scrollerTop;
+				readFullHeight = container.offsetHeight;
+				readTooTall = readFullHeight > scrollerHeight * 0.75;
+				readSentinelTop = sentinel.getBoundingClientRect().top;
 
-				if (scrolledPast <= 0) {
-					// Always set a valid value so the overlay has the
-					// correct height immediately when isStuck flips.
-					container.style.setProperty("--clip-h", `${fullHeight}px`);
-					container.style.setProperty("--fade-opacity", "0");
-					container.style.top = "0px";
-					return;
-				}
-				const visible = Math.max(fullHeight - scrolledPast - 48, MIN_HEIGHT);
-				container.style.setProperty("--clip-h", `${visible}px`);
-				// Only show the fade gradient once enough content is
-				// clipped to be visually meaningful.
-				container.style.setProperty(
-					"--fade-opacity",
-					visible < fullHeight - 8 ? "1" : "0",
-				);
-
-				// Push-up effect: when the next user message's sentinel
-				// approaches the bottom of this sticky container, shift
-				// this container upward so it slides out of view — the
-				// same visual as the old section-boundary behavior.
-				let nextSentinel: Element | null = sentinel.nextElementSibling;
-				while (nextSentinel) {
-					if (nextSentinel.hasAttribute("data-user-sentinel")) {
+				// Find the next user sentinel for the push-up
+				// effect.
+				readNextSentinelTop = null;
+				let next: Element | null = sentinel.nextElementSibling;
+				while (next) {
+					if (next.hasAttribute("data-user-sentinel")) {
+						readNextSentinelTop = next.getBoundingClientRect().top;
 						break;
 					}
-					nextSentinel = nextSentinel.nextElementSibling;
+					next = next.nextElementSibling;
 				}
-				if (nextSentinel) {
-					const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
+			};
+
+			// Write phase: apply style mutations using values
+			// collected during the read phase.
+			const write = () => {
+				setIsTooTall(readTooTall);
+				if (readTooTall) {
+					container.style.setProperty("--clip-h", `${readFullHeight}px`);
+					container.style.setProperty("--fade-opacity", "0");
+					container.style.top = "0px";
+					return;
+				}
+				const scrolledPast = readScrollerTop - readSentinelTop;
+				if (scrolledPast <= 0) {
+					container.style.setProperty("--clip-h", `${readFullHeight}px`);
+					container.style.setProperty("--fade-opacity", "0");
+					container.style.top = "0px";
+					return;
+				}
+				const visible = Math.max(
+					readFullHeight - scrolledPast - 48,
+					MIN_HEIGHT,
+				);
+				container.style.setProperty("--clip-h", `${visible}px`);
+				container.style.setProperty(
+					"--fade-opacity",
+					visible < readFullHeight - 8 ? "1" : "0",
+				);
+
+				// Push-up effect: shift this container upward
+				// when the next user message's sentinel
+				// approaches.
+				if (readNextSentinelTop !== null) {
+					const nextY = readNextSentinelTop - readScrollerTop;
 					container.style.top = `${Math.min(0, nextY - visible)}px`;
 				} else {
 					container.style.top = "0px";
 				}
 			};
+
+			// Combined update runs both phases in sequence for
+			// synchronous callers (e.g. the isStuck
+			// useLayoutEffect) that bypass the coordinator.
+			const update = () => {
+				const scrollerTop = scroller.getBoundingClientRect().top;
+				const scrollerHeight = scroller.clientHeight;
+				read(scrollerTop, scrollerHeight);
+				write();
+			};
 			updateFnRef.current = update;
 
-			const onResize = () => {
-				scrollerTop = scroller.getBoundingClientRect().top;
-				scrollerHeight = scroller.clientHeight;
-				update();
-			};
+			// Register with the shared coordinator so all
+			// StickyUserMessage instances sharing this scroller
+			// batch their layout reads before writes.
+			const unregister = registerStickyUpdate(scroller, {
+				read,
+				write,
+			});
 
-			// Throttle to one update per animation frame so we don't
-			// do redundant work on high-refresh-rate displays.
-			let rafId: number | null = null;
-			const onScroll = () => {
-				if (rafId !== null) return;
-				rafId = requestAnimationFrame(() => {
-					rafId = null;
-					update();
-				});
-			};
-
-			// Re-run the visual update when the scrollable content height
-			// changes (e.g. streaming responses growing the transcript).
-			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
-			// resizes and this observer catches that.
-			const contentEl = scroller.firstElementChild as HTMLElement | null;
-			let contentRafId: number | null = null;
-			const contentObserver = contentEl
-				? new ResizeObserver(() => {
-						if (contentRafId !== null) return;
-						contentRafId = requestAnimationFrame(() => {
-							contentRafId = null;
-							update();
-						});
-					})
-				: null;
-			contentObserver?.observe(contentEl!);
-
-			scroller.addEventListener("scroll", onScroll, { passive: true });
-			window.addEventListener("resize", onResize);
 			update();
-			// Set immediately — both --clip-h and --overlay-ready are
-			// applied before the browser paints since we're in a
-			// useLayoutEffect.
+			// Set immediately -- both --clip-h and --overlay-ready
+			// are applied before the browser paints since we are
+			// in a useLayoutEffect.
 			container.style.setProperty("--overlay-ready", "1");
 			return () => {
-				scroller.removeEventListener("scroll", onScroll);
-				window.removeEventListener("resize", onResize);
-				contentObserver?.disconnect();
+				unregister();
 				container.style.removeProperty("--overlay-ready");
-				if (rafId !== null) cancelAnimationFrame(rafId);
-				if (contentRafId !== null) cancelAnimationFrame(contentRafId);
 			};
 		}, []);
-
 		// Re-run the height calculation synchronously whenever
 		// isStuck changes so --clip-h is correct on the same frame
 		// the overlay appears. Without this, the async
