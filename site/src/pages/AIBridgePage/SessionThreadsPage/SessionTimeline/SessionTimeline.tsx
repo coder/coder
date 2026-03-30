@@ -13,13 +13,6 @@ import type {
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
@@ -412,7 +405,6 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	onFetchNextPage,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const [sort, setSort] = useState<"oldest" | "newest">("oldest");
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
@@ -439,28 +431,6 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 
 	return (
 		<div className="relative">
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button variant="outline" className="absolute top-0 right-0">
-						{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
-						<ChevronDownIcon />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuRadioGroup
-						value={sort}
-						onValueChange={(v) => setSort(v as "oldest" | "newest")}
-					>
-						<DropdownMenuRadioItem value="oldest">
-							Sort by oldest
-						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="newest">
-							Sort by newest
-						</DropdownMenuRadioItem>
-					</DropdownMenuRadioGroup>
-				</DropdownMenuContent>
-			</DropdownMenu>
-
 			<div className="grid grid-cols-[16px_1rem_1px_1fr_auto_16px]">
 				{/* row 1: session start */}
 				<div className="row-start-1 col-start-2 relative h-10 py-1">
@@ -475,7 +445,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					</span>
 				</div>
 
-				{/* row 2: vertical line and timeline sort dropdown */}
+				{/* row 2: vertical line */}
 				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
 					{/* vertical line */}
 				</div>
