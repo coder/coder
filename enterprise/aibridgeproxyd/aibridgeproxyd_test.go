@@ -2212,7 +2212,8 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 
 			srv := newTestProxy(t, opts...)
 
-			if tt.expectBlocked {
+			switch {
+			case tt.expectBlocked:
 				// Use a raw CONNECT to observe the 403 returned when ConnectDial blocks
 				// a private/reserved IP. Go's HTTP client does not expose the response
 				// for non-2xx CONNECT results.
@@ -2222,7 +2223,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusForbidden, resp.StatusCode)
 				require.Equal(t, "Forbidden", string(body), "error details should not be leaked to the client")
-			} else if tt.expectDialFail {
+			case tt.expectDialFail:
 				// Use a raw CONNECT to observe the 502 returned when ConnectDial fails
 				// for a reason other than a blocked IP (e.g. unresolvable hostname).
 				resp := sendConnect(t, srv.Addr(), connectTarget, makeProxyAuthHeader("test-token"))
@@ -2231,7 +2232,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 				require.Equal(t, "Bad Gateway", string(body))
-			} else {
+			default:
 				certPool := x509.NewCertPool()
 				certPool.AddCert(targetServer.Certificate())
 				// InsecureSkipVerify is needed for "localhost": by default the cert SAN is 127.0.0.1.
