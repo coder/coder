@@ -815,9 +815,10 @@ func TestWorker(t *testing.T) {
 
 	// 3. Set up FK chain: chat_providers -> chat_model_configs -> chats.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 

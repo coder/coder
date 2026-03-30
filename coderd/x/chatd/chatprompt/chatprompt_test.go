@@ -1459,11 +1459,12 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "openai",
-		APIKey:      "test-key",
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "openai",
+		APIKey:               "test-key",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -1942,11 +1943,12 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "anthropic",
-		DisplayName: "anthropic",
-		APIKey:      "test-key",
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:     true,
+		Provider:             "anthropic",
+		DisplayName:          "anthropic",
+		APIKey:               "test-key",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
