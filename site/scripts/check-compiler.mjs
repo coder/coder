@@ -3,7 +3,8 @@
  *
  * Runs babel-plugin-react-compiler over every .ts/.tsx file in the
  * target directories and reports functions that failed to compile or
- * were skipped. Exits with code 1 when any diagnostics are present.
+ * were skipped. Exits with code 1 when any diagnostics are present
+ * or a target directory is missing.
  *
  * Usage:  node scripts/check-compiler.mjs
  */
@@ -22,6 +23,9 @@ const targetDirs = [
 
 const skipPatterns = [".test.", ".stories.", ".jest."];
 
+// Maximum length for truncated error messages in the report.
+const MAX_ERROR_LENGTH = 120;
+
 // ---------------------------------------------------------------------------
 // File collection
 // ---------------------------------------------------------------------------
@@ -37,8 +41,7 @@ function collectFiles(dir) {
 	} catch (e) {
 		if (e.code === "ENOENT") {
 			console.error(`Target directory not found: ${relative(siteDir, dir)}`);
-			process.exitCode = 1;
-			return [];
+			return null;
 		}
 		throw e;
 	}
@@ -61,11 +64,11 @@ function collectFiles(dir) {
 // Compilation & diagnostics
 //
 // We use transformSync deliberately. The React Compiler plugin is
-// CPU-bound (~90% of wall time is spent inside its dataflow analysis),
-// so transformAsync + Promise.all gives no speedup — Node still runs
-// all transforms on a single thread. Benchmarked at 939 files:
-// sync, async-sequential, and async-parallel all land within noise of
-// each other (~18-19s). The sync API keeps the code simple.
+// CPU-bound (parse-only takes ~2s vs ~19s with the compiler over all
+// of site/src), so transformAsync + Promise.all gives no speedup —
+// Node still runs all transforms on a single thread. Benchmarked
+// sync, async-sequential, and async-parallel: all land within noise
+// of each other. The sync API keeps the code simple.
 // ---------------------------------------------------------------------------
 
 /**
@@ -78,13 +81,12 @@ function collectFiles(dir) {
  *   → "Ref values are not allowed"
  */
 function shortenMessage(msg) {
-	if (typeof msg !== "string") {
-		return String(msg);
-	}
-	return msg
+	const str = typeof msg === "string" ? msg : String(msg);
+	return str
 		.replace(/^Error: /, "")
 		.split(/\.\s/)[0]
 		.split("(http")[0]
+		.replace(/\.\s*$/, "")
 		.trim();
 }
 
@@ -96,7 +98,7 @@ function shortenMessage(msg) {
 function deduplicateDiagnostics(diagnostics) {
 	const seen = new Set();
 	return diagnostics.filter((d) => {
-		const key = `${d.line ?? "?"}:${d.short}`;
+		const key = `${d.line}:${d.short}`;
 		if (seen.has(key)) return false;
 		seen.add(key);
 		return true;
@@ -124,7 +126,7 @@ function compileFile(file) {
 							if (event.kind === "CompileError" || event.kind === "CompileSkip") {
 								const msg = event.detail || event.reason || "";
 								diagnostics.push({
-									line: event.fnLoc?.start?.line,
+									line: event.fnLoc?.start?.line ?? 0,
 									short: shortenMessage(msg),
 								});
 							}
@@ -155,7 +157,7 @@ function compileFile(file) {
 			diagnostics: [{
 				line: 0,
 				// Truncate to keep the one-line report readable.
-				short: `Transform error: ${(e instanceof Error ? e.message : String(e)).substring(0, 120)}`,
+				short: `Transform error: ${(e instanceof Error ? e.message : String(e)).substring(0, MAX_ERROR_LENGTH)}`,
 			}],
 		};
 	}
@@ -180,7 +182,7 @@ function shortPath(file) {
 }
 
 /** Print a summary of compilation results and per-file diagnostics. */
-function printReport(failures, totalCompiled, fileCount) {
+function printReport(failures, totalCompiled, fileCount, hadErrors) {
 	console.log(`\nTotal: ${totalCompiled} functions compiled across ${fileCount} files`);
 	console.log(`Files with diagnostics: ${failures.length}\n`);
 
@@ -191,7 +193,7 @@ function printReport(failures, totalCompiled, fileCount) {
 		}
 	}
 
-	if (failures.length === 0) {
+	if (failures.length === 0 && !hadErrors) {
 		console.log("✓ All files compile cleanly.");
 	}
 }
@@ -200,7 +202,16 @@ function printReport(failures, totalCompiled, fileCount) {
 // Main
 // ---------------------------------------------------------------------------
 
-const files = targetDirs.flatMap((d) => collectFiles(join(siteDir, d)));
+let hadCollectionErrors = false;
+
+const files = targetDirs.flatMap((d) => {
+	const collected = collectFiles(join(siteDir, d));
+	if (collected === null) {
+		hadCollectionErrors = true;
+		return [];
+	}
+	return collected;
+});
 
 let totalCompiled = 0;
 const failures = [];
@@ -213,8 +224,8 @@ for (const file of files) {
 	}
 }
 
-printReport(failures, totalCompiled, files.length);
+printReport(failures, totalCompiled, files.length, hadCollectionErrors);
 
-if (failures.length > 0) {
+if (failures.length > 0 || hadCollectionErrors) {
 	process.exitCode = 1;
 }
