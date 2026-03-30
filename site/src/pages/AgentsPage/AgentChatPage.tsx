@@ -37,13 +37,13 @@ import {
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
-import type { AgentsOutletContext } from "./AgentsPage";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
-} from "./components/AgentChatPageView";
+} from "./AgentChatPageView";
+import type { AgentsOutletContext } from "./AgentsPage";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
