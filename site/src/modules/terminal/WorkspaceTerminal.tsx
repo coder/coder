@@ -150,7 +150,6 @@ export const WorkspaceTerminal = ({
 		[refit],
 	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable refs
 	useEffect(() => {
 		if (!hasBeenVisible) {
 			return;
@@ -278,7 +277,6 @@ export const WorkspaceTerminal = ({
 		refit();
 	}, [isVisible, refit]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable refs
 	useEffect(() => {
 		if (!terminal || !hasBeenVisible) {
 			return;
