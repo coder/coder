@@ -19,6 +19,7 @@ const defaultFilterProps = getDefaultFilterProps<
 	menus: {
 		user: MockMenu,
 		provider: MockMenu,
+		client: MockMenu,
 	},
 });
 
@@ -47,6 +48,7 @@ export const WithQuery: Story = {
 			menus: {
 				user: MockMenu,
 				provider: MockMenu,
+				client: MockMenu,
 			},
 			used: true,
 		}),
@@ -59,6 +61,7 @@ export const Loading: Story = {
 		menus: {
 			user: { ...MockMenu, isInitializing: true },
 			provider: MockMenu,
+			client: MockMenu,
 		},
 	},
 };
