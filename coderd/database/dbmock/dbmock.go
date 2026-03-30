@@ -190,6 +190,20 @@ func (mr *MockStoreMockRecorder) BackoffChatDiffStatus(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackoffChatDiffStatus", reflect.TypeOf((*MockStore)(nil).BackoffChatDiffStatus), ctx, arg)
 }
 
+// BatchUpdateWorkspaceAgentConnections mocks base method.
+func (m *MockStore) BatchUpdateWorkspaceAgentConnections(ctx context.Context, arg database.BatchUpdateWorkspaceAgentConnectionsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchUpdateWorkspaceAgentConnections", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BatchUpdateWorkspaceAgentConnections indicates an expected call of BatchUpdateWorkspaceAgentConnections.
+func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceAgentConnections(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceAgentConnections", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceAgentConnections), ctx, arg)
+}
+
 // BatchUpdateWorkspaceAgentMetadata mocks base method.
 func (m *MockStore) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
 	m.ctrl.T.Helper()

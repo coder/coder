@@ -1602,6 +1602,15 @@ func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.Backof
 	return q.db.BackoffChatDiffStatus(ctx, arg)
 }
 
+func (q *querier) BatchUpdateWorkspaceAgentConnections(ctx context.Context, arg database.BatchUpdateWorkspaceAgentConnectionsParams) error {
+	// Could be any workspace agent and checking auth to each workspace
+	// agent is overkill for the purpose of this function.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace.All()); err != nil {
+		return err
+	}
+	return q.db.BatchUpdateWorkspaceAgentConnections(ctx, arg)
+}
+
 func (q *querier) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
 	// Could be any workspace agent and checking auth to each workspace agent is overkill for
 	// the purpose of this function.
