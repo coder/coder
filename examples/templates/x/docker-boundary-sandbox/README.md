@@ -46,7 +46,7 @@ agent can talk to, and bubblewrap limits what it can read or write.
 ## Network policy
 
 | Traffic                               | Policy                                 |
-| ------------------------------------- | -------------------------------------- |
+|---------------------------------------|----------------------------------------|
 | Coder server (`host.docker.internal`) | Allowed                                |
 | Anthropic API                         | Allowed                                |
 | All other HTTP/HTTPS                  | Denied and logged                      |
@@ -68,7 +68,7 @@ agent can talk to, and bubblewrap limits what it can read or write.
 ## Docker runtime requirements
 
 | Requirement          | Why                                                                         |
-| -------------------- | --------------------------------------------------------------------------- |
+|----------------------|-----------------------------------------------------------------------------|
 | `CAP_NET_ADMIN`      | `nsjail` needs it to create network namespaces                              |
 | `seccomp=unconfined` | Docker's default seccomp profile blocks the `clone` patterns `nsjail` needs |
 
