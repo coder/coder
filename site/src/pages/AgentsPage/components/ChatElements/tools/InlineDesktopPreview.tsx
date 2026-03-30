@@ -1,4 +1,4 @@
-import { ExternalLinkIcon } from "lucide-react";
+import { PanelRightOpenIcon } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -9,6 +9,9 @@ import {
 
 /** Default aspect ratio used before the remote framebuffer size is known. */
 const DEFAULT_ASPECT = "16 / 9";
+
+/** Fixed pixel height for the compact preview thumbnail. */
+const PREVIEW_HEIGHT = 128;
 
 /**
  * Non-interactive inline VNC desktop preview. The noVNC canvas is
@@ -75,19 +78,22 @@ export const InlineDesktopPreview: React.FC<{
 	}, [status]);
 
 	const wrapWithOverlay = (children: React.ReactNode) => (
-		<div className="group relative">
+		<div className="group/preview relative">
 			{children}
 			{/* Transparent overlay — dims the preview on hover and shows
-			    an external-link icon so it's clear clicking opens the
+			    a "View desktop" label so it's clear clicking opens the
 			    sidebar desktop tab. */}
 			{onClick && (
 				<button
 					type="button"
 					onClick={onClick}
 					aria-label="Open desktop tab"
-					className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center border-0 bg-black/0 p-0 transition-colors group-hover:bg-black/50"
+					className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center gap-1.5 border-0 bg-black/0 p-0 transition-colors group-hover/preview:bg-black/50"
 				>
-					<ExternalLinkIcon className="h-6 w-6 text-white opacity-0 drop-shadow-md transition-opacity group-hover:opacity-100" />
+					<span className="text-sm font-medium text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100">
+						View desktop
+					</span>
+					<PanelRightOpenIcon className="h-4 w-4 text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100" />
 				</button>
 			)}
 		</div>
@@ -97,7 +103,7 @@ export const InlineDesktopPreview: React.FC<{
 		return wrapWithOverlay(
 			<div
 				className="flex items-center justify-center text-content-secondary"
-				style={{ aspectRatio: DEFAULT_ASPECT }}
+				style={{ aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT }}
 			>
 				<Spinner loading className="h-5 w-5" />
 			</div>,
@@ -108,7 +114,7 @@ export const InlineDesktopPreview: React.FC<{
 		return wrapWithOverlay(
 			<div
 				className="flex items-center justify-center text-xs text-content-secondary"
-				style={{ aspectRatio }}
+				style={{ aspectRatio, height: PREVIEW_HEIGHT }}
 			>
 				Desktop disconnected. Reconnecting…
 			</div>,
@@ -119,7 +125,7 @@ export const InlineDesktopPreview: React.FC<{
 		return wrapWithOverlay(
 			<div
 				className="flex items-center justify-center text-xs text-content-secondary"
-				style={{ aspectRatio: DEFAULT_ASPECT }}
+				style={{ aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT }}
 			>
 				Could not connect to desktop.
 			</div>,
@@ -134,8 +140,8 @@ export const InlineDesktopPreview: React.FC<{
 				containerRef.current = el;
 				if (el) attach(el);
 			}}
-			className="pointer-events-none w-full"
-			style={{ aspectRatio }}
+			className="pointer-events-none"
+			style={{ aspectRatio, height: PREVIEW_HEIGHT }}
 		/>,
 	);
 };
