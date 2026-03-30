@@ -13,20 +13,20 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import type { ChatDetailError } from "../utils/usageLimitMessage";
-import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
+import { AgentChatInput, type ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
-} from "./AgentsSkeletons";
-import type { useChatStore } from "./ChatConversation/chatStore";
-import type { ModelSelectorOption } from "./ChatElements";
-import { DesktopPanelContext } from "./ChatElements/tools/DesktopPanelContext";
-import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
-import { ChatTopBar } from "./ChatTopBar";
-import { GitPanel } from "./GitPanel/GitPanel";
-import { RightPanel } from "./RightPanel/RightPanel";
-import { SidebarTabView } from "./Sidebar/SidebarTabView";
+} from "./components/AgentsSkeletons";
+import type { useChatStore } from "./components/ChatConversation/chatStore";
+import type { ModelSelectorOption } from "./components/ChatElements";
+import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
+import { ChatTopBar } from "./components/ChatTopBar";
+import { GitPanel } from "./components/GitPanel/GitPanel";
+import { RightPanel } from "./components/RightPanel/RightPanel";
+import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 

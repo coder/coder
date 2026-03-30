@@ -43,7 +43,7 @@ import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
-} from "./components/AgentChatPageView";
+} from "./AgentChatPageView";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
