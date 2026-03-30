@@ -6163,7 +6163,8 @@ func (q *sqlQuerier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg Soft
 }
 
 const unarchiveChatByID = `-- name: UnarchiveChatByID :exec
-UPDATE chats SET archived = false, updated_at = NOW() WHERE id = $1::uuid
+UPDATE chats SET archived = false, updated_at = NOW()
+WHERE id = $1 OR root_chat_id = $1
 `
 
 func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
