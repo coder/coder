@@ -1519,7 +1519,7 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
-func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database.GetChatFileMetadataByIDsRow) codersdk.Chat {
 	mcpServerIDs := c.MCPServerIDs
 	if mcpServerIDs == nil {
 		mcpServerIDs = []uuid.UUID{}
@@ -1572,6 +1572,19 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
+	if len(files) > 0 {
+		chat.Files = make([]codersdk.ChatFileMetadata, 0, len(files))
+		for _, row := range files {
+			chat.Files = append(chat.Files, codersdk.ChatFileMetadata{
+				ID:             row.ID,
+				OwnerID:        row.OwnerID,
+				OrganizationID: row.OrganizationID,
+				Name:           row.Name,
+				MimeType:       row.Mimetype,
+				CreatedAt:      row.CreatedAt,
+			})
+		}
+	}
 	return chat
 }
 
@@ -1584,9 +1597,9 @@ func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]da
 	for i, row := range rows {
 		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
 		if ok {
-			result[i] = Chat(row.Chat, &diffStatus)
+			result[i] = Chat(row.Chat, &diffStatus, nil)
 		} else {
-			result[i] = Chat(row.Chat, nil)
+			result[i] = Chat(row.Chat, nil, nil)
 			if diffStatusesByChatID != nil {
 				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
 				result[i].DiffStatus = &emptyDiffStatus

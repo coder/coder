@@ -156,13 +156,19 @@ Event types inside each batch:
 
 `GET /api/experimental/chats`
 
-Returns all chats owned by the authenticated user.
+Returns all chats owned by the authenticated user. The `files` field is
+only populated on the single-chat detail endpoint, not on the list
+endpoint.
 
 ### Get a chat
 
 `GET /api/experimental/chats/{chat}`
 
-Returns the `Chat` object (metadata only, no messages).
+Returns the `Chat` object (metadata only, no messages). The response
+includes a `files` field (`ChatFileMetadata[]`) containing metadata for
+files that have been successfully linked to the chat. File linking is
+best-effort; if linking fails, the file remains in message content but
+will be absent from this field.
 
 ### Get chat messages
 
@@ -208,6 +214,10 @@ file, use `GET /api/experimental/chats/files/{file}`.
 
 Supported formats: PNG, JPEG, GIF, WebP (up to 10 MB). The server
 validates actual file content regardless of the declared `Content-Type`.
+
+Files referenced in messages are automatically linked to the chat and
+appear in the `files` field on subsequent
+`GET /api/experimental/chats/{chat}` responses.
 
 ## Chat statuses
 

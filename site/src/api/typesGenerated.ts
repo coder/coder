@@ -1194,6 +1194,7 @@ export interface Chat {
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
+	readonly files?: readonly ChatFileMetadata[];
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
@@ -1383,6 +1384,20 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatFileMetadata contains lightweight metadata about a file
+ * associated with a chat, excluding the file content itself.
+ */
+export interface ChatFileMetadata {
+	readonly id: string;
+	readonly owner_id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly mime_type: string;
+	readonly created_at: string;
 }
 
 // From codersdk/chats.go
@@ -4060,6 +4075,15 @@ export interface MatchedProvisioners {
 	 */
 	readonly most_recently_seen?: string;
 }
+
+// From codersdk/chats.go
+/**
+ * MaxChatFileIDs is the maximum number of file IDs that can be
+ * associated with a single chat. This limit prevents unbounded
+ * array growth in the chats table. It is easier to raise this
+ * limit than to lower it.
+ */
+export const MaxChatFileIDs = 20;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {

@@ -186,6 +186,10 @@ func (c ChatFile) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
+func (c GetChatFileMetadataByIDsRow) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case ApiKeyScopeCoderAll:

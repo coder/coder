@@ -26,6 +26,12 @@ import (
 // threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
+// MaxChatFileIDs is the maximum number of file IDs that can be
+// associated with a single chat. This limit prevents unbounded
+// array growth in the chats table. It is easier to raise this
+// limit than to lower it.
+const MaxChatFileIDs = 20
+
 // CompactionThresholdKey returns the user-config key for a specific
 // model configuration's compaction threshold.
 func CompactionThresholdKey(modelConfigID uuid.UUID) string {
@@ -46,28 +52,40 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID         `json:"id" format:"uuid"`
-	OwnerID           uuid.UUID         `json:"owner_id" format:"uuid"`
-	WorkspaceID       *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID           *uuid.UUID        `json:"build_id,omitempty" format:"uuid"`
-	AgentID           *uuid.UUID        `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID        `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID        `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID         `json:"last_model_config_id" format:"uuid"`
-	Title             string            `json:"title"`
-	Status            ChatStatus        `json:"status"`
-	LastError         *string           `json:"last_error"`
-	DiffStatus        *ChatDiffStatus   `json:"diff_status,omitempty"`
-	CreatedAt         time.Time         `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time         `json:"updated_at" format:"date-time"`
-	Archived          bool              `json:"archived"`
-	PinOrder          int32             `json:"pin_order"`
-	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
-	Labels            map[string]string `json:"labels"`
+	ID                uuid.UUID          `json:"id" format:"uuid"`
+	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
+	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID         `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID         `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID          `json:"last_model_config_id" format:"uuid"`
+	Title             string             `json:"title"`
+	Status            ChatStatus         `json:"status"`
+	LastError         *string            `json:"last_error"`
+	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
+	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
+	Archived          bool               `json:"archived"`
+	PinOrder          int32              `json:"pin_order"`
+	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
+	Labels            map[string]string  `json:"labels"`
+	Files             []ChatFileMetadata `json:"files,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
 	HasUnread bool `json:"has_unread"`
+}
+
+// ChatFileMetadata contains lightweight metadata about a file
+// associated with a chat, excluding the file content itself.
+type ChatFileMetadata struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	Name           string    `json:"name"`
+	MimeType       string    `json:"mime_type"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
 // ChatMessage represents a single message in a chat.

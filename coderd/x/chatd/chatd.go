@@ -3090,7 +3090,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := db2sdk.Chat(chat, nil) // we have diffStatus already converted
+	sdkChat := db2sdk.Chat(chat, nil, nil) // we have diffStatus already converted
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
@@ -4375,6 +4375,21 @@ func (p *Server) runChat(
 				})
 				if err != nil {
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
+				}
+
+				// Enforce the file cap before linking.
+				if len(chatSnapshot.FileIds)+1 > codersdk.MaxChatFileIDs {
+					return uuid.Nil, xerrors.Errorf("chat file limit reached (%d/%d)", len(chatSnapshot.FileIds), codersdk.MaxChatFileIDs)
+				}
+				if err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:  chatSnapshot.ID,
+					FileIds: []uuid.UUID{row.ID},
+				}); err != nil {
+					p.logger.Error(ctx, "failed to append file ID to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.Error(err),
+					)
 				}
 
 				return row.ID, nil
