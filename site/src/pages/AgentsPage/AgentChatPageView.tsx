@@ -850,15 +850,25 @@ const ScrollAnchoredContainer: FC<{
 					);
 					setShowScrollToBottom(false);
 					restoreGuardRafIdRef.current = requestAnimationFrame(() => {
-						isRestoringScrollRef.current = false;
 						restoreGuardRafIdRef.current = null;
+						// Content may have grown between the pin and
+						// this frame (e.g. a query response arrived or
+						// a WebSocket message triggered a re-render).
+						// If we are no longer near bottom, re-pin
+						// instead of dropping the guard -- otherwise
+						// the next scroll event flips autoScrollRef
+						// to false and the pin is lost permanently.
+						if (!isNearBottom(container)) {
+							scheduleBottomPin();
+							return;
+						}
+						isRestoringScrollRef.current = false;
 					});
 				});
 			});
 		};
 
 		cancelPendingPinsRef.current = cancelPendingPins;
-
 		const observer = new ResizeObserver((entries) => {
 			const entry = entries[0];
 			const nextHeight =
@@ -975,8 +985,27 @@ const ScrollAnchoredContainer: FC<{
 				0,
 			);
 			restoreGuardRafIdRef.current = requestAnimationFrame(() => {
-				isRestoringScrollRef.current = false;
 				restoreGuardRafIdRef.current = null;
+				// Content may have grown between the pin and this
+				// frame. If not near bottom, re-pin via the content
+				// observer's scheduleBottomPin (which handles the
+				// double-RAF chain correctly) instead of dropping
+				// the guard.
+				if (!isNearBottom(container)) {
+					cancelPendingPinsRef.current?.();
+					// Direct re-pin since we don't have access to
+					// scheduleBottomPin from this effect.
+					container.scrollTop = Math.max(
+						container.scrollHeight - container.clientHeight,
+						0,
+					);
+					restoreGuardRafIdRef.current = requestAnimationFrame(() => {
+						restoreGuardRafIdRef.current = null;
+						isRestoringScrollRef.current = false;
+					});
+					return;
+				}
+				isRestoringScrollRef.current = false;
 			});
 		});
 		observer.observe(container);
