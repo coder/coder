@@ -582,6 +582,11 @@ type DeploymentValues struct {
 	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
+	TailnetQuerierWorkers                   serpent.Int64                        `json:"tailnet_querier_workers,omitempty"`
+	TailnetBinderWorkers                    serpent.Int64                        `json:"tailnet_binder_workers,omitempty"`
+	TailnetTunnelerWorkers                  serpent.Int64                        `json:"tailnet_tunneler_workers,omitempty"`
+	TailnetHandshakerWorkers                serpent.Int64                        `json:"tailnet_handshaker_workers,omitempty"`
+
 	DERP                                    DERP                                 `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                                   PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
@@ -1714,6 +1719,46 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.JobReaperDetectorInterval,
 			YAML:        "jobHangDetectorInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Tailnet Querier Workers",
+			Description: "Number of querier workers for the PG coordinator. 0 uses the default.",
+			Flag:        "tailnet-querier-workers",
+			Env:         "CODER_TAILNET_QUERIER_WORKERS",
+			Hidden:      true,
+			Default:     "0",
+			Value:       &c.TailnetQuerierWorkers,
+			YAML:        "tailnetQuerierWorkers",
+		},
+		{
+			Name:        "Tailnet Binder Workers",
+			Description: "Number of binder workers for the PG coordinator. 0 uses the default.",
+			Flag:        "tailnet-binder-workers",
+			Env:         "CODER_TAILNET_BINDER_WORKERS",
+			Hidden:      true,
+			Default:     "0",
+			Value:       &c.TailnetBinderWorkers,
+			YAML:        "tailnetBinderWorkers",
+		},
+		{
+			Name:        "Tailnet Tunneler Workers",
+			Description: "Number of tunneler workers for the PG coordinator. 0 uses the default.",
+			Flag:        "tailnet-tunneler-workers",
+			Env:         "CODER_TAILNET_TUNNELER_WORKERS",
+			Hidden:      true,
+			Default:     "0",
+			Value:       &c.TailnetTunnelerWorkers,
+			YAML:        "tailnetTunnelerWorkers",
+		},
+		{
+			Name:        "Tailnet Handshaker Workers",
+			Description: "Number of handshaker workers for the PG coordinator. 0 uses the default.",
+			Flag:        "tailnet-handshaker-workers",
+			Env:         "CODER_TAILNET_HANDSHAKER_WORKERS",
+			Hidden:      true,
+			Default:     "0",
+			Value:       &c.TailnetHandshakerWorkers,
+			YAML:        "tailnetHandshakerWorkers",
 		},
 		httpAddress,
 		tlsBindAddress,

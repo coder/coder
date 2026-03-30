@@ -16,6 +16,9 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/capture"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -375,6 +378,10 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	if opts.SignedToken == "" {
 		headers.Set(codersdk.SessionTokenHeader, c.client.SessionToken())
 	}
+	// Propagate active trace context (traceparent/tracestate) into
+	// the WebSocket dial headers so the server can correlate the
+	// connection with the client-side span.
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(headers))
 	//nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: &wsHTTPClient,

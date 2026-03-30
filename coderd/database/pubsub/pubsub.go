@@ -231,7 +231,7 @@ type PGPubsub struct {
 
 // BufferSize is the maximum number of unhandled messages we will buffer
 // for a subscriber before dropping messages.
-const BufferSize = 2048
+const BufferSize = 8192
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *PGPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {

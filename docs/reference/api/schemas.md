@@ -3502,6 +3502,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "swagger": {
       "enable": true
     },
+    "tailnet_binder_workers": 0,
+    "tailnet_handshaker_workers": 0,
+    "tailnet_querier_workers": 0,
+    "tailnet_tunneler_workers": 0,
     "telemetry": {
       "enable": true,
       "trace": true,
@@ -4080,6 +4084,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "swagger": {
     "enable": true
   },
+  "tailnet_binder_workers": 0,
+  "tailnet_handshaker_workers": 0,
+  "tailnet_querier_workers": 0,
+  "tailnet_tunneler_workers": 0,
   "telemetry": {
     "enable": true,
     "trace": true,
@@ -4209,6 +4217,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `strict_transport_security_options`            | array of string                                                                                      | false    |              |                                                                    |
 | `support`                                      | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                                      | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
+| `tailnet_binder_workers`                       | integer                                                                                              | false    |              |                                                                    |
+| `tailnet_handshaker_workers`                   | integer                                                                                              | false    |              |                                                                    |
+| `tailnet_querier_workers`                      | integer                                                                                              | false    |              |                                                                    |
+| `tailnet_tunneler_workers`                     | integer                                                                                              | false    |              |                                                                    |
 | `telemetry`                                    | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
 | `terms_of_service_url`                         | string                                                                                               | false    |              |                                                                    |
 | `tls`                                          | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |

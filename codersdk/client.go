@@ -377,6 +377,14 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 	}
 	c.SessionTokenProvider.SetDialOption(opts)
 
+	// Inject tracing headers if enabled.
+	if c.Trace {
+		if opts.HTTPHeader == nil {
+			opts.HTTPHeader = http.Header{}
+		}
+		otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(opts.HTTPHeader))
+	}
+
 	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
 	if resp != nil && resp.Body != nil {
 		resp.Body.Close()

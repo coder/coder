@@ -32,6 +32,7 @@ func newHandshaker(ctx context.Context,
 	ps pubsub.Pubsub,
 	updates <-chan readyForHandshake,
 	startWorkers <-chan struct{},
+	numWorkers int,
 ) *handshaker {
 	s := &handshaker{
 		ctx:           ctx,
@@ -42,10 +43,10 @@ func newHandshaker(ctx context.Context,
 	}
 	// add to the waitgroup immediately to avoid any races waiting for it before
 	// the workers start.
-	s.workerWG.Add(numHandshakerWorkers)
+	s.workerWG.Add(numWorkers)
 	go func() {
 		<-startWorkers
-		for i := 0; i < numHandshakerWorkers; i++ {
+		for i := 0; i < numWorkers; i++ {
 			go s.worker()
 		}
 	}()

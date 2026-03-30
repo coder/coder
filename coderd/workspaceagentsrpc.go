@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/coderd/agentconnectionbatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -257,6 +258,7 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 		db:                api.Database,
 		replicaID:         api.ID,
 		updater:           api,
+		connectionBatcher: api.connectionBatcher,
 		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
 		logger: api.Logger.With(
 			slog.F("workspace_id", workspaceBuild.WorkspaceID),
@@ -291,6 +293,8 @@ type agentConnectionMonitor struct {
 	updater        workspaceUpdater
 	logger         slog.Logger
 	pingPeriod     time.Duration
+
+	connectionBatcher *agentconnectionbatcher.Batcher
 
 	// state manipulated by both sendPings() and monitor() goroutines: needs to be threadsafe
 	lastPing atomic.Pointer[time.Time]
@@ -454,17 +458,32 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			Valid: true,
 		}
 
-		err = m.updateConnectionTimes(ctx)
-		if err != nil {
-			reason = err.Error()
-			if !database.IsQueryCanceledError(err) {
-				m.logger.Error(ctx, "failed to update agent connection times", slog.Error(err))
+		if m.connectionBatcher != nil {
+			m.connectionBatcher.Add(agentconnectionbatcher.Update{
+				ID:               m.workspaceAgent.ID,
+				FirstConnectedAt: m.firstConnectedAt,
+				LastConnectedAt:  m.lastConnectedAt,
+				DisconnectedAt:   m.disconnectedAt,
+				UpdatedAt:        dbtime.Now(),
+				LastConnectedReplicaID: uuid.NullUUID{
+					UUID:  m.replicaID,
+					Valid: true,
+				},
+			})
+		} else {
+			err = m.updateConnectionTimes(ctx)
+			if err != nil {
+				reason = err.Error()
+				if !database.IsQueryCanceledError(err) {
+					m.logger.Error(ctx, "failed to update agent connection times", slog.Error(err))
+				}
+				return
 			}
-			return
 		}
-		// we don't need to publish a workspace update here because we published an update when the workspace first
-		// connected. Since all we've done is updated lastConnectedAt, the workspace is still connected and hasn't
-		// changed status. We don't expect to get updates just for the times changing.
+		// We don't need to publish a workspace update here because we
+		// published an update when the workspace first connected. Since
+		// all we've done is updated lastConnectedAt, the workspace is
+		// still connected and hasn't changed status.
 
 		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, m.workspace.RBACObject())
 		if err != nil {

@@ -195,6 +195,18 @@ autobuildPollInterval: 1m0s
 # Interval to poll for hung and pending jobs and automatically terminate them.
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
+# Number of querier workers for the PG coordinator. 0 uses the default.
+# (default: 0, type: int)
+tailnetQuerierWorkers: 0
+# Number of binder workers for the PG coordinator. 0 uses the default.
+# (default: 0, type: int)
+tailnetBinderWorkers: 0
+# Number of tunneler workers for the PG coordinator. 0 uses the default.
+# (default: 0, type: int)
+tailnetTunnelerWorkers: 0
+# Number of handshaker workers for the PG coordinator. 0 uses the default.
+# (default: 0, type: int)
+tailnetHandshakerWorkers: 0
 introspection:
   statsCollection:
     usageStats:

@@ -15638,6 +15638,18 @@ const docTemplate = `{
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"
                 },
+                "tailnet_binder_workers": {
+                    "type": "integer"
+                },
+                "tailnet_handshaker_workers": {
+                    "type": "integer"
+                },
+                "tailnet_querier_workers": {
+                    "type": "integer"
+                },
+                "tailnet_tunneler_workers": {
+                    "type": "integer"
+                },
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"
                 },

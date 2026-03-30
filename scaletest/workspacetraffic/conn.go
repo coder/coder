@@ -6,10 +6,13 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
@@ -274,6 +277,11 @@ func appClientConn(ctx context.Context, client *codersdk.Client, url string) (*c
 		HTTPClient: client.HTTPClient,
 	}
 	client.SessionTokenProvider.SetDialOption(wsOptions)
+
+	if wsOptions.HTTPHeader == nil {
+		wsOptions.HTTPHeader = http.Header{}
+	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(wsOptions.HTTPHeader))
 
 	//nolint:bodyclose // The websocket conn manages the body.
 	conn, _, err := websocket.Dial(ctx, url, wsOptions)

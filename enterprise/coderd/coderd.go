@@ -28,6 +28,7 @@ import (
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/connectionlogbatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -144,8 +145,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	if options.ConnectionLogger == nil {
+		connLogBatcher := connectionlogbatcher.New(
+			ctx,
+			options.Database,
+			connectionlogbatcher.WithLogger(options.Logger),
+		)
 		options.ConnectionLogger = connectionlog.NewConnectionLogger(
-			connectionlog.NewDBBackend(options.Database),
+			connectionlog.NewBatchDBBackend(connLogBatcher),
 			connectionlog.NewSlogBackend(options.Logger),
 		)
 	}
@@ -942,7 +948,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 			var coordinator agpltailnet.Coordinator
 			if enabled {
-				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
+				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database, &tailnet.PGCoordOptions{
+					QuerierWorkers:    int(api.DeploymentValues.TailnetQuerierWorkers.Value()),
+					BinderWorkers:     int(api.DeploymentValues.TailnetBinderWorkers.Value()),
+					TunnelerWorkers:   int(api.DeploymentValues.TailnetTunnelerWorkers.Value()),
+					HandshakerWorkers: int(api.DeploymentValues.TailnetHandshakerWorkers.Value()),
+				})
 				if err != nil {
 					api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 					// If we try to setup the HA coordinator and it fails, nothing

@@ -554,6 +554,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "swagger": {
       "enable": true
     },
+    "tailnet_binder_workers": 0,
+    "tailnet_handshaker_workers": 0,
+    "tailnet_querier_workers": 0,
+    "tailnet_tunneler_workers": 0,
     "telemetry": {
       "enable": true,
       "trace": true,

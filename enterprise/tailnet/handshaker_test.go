@@ -19,7 +19,7 @@ func TestPGCoordinator_ReadyForHandshake_OK(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store, nil)
 	require.NoError(t, err)
 	defer coord1.Close()
 
@@ -33,7 +33,7 @@ func TestPGCoordinator_ReadyForHandshake_NoPermission(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := testutil.Logger(t)
-	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store, nil)
 	require.NoError(t, err)
 	defer coord1.Close()
 
