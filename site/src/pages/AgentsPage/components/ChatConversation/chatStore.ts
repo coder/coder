@@ -64,7 +64,7 @@ const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
 	}
 };
 
-const chatMessagesEqualByValue = (
+export const chatMessagesEqualByValue = (
 	left: TypesGen.ChatMessage,
 	right: TypesGen.ChatMessage,
 ): boolean =>
