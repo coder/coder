@@ -37,10 +37,10 @@ import {
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
-	HelpTooltipLink,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopoverLink,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import {
 	Popover,
 	PopoverContent,
@@ -268,18 +268,18 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 						justifyContent="space-between"
 						alignItems="start"
 					>
-						<HelpTooltipTitle>Listening Ports</HelpTooltipTitle>
-						<HelpTooltipLink
+						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
+						<HelpPopoverLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
 						>
 							Learn more
-						</HelpTooltipLink>
+						</HelpPopoverLink>
 					</Stack>
 					<Stack direction="column" gap={1}>
-						<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+						<HelpPopoverText css={{ color: theme.palette.text.secondary }}>
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
-						</HelpTooltipText>
+						</HelpPopoverText>
 						<Stack
 							direction="row"
 							gap={2}
@@ -346,9 +346,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 						</Stack>
 					</Stack>
 					{filteredListeningPorts.length === 0 && (
-						<HelpTooltipText css={styles.noPortText}>
+						<HelpPopoverText css={styles.noPortText}>
 							No open ports were detected.
-						</HelpTooltipText>
+						</HelpPopoverText>
 					)}
 					{filteredListeningPorts.map((port) => {
 						const url = portForwardURL(
@@ -431,12 +431,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 					borderTop: `1px solid ${theme.palette.divider}`,
 				}}
 			>
-				<HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
-				<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+				<HelpPopoverTitle>Shared Ports</HelpPopoverTitle>
+				<HelpPopoverText css={{ color: theme.palette.text.secondary }}>
 					{canSharePorts
 						? "Ports can be shared with organization members, other Coder users, or with the public."
 						: "This workspace template does not allow sharing ports. Contact a template administrator to enable port sharing."}
-				</HelpTooltipText>
+				</HelpPopoverText>
 				{canSharePorts && (
 					<div>
 						{filteredSharedPorts?.map((share) => {

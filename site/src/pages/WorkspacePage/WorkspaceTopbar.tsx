@@ -18,10 +18,10 @@ import {
 	TopbarIconButton,
 } from "#/components/FullPageLayout/Topbar";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipTrigger,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import {
 	Tooltip,
 	TooltipContent,
@@ -262,18 +262,18 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 	ownerAvatarUrl,
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
-			</HelpTooltipTrigger>
+			</HelpPopoverTrigger>
 
-			<HelpTooltipContent align="center">
+			<HelpPopoverContent align="center">
 				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -289,8 +289,8 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 	orgIconUrl,
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar
 						size="sm"
@@ -300,9 +300,9 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					/>
 					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
-			</HelpTooltipTrigger>
+			</HelpPopoverTrigger>
 
-			<HelpTooltipContent align="center">
+			<HelpPopoverContent align="center">
 				<AvatarData
 					title={
 						orgPageUrl ? (
@@ -330,8 +330,8 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					}
 					imgFallbackText={orgName}
 				/>
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -354,8 +354,8 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 }) => {
 	return (
 		<div className="flex items-center">
-			<HelpTooltip>
-				<HelpTooltipTrigger asChild>
+			<HelpPopover>
+				<HelpPopoverTrigger asChild>
 					<span css={styles.breadcrumbSegment}>
 						<TopbarAvatar
 							src={templateIconUrl}
@@ -366,9 +366,9 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							{workspaceName}
 						</span>
 					</span>
-				</HelpTooltipTrigger>
+				</HelpPopoverTrigger>
 
-				<HelpTooltipContent align="center">
+				<HelpPopoverContent align="center">
 					<AvatarData
 						title={
 							<Link
@@ -398,8 +398,8 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						}
 						imgFallbackText={templateDisplayName}
 					/>
-				</HelpTooltipContent>
-			</HelpTooltip>
+				</HelpPopoverContent>
+			</HelpPopover>
 			<CopyButton text={workspaceName} label="Copy workspace name" />
 		</div>
 	);

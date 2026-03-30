@@ -1,13 +1,13 @@
 import type { FC } from "react";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { docs } from "#/utils/docs";
 
 type ColumnHeader = "roles" | "groups" | "ai_addon";
@@ -48,25 +48,25 @@ type Props = {
 	variant: ColumnHeader;
 };
 
-export const TableColumnHelpTooltip: FC<Props> = ({ variant }) => {
+export const TableColumnHelpPopover: FC<Props> = ({ variant }) => {
 	const variantLang = Language[variant];
 
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger size="small" />
-			<HelpTooltipContent>
-				<HelpTooltipTitle>{variantLang.title}</HelpTooltipTitle>
-				<HelpTooltipText>{variantLang.text}</HelpTooltipText>
+		<HelpPopover>
+			<HelpPopoverIconTrigger size="small" />
+			<HelpPopoverContent>
+				<HelpPopoverTitle>{variantLang.title}</HelpPopoverTitle>
+				<HelpPopoverText>{variantLang.text}</HelpPopoverText>
 				{variantLang.links.length > 0 && (
-					<HelpTooltipLinksGroup>
+					<HelpPopoverLinksGroup>
 						{variantLang.links.map((link) => (
-							<HelpTooltipLink key={link.text} href={link.href}>
+							<HelpPopoverLink key={link.text} href={link.href}>
 								{link.text}
-							</HelpTooltipLink>
+							</HelpPopoverLink>
 						))}
-					</HelpTooltipLinksGroup>
+					</HelpPopoverLinksGroup>
 				)}
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

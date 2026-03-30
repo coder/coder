@@ -12,20 +12,21 @@ type Icon = typeof CircleHelpIcon;
 
 type Size = "small" | "medium";
 
-export const HelpTooltipTrigger = PopoverTrigger;
+export const HelpPopoverTrigger = PopoverTrigger;
 
-export const HelpTooltipIcon = CircleHelpIcon;
+export const HelpPopoverIcon = CircleHelpIcon;
 
-export const HelpTooltip: FC<React.ComponentProps<typeof Popover>> = (
+export const HelpPopover: FC<React.ComponentProps<typeof Popover>> = (
 	props,
 ) => {
 	return <Popover {...props} />;
 };
 
-export const HelpTooltipContent: FC<
-	PopoverContentProps & { disablePortal?: boolean }
-> = ({ className, disablePortal, ...props }) => {
-	const content = (
+export const HelpPopoverContent: FC<PopoverContentProps> = ({
+	className,
+	...props
+}) => {
+	return (
 		<PopoverContent
 			side="bottom"
 			align="start"
@@ -37,26 +38,22 @@ export const HelpTooltipContent: FC<
 			)}
 		/>
 	);
-
-	// PopoverContent already uses Portal internally, so disablePortal is a no-op
-	// but we accept it for backward compatibility with TooltipContent API
-	return content;
 };
 
-type HelpTooltipIconTriggerProps = React.ComponentPropsWithRef<"button"> & {
+type HelpPopoverIconTriggerProps = React.ComponentPropsWithRef<"button"> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };
 
-export const HelpTooltipIconTrigger: React.FC<HelpTooltipIconTriggerProps> = ({
+export const HelpPopoverIconTrigger: React.FC<HelpPopoverIconTriggerProps> = ({
 	size = "medium",
-	children = <HelpTooltipIcon />,
+	children = <HelpPopoverIcon />,
 	hoverEffect = true,
 	className,
 	...buttonProps
 }) => {
 	return (
-		<HelpTooltipTrigger asChild>
+		<HelpPopoverTrigger asChild>
 			<button
 				{...buttonProps}
 				type="button"
@@ -71,11 +68,11 @@ export const HelpTooltipIconTrigger: React.FC<HelpTooltipIconTriggerProps> = ({
 			>
 				{children}
 			</button>
-		</HelpTooltipTrigger>
+		</HelpPopoverTrigger>
 	);
 };
 
-export const HelpTooltipTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
+export const HelpPopoverTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	children,
 	className,
 	...attrs
@@ -93,7 +90,7 @@ export const HelpTooltipTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	);
 };
 
-export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
+export const HelpPopoverText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	children,
 	className,
 	...attrs
@@ -111,12 +108,12 @@ export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	);
 };
 
-interface HelpTooltipLink {
+interface HelpPopoverLink {
 	children?: ReactNode;
 	href: string;
 }
 
-export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
+export const HelpPopoverLink: FC<HelpPopoverLink> = ({ children, href }) => {
 	return (
 		<a
 			href={href}
@@ -130,14 +127,14 @@ export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
 	);
 };
 
-interface HelpTooltipActionProps {
+interface HelpPopoverActionProps {
 	children?: ReactNode;
 	icon: Icon;
 	onClick: () => void;
 	ariaLabel?: string;
 }
 
-export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
+export const HelpPopoverAction: FC<HelpPopoverActionProps> = ({
 	children,
 	icon: Icon,
 	onClick,
@@ -156,6 +153,6 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 	);
 };
 
-export const HelpTooltipLinksGroup: FC<PropsWithChildren> = ({ children }) => {
+export const HelpPopoverLinksGroup: FC<PropsWithChildren> = ({ children }) => {
 	return <div className="flex flex-col gap-2 mt-4">{children}</div>;
 };
