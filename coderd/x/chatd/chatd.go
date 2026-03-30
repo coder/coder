@@ -1244,9 +1244,10 @@ func (p *Server) EditMessage(
 	return result, nil
 }
 
-// ArchiveChat archives a chat and all descendants. If the target chat is
-// pending or running, it first transitions the chat back to waiting so active
-// processing stops before the archive is broadcast.
+// ArchiveChat archives a chat family and broadcasts deleted events for each
+// affected chat so watching clients converge without a full refetch. If the
+// target chat is pending or running, it first transitions the chat back to
+// waiting so active processing stops before the archive is broadcast.
 func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
@@ -1254,6 +1255,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 
 	statusChat := chat
 	interrupted := false
+	var archivedChats []database.Chat
 	if err := p.db.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
@@ -1279,7 +1281,8 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 			interrupted = true
 		}
 
-		if err := tx.ArchiveChatByID(ctx, chat.ID); err != nil {
+		archivedChats, err = tx.ArchiveChatByID(ctx, chat.ID)
+		if err != nil {
 			return xerrors.Errorf("archive chat: %w", err)
 		}
 		return nil
@@ -1292,24 +1295,39 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
 	}
 
-	statusChat.Archived = true
-	statusChat.PinOrder = 0
-	p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindDeleted, nil)
+	p.publishChatPubsubEvents(archivedChats, coderdpubsub.ChatEventKindDeleted)
 	return nil
 }
 
-// UnarchiveChat unarchives a chat and publishes a created event so sidebar
-// clients are notified that the chat has reappeared.
+// UnarchiveChat unarchives a chat family and publishes created events for
+// each affected chat so watching clients see every chat that reappeared.
 func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	if err := p.db.UnarchiveChatByID(ctx, chat.ID); err != nil {
-		return xerrors.Errorf("unarchive chat: %w", err)
+	return p.applyChatLifecycleTransition(
+		ctx,
+		chat.ID,
+		"unarchive",
+		coderdpubsub.ChatEventKindCreated,
+		p.db.UnarchiveChatByID,
+	)
+}
+
+func (p *Server) applyChatLifecycleTransition(
+	ctx context.Context,
+	chatID uuid.UUID,
+	action string,
+	kind coderdpubsub.ChatEventKind,
+	transition func(context.Context, uuid.UUID) ([]database.Chat, error),
+) error {
+	updatedChats, err := transition(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("%s chat: %w", action, err)
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
+	p.publishChatPubsubEvents(updatedChats, kind)
 	return nil
 }
 
@@ -3136,6 +3154,13 @@ func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.C
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
+	}
+}
+
+// publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
+func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsub.ChatEventKind) {
+	for _, chat := range chats {
+		p.publishChatPubsubEvent(chat, kind, nil)
 	}
 }
 

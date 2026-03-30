@@ -148,11 +148,12 @@ func (mr *MockStoreMockRecorder) AllUserIDs(ctx, includeSystem any) *gomock.Call
 }
 
 // ArchiveChatByID mocks base method.
-func (m *MockStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ArchiveChatByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ArchiveChatByID indicates an expected call of ArchiveChatByID.
@@ -7632,11 +7633,12 @@ func (mr *MockStoreMockRecorder) TryAcquireLock(ctx, pgTryAdvisoryXactLock any) 
 }
 
 // UnarchiveChatByID mocks base method.
-func (m *MockStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UnarchiveChatByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UnarchiveChatByID indicates an expected call of UnarchiveChatByID.
