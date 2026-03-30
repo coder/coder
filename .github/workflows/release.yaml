@@ -654,10 +654,10 @@ jobs:
       # This makes the step self-healing: if the .0 release fails before
       # completing, the next patch will pick it up.
       #
-      # This runs here instead of in linear-release.yaml because that
-      # workflow listens on `release: published`, but releases created
-      # with GITHUB_TOKEN do not trigger downstream workflows (GitHub
-      # infinite-loop prevention).
+      # This runs here instead of in linear-release.yaml because a
+      # `release: published` trigger there would not fire — releases
+      # created with GITHUB_TOKEN do not trigger downstream workflows
+      # (GitHub infinite-loop prevention).
       - name: Complete Linear release
         if: ${{ !inputs.dry_run }}
         continue-on-error: true
@@ -669,15 +669,19 @@ jobs:
           linear_version=$(echo "$version" | cut -d. -f1,2)
           echo "Completing Linear release ${linear_version}"
 
-          # Download and run the Linear Release CLI directly. This avoids
-          # needing a separate job or the action wrapper.
+          # Download and run the Linear Release CLI directly. Pin to a
+          # specific version for reproducibility and supply-chain safety.
+          # When upgrading, also update the action SHA in linear-release.yaml.
           curl -fsSL \
-            "https://github.com/linear/linear-release/releases/latest/download/linear-release-linux-x64" \
+            "https://github.com/linear/linear-release/releases/download/v0.6.4/linear-release-linux-x64" \
             -o /tmp/linear-release
           chmod +x /tmp/linear-release
           /tmp/linear-release complete \
             --release-version="${linear_version}" \
-            --timeout=300
+            --timeout=300 || {
+            echo "::warning::Linear release completion failed — this does not block the release."
+            exit 1
+          }
         env:
           LINEAR_ACCESS_KEY: ${{ secrets.LINEAR_ACCESS_KEY }}
           VERSION: ${{ steps.version.outputs.version }}
