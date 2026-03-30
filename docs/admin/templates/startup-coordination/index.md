@@ -1,7 +1,7 @@
 # Workspace Startup Coordination
 
 > [!NOTE]
-> This feature is experimental and may change without notice in future releases.
+> This feature is in [Early Access](../../../install/releases/feature-stages.md#early-access-features) and may change without notice in future releases.
 
 When workspaces start, scripts often need to run in a specific order.
 For example, an IDE or coding agent might need the repository cloned

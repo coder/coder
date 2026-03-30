@@ -1,7 +1,7 @@
 # Workspace Startup Coordination Troubleshooting
 
 > [!NOTE]
-> This feature is experimental and may change without notice in future releases.
+> This feature is in [Early Access](../../../install/releases/feature-stages.md#early-access-features) and may change without notice in future releases.
 
 ## Test Sync Availability
 

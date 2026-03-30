@@ -1,7 +1,7 @@
 # Workspace Startup Coordination Usage
 
 > [!NOTE]
-> This feature is experimental and may change without notice in future releases.
+> This feature is in [Early Access](../../../install/releases/feature-stages.md#early-access-features) and may change without notice in future releases.
 
 Startup coordination is built around the concept of **units**. You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources. When the Coder agent starts, it keeps an in-memory directed acyclic graph (DAG) of all units of which it is aware. When you need to synchronize with another unit, you can use `coder exp sync start $UNIT_NAME` to block until all dependencies of that unit have been marked complete.
 
