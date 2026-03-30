@@ -344,6 +344,11 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 		dbm.EXPECT().UpsertConnectionLog(gomock.Any(), arg).Return(database.ConnectionLog{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceConnectionLog, policy.ActionUpdate)
 	}))
+	s.Run("BatchUpsertConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.BatchUpsertConnectionLogsParams{}
+		dbm.EXPECT().BatchUpsertConnectionLogs(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceConnectionLog, policy.ActionUpdate)
+	}))
 	s.Run("GetConnectionLogsOffset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetConnectionLogsOffsetParams{LimitOpt: 10}
 		dbm.EXPECT().GetConnectionLogsOffset(gomock.Any(), arg).Return([]database.GetConnectionLogsOffsetRow{}, nil).AnyTimes()
