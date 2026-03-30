@@ -295,9 +295,9 @@ func ResolveUserProviderKeys(
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
 		case provider.AllowUserAPIKey && provider.AllowCentralAPIKeyFallback && provider.CentralAPIKeyEnabled:
-			// A configured fallback without a central key is an admin-side
-			// misconfiguration, not a prompt for the user to add their own key.
-			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
+			// When users can add their own key, a missing central fallback key is
+			// still something the user can remedy.
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 		case provider.AllowUserAPIKey:
 			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 		default:
