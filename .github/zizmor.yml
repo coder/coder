@@ -1,4 +1,4 @@
 rules:
   cache-poisoning:
     ignore:
-      - "ci.yaml:184"
+      - "ci.yaml:233"
