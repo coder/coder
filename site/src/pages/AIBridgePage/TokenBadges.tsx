@@ -7,7 +7,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { prettyFormatJSON, roundTokenDisplay } from "./utils";
+import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
+import { roundTokenDisplay } from "./utils";
 
 interface TokenBadgesProps {
 	size?: "xs" | "sm" | "md";
@@ -82,7 +83,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 								Token usage metadata
 							</div>
 							<pre className="mt-2 p-4 bg-surface-secondary rounded text-xs overflow-x-auto">
-								{prettyFormatJSON(JSON.stringify(tokenUsageMetadata))}
+								<JsonPrettyPrinter input={JSON.stringify(tokenUsageMetadata)} />
 							</pre>
 						</>
 					)}
