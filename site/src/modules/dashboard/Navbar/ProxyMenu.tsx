@@ -112,8 +112,8 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 							<Abbr title="Command-Line Interface" pronunciation="initialism">
 								CLI
 							</Abbr>{" "}
-							connections are unaffected. If no region is selected, the
-							primary region will be used.
+							connections are unaffected. If no region is selected, the primary
+							region will be used.
 						</div>
 					</DropdownMenuItem>
 				)}
