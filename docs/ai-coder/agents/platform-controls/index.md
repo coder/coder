@@ -84,15 +84,14 @@ opt-out, or opt-in for each chat.
 
 See [MCP Servers](./mcp-servers.md) for configuration details.
 
-### Usage limits and insights
+### Usage limits and analytics
 
 Administrators can set spend limits to cap LLM usage per user within a rolling
 time period, with per-user and per-group overrides. The cost tracking dashboard
 provides visibility into per-user spending, token consumption, and per-model
-breakdowns. The PR insights dashboard shows merge rates, cost per merged PR, and
-per-model effectiveness.
+breakdowns.
 
-See [Usage & Insights](./usage-insights.md) for details.
+See [Usage & Analytics](./usage-insights.md) for details.
 
 ## Where we are headed
 

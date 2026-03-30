@@ -1246,8 +1246,8 @@
 										"state": ["early access"]
 									},
 									{
-										"title": "Usage & Insights",
-										"description": "Spend limits, cost tracking, and PR insights for Coder Agents",
+										"title": "Usage & Analytics",
+										"description": "Spend limits and cost tracking for Coder Agents",
 										"path": "./ai-coder/agents/platform-controls/usage-insights.md",
 										"state": ["early access"]
 									}
