@@ -657,6 +657,7 @@ jobs:
       # infinite-loop prevention).
       - name: Complete Linear release
         if: ${{ !inputs.dry_run }}
+        continue-on-error: true
         run: |
           set -euo pipefail
           version="$VERSION"
