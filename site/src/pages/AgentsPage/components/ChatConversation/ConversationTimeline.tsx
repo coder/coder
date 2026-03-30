@@ -353,6 +353,7 @@ export const BlockList: FC<{
 								result={tool.result}
 								status={tool.status}
 								isError={tool.isError}
+								killedBySignal={tool.killedBySignal}
 								subagentTitles={subagentTitles}
 								computerUseSubagentIds={computerUseSubagentIds}
 								showDesktopPreviews={showDesktopPreviews}
@@ -394,6 +395,7 @@ export const BlockList: FC<{
 					result={tool.result}
 					status={tool.status}
 					isError={tool.isError}
+					killedBySignal={tool.killedBySignal}
 					subagentTitles={subagentTitles}
 					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={showDesktopPreviews}

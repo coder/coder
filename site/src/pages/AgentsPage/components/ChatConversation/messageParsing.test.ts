@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
 	mergeTools,
 	parseMessageContent,
+	parseMessagesWithMergedTools,
 	parseToolResultIsError,
 } from "./messageParsing";
 
@@ -373,5 +375,139 @@ describe("mergeTools", () => {
 		const merged = mergeTools([{ id: "1", name: "bash" }], []);
 		expect(merged).toHaveLength(1);
 		expect(merged[0].status).toBe("completed");
+	});
+});
+
+describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
+	const msg = (
+		id: number,
+		role: "assistant" | "user",
+		parts: ChatMessagePart[],
+	): ChatMessage => ({
+		id,
+		chat_id: "chat-1",
+		created_at: new Date().toISOString(),
+		role,
+		content: parts,
+	});
+
+	// The generated types use Record<string, string> for args/result,
+	// but real tool data contains booleans and nulls. We widen the
+	// parameter types and cast back to ChatMessagePart.
+	const toolCall = (
+		id: string,
+		name: string,
+		args: Record<string, string>,
+	): ChatMessagePart => ({
+		type: "tool-call" as const,
+		tool_call_id: id,
+		tool_name: name,
+		args,
+	});
+	const toolResult = (
+		id: string,
+		name: string,
+		result: Record<string, unknown>,
+		isError = false,
+	): ChatMessagePart => ({
+		type: "tool-result" as const,
+		tool_call_id: id,
+		tool_name: name,
+		// The generated type uses Record<string, string> but real
+		// tool results contain booleans and nulls.
+		result: result as Record<string, string>,
+		is_error: isError,
+	});
+
+	it("annotates execute tool with killedBySignal from a later process_signal", () => {
+		const PID = "abc-123";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", { command: "make build" }),
+			]),
+			msg(2, "assistant", [
+				toolResult("tc1", "execute", {
+					success: true,
+					output: "",
+					background_process_id: PID,
+				}),
+				toolCall("tc2", "process_signal", {
+					process_id: PID,
+					signal: "kill",
+				}),
+			]),
+			msg(3, "assistant", [
+				toolResult("tc2", "process_signal", {
+					success: true,
+					message: `signal "kill" sent to process ${PID}`,
+				}),
+			]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.killedBySignal).toBe("kill");
+	});
+
+	it("does not annotate when process_signal failed", () => {
+		const PID = "abc-123";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", { command: "make build" }),
+			]),
+			msg(2, "assistant", [
+				toolResult("tc1", "execute", {
+					success: true,
+					output: "",
+					background_process_id: PID,
+				}),
+				toolCall("tc2", "process_signal", {
+					process_id: PID,
+					signal: "kill",
+				}),
+			]),
+			msg(3, "assistant", [
+				toolResult("tc2", "process_signal", {
+					success: false,
+					error: "process not found",
+				}),
+			]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.killedBySignal).toBeUndefined();
+	});
+
+	it("annotates process_output via args.process_id", () => {
+		const PID = "def-456";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "process_output", { process_id: PID }),
+			]),
+			msg(2, "assistant", [
+				toolResult("tc1", "process_output", {
+					output: "some output",
+					exit_code: null,
+				}),
+				toolCall("tc2", "process_signal", {
+					process_id: PID,
+					signal: "terminate",
+				}),
+			]),
+			msg(3, "assistant", [
+				toolResult("tc2", "process_signal", {
+					success: true,
+					message: "signal sent",
+				}),
+			]),
+		]);
+
+		const procOut = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "process_output");
+		expect(procOut?.killedBySignal).toBe("terminate");
 	});
 });

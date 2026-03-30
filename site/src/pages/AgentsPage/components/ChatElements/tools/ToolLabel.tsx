@@ -32,6 +32,49 @@ export const ToolLabel: React.FC<{
 					Reading process output
 				</span>
 			);
+		case "process_signal": {
+			const signal = parsed ? asString(parsed.signal) : "";
+			const processId = parsed ? asString(parsed.process_id) : "";
+			const shortId = processId ? processId.slice(0, 8) : "";
+			const hasResult = result !== undefined && result !== null;
+			const success = parsedResult ? Boolean(parsedResult.success) : false;
+			if (hasResult && success) {
+				const verb = signal === "kill" ? "Killed" : "Terminated";
+				return (
+					<span className="truncate text-sm text-content-secondary">
+						{verb} process{shortId ? ` ${shortId}` : ""}
+					</span>
+				);
+			}
+			if (hasResult && !success) {
+				const verb =
+					signal === "kill"
+						? "kill"
+						: signal === "terminate"
+							? "terminate"
+							: "signal";
+				return (
+					<span className="truncate text-sm text-content-secondary">
+						Failed to {verb} process{shortId ? ` ${shortId}` : ""}
+					</span>
+				);
+			}
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{signal === "kill"
+						? "Killing process…"
+						: signal === "terminate"
+							? "Terminating process…"
+							: "Sending signal…"}
+				</span>
+			);
+		}
+		case "process_list":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Listing processes
+				</span>
+			);
 		case "read_file":
 			return (
 				<span className="truncate text-sm text-content-secondary">
