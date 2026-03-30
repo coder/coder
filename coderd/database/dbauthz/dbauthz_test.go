@@ -543,11 +543,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatCostSummary(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()), policy.ActionRead).Returns(row)
 	}))
-	s.Run("CountChatModelConfigsByProviderConfigID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		providerConfigID := uuid.New()
-		dbm.EXPECT().CountChatModelConfigsByProviderConfigID(gomock.Any(), providerConfigID).Return(int64(2), nil).AnyTimes()
-		check.Args(providerConfigID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(int64(2))
-	}))
 	s.Run("CountEnabledModelsWithoutPricing", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().CountEnabledModelsWithoutPricing(gomock.Any()).Return(int64(3), nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(int64(3))

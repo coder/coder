@@ -296,14 +296,6 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.CountChatModelConfigsByProviderConfigID(ctx, providerConfigID)
-	m.queryLatencies.WithLabelValues("CountChatModelConfigsByProviderConfigID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatModelConfigsByProviderConfigID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountConnectionLogs(ctx, arg)

@@ -1454,7 +1454,7 @@ func TestDeleteChatProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("RejectsBoundModelConfigs", func(t *testing.T) {
+	t.Run("RejectsActiveChatsReferencingCascadeDeletedModels", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1468,7 +1468,7 @@ func TestDeleteChatProvider(t *testing.T) {
 		require.NoError(t, err)
 
 		contextLimit := int64(4096)
-		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:         "openai",
 			Model:            "gpt-4o-mini",
 			ContextLimit:     &contextLimit,
@@ -1476,10 +1476,19 @@ func TestDeleteChatProvider(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "provider delete should fail while chat is active",
+			}},
+			ModelConfigID: &modelConfig.ID,
+		})
+		require.NoError(t, err)
+
 		err = client.DeleteChatProvider(ctx, provider.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Cannot delete provider config: models still reference it.", sdkErr.Message)
-		require.Equal(t, "1 model(s) are bound to this provider config. Delete or rebind them first.", sdkErr.Detail)
+		require.Equal(t, "Cannot delete provider config: models bound to it are still referenced by active chats.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "violates foreign key constraint")
 
 		providers, err := client.ListChatProviders(ctx)
 		require.NoError(t, err)

@@ -4022,7 +4022,7 @@ ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_model_configs
-    ADD CONSTRAINT chat_model_configs_provider_config_id_fkey FOREIGN KEY (provider_config_id) REFERENCES chat_providers(id) ON DELETE SET NULL;
+    ADD CONSTRAINT chat_model_configs_provider_config_id_fkey FOREIGN KEY (provider_config_id) REFERENCES chat_providers(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);

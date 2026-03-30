@@ -453,21 +453,6 @@ func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepare
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
 }
 
-// CountChatModelConfigsByProviderConfigID mocks base method.
-func (m *MockStore) CountChatModelConfigsByProviderConfigID(ctx context.Context, providerConfigID uuid.UUID) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountChatModelConfigsByProviderConfigID", ctx, providerConfigID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountChatModelConfigsByProviderConfigID indicates an expected call of CountChatModelConfigsByProviderConfigID.
-func (mr *MockStoreMockRecorder) CountChatModelConfigsByProviderConfigID(ctx, providerConfigID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatModelConfigsByProviderConfigID", reflect.TypeOf((*MockStore)(nil).CountChatModelConfigsByProviderConfigID), ctx, providerConfigID)
-}
-
 // CountConnectionLogs mocks base method.
 func (m *MockStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
 	m.ctrl.T.Helper()

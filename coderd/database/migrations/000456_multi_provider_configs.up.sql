@@ -6,6 +6,6 @@ ALTER TABLE chat_model_configs DROP CONSTRAINT IF EXISTS chat_model_configs_prov
 ALTER TABLE chat_providers DROP CONSTRAINT IF EXISTS chat_providers_provider_key;
 
 -- Add a nullable binding from a model config to a specific provider config.
--- ON DELETE SET NULL preserves the model if the bound provider is removed.
+-- ON DELETE CASCADE removes bound models when the provider is deleted.
 ALTER TABLE chat_model_configs
-    ADD COLUMN provider_config_id uuid REFERENCES chat_providers(id) ON DELETE SET NULL;
+    ADD COLUMN provider_config_id uuid REFERENCES chat_providers(id) ON DELETE CASCADE;
