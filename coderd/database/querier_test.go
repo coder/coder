@@ -1261,10 +1261,11 @@ func TestGetAuthorizedChats(t *testing.T) {
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -9456,10 +9457,11 @@ func TestInsertChatMessages(t *testing.T) {
 		provider := "openai"
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    provider,
-			DisplayName: "OpenAI",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             provider,
+			DisplayName:          "OpenAI",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -9621,10 +9623,11 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// A chat_providers row is required as a FK for model configs.
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -9992,10 +9995,11 @@ func TestGetPRInsights(t *testing.T) {
 		user := dbgen.User(t, store, database.User{})
 
 		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-			Provider:    "anthropic",
-			DisplayName: "Anthropic",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             "anthropic",
+			DisplayName:          "Anthropic",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -10516,10 +10520,11 @@ func TestChatPinOrderQueries(t *testing.T) {
 		// timed test context doesn't tick during DB init.
 		bg := context.Background()
 		_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
-			Provider:    "openai",
-			DisplayName: "OpenAI",
-			APIKey:      "test-key",
-			Enabled:     true,
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
 		})
 		require.NoError(t, err)
 
@@ -10696,10 +10701,11 @@ func TestChatLabels(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 
 	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
@@ -10907,10 +10913,11 @@ func TestChatHasUnread(t *testing.T) {
 	user := dbgen.User(t, store, database.User{})
 
 	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 
