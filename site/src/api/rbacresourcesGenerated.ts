@@ -47,6 +47,12 @@ export const RBACResourceActions: Partial<
 		read: "read chat messages and metadata",
 		update: "update chat title or settings",
 	},
+	chat_automation: {
+		create: "create a chat automation",
+		delete: "delete a chat automation",
+		read: "read chat automation configuration",
+		update: "update a chat automation",
+	},
 	connection_log: {
 		read: "read connection logs",
 		update: "upsert connection log entries",

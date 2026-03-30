@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 // Rotate rotates the database encryption keys by re-encrypting all user tokens
@@ -107,6 +109,30 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			return xerrors.Errorf("update chat provider id=%s provider=%s: %w", provider.ID, provider.Provider, err)
 		}
 		log.Debug(ctx, "encrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
+	// Re-encrypt chat automation webhook secrets.
+	triggerIDs, err := fetchEncryptedTriggerIDs(ctx, sqlDB)
+	if err != nil {
+		return err
+	}
+	log.Info(ctx, "encrypting chat automation webhook secrets", slog.F("trigger_count", len(triggerIDs)))
+	for _, triggerID := range triggerIDs {
+		trigger, err := cryptDB.GetChatAutomationTriggerByID(ctx, triggerID)
+		if err != nil {
+			return xerrors.Errorf("get chat automation trigger %s: %w", triggerID, err)
+		}
+		if trigger.WebhookSecretKeyID.String == ciphers[0].HexDigest() {
+			continue // Already encrypted with the primary key.
+		}
+		if _, err := cryptDB.UpdateChatAutomationTriggerWebhookSecret(ctx, database.UpdateChatAutomationTriggerWebhookSecretParams{
+			WebhookSecret:      trigger.WebhookSecret, // decrypted by cryptDB
+			WebhookSecretKeyID: sql.NullString{},      // dbcrypt will set the new primary key
+			UpdatedAt:          dbtime.Now(),
+			ID:                 triggerID,
+		}); err != nil {
+			return xerrors.Errorf("re-encrypt chat automation trigger %s: %w", triggerID, err)
+		}
 	}
 
 	// Revoke old keys
@@ -221,6 +247,27 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	// Decrypt chat automation webhook secrets.
+	triggerIDs, err := fetchEncryptedTriggerIDs(ctx, sqlDB)
+	if err != nil {
+		return err
+	}
+	log.Info(ctx, "decrypting chat automation webhook secrets", slog.F("trigger_count", len(triggerIDs)))
+	for _, triggerID := range triggerIDs {
+		trigger, err := cryptDB.GetChatAutomationTriggerByID(ctx, triggerID)
+		if err != nil {
+			return xerrors.Errorf("get chat automation trigger %s: %w", triggerID, err)
+		}
+		if _, err := cryptDB.UpdateChatAutomationTriggerWebhookSecret(ctx, database.UpdateChatAutomationTriggerWebhookSecretParams{
+			WebhookSecret:      trigger.WebhookSecret, // decrypted by cryptDB
+			WebhookSecretKeyID: sql.NullString{},      // store in plaintext
+			UpdatedAt:          dbtime.Now(),
+			ID:                 triggerID,
+		}); err != nil {
+			return xerrors.Errorf("decrypt chat automation trigger %s: %w", triggerID, err)
+		}
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -245,8 +292,35 @@ UPDATE chat_providers
 	SET api_key = '',
 		api_key_key_id = NULL
 	WHERE api_key_key_id IS NOT NULL;
+UPDATE chat_automation_triggers
+	SET webhook_secret = NULL,
+		webhook_secret_key_id = NULL
+	WHERE webhook_secret_key_id IS NOT NULL;
 COMMIT;
 `
+
+// fetchEncryptedTriggerIDs returns the IDs of all chat automation
+// triggers that have an encrypted webhook secret. It uses a raw
+// SQL query because there is no "get all triggers" SQLC query.
+func fetchEncryptedTriggerIDs(ctx context.Context, sqlDB *sql.DB) ([]uuid.UUID, error) {
+	rows, err := sqlDB.QueryContext(ctx, `SELECT id FROM chat_automation_triggers WHERE webhook_secret_key_id IS NOT NULL`)
+	if err != nil {
+		return nil, xerrors.Errorf("get encrypted chat automation triggers: %w", err)
+	}
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, xerrors.Errorf("scan chat automation trigger id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, xerrors.Errorf("iterate chat automation trigger ids: %w", err)
+	}
+	return ids, nil
+}
 
 // Delete deletes all user tokens and revokes all ciphers.
 // This is a destructive operation and should only be used
@@ -256,9 +330,9 @@ func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
 	store := database.New(sqlDB)
 	_, err := sqlDB.ExecContext(ctx, sqlDeleteEncryptedUserTokens)
 	if err != nil {
-		return xerrors.Errorf("delete encrypted tokens and chat provider keys: %w", err)
+		return xerrors.Errorf("delete encrypted tokens, chat provider keys, and chat automation webhook secrets: %w", err)
 	}
-	log.Info(ctx, "deleted encrypted user tokens and chat provider API keys")
+	log.Info(ctx, "deleted encrypted user tokens, chat provider API keys, and chat automation webhook secrets")
 
 	log.Info(ctx, "revoking all active keys")
 	keys, err := store.GetDBCryptKeys(ctx)

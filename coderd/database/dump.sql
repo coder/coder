@@ -220,7 +220,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'chat_automation:create',
+    'chat_automation:read',
+    'chat_automation:update',
+    'chat_automation:delete',
+    'chat_automation:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -268,6 +273,26 @@ CREATE TYPE build_reason AS ENUM (
     'task_auto_pause',
     'task_manual_pause',
     'task_resume'
+);
+
+CREATE TYPE chat_automation_event_status AS ENUM (
+    'filtered',
+    'preview',
+    'created',
+    'continued',
+    'rate_limited',
+    'error'
+);
+
+CREATE TYPE chat_automation_status AS ENUM (
+    'disabled',
+    'preview',
+    'active'
+);
+
+CREATE TYPE chat_automation_trigger_type AS ENUM (
+    'webhook',
+    'cron'
 );
 
 CREATE TYPE chat_message_role AS ENUM (
@@ -1238,6 +1263,57 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_automation_events (
+    id uuid NOT NULL,
+    automation_id uuid NOT NULL,
+    trigger_id uuid,
+    received_at timestamp with time zone NOT NULL,
+    payload jsonb NOT NULL,
+    filter_matched boolean NOT NULL,
+    resolved_labels jsonb,
+    matched_chat_id uuid,
+    created_chat_id uuid,
+    status chat_automation_event_status NOT NULL,
+    error text,
+    CONSTRAINT chat_automation_events_chat_exclusivity CHECK (((matched_chat_id IS NULL) OR (created_chat_id IS NULL))),
+    CONSTRAINT chat_automation_events_status_chat_consistency CHECK ((((status <> 'created'::chat_automation_event_status) OR (created_chat_id IS NOT NULL)) AND ((status <> 'continued'::chat_automation_event_status) OR (matched_chat_id IS NOT NULL))))
+);
+
+CREATE TABLE chat_automation_triggers (
+    id uuid NOT NULL,
+    automation_id uuid NOT NULL,
+    type chat_automation_trigger_type NOT NULL,
+    webhook_secret text,
+    webhook_secret_key_id text,
+    cron_schedule text,
+    last_triggered_at timestamp with time zone,
+    filter jsonb,
+    label_paths jsonb,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT chat_automation_triggers_cron_fields CHECK (((type <> 'cron'::chat_automation_trigger_type) OR ((webhook_secret IS NULL) AND (webhook_secret_key_id IS NULL)))),
+    CONSTRAINT chat_automation_triggers_webhook_fields CHECK (((type <> 'webhook'::chat_automation_trigger_type) OR ((cron_schedule IS NULL) AND (last_triggered_at IS NULL))))
+);
+
+CREATE TABLE chat_automations (
+    id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    instructions text DEFAULT ''::text NOT NULL,
+    model_config_id uuid,
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    allowed_tools text[] DEFAULT '{}'::text[] NOT NULL,
+    status chat_automation_status DEFAULT 'disabled'::chat_automation_status NOT NULL,
+    max_chat_creates_per_hour integer DEFAULT 10 NOT NULL,
+    max_messages_per_hour integer DEFAULT 60 NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT chat_automations_max_chat_creates_per_hour_check CHECK ((max_chat_creates_per_hour > 0)),
+    CONSTRAINT chat_automations_max_messages_per_hour_check CHECK ((max_messages_per_hour > 0))
+);
+
 CREATE TABLE chat_diff_statuses (
     chat_id uuid NOT NULL,
     url text,
@@ -1403,7 +1479,8 @@ CREATE TABLE chats (
     build_id uuid,
     agent_id uuid,
     pin_order integer DEFAULT 0 NOT NULL,
-    last_read_message_id bigint
+    last_read_message_id bigint,
+    automation_id uuid
 );
 
 CREATE TABLE connection_logs (
@@ -3319,6 +3396,15 @@ ALTER TABLE ONLY audit_logs
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_automation_triggers
+    ADD CONSTRAINT chat_automation_triggers_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
@@ -3704,6 +3790,20 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE INDEX idx_chat_automation_events_automation_id_received_at ON chat_automation_events USING btree (automation_id, received_at DESC);
+
+CREATE INDEX idx_chat_automation_events_rate_limit ON chat_automation_events USING btree (automation_id, received_at) WHERE (status = ANY (ARRAY['created'::chat_automation_event_status, 'continued'::chat_automation_event_status]));
+
+CREATE INDEX idx_chat_automation_events_received_at ON chat_automation_events USING btree (received_at);
+
+CREATE INDEX idx_chat_automation_triggers_automation_id ON chat_automation_triggers USING btree (automation_id);
+
+CREATE INDEX idx_chat_automations_organization_id ON chat_automations USING btree (organization_id);
+
+CREATE INDEX idx_chat_automations_owner_id ON chat_automations USING btree (owner_id);
+
+CREATE UNIQUE INDEX idx_chat_automations_owner_org_name ON chat_automations USING btree (owner_id, organization_id, name);
+
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
@@ -3731,6 +3831,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
+CREATE INDEX idx_chats_automation_id ON chats USING btree (automation_id);
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
@@ -4005,6 +4107,33 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_created_chat_id_fkey FOREIGN KEY (created_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_matched_chat_id_fkey FOREIGN KEY (matched_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automation_events
+    ADD CONSTRAINT chat_automation_events_trigger_id_fkey FOREIGN KEY (trigger_id) REFERENCES chat_automation_triggers(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automation_triggers
+    ADD CONSTRAINT chat_automation_triggers_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automation_triggers
+    ADD CONSTRAINT chat_automation_triggers_webhook_secret_key_id_fkey FOREIGN KEY (webhook_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4040,6 +4169,9 @@ ALTER TABLE ONLY chat_queued_messages
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_automation_id_fkey FOREIGN KEY (automation_id) REFERENCES chat_automations(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_build_id_fkey FOREIGN KEY (build_id) REFERENCES workspace_builds(id) ON DELETE SET NULL;

@@ -84,6 +84,13 @@ var chatActions = map[Action]ActionDefinition{
 	ActionDelete: "delete a chat",
 }
 
+var chatAutomationActions = map[Action]ActionDefinition{
+	ActionCreate: "create a chat automation",
+	ActionRead:   "read chat automation configuration",
+	ActionUpdate: "update a chat automation",
+	ActionDelete: "delete a chat automation",
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -112,6 +119,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat": {
 		Actions: chatActions,
+	},
+	"chat_automation": {
+		Actions: chatAutomationActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {

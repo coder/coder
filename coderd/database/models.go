@@ -224,6 +224,11 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
+	ApiKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"
+	ApiKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
+	ApiKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
+	ApiKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
+	ApiKeyScopeChatAutomation                      APIKeyScope = "chat_automation:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -467,7 +472,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatRead,
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
-		ApiKeyScopeChat:
+		ApiKeyScopeChat,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatAutomation:
 		return true
 	}
 	return false
@@ -680,6 +690,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
+		ApiKeyScopeChatAutomationCreate,
+		ApiKeyScopeChatAutomationRead,
+		ApiKeyScopeChatAutomationUpdate,
+		ApiKeyScopeChatAutomationDelete,
+		ApiKeyScopeChatAutomation,
 	}
 }
 
@@ -1104,6 +1119,195 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonTaskAutoPause,
 		BuildReasonTaskManualPause,
 		BuildReasonTaskResume,
+	}
+}
+
+type ChatAutomationEventStatus string
+
+const (
+	ChatAutomationEventStatusFiltered    ChatAutomationEventStatus = "filtered"
+	ChatAutomationEventStatusPreview     ChatAutomationEventStatus = "preview"
+	ChatAutomationEventStatusCreated     ChatAutomationEventStatus = "created"
+	ChatAutomationEventStatusContinued   ChatAutomationEventStatus = "continued"
+	ChatAutomationEventStatusRateLimited ChatAutomationEventStatus = "rate_limited"
+	ChatAutomationEventStatusError       ChatAutomationEventStatus = "error"
+)
+
+func (e *ChatAutomationEventStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationEventStatus(s)
+	case string:
+		*e = ChatAutomationEventStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationEventStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationEventStatus struct {
+	ChatAutomationEventStatus ChatAutomationEventStatus `json:"chat_automation_event_status"`
+	Valid                     bool                      `json:"valid"` // Valid is true if ChatAutomationEventStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationEventStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationEventStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationEventStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationEventStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationEventStatus), nil
+}
+
+func (e ChatAutomationEventStatus) Valid() bool {
+	switch e {
+	case ChatAutomationEventStatusFiltered,
+		ChatAutomationEventStatusPreview,
+		ChatAutomationEventStatusCreated,
+		ChatAutomationEventStatusContinued,
+		ChatAutomationEventStatusRateLimited,
+		ChatAutomationEventStatusError:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationEventStatusValues() []ChatAutomationEventStatus {
+	return []ChatAutomationEventStatus{
+		ChatAutomationEventStatusFiltered,
+		ChatAutomationEventStatusPreview,
+		ChatAutomationEventStatusCreated,
+		ChatAutomationEventStatusContinued,
+		ChatAutomationEventStatusRateLimited,
+		ChatAutomationEventStatusError,
+	}
+}
+
+type ChatAutomationStatus string
+
+const (
+	ChatAutomationStatusDisabled ChatAutomationStatus = "disabled"
+	ChatAutomationStatusPreview  ChatAutomationStatus = "preview"
+	ChatAutomationStatusActive   ChatAutomationStatus = "active"
+)
+
+func (e *ChatAutomationStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationStatus(s)
+	case string:
+		*e = ChatAutomationStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationStatus struct {
+	ChatAutomationStatus ChatAutomationStatus `json:"chat_automation_status"`
+	Valid                bool                 `json:"valid"` // Valid is true if ChatAutomationStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationStatus), nil
+}
+
+func (e ChatAutomationStatus) Valid() bool {
+	switch e {
+	case ChatAutomationStatusDisabled,
+		ChatAutomationStatusPreview,
+		ChatAutomationStatusActive:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationStatusValues() []ChatAutomationStatus {
+	return []ChatAutomationStatus{
+		ChatAutomationStatusDisabled,
+		ChatAutomationStatusPreview,
+		ChatAutomationStatusActive,
+	}
+}
+
+type ChatAutomationTriggerType string
+
+const (
+	ChatAutomationTriggerTypeWebhook ChatAutomationTriggerType = "webhook"
+	ChatAutomationTriggerTypeCron    ChatAutomationTriggerType = "cron"
+)
+
+func (e *ChatAutomationTriggerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatAutomationTriggerType(s)
+	case string:
+		*e = ChatAutomationTriggerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatAutomationTriggerType: %T", src)
+	}
+	return nil
+}
+
+type NullChatAutomationTriggerType struct {
+	ChatAutomationTriggerType ChatAutomationTriggerType `json:"chat_automation_trigger_type"`
+	Valid                     bool                      `json:"valid"` // Valid is true if ChatAutomationTriggerType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatAutomationTriggerType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatAutomationTriggerType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatAutomationTriggerType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatAutomationTriggerType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatAutomationTriggerType), nil
+}
+
+func (e ChatAutomationTriggerType) Valid() bool {
+	switch e {
+	case ChatAutomationTriggerTypeWebhook,
+		ChatAutomationTriggerTypeCron:
+		return true
+	}
+	return false
+}
+
+func AllChatAutomationTriggerTypeValues() []ChatAutomationTriggerType {
+	return []ChatAutomationTriggerType{
+		ChatAutomationTriggerTypeWebhook,
+		ChatAutomationTriggerTypeCron,
 	}
 }
 
@@ -4175,6 +4379,52 @@ type Chat struct {
 	AgentID           uuid.NullUUID  `db:"agent_id" json:"agent_id"`
 	PinOrder          int32          `db:"pin_order" json:"pin_order"`
 	LastReadMessageID sql.NullInt64  `db:"last_read_message_id" json:"last_read_message_id"`
+	AutomationID      uuid.NullUUID  `db:"automation_id" json:"automation_id"`
+}
+
+type ChatAutomation struct {
+	ID                    uuid.UUID            `db:"id" json:"id"`
+	OwnerID               uuid.UUID            `db:"owner_id" json:"owner_id"`
+	OrganizationID        uuid.UUID            `db:"organization_id" json:"organization_id"`
+	Name                  string               `db:"name" json:"name"`
+	Description           string               `db:"description" json:"description"`
+	Instructions          string               `db:"instructions" json:"instructions"`
+	ModelConfigID         uuid.NullUUID        `db:"model_config_id" json:"model_config_id"`
+	MCPServerIDs          []uuid.UUID          `db:"mcp_server_ids" json:"mcp_server_ids"`
+	AllowedTools          []string             `db:"allowed_tools" json:"allowed_tools"`
+	Status                ChatAutomationStatus `db:"status" json:"status"`
+	MaxChatCreatesPerHour int32                `db:"max_chat_creates_per_hour" json:"max_chat_creates_per_hour"`
+	MaxMessagesPerHour    int32                `db:"max_messages_per_hour" json:"max_messages_per_hour"`
+	CreatedAt             time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time            `db:"updated_at" json:"updated_at"`
+}
+
+type ChatAutomationEvent struct {
+	ID             uuid.UUID                 `db:"id" json:"id"`
+	AutomationID   uuid.UUID                 `db:"automation_id" json:"automation_id"`
+	TriggerID      uuid.NullUUID             `db:"trigger_id" json:"trigger_id"`
+	ReceivedAt     time.Time                 `db:"received_at" json:"received_at"`
+	Payload        json.RawMessage           `db:"payload" json:"payload"`
+	FilterMatched  bool                      `db:"filter_matched" json:"filter_matched"`
+	ResolvedLabels pqtype.NullRawMessage     `db:"resolved_labels" json:"resolved_labels"`
+	MatchedChatID  uuid.NullUUID             `db:"matched_chat_id" json:"matched_chat_id"`
+	CreatedChatID  uuid.NullUUID             `db:"created_chat_id" json:"created_chat_id"`
+	Status         ChatAutomationEventStatus `db:"status" json:"status"`
+	Error          sql.NullString            `db:"error" json:"error"`
+}
+
+type ChatAutomationTrigger struct {
+	ID                 uuid.UUID                 `db:"id" json:"id"`
+	AutomationID       uuid.UUID                 `db:"automation_id" json:"automation_id"`
+	Type               ChatAutomationTriggerType `db:"type" json:"type"`
+	WebhookSecret      sql.NullString            `db:"webhook_secret" json:"webhook_secret"`
+	WebhookSecretKeyID sql.NullString            `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
+	CronSchedule       sql.NullString            `db:"cron_schedule" json:"cron_schedule"`
+	LastTriggeredAt    sql.NullTime              `db:"last_triggered_at" json:"last_triggered_at"`
+	Filter             pqtype.NullRawMessage     `db:"filter" json:"filter"`
+	LabelPaths         pqtype.NullRawMessage     `db:"label_paths" json:"label_paths"`
+	CreatedAt          time.Time                 `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time                 `db:"updated_at" json:"updated_at"`
 }
 
 type ChatDiffStatus struct {
