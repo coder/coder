@@ -2377,6 +2377,19 @@ export interface CreateChatRequest {
 }
 
 // From codersdk/users.go
+/**
+ * CreateFirstUserOnboardingInfo contains optional demographic and
+ * newsletter preference data collected during first user setup.
+ */
+export interface CreateFirstUserOnboardingInfo {
+	readonly is_business: boolean;
+	readonly industry_type: string;
+	readonly org_size: string;
+	readonly newsletter_marketing: boolean;
+	readonly newsletter_releases: boolean;
+}
+
+// From codersdk/users.go
 export interface CreateFirstUserRequest {
 	readonly email: string;
 	readonly username: string;
@@ -2384,6 +2397,7 @@ export interface CreateFirstUserRequest {
 	readonly password: string;
 	readonly trial: boolean;
 	readonly trial_info: CreateFirstUserTrialInfo;
+	readonly onboarding_info: CreateFirstUserOnboardingInfo;
 }
 
 // From codersdk/users.go

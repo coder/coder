@@ -283,6 +283,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	telemetryUser.Email = &user.Email
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Users: []telemetry.User{telemetryUser},
+		FirstUserOnboarding: &telemetry.FirstUserOnboarding{
+			IsBusiness:          createUser.OnboardingInfo.IsBusiness,
+			IndustryType:        createUser.OnboardingInfo.IndustryType,
+			OrgSize:             createUser.OnboardingInfo.OrgSize,
+			NewsletterMarketing: createUser.OnboardingInfo.NewsletterMarketing,
+			NewsletterReleases:  createUser.OnboardingInfo.NewsletterReleases,
+		},
 	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
