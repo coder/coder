@@ -418,10 +418,7 @@ const TerminalPage: FC = () => {
 				</title>
 			)}
 
-			<div
-				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
-				data-status={connectionStatus}
-			>
+			<div className="flex flex-col h-screen" data-status={connectionStatus}>
 				<TerminalAlerts
 					agent={workspaceAgent}
 					status={connectionStatus}

@@ -73,15 +73,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 					aria-label="Template select for workspace"
 				/>
 
-				<OverflowY
-					maxHeight={380}
-					css={{
-						display: "flex",
-						flexDirection: "column",
-						paddingTop: "8px",
-						paddingBottom: "8px",
-					}}
-				>
+				<OverflowY maxHeight={380} className="flex flex-col pt-2 pb-2">
 					{templatesFetchStatus === "pending" ? (
 						<Loader size="sm" />
 					) : (
@@ -132,11 +124,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 	return (
 		<PopoverLink
 			to={`${templateLink}/workspace`}
-			css={{
-				display: "flex",
-				gap: 12,
-				alignItems: "center",
-			}}
+			className="flex gap-3 items-center"
 		>
 			<Avatar
 				variant="icon"
@@ -154,7 +142,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 					overflow: "hidden",
 				})}
 			>
-				<span css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+				<span className="whitespace-nowrap text-ellipsis">
 					{template.display_name || template.name || "[Unnamed]"}
 				</span>
 				<span

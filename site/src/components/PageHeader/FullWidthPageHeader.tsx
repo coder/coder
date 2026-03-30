@@ -63,18 +63,7 @@ const _PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
 };
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
-	return (
-		<h1
-			css={{
-				fontSize: 18,
-				fontWeight: 500,
-				margin: 0,
-				lineHeight: "24px",
-			}}
-		>
-			{children}
-		</h1>
-	);
+	return <h1 className="text-lg font-medium m-0 leading-6">{children}</h1>;
 };
 
 export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {

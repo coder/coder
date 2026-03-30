@@ -112,7 +112,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	);
 
 	return (
-		<Topbar css={{ gridArea: "topbar" }}>
+		<Topbar className="[grid-area:topbar]">
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<TopbarIconButton component={RouterLink} to="/workspaces">
@@ -159,7 +159,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				{quota && quota.budget > 0 && (
 					<Link
 						component={RouterLink}
-						css={{ color: "inherit" }}
+						className="text-inherit"
 						to={
 							showOrganizations
 								? `/workspaces?filter=organization:${encodeURIComponent(workspace.organization_name)}`
@@ -181,9 +181,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 							<span>
 								{workspace.latest_build.daily_cost}{" "}
-								<span css={{ color: theme.palette.text.secondary }}>
-									credits of
-								</span>{" "}
+								<span className="text-content-secondary">credits of</span>{" "}
 								{quota.budget}
 							</span>
 						</TopbarData>
@@ -199,7 +197,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							component={RouterLink}
 							to={`${templateLink}/settings/schedule`}
 							title="Schedule settings"
-							css={{ color: "inherit" }}
+							className="text-inherit"
 						>
 							{workspace.deleting_at ? (
 								<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
@@ -309,7 +307,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 							<Link
 								component={RouterLink}
 								to={orgPageUrl}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								{orgName}
 							</Link>
@@ -374,7 +372,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							<Link
 								component={RouterLink}
 								to={rootTemplateUrl}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								{templateDisplayName}
 							</Link>
@@ -383,7 +381,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							<Link
 								component={RouterLink}
 								to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								Version: {latestBuildVersionName}
 							</Link>
