@@ -3709,8 +3709,16 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 		check.Args(uuid.New()).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
+	s.Run("GetTailnetTunnelPeerBindingsBatch", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args([]uuid.UUID{uuid.New()}).
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+	}))
 	s.Run("GetTailnetTunnelPeerIDs", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+	}))
+	s.Run("GetTailnetTunnelPeerIDsBatch", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args([]uuid.UUID{uuid.New()}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
 	s.Run("GetAllTailnetCoordinators", s.Subtest(func(_ database.Store, check *expects) {

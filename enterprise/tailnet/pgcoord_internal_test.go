@@ -433,3 +433,131 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	_ = coordinator.Close()
 	require.Eventually(t, ctrl.Satisfied, testutil.WaitShort, testutil.IntervalFast)
 }
+
+func TestWorkQ_AcquireBatch_SameKind(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sameKind := func(a, b querierWorkKey) bool {
+		return (a.peerUpdate != uuid.Nil) == (b.peerUpdate != uuid.Nil)
+	}
+	q := newWorkQ[querierWorkKey](ctx, sameKind)
+
+	peer1 := uuid.New()
+	peer2 := uuid.New()
+	mapping1 := mKey(uuid.New())
+	mapping2 := mKey(uuid.New())
+
+	// Enqueue mixed types: peer, mapping, peer, mapping
+	q.enqueue(querierWorkKey{peerUpdate: peer1})
+	q.enqueue(querierWorkKey{mappingQuery: mapping1})
+	q.enqueue(querierWorkKey{peerUpdate: peer2})
+	q.enqueue(querierWorkKey{mappingQuery: mapping2})
+
+	// acquireBatch should return only items of the same kind as the first.
+	batch, err := q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 2, "should batch the two peerUpdate items together")
+	assert.NotEqual(t, uuid.Nil, batch[0].peerUpdate)
+	assert.NotEqual(t, uuid.Nil, batch[1].peerUpdate)
+
+	// Done with the first batch.
+	for _, k := range batch {
+		q.done(k)
+	}
+
+	// Next batch should be the two mapping queries.
+	batch, err = q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 2, "should batch the two mappingQuery items together")
+	assert.NotEqual(t, uuid.Nil, uuid.UUID(batch[0].mappingQuery))
+	assert.NotEqual(t, uuid.Nil, uuid.UUID(batch[1].mappingQuery))
+
+	for _, k := range batch {
+		q.done(k)
+	}
+}
+
+func TestWorkQ_AcquireBatch_RespectsMax(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[querierWorkKey](ctx, nil)
+
+	for i := 0; i < 5; i++ {
+		q.enqueue(querierWorkKey{peerUpdate: uuid.New()})
+	}
+
+	batch, err := q.acquireBatch(3)
+	require.NoError(t, err)
+	assert.Len(t, batch, 3, "should respect max parameter")
+
+	for _, k := range batch {
+		q.done(k)
+	}
+
+	// Remaining 2 should be available.
+	batch, err = q.acquireBatch(10)
+	require.NoError(t, err)
+	assert.Len(t, batch, 2)
+
+	for _, k := range batch {
+		q.done(k)
+	}
+}
+
+func TestWorkQ_AcquireBatch_SkipsInProgress(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[querierWorkKey](ctx, nil)
+
+	peer1 := uuid.New()
+	peer2 := uuid.New()
+	q.enqueue(querierWorkKey{peerUpdate: peer1})
+	q.enqueue(querierWorkKey{peerUpdate: peer2})
+
+	// Acquire one item.
+	key, err := q.acquire()
+	require.NoError(t, err)
+	assert.Equal(t, peer1, key.peerUpdate)
+
+	// Re-enqueue peer1 (simulating a new update while in progress).
+	q.enqueue(querierWorkKey{peerUpdate: peer1})
+
+	// acquireBatch should only return peer2 (peer1 is in progress).
+	batch, err := q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	assert.Equal(t, peer2, batch[0].peerUpdate)
+
+	q.done(key)
+	for _, k := range batch {
+		q.done(k)
+	}
+
+	// Now peer1 (re-enqueued) should be available.
+	batch, err = q.acquireBatch(10)
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	assert.Equal(t, peer1, batch[0].peerUpdate)
+}
+
+func TestWorkQ_Acquire_WrapsAcquireBatch(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	q := newWorkQ[querierWorkKey](ctx, nil)
+
+	peer := uuid.New()
+	q.enqueue(querierWorkKey{peerUpdate: peer})
+
+	key, err := q.acquire()
+	require.NoError(t, err)
+	assert.Equal(t, peer, key.peerUpdate)
+	q.done(key)
+}
