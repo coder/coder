@@ -24,9 +24,9 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for enabling the experiment and
   configuring providers.
-- **Chat Access role** assigned to each user who needs to create or use chats.
+- **Use Coder Agents role** assigned to each user who needs to create or use chats.
   Owners can assign this from **Admin** > **Users**. See
-  [Grant chat access](#step-3-grant-chat-access) below.
+  [Grant Use Coder Agents](#step-3-grant-use-coder-agents) below.
 
 ## Step 1: Enable the experiment
 
@@ -72,14 +72,14 @@ Detailed instructions for each provider and model option are in the
 > Start with a single frontier model to validate your setup before adding
 > additional providers.
 
-## Step 3: Grant chat access
+## Step 3: Grant Use Coder Agents
 
-The **Chat Access** role controls which users can create and use chats.
-Members do not have chat access by default.
+The **Use Coder Agents** role controls which users can create and use chats.
+Members do not have Use Coder Agents by default.
 
 1. Go to **Admin** > **Users** in the Coder dashboard.
 1. Click the roles icon next to the user you want to grant access to.
-1. Enable the **Chat Access** role and save.
+1. Enable the **Use Coder Agents** role and save.
 
 Repeat for each user who needs access. Owners always have full access
 and do not need the role.

@@ -50,9 +50,9 @@ func TestBuiltInRoles(t *testing.T) {
 		})
 	}
 
-	t.Run("chat-access", func(t *testing.T) {
+	t.Run("agents-access", func(t *testing.T) {
 		t.Parallel()
-		require.NoError(t, rbac.ChatAccessRole().Valid(), "invalid role")
+		require.NoError(t, rbac.AgentsAccessRole().Valid(), "invalid role")
 	})
 }
 
@@ -204,7 +204,7 @@ func TestRolePermissions(t *testing.T) {
 	orgUserAdmin := authSubject{Name: "org_user_admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	orgAdminBanWorkspace := authSubject{Name: "org_admin_workspace_ban", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
-	chatAccessUser := authSubject{Name: "chat_access", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleChatAccess()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	agentsAccessUser := authSubject{Name: "chat_access", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAgentsAccess()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	setOrgNotMe := authSubjectSet{orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin}
 
 	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(otherOrg)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
@@ -216,7 +216,7 @@ func TestRolePermissions(t *testing.T) {
 	// requiredSubjects are required to be asserted in each test case. This is
 	// to make sure one is not forgotten.
 	requiredSubjects := []authSubject{
-		memberMe, owner, chatAccessUser,
+		memberMe, owner, agentsAccessUser,
 		orgAdmin, otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
 		templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 	}
@@ -239,7 +239,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceUserObject(currentUser),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, memberMe, chatAccessUser, templateAdmin, userAdmin, orgUserAdmin, otherOrgAdmin, otherOrgUserAdmin, orgAdmin},
+				true: {owner, memberMe, agentsAccessUser, templateAdmin, userAdmin, orgUserAdmin, otherOrgAdmin, otherOrgUserAdmin, orgAdmin},
 				false: {
 					orgTemplateAdmin, orgAuditor,
 					otherOrgAuditor, otherOrgTemplateAdmin,
@@ -252,7 +252,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceUser,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, userAdmin},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin},
 			},
 		},
 		{
@@ -262,7 +262,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin, orgAdminBanWorkspace},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin, orgAuditor, orgUserAdmin},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, orgAuditor, orgUserAdmin},
 			},
 		},
 		{
@@ -272,7 +272,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAdminBanWorkspace},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -282,7 +282,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgAdminBanWorkspace},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgAdminBanWorkspace},
 			},
 		},
 		{
@@ -292,7 +292,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(policy.WildcardSymbol),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, orgUserAdmin, orgAuditor, memberMe, chatAccessUser, userAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgAuditor, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin},
 			},
 		},
 		{
@@ -302,7 +302,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -312,7 +312,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -321,7 +321,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgAdminBanWorkspace},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgAdminBanWorkspace},
 			},
 		},
 		{
@@ -330,7 +330,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAdminBanWorkspace},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -343,7 +343,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, orgAdmin, orgAdminBanWorkspace},
 				false: {
-					memberMe, chatAccessUser, setOtherOrg,
+					memberMe, agentsAccessUser, setOtherOrg,
 					templateAdmin, userAdmin,
 					orgTemplateAdmin, orgUserAdmin, orgAuditor,
 				},
@@ -360,7 +360,7 @@ func TestRolePermissions(t *testing.T) {
 				true: {},
 				false: {
 					orgAdmin, owner, setOtherOrg,
-					userAdmin, memberMe, chatAccessUser,
+					userAdmin, memberMe, agentsAccessUser,
 					templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor,
 					orgAdminBanWorkspace,
 				},
@@ -372,7 +372,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceTemplate.WithID(templateID).InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, orgUserAdmin, orgAuditor, memberMe, chatAccessUser, userAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgAuditor, memberMe, agentsAccessUser, userAdmin},
 			},
 		},
 		{
@@ -381,7 +381,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceTemplate.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAuditor, orgAdmin, templateAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, orgUserAdmin, memberMe, chatAccessUser, userAdmin},
+				false: {setOtherOrg, orgUserAdmin, memberMe, agentsAccessUser, userAdmin},
 			},
 		},
 		{
@@ -392,7 +392,7 @@ func TestRolePermissions(t *testing.T) {
 			}),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, chatAccessUser, userAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, agentsAccessUser, userAdmin},
 			},
 		},
 		{
@@ -403,7 +403,7 @@ func TestRolePermissions(t *testing.T) {
 				true: {owner, templateAdmin},
 				// Org template admins can only read org scoped files.
 				// File scope is currently not org scoped :cry:
-				false: {setOtherOrg, orgTemplateAdmin, orgAdmin, memberMe, chatAccessUser, userAdmin, orgAuditor, orgUserAdmin},
+				false: {setOtherOrg, orgTemplateAdmin, orgAdmin, memberMe, agentsAccessUser, userAdmin, orgAuditor, orgUserAdmin},
 			},
 		},
 		{
@@ -411,7 +411,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
 			Resource: rbac.ResourceFile.WithID(fileID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, memberMe, chatAccessUser, templateAdmin},
+				true:  {owner, memberMe, agentsAccessUser, templateAdmin},
 				false: {setOtherOrg, setOrgNotMe, userAdmin},
 			},
 		},
@@ -421,7 +421,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOrganization,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -430,7 +430,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOrganization.WithID(orgID).InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, orgTemplateAdmin, orgUserAdmin, orgAuditor, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, orgTemplateAdmin, orgUserAdmin, orgAuditor, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -439,7 +439,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOrganization.WithID(orgID).InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin, auditor, orgAuditor, userAdmin, orgUserAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser},
+				false: {setOtherOrg, memberMe, agentsAccessUser},
 			},
 		},
 		{
@@ -448,7 +448,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceAssignOrgRole,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, userAdmin, memberMe, chatAccessUser, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, userAdmin, memberMe, agentsAccessUser, templateAdmin},
 			},
 		},
 		{
@@ -457,7 +457,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceAssignRole,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, userAdmin},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin},
 			},
 		},
 		{
@@ -465,7 +465,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceAssignRole,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {setOtherOrg, setOrgNotMe, owner, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				true:  {setOtherOrg, setOrgNotMe, owner, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 				false: {},
 			},
 		},
@@ -475,7 +475,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, templateAdmin, orgTemplateAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, agentsAccessUser, templateAdmin, orgTemplateAdmin, orgAuditor},
 			},
 		},
 		{
@@ -484,7 +484,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, orgAuditor, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, orgAuditor, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -493,7 +493,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgUserAdmin, userAdmin, templateAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, orgAuditor, orgTemplateAdmin},
+				false: {setOtherOrg, memberMe, agentsAccessUser, orgAuditor, orgTemplateAdmin},
 			},
 		},
 		{
@@ -501,7 +501,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete, policy.ActionUpdate},
 			Resource: rbac.ResourceApiKey.WithID(apiKeyID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, memberMe, chatAccessUser},
+				true:  {owner, memberMe, agentsAccessUser},
 				false: {setOtherOrg, setOrgNotMe, templateAdmin, userAdmin},
 			},
 		},
@@ -513,7 +513,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceInboxNotification.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, orgAuditor, templateAdmin, userAdmin, memberMe, chatAccessUser},
+				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, orgAuditor, templateAdmin, userAdmin, memberMe, agentsAccessUser},
 			},
 		},
 		{
@@ -521,7 +521,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 			Resource: rbac.ResourceUserObject(currentUser),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, memberMe, chatAccessUser, userAdmin},
+				true:  {owner, memberMe, agentsAccessUser, userAdmin},
 				false: {setOtherOrg, setOrgNotMe, templateAdmin},
 			},
 		},
@@ -531,7 +531,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},
-				false: {setOtherOrg, orgTemplateAdmin, orgAuditor, memberMe, chatAccessUser, templateAdmin},
+				false: {setOtherOrg, orgTemplateAdmin, orgAuditor, memberMe, agentsAccessUser, templateAdmin},
 			},
 		},
 		{
@@ -540,7 +540,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAuditor, orgAdmin, userAdmin, templateAdmin, orgUserAdmin, orgTemplateAdmin},
-				false: {memberMe, chatAccessUser, setOtherOrg},
+				false: {memberMe, agentsAccessUser, setOtherOrg},
 			},
 		},
 		{
@@ -553,7 +553,7 @@ func TestRolePermissions(t *testing.T) {
 
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgUserAdmin, orgTemplateAdmin, orgAuditor},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin},
 			},
 		},
 		{
@@ -566,7 +566,7 @@ func TestRolePermissions(t *testing.T) {
 			}),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, templateAdmin, orgTemplateAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, agentsAccessUser, templateAdmin, orgTemplateAdmin, orgAuditor},
 			},
 		},
 		{
@@ -579,7 +579,7 @@ func TestRolePermissions(t *testing.T) {
 			}),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
-				false: {setOtherOrg, memberMe, chatAccessUser},
+				false: {setOtherOrg, memberMe, agentsAccessUser},
 			},
 		},
 		{
@@ -588,7 +588,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceGroupMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAuditor, orgAdmin, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser},
+				false: {setOtherOrg, memberMe, agentsAccessUser},
 			},
 		},
 		{
@@ -597,7 +597,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceGroupMember.WithID(adminID).InOrg(orgID).WithOwner(adminID.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAuditor, orgAdmin, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser},
+				false: {setOtherOrg, memberMe, agentsAccessUser},
 			},
 		},
 		{
@@ -606,7 +606,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgAdmin, owner},
-				false: {setOtherOrg, userAdmin, memberMe, chatAccessUser, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, userAdmin, memberMe, agentsAccessUser, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -615,7 +615,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, userAdmin, owner, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, userAdmin, owner, templateAdmin},
 			},
 		},
 		{
@@ -624,7 +624,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, chatAccessUser, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, agentsAccessUser, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -633,7 +633,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourcePrebuiltWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(database.PrebuildsSystemUserID.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, userAdmin, memberMe, chatAccessUser, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, userAdmin, memberMe, agentsAccessUser, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -642,7 +642,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceTask.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, chatAccessUser, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, agentsAccessUser, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		// Some admin style resources
@@ -652,7 +652,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceLicense,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -661,7 +661,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceDeploymentStats,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -670,7 +670,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceDeploymentConfig,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -679,7 +679,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceDebugInfo,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -688,7 +688,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceReplicas,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -697,7 +697,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceTailnetCoordinator,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -706,7 +706,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceAuditLog,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -715,7 +715,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceProvisionerDaemon.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, templateAdmin, orgAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, chatAccessUser, userAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, agentsAccessUser, userAdmin},
 			},
 		},
 		{
@@ -724,7 +724,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceProvisionerDaemon.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, templateAdmin, orgAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin, orgAuditor, orgUserAdmin},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, orgAuditor, orgUserAdmin},
 			},
 		},
 		{
@@ -733,7 +733,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceProvisionerDaemon.WithOwner(currentUser.String()).InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, templateAdmin, orgTemplateAdmin, orgAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, userAdmin, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, agentsAccessUser, userAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -742,7 +742,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceProvisionerJobs.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgTemplateAdmin, orgAdmin},
-				false: {setOtherOrg, memberMe, chatAccessUser, templateAdmin, userAdmin, orgUserAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, agentsAccessUser, templateAdmin, userAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -751,7 +751,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceSystem,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -760,7 +760,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOauth2App,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -768,7 +768,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceOauth2App,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 				false: {},
 			},
 		},
@@ -778,7 +778,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOauth2AppSecret,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOrgNotMe, setOtherOrg, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOrgNotMe, setOtherOrg, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -787,7 +787,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceOauth2AppCodeToken,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOrgNotMe, setOtherOrg, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOrgNotMe, setOtherOrg, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -796,7 +796,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceWorkspaceProxy,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOrgNotMe, setOtherOrg, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOrgNotMe, setOtherOrg, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -804,7 +804,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceWorkspaceProxy,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 				false: {},
 			},
 		},
@@ -815,7 +815,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceNotificationPreference.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {memberMe, chatAccessUser, owner},
+				true: {memberMe, agentsAccessUser, owner},
 				false: {
 					userAdmin, orgUserAdmin, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
@@ -832,7 +832,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
-					memberMe, chatAccessUser, userAdmin, orgUserAdmin, templateAdmin,
+					memberMe, agentsAccessUser, userAdmin, orgUserAdmin, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
 					otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 					orgAdmin, otherOrgAdmin,
@@ -846,7 +846,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
-					memberMe, chatAccessUser,
+					memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -864,7 +864,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
-					memberMe, chatAccessUser, templateAdmin, orgUserAdmin, userAdmin,
+					memberMe, agentsAccessUser, templateAdmin, orgUserAdmin, userAdmin,
 					orgAdmin, orgAuditor, orgTemplateAdmin,
 					otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 					otherOrgAdmin,
@@ -877,7 +877,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceWebpushSubscription.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, memberMe, chatAccessUser},
+				true:  {owner, memberMe, agentsAccessUser},
 				false: {orgAdmin, otherOrgAdmin, orgAuditor, otherOrgAuditor, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, userAdmin, orgUserAdmin, otherOrgUserAdmin},
 			},
 		},
@@ -889,7 +889,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, userAdmin, orgAdmin, otherOrgAdmin, orgUserAdmin, otherOrgUserAdmin},
 				false: {
-					memberMe, chatAccessUser, templateAdmin,
+					memberMe, agentsAccessUser, templateAdmin,
 					orgTemplateAdmin, orgAuditor,
 					otherOrgAuditor, otherOrgTemplateAdmin,
 				},
@@ -902,7 +902,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, orgAdmin, otherOrgAdmin},
 				false: {
-					userAdmin, memberMe, chatAccessUser,
+					userAdmin, memberMe, agentsAccessUser,
 					orgAuditor, orgUserAdmin,
 					otherOrgAuditor, otherOrgUserAdmin,
 				},
@@ -915,7 +915,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, orgAdmin, otherOrgAdmin},
 				false: {
-					memberMe, chatAccessUser, userAdmin, templateAdmin,
+					memberMe, agentsAccessUser, userAdmin, templateAdmin,
 					orgAuditor, orgUserAdmin, orgTemplateAdmin,
 					otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},
@@ -927,7 +927,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceCryptoKey,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -938,7 +938,7 @@ func TestRolePermissions(t *testing.T) {
 				true: {owner, orgAdmin, orgUserAdmin, userAdmin},
 				false: {
 					otherOrgAdmin,
-					memberMe, chatAccessUser, templateAdmin,
+					memberMe, agentsAccessUser, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
 					otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},
@@ -953,7 +953,7 @@ func TestRolePermissions(t *testing.T) {
 				false: {
 					orgAdmin, orgUserAdmin,
 					otherOrgAdmin,
-					memberMe, chatAccessUser, templateAdmin,
+					memberMe, agentsAccessUser, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
 					otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},
@@ -966,7 +966,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
-					memberMe, chatAccessUser,
+					memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -981,7 +981,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
-					memberMe, chatAccessUser,
+					memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -995,7 +995,7 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceConnectionLog,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		// Only the user themselves can access their own secrets — no one else.
@@ -1004,7 +1004,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceUserSecret.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {memberMe, chatAccessUser},
+				true: {memberMe, agentsAccessUser},
 				false: {
 					owner, orgAdmin,
 					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
@@ -1020,7 +1020,7 @@ func TestRolePermissions(t *testing.T) {
 				true: {},
 				false: {
 					owner,
-					memberMe, chatAccessUser,
+					memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -1034,7 +1034,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
 			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, memberMe, chatAccessUser},
+				true: {owner, memberMe, agentsAccessUser},
 				false: {
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
@@ -1051,7 +1051,7 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, auditor},
 				false: {
-					memberMe, chatAccessUser,
+					memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -1064,7 +1064,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryUsage,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				false: {owner, setOtherOrg, setOrgNotMe, memberMe, chatAccessUser, templateAdmin, userAdmin},
+				false: {owner, setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -1072,7 +1072,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceChat.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, chatAccessUser},
+				true: {owner, agentsAccessUser},
 				false: {
 					memberMe,
 					orgAdmin, otherOrgAdmin,

@@ -5926,7 +5926,7 @@ export const RoleAuditor = "auditor";
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
-export const RoleChatAccess = "chat-access";
+export const RoleAgentsAccess = "agents-access";
 
 // From codersdk/rbacroles.go
 /**
