@@ -1038,7 +1038,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										}}
 										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 									>
-										<ImageIcon className="h-3.5 w-3.5 shrink-0" /> Attach image
+										<ImageIcon className="size-3.5 shrink-0" /> Attach image
 									</button>
 								)}
 								{workspaceOptions && onWorkspaceChange && (
@@ -1052,7 +1052,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												disabled={isDisabled || isWorkspaceLoading}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<MonitorIcon className="h-3.5 w-3.5 shrink-0" />{" "}
+												<MonitorIcon className="size-3.5 shrink-0" />{" "}
 												<span>Attach workspace</span>
 												<ChevronRightIcon
 													className={cn(
@@ -1121,10 +1121,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														<ExternalImage
 															src={server.icon_url}
 															alt=""
-															className="h-3.5 w-3.5 shrink-0 rounded-sm"
+															className="size-3.5 shrink-0 rounded-sm"
 														/>
 													) : (
-														<ServerIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+														<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
 													)}
 													<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 														{server.display_name}
