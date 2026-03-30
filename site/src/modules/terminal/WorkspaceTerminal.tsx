@@ -91,13 +91,15 @@ export const WorkspaceTerminal = ({
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard } = useClipboard();
 
-	const reportTerminalError = useCallback(
-		(error: Error) => {
-			console.error(error);
-			onError?.(error);
-		},
-		[onError],
-	);
+	const [activated, setActivated] = useState(false);
+	if (isVisible && !activated) {
+		setActivated(true);
+	}
+
+	const reportTerminalError = useEffectEvent((error: Error) => {
+		console.error(error);
+		onError?.(error);
+	});
 
 	const getTerminalDimensions = useCallback(
 		(terminal: Terminal): { height: number; width: number } | null => {
@@ -142,7 +144,7 @@ export const WorkspaceTerminal = ({
 	);
 
 	useEffect(() => {
-		if (!isVisible) {
+		if (!activated) {
 			return;
 		}
 
@@ -243,9 +245,9 @@ export const WorkspaceTerminal = ({
 			setTerminal(undefined);
 		};
 	}, [
+		activated,
 		copyToClipboard,
 		handleOpenLink,
-		isVisible,
 		refit,
 		renderer,
 		reportTerminalError,
@@ -261,7 +263,7 @@ export const WorkspaceTerminal = ({
 	}, [isVisible, refit]);
 
 	useEffect(() => {
-		if (!terminal || !isVisible) {
+		if (!terminal || !activated) {
 			return;
 		}
 
@@ -346,8 +348,6 @@ export const WorkspaceTerminal = ({
 
 						const dimensions = getTerminalDimensions(terminal);
 						if (!dimensions) {
-							terminal.options.disableStdin = true;
-							handleStatusChange("disconnected");
 							return;
 						}
 
@@ -362,6 +362,9 @@ export const WorkspaceTerminal = ({
 				websocket.binaryType = "arraybuffer";
 				websocketRef.current = websocket;
 				websocket.addEventListener(WebsocketEvent.open, () => {
+					if (disposed) {
+						return;
+					}
 					terminal.options = {
 						disableStdin: false,
 						windowsMode: operatingSystem === "windows",
@@ -386,6 +389,9 @@ export const WorkspaceTerminal = ({
 					handleStatusChange("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
+					if (disposed) {
+						return;
+					}
 					if (typeof event.data === "string") {
 						// This exclusively occurs when testing.
 						// "jest-websocket-mock" doesn't support ArrayBuffer.
@@ -395,7 +401,7 @@ export const WorkspaceTerminal = ({
 					}
 				});
 				websocket.addEventListener(WebsocketEvent.reconnect, () => {
-					if (!websocket) {
+					if (disposed || !websocket) {
 						return;
 					}
 
@@ -403,8 +409,6 @@ export const WorkspaceTerminal = ({
 					refit();
 					const dimensions = getTerminalDimensions(terminal);
 					if (!dimensions) {
-						terminal.options.disableStdin = true;
-						handleStatusChange("disconnected");
 						return;
 					}
 					websocket.send(
@@ -435,6 +439,7 @@ export const WorkspaceTerminal = ({
 			websocketRef.current = undefined;
 		};
 	}, [
+		activated,
 		agentId,
 		autoFocus,
 		baseUrl,
@@ -444,7 +449,6 @@ export const WorkspaceTerminal = ({
 		getTerminalDimensions,
 		handleStatusChange,
 		initialCommand,
-		isVisible,
 		loading,
 		operatingSystem,
 		reconnectionToken,
