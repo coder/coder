@@ -1,23 +1,4 @@
-import {
-	MockDefaultOrganization,
-	MockStoppedWorkspace,
-	MockTemplate,
-	MockTemplateVersion,
-	MockUserOwner,
-} from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withProxyProvider,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { workspacePermissionsByOrganization } from "api/queries/organizations";
-import {
-	getTemplatesQueryKey,
-	templateVersionsQueryKey,
-} from "api/queries/templates";
 import {
 	expect,
 	fireEvent,
@@ -26,8 +7,27 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
+import {
+	getTemplatesQueryKey,
+	templateVersionsQueryKey,
+} from "#/api/queries/templates";
 import type { Workspace } from "#/api/typesGenerated";
 import { workspaceChecks } from "#/modules/workspaces/permissions";
+import {
+	MockDefaultOrganization,
+	MockStoppedWorkspace,
+	MockTemplate,
+	MockTemplateVersion,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "#/testHelpers/storybook";
 import WorkspacesPage from "./WorkspacesPage";
 
 const workspace: Workspace = {
