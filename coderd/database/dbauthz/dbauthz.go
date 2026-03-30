@@ -245,6 +245,9 @@ var (
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
 					// Provisionerd creates usage events
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
+					// Provisionerd needs to manage its own daemon record
+					// (heartbeat updates and registration).
+					rbac.ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -715,6 +718,44 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectAgentAPI = rbac.Subject{
+		Type:         rbac.SubjectTypeAgentAPI,
+		FriendlyName: "Agent API",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "agent-api"},
+				DisplayName: "Agent API",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceSystem.Type:    {policy.ActionRead, policy.ActionCreate},
+					rbac.ResourceWorkspace.Type: {policy.ActionUpdate},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
+	subjectWorkspaceStatsFlusher = rbac.Subject{
+		Type:         rbac.SubjectTypeWorkspaceStatsFlusher,
+		FriendlyName: "Workspace Stats Flusher",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "workspace-stats-flusher"},
+				DisplayName: "Workspace Stats Flusher",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceWorkspace.Type: {policy.ActionUpdate},
+					rbac.ResourceSystem.Type:    {policy.ActionCreate},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -759,6 +800,12 @@ func AsNotifier(ctx context.Context) context.Context {
 // updating resource monitors.
 func AsResourceMonitor(ctx context.Context) context.Context {
 	return As(ctx, subjectResourceMonitor)
+}
+
+// AsAgentAPI returns a context with an actor that has permissions
+// for agent API operations (app status, metadata, and script queries).
+func AsAgentAPI(ctx context.Context) context.Context {
+	return As(ctx, subjectAgentAPI)
 }
 
 // AsSubAgentAPI returns a context with an actor that has permissions required for
@@ -837,6 +884,13 @@ func AsWorkspaceBuilder(ctx context.Context) context.Context {
 // workspaces and deployment config, but nothing else.
 func AsChatd(ctx context.Context) context.Context {
 	return As(ctx, subjectChatd)
+}
+
+// AsWorkspaceStatsFlusher returns a context with an actor that has
+// permissions to flush workspace stats (batch update last_used_at,
+// insert agent stats, insert app stats).
+func AsWorkspaceStatsFlusher(ctx context.Context) context.Context {
+	return As(ctx, subjectWorkspaceStatsFlusher)
 }
 
 var AsRemoveActor = rbac.Subject{

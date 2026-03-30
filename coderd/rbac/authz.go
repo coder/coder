@@ -83,6 +83,8 @@ const (
 	SubjectTypeBoundaryUsageTracker         SubjectType = "boundary_usage_tracker"
 	SubjectTypeWorkspaceBuilder             SubjectType = "workspace_builder"
 	SubjectTypeChatd                        SubjectType = "chatd"
+	SubjectTypeAgentAPI                     SubjectType = "agent_api"
+	SubjectTypeWorkspaceStatsFlusher        SubjectType = "workspace_stats_flusher"
 )
 
 const (
