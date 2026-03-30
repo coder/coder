@@ -18,6 +18,7 @@ import {
 	isUsageLimitData,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
+import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import type { ModelSelectorOption } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
@@ -302,6 +303,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						>
 							{formatUsageLimitMessage(createError.response.data)}
 						</Alert>
+					) : isApiError(createError) &&
+						createError.response?.status === 403 ? (
+						<ChatAccessDeniedAlert />
 					) : (
 						<ErrorAlert error={createError} />
 					)

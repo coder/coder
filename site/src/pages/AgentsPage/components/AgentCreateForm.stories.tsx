@@ -268,3 +268,40 @@ export const UsageLimitExceeded: Story = {
 		),
 	},
 };
+
+export const ForbiddenNoAgentsRole: Story = {
+	args: {
+		...defaultArgs,
+		createError: Object.assign(
+			new Error("Request failed with status code 403"),
+			{
+				isAxiosError: true,
+				response: {
+					status: 403,
+					statusText: "Forbidden",
+					data: {
+						message: "Forbidden.",
+						detail:
+							"You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
+					},
+					headers: {},
+					config: {},
+				},
+				config: {},
+				toJSON: () => ({}),
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Use Coder Agents role required"),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "View Docs" }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("heading", { name: "Forbidden." }),
+		).not.toBeInTheDocument();
+	},
+};
