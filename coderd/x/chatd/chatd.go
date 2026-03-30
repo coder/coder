@@ -439,10 +439,10 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		if len(agents) == 0 {
 			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
 		}
-		selected, err := agentselect.SelectChatAgent(agents)
+		selected, err := agentselect.FindChatAgent(agents)
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
-				"select chat agent: %w",
+				"find chat agent: %w",
 				err,
 			)
 		}
@@ -496,10 +496,10 @@ func (c *turnWorkspaceContext) latestWorkspaceAgentID(
 	if len(agents) == 0 {
 		return uuid.Nil, errChatHasNoWorkspaceAgent
 	}
-	selected, err := agentselect.SelectChatAgent(agents)
+	selected, err := agentselect.FindChatAgent(agents)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf(
-			"select chat agent: %w",
+			"find chat agent: %w",
 			err,
 		)
 	}

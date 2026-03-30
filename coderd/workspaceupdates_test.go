@@ -228,7 +228,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 		}, update)
 	})
 
-	t.Run("FiltersChatAgents", func(t *testing.T) {
+	t.Run("IncludesChatAgents", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -237,10 +237,10 @@ func TestWorkspaceUpdates(t *testing.T) {
 		chatWorkspaceIDSlice := tailnet.UUIDToByteSlice(chatWorkspaceID)
 		visibleAgentID := uuid.UUID{0x0A}
 		visibleAgentIDSlice := tailnet.UUIDToByteSlice(visibleAgentID)
-		hiddenAgentID := uuid.UUID{0x0B}
-		hiddenAgentUpdatedID := uuid.UUID{0x0C}
-		visibleAgentUpdatedID := uuid.UUID{0x0D}
-		visibleAgentUpdatedIDSlice := tailnet.UUIDToByteSlice(visibleAgentUpdatedID)
+		chatAgentID := uuid.UUID{0x0B}
+		chatAgentIDSlice := tailnet.UUIDToByteSlice(chatAgentID)
+		chatAgentUpdatedID := uuid.UUID{0x0C}
+		chatAgentUpdatedIDSlice := tailnet.UUIDToByteSlice(chatAgentUpdatedID)
 
 		db := &mockWorkspaceStore{
 			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
@@ -255,7 +255,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 							Name: "agent1",
 						},
 						{
-							ID:   hiddenAgentID,
+							ID:   chatAgentID,
 							Name: "agent1-CODERD-CHAT",
 						},
 					},
@@ -278,7 +278,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			_ = sub.Close()
 		})
 
-		// GIVEN an initial subscription with one visible agent and one hidden chat agent.
+		// GIVEN an initial subscription with one visible agent and one chat agent.
 		update := testutil.TryReceive(ctx, t, sub.Updates())
 		require.Equal(t, &proto.WorkspaceUpdate{
 			UpsertedWorkspaces: []*proto.Workspace{
@@ -294,79 +294,59 @@ func TestWorkspaceUpdates(t *testing.T) {
 					Name:        "agent1",
 					WorkspaceId: chatWorkspaceIDSlice,
 				},
-			},
-			DeletedWorkspaces: []*proto.Workspace{},
-			DeletedAgents:     []*proto.Agent{},
-		}, update)
-
-		// WHEN only the hidden chat agent changes.
-		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
-			{
-				ID:         chatWorkspaceID,
-				Name:       "chat-workspace",
-				JobStatus:  database.ProvisionerJobStatusRunning,
-				Transition: database.WorkspaceTransitionStart,
-				Agents: []database.AgentIDNamePair{
-					{
-						ID:   visibleAgentID,
-						Name: "agent1",
-					},
-					{
-						ID:   hiddenAgentUpdatedID,
-						Name: "agent1-coderd-chat",
-					},
-				},
-			},
-		}
-		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
-			Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
-			WorkspaceID: chatWorkspaceID,
-		})
-		select {
-		case update := <-sub.Updates():
-			require.Failf(t, "unexpected update", "%v", update)
-		default:
-		}
-
-		// THEN adding a new visible agent still produces an update.
-		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
-			{
-				ID:         chatWorkspaceID,
-				Name:       "chat-workspace",
-				JobStatus:  database.ProvisionerJobStatusRunning,
-				Transition: database.WorkspaceTransitionStart,
-				Agents: []database.AgentIDNamePair{
-					{
-						ID:   visibleAgentID,
-						Name: "agent1",
-					},
-					{
-						ID:   visibleAgentUpdatedID,
-						Name: "agent2",
-					},
-					{
-						ID:   hiddenAgentUpdatedID,
-						Name: "agent1-coderd-chat",
-					},
-				},
-			},
-		}
-		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
-			Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
-			WorkspaceID: chatWorkspaceID,
-		})
-		update = testutil.TryReceive(ctx, t, sub.Updates())
-		require.Equal(t, &proto.WorkspaceUpdate{
-			UpsertedWorkspaces: []*proto.Workspace{},
-			UpsertedAgents: []*proto.Agent{
 				{
-					Id:          visibleAgentUpdatedIDSlice,
-					Name:        "agent2",
+					Id:          chatAgentIDSlice,
+					Name:        "agent1-CODERD-CHAT",
 					WorkspaceId: chatWorkspaceIDSlice,
 				},
 			},
 			DeletedWorkspaces: []*proto.Workspace{},
 			DeletedAgents:     []*proto.Agent{},
+		}, update)
+
+		// WHEN the chat agent changes.
+		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
+			{
+				ID:         chatWorkspaceID,
+				Name:       "chat-workspace",
+				JobStatus:  database.ProvisionerJobStatusRunning,
+				Transition: database.WorkspaceTransitionStart,
+				Agents: []database.AgentIDNamePair{
+					{
+						ID:   visibleAgentID,
+						Name: "agent1",
+					},
+					{
+						ID:   chatAgentUpdatedID,
+						Name: "agent1-coderd-chat",
+					},
+				},
+			},
+		}
+		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
+			WorkspaceID: chatWorkspaceID,
+		})
+
+		// THEN the updates stream includes the replacement chat agent.
+		update = testutil.TryReceive(ctx, t, sub.Updates())
+		require.Equal(t, &proto.WorkspaceUpdate{
+			UpsertedWorkspaces: []*proto.Workspace{},
+			UpsertedAgents: []*proto.Agent{
+				{
+					Id:          chatAgentUpdatedIDSlice,
+					Name:        "agent1-coderd-chat",
+					WorkspaceId: chatWorkspaceIDSlice,
+				},
+			},
+			DeletedWorkspaces: []*proto.Workspace{},
+			DeletedAgents: []*proto.Agent{
+				{
+					Id:          chatAgentIDSlice,
+					Name:        "agent1-CODERD-CHAT",
+					WorkspaceId: chatWorkspaceIDSlice,
+				},
+			},
 		}, update)
 	})
 

@@ -218,7 +218,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 					if len(agents) == 0 {
 						result["agent_status"] = "no_agent"
 					} else {
-						selected, selectErr := agentselect.SelectChatAgent(agents)
+						selected, selectErr := agentselect.FindChatAgent(agents)
 						if selectErr != nil {
 							result["agent_status"] = "selection_error"
 							result["agent_error"] = selectErr.Error()
@@ -331,7 +331,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		}
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 {
-			selected, selectErr := agentselect.SelectChatAgent(agents)
+			selected, selectErr := agentselect.FindChatAgent(agents)
 			if selectErr != nil {
 				o.Logger.Debug(ctx, "agent selection failed, falling back to first agent for readiness check",
 					slog.F("workspace_id", ws.ID),
@@ -362,7 +362,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		// still usable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 {
-			selected, selectErr := agentselect.SelectChatAgent(agents)
+			selected, selectErr := agentselect.FindChatAgent(agents)
 			if selectErr != nil {
 				o.Logger.Debug(ctx, "agent selection failed, falling back to first agent for status check",
 					slog.F("workspace_id", ws.ID),

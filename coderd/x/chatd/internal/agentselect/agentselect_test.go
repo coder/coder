@@ -8,11 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatagent"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 )
 
-func TestSelectChatAgent(t *testing.T) {
+func TestFindChatAgent(t *testing.T) {
 	t.Parallel()
 
 	newRootAgentWithID := func(id, name string, displayOrder int32) database.WorkspaceAgent {
@@ -101,7 +100,7 @@ func TestSelectChatAgent(t *testing.T) {
 			wantErrContains: []string{
 				fmt.Sprintf(
 					"multiple agents match the chat suffix %q",
-					chatagent.Suffix,
+					agentselect.Suffix,
 				),
 				"alpha-coderd-chat",
 				"beta-coderd-chat",
@@ -166,7 +165,7 @@ func TestSelectChatAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := agentselect.SelectChatAgent(tt.agents)
+			got, err := agentselect.FindChatAgent(tt.agents)
 			if len(tt.wantErrContains) > 0 {
 				require.Error(t, err)
 				for _, wantErr := range tt.wantErrContains {
@@ -177,6 +176,56 @@ func TestSelectChatAgent(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.agents[tt.wantIndex], got)
+		})
+	}
+}
+
+func TestIsChatAgent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{
+			name:  "ExactSuffix",
+			input: "agent-coderd-chat",
+			want:  true,
+		},
+		{
+			name:  "UppercaseSuffix",
+			input: "agent-CODERD-CHAT",
+			want:  true,
+		},
+		{
+			name:  "MixedCaseSuffix",
+			input: "agent-Coderd-Chat",
+			want:  true,
+		},
+		{
+			name:  "NoSuffix",
+			input: "my-agent",
+			want:  false,
+		},
+		{
+			name:  "SuffixOnly",
+			input: "-coderd-chat",
+			want:  true,
+		},
+		{
+			name:  "PartialSuffix",
+			input: "agent-coderd",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, agentselect.IsChatAgent(tt.input))
 		})
 	}
 }

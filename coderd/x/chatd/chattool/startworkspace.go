@@ -165,7 +165,7 @@ func waitForAgentAndRespond(
 		}), nil
 	}
 
-	selected, err := agentselect.SelectChatAgent(agents)
+	selected, err := agentselect.FindChatAgent(agents)
 	if err != nil {
 		return toolResponse(map[string]any{
 			"started":        true,

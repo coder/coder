@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatagent"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -281,9 +280,6 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 	for _, row := range rows {
 		agents := []database.AgentIDNamePair{}
 		for _, agent := range row.Agents {
-			if chatagent.IsChatAgent(agent.Name) {
-				continue
-			}
 			agents = append(agents, database.AgentIDNamePair{
 				ID:   agent.ID,
 				Name: agent.Name,
