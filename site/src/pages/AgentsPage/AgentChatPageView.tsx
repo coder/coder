@@ -567,12 +567,14 @@ function scrollTranscriptToBottom({
 	scrollContainerRef,
 	autoScrollRef,
 	isRestoringScrollRef,
+	restoreGuardRafIdRef,
 	setShowScrollToBottom,
 }: {
 	behavior: "smooth" | "instant";
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	autoScrollRef: { current: boolean };
 	isRestoringScrollRef: { current: boolean };
+	restoreGuardRafIdRef: { current: number | null };
 	setShowScrollToBottom: (next: boolean) => void;
 }): void {
 	const container = scrollContainerRef.current;
@@ -580,6 +582,12 @@ function scrollTranscriptToBottom({
 		return;
 	}
 
+	// Cancel any pending guard-clear so it cannot drop the flag
+	// during a smooth scroll animation.
+	if (restoreGuardRafIdRef.current !== null) {
+		cancelAnimationFrame(restoreGuardRafIdRef.current);
+		restoreGuardRafIdRef.current = null;
+	}
 	autoScrollRef.current = true;
 	isRestoringScrollRef.current = true;
 	const top = Math.max(container.scrollHeight - container.clientHeight, 0);
@@ -626,6 +634,13 @@ const ScrollAnchoredContainer: FC<{
 	// when this is set, preventing user-visible jitter. Cleared when the
 	// scroll reaches its destination or the user actively interrupts.
 	const isRestoringScrollRef = useRef(false);
+	// Shared guard-clear RAF ID across both the content and container
+	// ResizeObservers. Both observers set isRestoringScrollRef before
+	// pinning and schedule a one-frame-delayed clear. Without a shared
+	// ID, one observer's clear can fire while the other's pin chain is
+	// still in-flight, leaving a window where the scroll handler reads
+	// stale position data and disables auto-scroll.
+	const restoreGuardRafIdRef = useRef<number | null>(null);
 	const cancelPendingPinsRef = useRef<(() => void) | null>(null);
 	// Guard counter: positive while one or more touch contacts are active.
 	// Prevents ResizeObserver callbacks from snapping scroll to bottom
@@ -664,6 +679,7 @@ const ScrollAnchoredContainer: FC<{
 				scrollContainerRef,
 				autoScrollRef,
 				isRestoringScrollRef,
+				restoreGuardRafIdRef,
 				setShowScrollToBottom,
 			});
 		};
@@ -778,7 +794,6 @@ const ScrollAnchoredContainer: FC<{
 		let prevContentWidth = initialContentRect.width;
 		let pinOuterRafId: number | null = null;
 		let pinInnerRafId: number | null = null;
-		let restoreGuardRafId: number | null = null;
 
 		const cancelPendingPins = () => {
 			if (pinOuterRafId !== null) {
@@ -802,6 +817,17 @@ const ScrollAnchoredContainer: FC<{
 			if (pinOuterRafId !== null || pinInnerRafId !== null) {
 				return;
 			}
+			// Cancel any pending guard-clear from a previous pin
+			// chain (or the container resize observer). Without
+			// this, the stale guard-clear fires during the new
+			// chain's double-RAF window, setting
+			// isRestoringScrollRef to false. A scroll event in
+			// that gap reads the wrong position and disables
+			// auto-scroll, causing the pin to be skipped.
+			if (restoreGuardRafIdRef.current !== null) {
+				cancelAnimationFrame(restoreGuardRafIdRef.current);
+				restoreGuardRafIdRef.current = null;
+			}
 			pendingWheelPinRef.current = false;
 			isRestoringScrollRef.current = true;
 			// Double-RAF lets React's commit phase and the browser's
@@ -814,17 +840,18 @@ const ScrollAnchoredContainer: FC<{
 						isRestoringScrollRef.current = false;
 						return;
 					}
-					if (restoreGuardRafId !== null) {
-						cancelAnimationFrame(restoreGuardRafId);
+					if (restoreGuardRafIdRef.current !== null) {
+						cancelAnimationFrame(restoreGuardRafIdRef.current);
+						restoreGuardRafIdRef.current = null;
 					}
 					container.scrollTop = Math.max(
 						container.scrollHeight - container.clientHeight,
 						0,
 					);
 					setShowScrollToBottom(false);
-					restoreGuardRafId = requestAnimationFrame(() => {
+					restoreGuardRafIdRef.current = requestAnimationFrame(() => {
 						isRestoringScrollRef.current = false;
-						restoreGuardRafId = null;
+						restoreGuardRafIdRef.current = null;
 					});
 				});
 			});
@@ -862,14 +889,14 @@ const ScrollAnchoredContainer: FC<{
 					const scrollHeightDelta =
 						container.scrollHeight - pending.scrollHeight;
 					if (scrollHeightDelta > 0) {
-						if (restoreGuardRafId !== null) {
-							cancelAnimationFrame(restoreGuardRafId);
+						if (restoreGuardRafIdRef.current !== null) {
+							cancelAnimationFrame(restoreGuardRafIdRef.current);
 						}
 						isRestoringScrollRef.current = true;
 						container.scrollTop = container.scrollTop + scrollHeightDelta;
-						restoreGuardRafId = requestAnimationFrame(() => {
+						restoreGuardRafIdRef.current = requestAnimationFrame(() => {
 							isRestoringScrollRef.current = false;
-							restoreGuardRafId = null;
+							restoreGuardRafIdRef.current = null;
 						});
 					}
 				}
@@ -909,8 +936,9 @@ const ScrollAnchoredContainer: FC<{
 			cancelPendingPinsRef.current = null;
 			observer.disconnect();
 			cancelPendingPins();
-			if (restoreGuardRafId !== null) {
-				cancelAnimationFrame(restoreGuardRafId);
+			if (restoreGuardRafIdRef.current !== null) {
+				cancelAnimationFrame(restoreGuardRafIdRef.current);
+				restoreGuardRafIdRef.current = null;
 			}
 			isRestoringScrollRef.current = false;
 		};
@@ -921,7 +949,6 @@ const ScrollAnchoredContainer: FC<{
 		if (!container) return;
 
 		let prevContainerHeight = container.clientHeight;
-		let restoreGuardRafId: number | null = null;
 
 		const observer = new ResizeObserver((entries) => {
 			const nextHeight =
@@ -939,26 +966,28 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (restoreGuardRafId !== null) {
-				cancelAnimationFrame(restoreGuardRafId);
+			if (restoreGuardRafIdRef.current !== null) {
+				cancelAnimationFrame(restoreGuardRafIdRef.current);
 			}
 			isRestoringScrollRef.current = true;
 			container.scrollTop = Math.max(
 				container.scrollHeight - container.clientHeight,
 				0,
 			);
-			restoreGuardRafId = requestAnimationFrame(() => {
+			restoreGuardRafIdRef.current = requestAnimationFrame(() => {
 				isRestoringScrollRef.current = false;
-				restoreGuardRafId = null;
+				restoreGuardRafIdRef.current = null;
 			});
 		});
 		observer.observe(container);
 
 		return () => {
 			observer.disconnect();
-			if (restoreGuardRafId !== null) {
-				cancelAnimationFrame(restoreGuardRafId);
-			}
+			// The shared restoreGuardRafIdRef is cancelled by the
+			// content observer's cleanup (same dependency array, React
+			// runs cleanups in declaration order). Reset the guard
+			// defensively so this effect is self-contained if the
+			// ordering ever changes.
 			isRestoringScrollRef.current = false;
 		};
 	}, [scrollContainerRef]);
@@ -1057,6 +1086,7 @@ const ScrollAnchoredContainer: FC<{
 							scrollContainerRef,
 							autoScrollRef,
 							isRestoringScrollRef,
+							restoreGuardRafIdRef,
 							setShowScrollToBottom,
 						});
 					} else {
@@ -1149,6 +1179,7 @@ const ScrollAnchoredContainer: FC<{
 			scrollContainerRef,
 			autoScrollRef,
 			isRestoringScrollRef,
+			restoreGuardRafIdRef,
 			setShowScrollToBottom,
 		});
 	};
