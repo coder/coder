@@ -10,14 +10,14 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
-import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import { createChatStore } from "./ChatConversation/chatStore";
-import type { ModelSelectorOption } from "./ChatElements";
+import { createChatStore } from "./components/ChatConversation/chatStore";
+import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
@@ -75,7 +75,7 @@ const buildGitWatcher = (): ComponentProps<
 	typeof AgentChatPageView
 >["gitWatcher"] => ({
 	repositories: new Map(),
-	refresh: fn(),
+	refresh: fn().mockReturnValue(true),
 });
 
 const agentsRouting = [

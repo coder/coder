@@ -20,7 +20,7 @@ export const AgentAnalyticsPageView: FC<AgentAnalyticsPageViewProps> = ({
 	rangeLabel,
 }) => {
 	return (
-		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+		<div className="flex flex-col p-4 pt-8">
 			<div className="mx-auto w-full max-w-3xl">
 				<SectionHeader
 					label="Analytics"

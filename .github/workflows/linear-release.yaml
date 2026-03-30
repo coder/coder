@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue rather than cancel so back-to-back pushes to main don't cancel the first sync.
+  cancel-in-progress: false
 
 jobs:
   sync-main:

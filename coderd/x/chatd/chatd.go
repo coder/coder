@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -379,6 +380,13 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		if len(agents) == 0 {
 			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
 		}
+		selected, err := agentselect.FindChatAgent(agents)
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
+				"find chat agent: %w",
+				err,
+			)
+		}
 
 		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
 		if err != nil {
@@ -389,7 +397,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			ctx,
 			chatSnapshot,
 			build.ID,
-			agents[0].ID,
+			selected.ID,
 		)
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, err
@@ -401,7 +409,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			chatSnapshot = latestChat
 			continue
 		}
-		c.agent = agents[0]
+		c.agent = selected
 		c.agentLoaded = true
 		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 		return chatSnapshot, c.agent, nil
@@ -429,7 +437,14 @@ func (c *turnWorkspaceContext) latestWorkspaceAgentID(
 	if len(agents) == 0 {
 		return uuid.Nil, errChatHasNoWorkspaceAgent
 	}
-	return agents[0].ID, nil
+	selected, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf(
+			"find chat agent: %w",
+			err,
+		)
+	}
+	return selected.ID, nil
 }
 
 func (c *turnWorkspaceContext) workspaceAgentIDForConn(

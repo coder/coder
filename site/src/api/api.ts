@@ -3013,6 +3013,19 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeSessionThreads = async (
+		sessionId: string,
+		options?: { after_id?: string; before_id?: string; limit?: number },
+	) => {
+		const url = getURLWithSearchParams(
+			`/api/v2/aibridge/sessions/${sessionId}`,
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
+		return response.data;
+	};
+
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 

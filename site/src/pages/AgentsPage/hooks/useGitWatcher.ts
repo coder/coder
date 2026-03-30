@@ -30,8 +30,8 @@ interface UseGitWatcherResult {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
-	/** Send a refresh request. */
-	refresh: () => void;
+	/** Send a refresh request. Returns true if sent, false if disconnected. */
+	refresh: () => boolean;
 }
 
 const MAX_BACKOFF_MS = 30_000;
@@ -51,15 +51,17 @@ export function useGitWatcher({
 	// Track whether we've been disposed to avoid reconnecting after unmount.
 	const disposedRef = useRef(false);
 
-	const sendMessage = (msg: WorkspaceAgentGitClientMessage) => {
+	const sendMessage = (msg: WorkspaceAgentGitClientMessage): boolean => {
 		const socket = socketRef.current;
 		if (socket && socket.readyState === WebSocket.OPEN) {
 			socket.send(JSON.stringify(msg));
+			return true;
 		}
+		return false;
 	};
 
-	const refresh = () => {
-		sendMessage({ type: "refresh" });
+	const refresh = (): boolean => {
+		return sendMessage({ type: "refresh" });
 	};
 
 	useEffect(() => {
