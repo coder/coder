@@ -10,7 +10,6 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -18,6 +17,7 @@ import {
 } from "./AgentChatPageView";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers

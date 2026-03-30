@@ -13,7 +13,6 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -30,6 +29,7 @@ import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
