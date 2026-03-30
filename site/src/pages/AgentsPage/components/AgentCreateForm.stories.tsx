@@ -288,6 +288,7 @@ export const ForbiddenNoAgentsRole: Story = {
 		).not.toBeInTheDocument();
 		// The textarea should be disabled so the user cannot
 		// accidentally trigger the generic error.
-		await expect(canvas.getByRole("textbox")).toBeDisabled();
+		const textbox = canvas.getByRole("textbox");
+		await expect(textbox).toHaveAttribute("aria-disabled", "true");
 	},
 };
