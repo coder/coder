@@ -14,7 +14,10 @@ import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
-import { AgentChatInput, type ChatMessageInputRef } from "./components/AgentChatInput";
+import {
+	AgentChatInput,
+	type ChatMessageInputRef,
+} from "./components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
