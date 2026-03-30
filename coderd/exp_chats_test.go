@@ -946,7 +946,7 @@ func TestListChatModels(t *testing.T) {
 		require.True(t, googleProvider.Available)
 	})
 
-	t.Run("DisabledProvidersAreFilteredOut", func(t *testing.T) {
+	t.Run("DisabledProvidersAndModelsAreFilteredOut", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -955,13 +955,33 @@ func TestListChatModels(t *testing.T) {
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
-			Enabled:  ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
 		})
 		require.NoError(t, err)
 
 		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		require.Len(t, models.Providers, 1)
+		require.Equal(t, "openai", models.Providers[0].Provider)
+		require.Len(t, models.Providers[0].Models, 1)
+		require.Equal(t, "gpt-4o-mini", models.Providers[0].Models[0].Model)
+
+		enabled := false
+		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			Enabled: &enabled,
+		})
+		require.NoError(t, err)
+
+		models, err = client.ListChatModels(ctx)
 		require.NoError(t, err)
 		require.Empty(t, models.Providers)
 	})
