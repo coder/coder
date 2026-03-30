@@ -666,6 +666,7 @@ func createWorkspace(
 		provisionerJob     *database.ProvisionerJob
 		workspaceBuild     *database.WorkspaceBuild
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+		prebuildClaimed    bool
 	)
 
 	err = api.Database.InTx(func(db database.Store) error {
@@ -787,6 +788,75 @@ func createWorkspace(
 			}
 		}
 
+		// HACK: When claiming a prebuild, skip Terraform entirely.
+		// Reuse the existing completed build so the user gets instant
+		// shell access without waiting for a plan+apply cycle.
+		if claimedWorkspace != nil {
+			prebuildClaimed = true
+			// nolint:gocritic // System context needed to read the
+			// prebuild's existing build and provisioner job.
+			sysCtx := dbauthz.AsSystemRestricted(ctx)
+			latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(sysCtx, workspaceID)
+			if err != nil {
+				return xerrors.Errorf("get latest build for claimed prebuild: %w", err)
+			}
+			workspaceBuild = &latestBuild
+			job, err := db.GetProvisionerJobByID(sysCtx, latestBuild.JobID)
+			if err != nil {
+				return xerrors.Errorf("get provisioner job for claimed prebuild: %w", err)
+			}
+			provisionerJob = &job
+			provisionerDaemons = nil
+
+			// Patch the in-memory structs so the API response
+			// shows the claiming user, not the prebuilds system user.
+			workspaceBuild.InitiatorID = initiatorID
+			workspaceBuild.InitiatorByUsername = owner.Username
+			workspaceBuild.InitiatorByAvatarUrl = owner.AvatarURL
+			provisionerJob.InitiatorID = initiatorID
+			// Patch CompletedAt to the claim time so the extend
+			// deadline validation uses a consistent reference.
+			provisionerJob.CompletedAt = sql.NullTime{Time: now, Valid: true}
+			err = db.UpdateProvisionerJobWithCompleteByID(sysCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID:          provisionerJob.ID,
+				UpdatedAt:   now,
+				CompletedAt: sql.NullTime{Time: now, Valid: true},
+				Error:       provisionerJob.Error,
+				ErrorCode:   provisionerJob.ErrorCode,
+			})
+			if err != nil {
+				return xerrors.Errorf("update provisioner job completed_at: %w", err)
+			}
+			// Calculate the proper workspace deadline using the
+			// same logic as normal build completion, so auto-stop
+			// and quiet hours work correctly after the claim.
+			autostop, err := schedule.CalculateAutostop(sysCtx, schedule.CalculateAutostopParams{
+				Database:                    db,
+				TemplateScheduleStore:       *api.TemplateScheduleStore.Load(),
+				UserQuietHoursScheduleStore: *api.UserQuietHoursScheduleStore.Load(),
+				WorkspaceAutostart:          workspace.AutostartSchedule.String,
+				WorkspaceBuildCompletedAt:   now,
+				Workspace:                   workspace.WorkspaceTable(),
+			})
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to calculate autostop for claimed prebuild", slog.Error(err))
+			}
+			workspaceBuild.Deadline = autostop.Deadline
+			workspaceBuild.MaxDeadline = autostop.MaxDeadline
+			if !autostop.Deadline.IsZero() || !autostop.MaxDeadline.IsZero() {
+				err = db.UpdateWorkspaceBuildDeadlineByID(sysCtx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID:          workspaceBuild.ID,
+					UpdatedAt:   now,
+					Deadline:    autostop.Deadline,
+					MaxDeadline: autostop.MaxDeadline,
+				})
+				if err != nil {
+					return xerrors.Errorf("update prebuild deadline: %w", err)
+				}
+			}
+			return nil
+		}
+
 		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
@@ -800,9 +870,6 @@ func createWorkspace(
 		}
 		if templateVersionPresetID != uuid.Nil {
 			builder = builder.TemplateVersionPresetID(templateVersionPresetID)
-		}
-		if claimedWorkspace != nil {
-			builder = builder.MarkPrebuiltWorkspaceClaim()
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
@@ -820,12 +887,25 @@ func createWorkspace(
 		return codersdk.Workspace{}, err
 	}
 
-	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
-	if err != nil {
-		// Client probably doesn't care about this error, so just log it.
-		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+	if prebuildClaimed {
+		// Immediately tell the agent to reinitialize — no Terraform
+		// needed! The user gets instant shell access.
+		api.Logger.Info(ctx, "prebuild claimed, skipping terraform and publishing reinit",
+			slog.F("workspace_id", workspace.ID))
+		err = prebuilds.NewPubsubWorkspaceClaimPublisher(api.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+			WorkspaceID: workspace.ID,
+			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+		})
+		if err != nil {
+			api.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))
+		}
+	} else {
+		err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
+		if err != nil {
+			// Client probably doesn't care about this error, so just log it.
+			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+		}
 	}
-
 	// nolint:gocritic // Need system context to fetch admins
 	admins, err := findTemplateAdmins(dbauthz.AsSystemRestricted(ctx), api.Database)
 	if err != nil {
