@@ -1229,32 +1229,51 @@ func (p *Server) EditMessage(
 	return result, nil
 }
 
-// ArchiveChat archives a chat and all descendants, then broadcasts a deleted event.
+// ArchiveChat archives a chat family and broadcasts deleted events for each
+// affected chat so watching clients converge without a full refetch.
 func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	if err := p.db.ArchiveChatByID(ctx, chat.ID); err != nil {
-		return xerrors.Errorf("archive chat: %w", err)
-	}
-
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDeleted, nil)
-	return nil
+	return p.applyChatLifecycleTransition(
+		ctx,
+		chat.ID,
+		"archive",
+		coderdpubsub.ChatEventKindDeleted,
+		p.db.ArchiveChatByID,
+	)
 }
 
-// UnarchiveChat unarchives a chat and publishes a created event so sidebar
-// clients are notified that the chat has reappeared.
+// UnarchiveChat unarchives a chat family and publishes created events for
+// each affected chat so watching clients see every chat that reappeared.
 func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	if err := p.db.UnarchiveChatByID(ctx, chat.ID); err != nil {
-		return xerrors.Errorf("unarchive chat: %w", err)
+	return p.applyChatLifecycleTransition(
+		ctx,
+		chat.ID,
+		"unarchive",
+		coderdpubsub.ChatEventKindCreated,
+		p.db.UnarchiveChatByID,
+	)
+}
+
+func (p *Server) applyChatLifecycleTransition(
+	ctx context.Context,
+	chatID uuid.UUID,
+	action string,
+	kind coderdpubsub.ChatEventKind,
+	transition func(context.Context, uuid.UUID) ([]database.Chat, error),
+) error {
+	updatedChats, err := transition(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("%s chat: %w", action, err)
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
+	p.publishChatPubsubEvents(updatedChats, kind)
 	return nil
 }
 
@@ -3081,6 +3100,13 @@ func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.C
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
+	}
+}
+
+// publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
+func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind coderdpubsub.ChatEventKind) {
+	for _, chat := range chats {
+		p.publishChatPubsubEvent(chat, kind, nil)
 	}
 }
 
