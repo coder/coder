@@ -1316,20 +1316,30 @@ jobs:
               "${IMAGE}"
           done
 
-      # GitHub attestation provides SLSA provenance for the Docker images, establishing a verifiable
-      # record that these images were built in GitHub Actions with specific inputs and environment.
-      # This complements our existing cosign attestations which focus on SBOMs.
-      #
-      # We attest each tag separately to ensure all tags have proper provenance records.
-      # TODO: Consider refactoring these steps to use a matrix strategy or composite action to reduce duplication
-      # while maintaining the required functionality for each tag.
+      - name: Resolve Docker image digests for attestation
+        id: docker_digests
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          IMAGE_BASE: ghcr.io/coder/coder-preview
+          BUILD_TAG: ${{ steps.build-docker.outputs.tag }}
+        run: |
+          set -euxo pipefail
+          main_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:main" | sha256sum | awk '{print "sha256:"$1}')
+          echo "main_digest=${main_digest}" >> "$GITHUB_OUTPUT"
+          latest_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:latest" | sha256sum | awk '{print "sha256:"$1}')
+          echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
+          version_digest=$(docker buildx imagetools inspect --raw "${IMAGE_BASE}:${BUILD_TAG}" | sha256sum | awk '{print "sha256:"$1}')
+          echo "version_digest=${version_digest}" >> "$GITHUB_OUTPUT"
+
       - name: GitHub Attestation for Docker image
         id: attest_main
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.main_digest != ''
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
-          subject-name: "ghcr.io/coder/coder-preview:main"
+          subject-name: ghcr.io/coder/coder-preview
+          subject-digest: ${{ steps.docker_digests.outputs.main_digest }}
           predicate-type: "https://slsa.dev/provenance/v1"
           predicate: |
             {
@@ -1362,11 +1372,12 @@ jobs:
 
       - name: GitHub Attestation for Docker image (latest tag)
         id: attest_latest
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.latest_digest != ''
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
-          subject-name: "ghcr.io/coder/coder-preview:latest"
+          subject-name: ghcr.io/coder/coder-preview
+          subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
           predicate-type: "https://slsa.dev/provenance/v1"
           predicate: |
             {
@@ -1399,11 +1410,12 @@ jobs:
 
       - name: GitHub Attestation for version-specific Docker image
         id: attest_version
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.docker_digests.outputs.version_digest != ''
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
-          subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
+          subject-name: ghcr.io/coder/coder-preview
+          subject-digest: ${{ steps.docker_digests.outputs.version_digest }}
           predicate-type: "https://slsa.dev/provenance/v1"
           predicate: |
             {
