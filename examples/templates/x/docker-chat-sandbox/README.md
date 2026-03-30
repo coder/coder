@@ -1,7 +1,7 @@
 ---
 display_name: Docker + Chat Sandbox
 description: Two-agent Docker template with a bubblewrap-sandboxed chat agent
-icon: ../../../site/static/icon/docker.png
+icon: ../../../../site/static/icon/docker.png
 maintainer_github: coder
 tags: [docker, container, chat]
 ---
@@ -113,7 +113,7 @@ adding `--bind` flags for additional writable paths.
 After starting `./scripts/develop.sh`, push this template:
 
 ```bash
-cd examples/templates/docker-chat-sandbox
+cd examples/templates/x/docker-chat-sandbox
 coder templates push docker-chat-sandbox \
   --var docker_socket="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 ```
