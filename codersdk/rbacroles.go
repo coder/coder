@@ -1,6 +1,6 @@
 package codersdk
 
-// Ideally this roles would be generated from the rbac/roles.go package.
+// Ideally these roles would be generated from the rbac/roles.go package.
 const (
 	RoleOwner         string = "owner"
 	RoleMember        string = "member"
