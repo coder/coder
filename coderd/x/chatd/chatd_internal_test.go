@@ -484,6 +484,32 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
 	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
+			if !ok || arg.ID != chat.ID {
+				return false
+			}
+			if !arg.LastInjectedContext.Valid {
+				return false
+			}
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal(arg.LastInjectedContext.RawMessage, &parts); err != nil {
+				return false
+			}
+			// Expect at least one context-file part for the
+			// working-directory AGENTS.md, with internal fields
+			// stripped (no content, OS, or directory).
+			for _, p := range parts {
+				if p.Type == codersdk.ChatMessagePartTypeContextFile && p.ContextFilePath != "" {
+					return p.ContextFileContent == "" &&
+						p.ContextFileOS == "" &&
+						p.ContextFileDirectory == ""
+				}
+			}
+			return false
+		}),
+	).Return(database.Chat{}, nil).Times(1)
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -567,6 +593,247 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 	)
 	require.NoError(t, err)
 	require.Empty(t, instruction)
+}
+
+func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	workspaceAgent := database.WorkspaceAgent{
+		ID:                agentID,
+		OperatingSystem:   "linux",
+		Directory:         "/home/coder/project",
+		ExpandedDirectory: "/home/coder/project",
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(
+		gomock.Any(),
+		agentID,
+	).Return(workspaceAgent, nil).Times(1)
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
+			if !ok || arg.ID != chat.ID {
+				return false
+			}
+			if !arg.LastInjectedContext.Valid {
+				return false
+			}
+			var parts []codersdk.ChatMessagePart
+			if err := json.Unmarshal(arg.LastInjectedContext.RawMessage, &parts); err != nil {
+				return false
+			}
+			// The sentinel path should persist only skill parts
+			// with ContextFileAgentID set.
+			for _, p := range parts {
+				if p.Type == codersdk.ChatMessagePartTypeSkill &&
+					p.SkillName == "my-skill" &&
+					p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) {
+					return true
+				}
+			}
+			return false
+		}),
+	).Return(database.Chat{}, nil).Times(1)
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	// Home LS (.coder directory): return 404 so no home
+	// instruction file is found.
+	conn.EXPECT().LS(gomock.Any(), "",
+		gomock.Cond(func(x any) bool {
+			req, ok := x.(workspacesdk.LSRequest)
+			return ok && req.Relativity == workspacesdk.LSRelativityHome
+		}),
+	).Return(
+		workspacesdk.LSResponse{},
+		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
+	).Times(1)
+
+	// Pwd AGENTS.md: return 404 so no working-directory
+	// instruction file is found either.
+	conn.EXPECT().ReadFile(gomock.Any(),
+		"/home/coder/project/AGENTS.md",
+		int64(0),
+		int64(maxInstructionFileBytes+1),
+	).Return(
+		nil, "",
+		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
+	).Times(1)
+
+	// Skills LS (.agents/skills directory): return one skill
+	// directory so DiscoverSkills finds it.
+	conn.EXPECT().LS(gomock.Any(), "",
+		gomock.Cond(func(x any) bool {
+			req, ok := x.(workspacesdk.LSRequest)
+			return ok && req.Relativity == workspacesdk.LSRelativityRoot
+		}),
+	).Return(workspacesdk.LSResponse{
+		Contents: []workspacesdk.LSFile{{
+			Name:               "my-skill",
+			AbsolutePathString: "/home/coder/project/.agents/skills/my-skill",
+			IsDir:              true,
+		}},
+	}, nil).Times(1)
+
+	// Skills SKILL.md ReadFile: return valid frontmatter.
+	skillContent := "---\nname: my-skill\ndescription: A test skill\n---\nSkill body"
+	conn.EXPECT().ReadFile(gomock.Any(),
+		"/home/coder/project/.agents/skills/my-skill/SKILL.md",
+		int64(0),
+		int64(64*1024+1),
+	).Return(
+		io.NopCloser(strings.NewReader(skillContent)),
+		"",
+		nil,
+	).Times(1)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := &Server{
+		db:     db,
+		logger: logger,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	instruction, skills, err := server.persistInstructionFiles(
+		ctx,
+		chat,
+		uuid.New(),
+		workspaceCtx.getWorkspaceAgent,
+		workspaceCtx.getWorkspaceConn,
+	)
+	require.NoError(t, err)
+	// Sentinel path returns empty instruction string.
+	require.Empty(t, instruction)
+	// Skills are still discovered and returned.
+	require.Len(t, skills, 1)
+	require.Equal(t, "my-skill", skills[0].Name)
+}
+
+func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	workspaceAgent := database.WorkspaceAgent{
+		ID:                agentID,
+		OperatingSystem:   "linux",
+		Directory:         "/home/coder/project",
+		ExpandedDirectory: "/home/coder/project",
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(
+		gomock.Any(),
+		agentID,
+	).Return(workspaceAgent, nil).Times(1)
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
+		gomock.Cond(func(x any) bool {
+			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
+			if !ok || arg.ID != chat.ID {
+				return false
+			}
+			// No skills discovered, so the column should be
+			// cleared to NULL.
+			return !arg.LastInjectedContext.Valid
+		}),
+	).Return(database.Chat{}, nil).Times(1)
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	// All LS calls return 404: no home .coder directory and no
+	// .agents/skills directory.
+	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
+		workspacesdk.LSResponse{},
+		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
+	).AnyTimes()
+
+	// Pwd AGENTS.md: return 404.
+	conn.EXPECT().ReadFile(gomock.Any(),
+		"/home/coder/project/AGENTS.md",
+		int64(0),
+		int64(maxInstructionFileBytes+1),
+	).Return(
+		nil, "",
+		codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
+	).Times(1)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := &Server{
+		db:     db,
+		logger: logger,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	instruction, skills, err := server.persistInstructionFiles(
+		ctx,
+		chat,
+		uuid.New(),
+		workspaceCtx.getWorkspaceAgent,
+		workspaceCtx.getWorkspaceConn,
+	)
+	require.NoError(t, err)
+	// Sentinel path: empty instruction, no skills.
+	require.Empty(t, instruction)
+	require.Empty(t, skills)
 }
 
 func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {

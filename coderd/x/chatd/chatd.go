@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -379,6 +380,13 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		if len(agents) == 0 {
 			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
 		}
+		selected, err := agentselect.FindChatAgent(agents)
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
+				"find chat agent: %w",
+				err,
+			)
+		}
 
 		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
 		if err != nil {
@@ -389,7 +397,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			ctx,
 			chatSnapshot,
 			build.ID,
-			agents[0].ID,
+			selected.ID,
 		)
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, err
@@ -401,7 +409,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			chatSnapshot = latestChat
 			continue
 		}
-		c.agent = agents[0]
+		c.agent = selected
 		c.agentLoaded = true
 		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 		return chatSnapshot, c.agent, nil
@@ -429,7 +437,14 @@ func (c *turnWorkspaceContext) latestWorkspaceAgentID(
 	if len(agents) == 0 {
 		return uuid.Nil, errChatHasNoWorkspaceAgent
 	}
-	return agents[0].ID, nil
+	selected, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf(
+			"find chat agent: %w",
+			err,
+		)
+	}
+	return selected.ID, nil
 }
 
 func (c *turnWorkspaceContext) workspaceAgentIDForConn(
@@ -4970,9 +4985,25 @@ func (p *Server) persistInstructionFiles(
 			chatprompt.CurrentContentVersion,
 		))
 		_, _ = p.db.InsertChatMessages(ctx, msgParams)
+		// Update the cache column: persist skills if any
+		// exist, or clear to NULL so stale data from a
+		// previous agent doesn't linger.
+		if len(discoveredSkills) > 0 {
+			skillParts := make([]codersdk.ChatMessagePart, 0, len(discoveredSkills))
+			for _, s := range discoveredSkills {
+				skillParts = append(skillParts, codersdk.ChatMessagePart{
+					Type:               codersdk.ChatMessagePartTypeSkill,
+					SkillName:          s.Name,
+					SkillDescription:   s.Description,
+					ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+				})
+			}
+			p.updateLastInjectedContext(ctx, chat.ID, skillParts)
+		} else {
+			p.updateLastInjectedContext(ctx, chat.ID, nil)
+		}
 		return "", discoveredSkills, nil
 	}
-
 	// Build context-file parts (one per instruction file) and
 	// skill parts (one per discovered skill).
 	parts := make([]codersdk.ChatMessagePart, 0, len(sections)+len(discoveredSkills))
@@ -5015,11 +5046,49 @@ func (p *Server) persistInstructionFiles(
 	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
 		return "", nil, xerrors.Errorf("persist instruction files: %w", err)
 	}
+	// Build stripped copies for the cache column so internal
+	// fields (full file content, OS, directory, skill paths)
+	// are never persisted or returned to API clients.
+	stripped := make([]codersdk.ChatMessagePart, len(parts))
+	copy(stripped, parts)
+	for i := range stripped {
+		stripped[i].StripInternal()
+	}
+	p.updateLastInjectedContext(ctx, chat.ID, stripped)
 
 	// Return the formatted instruction text and discovered skills
 	// so the caller can inject them into this turn's prompt (since
 	// the prompt was built before we persisted).
 	return formatSystemInstructions(agent.OperatingSystem, directory, sections), discoveredSkills, nil
+}
+
+// updateLastInjectedContext persists the injected context
+// parts (AGENTS.md files and skills) on the chat row so they
+// are directly queryable without scanning messages. This is
+// best-effort — a failure here is logged but does not block
+// the turn.
+func (p *Server) updateLastInjectedContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
+	param := pqtype.NullRawMessage{Valid: false}
+	if parts != nil {
+		raw, err := json.Marshal(parts)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to marshal injected context",
+				slog.F("chat_id", chatID),
+				slog.Error(err),
+			)
+			return
+		}
+		param = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	}
+	if _, err := p.db.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
+		ID:                  chatID,
+		LastInjectedContext: param,
+	}); err != nil {
+		p.logger.Warn(ctx, "failed to update injected context",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
 }
 
 // resolveUserCompactionThreshold looks up the user's per-model

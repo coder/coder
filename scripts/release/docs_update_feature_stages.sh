@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-# Usage: ./docs_update_experiments.sh
+# Usage: ./docs_update_feature_stages.sh
 #
-# This script updates the available experimental features in the documentation.
-# It fetches the latest mainline and stable releases to extract the available
-# experiments and their descriptions. The script will update the
-# feature-stages.md file with a table of the latest experimental features.
+# Updates generated sections in docs/install/releases/feature-stages.md:
+# early-access (experimental) features from codersdk, and beta features from
+# docs/manifest.json. Uses sparse checkouts of mainline and stable tags.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -63,6 +62,17 @@ sparse_clone_codersdk() {
 	echo "${1}/${2}"
 }
 
+clone_sparse_path() {
+	mkdir -p "${1}"
+	cd "${1}"
+	rm -rf "${2}"
+	git clone --quiet --no-checkout "${PROJECT_ROOT}" "${2}"
+	cd "${2}"
+	git sparse-checkout set --no-cone "${4}"
+	git checkout "${3}" -- "${4}"
+	echo "${1}/${2}"
+}
+
 parse_all_experiments() {
 	# Try ExperimentsSafe first, then fall back to ExperimentsAll if needed
 	experiments_var="ExperimentsSafe"
@@ -94,12 +104,23 @@ parse_experiments() {
 		grep '|'
 }
 
-workdir=build/docs/experiments
+parse_beta_features() {
+	jq -r '
+		.routes[]
+		| recurse(.children[]?)
+		| select((.state // []) | index("beta"))
+		| [.title, (.description // ""), (.path // "")]
+		| join("|")
+	' "${1}/docs/manifest.json"
+}
+
+workdir=build/docs/feature-stages
 dest=docs/install/releases/feature-stages.md
 
-log "Updating available experimental features in ${dest}"
+log "Updating generated feature-stages sections in ${dest}"
 
 declare -A experiments=() experiment_tags=()
+declare -A beta_features=() beta_feature_descriptions=() beta_feature_tags=()
 
 for channel in mainline stable; do
 	log "Fetching experiments from ${channel}"
@@ -162,7 +183,7 @@ table="$(
 	fi
 
 	echo "| Feature | Description | Available in |"
-	echo "|---------|-------------|--------------|"
+	echo "| ------- | ----------- | ------------ |"
 	for key in "${!experiments[@]}"; do
 		desc=${experiments[$key]}
 		tags=${experiment_tags[$key]%, }
@@ -170,9 +191,73 @@ table="$(
 	done
 )"
 
+for channel in mainline stable; do
+	log "Fetching beta features from ${channel}"
+
+	tag=$(echo_latest_"${channel}"_version)
+	if [[ -z "${tag}" || "${tag}" == "v" ]]; then
+		echo "Error: Failed to retrieve valid ${channel} version tag. Check your GitHub token or rate limit." >&2
+		exit 1
+	fi
+
+	dir="$(clone_sparse_path "${workdir}" "docs-${channel}" "${tag}" "docs/manifest.json")"
+
+	while IFS='|' read -r title desc doc_path; do
+		if [[ -z "${title}" ]]; then
+			continue
+		fi
+
+		key="${doc_path}"
+		if [[ -z "${key}" ]]; then
+			key="${title}"
+		fi
+
+		if [[ ! -v beta_features[$key] ]]; then
+			beta_features[$key]="${title}"
+			beta_feature_descriptions[$key]="${desc}"
+		fi
+
+		beta_feature_tags[$key]+="${channel}, "
+	done < <(parse_beta_features "${dir}")
+done
+
+beta_table="$(
+	if [[ "${#beta_features[@]}" -eq 0 ]]; then
+		echo "Currently no beta features are available in the latest mainline or stable release."
+		exit 0
+	fi
+
+	echo "| Feature | Description | Available in |"
+	echo "| ------- | ----------- | ------------ |"
+	for key in "${!beta_features[@]}"; do
+		title=${beta_features[$key]}
+		desc=${beta_feature_descriptions[$key]}
+		tags=${beta_feature_tags[$key]%, }
+
+		# Only link when the target exists in this tree. Stable and mainline
+		# manifests can diverge; avoid broken relative links in feature-stages.md.
+		if [[ "${key}" == ./* ]]; then
+			rel="${key#./}"
+			if [[ -f "${PROJECT_ROOT}/docs/${rel}" ]]; then
+				title="[${title}](../../${rel})"
+			fi
+		fi
+
+		echo "| ${title} | ${desc} | ${tags} |"
+	done
+)"
+
 awk \
 	-v table="${table}" \
-	'BEGIN{include=1} /BEGIN: available-experimental-features/{print; print table; include=0} /END: available-experimental-features/{include=1} include' \
+	-v beta_table="${beta_table}" \
+	'
+	BEGIN{include=1}
+	/BEGIN: available-experimental-features/{print; print table; include=0}
+	/END: available-experimental-features/{include=1}
+	/BEGIN: available-beta-features/{print; print beta_table; include=0}
+	/END: available-beta-features/{include=1}
+	include
+	' \
 	"${dest}" \
 	>"${dest}".tmp
 mv "${dest}".tmp "${dest}"

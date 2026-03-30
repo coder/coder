@@ -11,6 +11,7 @@ import { asNumber, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	type ChatStore,
 	type ChatStoreState,
+	chatMessagesEqualByValue,
 	chatQueuedMessagesEqualByID,
 	createChatStore,
 	isActiveChatStatus,
@@ -286,6 +287,55 @@ export const useChatStore = (
 				};
 			});
 		};
+
+		// Write WebSocket-delivered durable messages into the React
+		// Query infinite cache so that navigating away and back
+		// serves up-to-date data instead of the stale REST snapshot.
+		// Without this, the cache only contains messages from the
+		// last REST fetch, and structural sharing can suppress the
+		// refetch-driven store update when no new durable messages
+		// have been committed to the DB yet.
+		const upsertCacheMessages = (messages: readonly TypesGen.ChatMessage[]) => {
+			if (!chatID || messages.length === 0) {
+				return;
+			}
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				const existingByID = new Map(firstPage.messages.map((m) => [m.id, m]));
+
+				let changed = false;
+				for (const msg of messages) {
+					const existing = existingByID.get(msg.id);
+					if (!existing || !chatMessagesEqualByValue(existing, msg)) {
+						changed = true;
+						existingByID.set(msg.id, msg);
+					}
+				}
+
+				if (!changed) {
+					return currentData;
+				}
+
+				// Sort descending to match the API page order
+				// (newest first).
+				const updatedMessages = Array.from(existingByID.values());
+				updatedMessages.sort((a, b) => b.id - a.id);
+
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, messages: updatedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
+		};
+
 		cancelScheduledStreamReset();
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
@@ -499,6 +549,7 @@ export const useChatStore = (
 				// pass: one Map copy + one sort instead of N each.
 				if (pendingMessages.length > 0) {
 					store.upsertDurableMessages(pendingMessages);
+					upsertCacheMessages(pendingMessages);
 				}
 			});
 			if (needsStreamReset) {

@@ -37,13 +37,14 @@ import {
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
-import type { AgentsOutletContext } from "./AgentsPage";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
-} from "./components/AgentChatPageView";
+} from "./AgentChatPageView";
+import type { AgentsOutletContext } from "./AgentsPage";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -283,6 +284,56 @@ function resolveCompactionThreshold(
 	return config.compression_threshold;
 }
 
+// Compile-time guard: ensures the workspace watcher bailout comparison
+// covers every WorkspaceAgent field the UI reads. If WorkspaceAgent
+// gains a new field, this will error until the field is either added
+// to the comparison or explicitly excluded here.
+type _UncoveredAgentFields = Omit<
+	TypesGen.WorkspaceAgent,
+	| "id"
+	| "status"
+	| "name"
+	| "expanded_directory"
+	// Fields below are intentionally not compared. They change
+	// frequently (stats, metadata) or are objects/arrays that would
+	// require deep comparison, and the UI does not read them.
+	| "parent_id"
+	| "created_at"
+	| "updated_at"
+	| "first_connected_at"
+	| "last_connected_at"
+	| "disconnected_at"
+	| "started_at"
+	| "ready_at"
+	| "lifecycle_state"
+	| "resource_id"
+	| "instance_id"
+	| "architecture"
+	| "environment_variables"
+	| "operating_system"
+	| "logs_length"
+	| "logs_overflowed"
+	| "directory"
+	| "version"
+	| "api_version"
+	| "apps"
+	| "latency"
+	| "connection_timeout_seconds"
+	| "troubleshooting_url"
+	| "subsystems"
+	| "health"
+	| "display_apps"
+	| "log_sources"
+	| "scripts"
+	| "startup_script_behavior"
+>;
+// If this errors, a new field was added to WorkspaceAgent.
+// Decide: does the UI read it? If yes, add it to the first
+// section of the Omit above and to the bailout comparison
+// in the workspace watcher message handler. If no, add it
+// to the excluded section of the Omit.
+const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {};
+
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
@@ -387,35 +438,54 @@ const AgentChatPage: FC = () => {
 		if (!workspaceId) {
 			return;
 		}
-		const socket = watchWorkspace(workspaceId);
-		socket.addEventListener("message", (event) => {
-			if (event.parseError) {
-				return;
-			}
-			if (event.parsedMessage.type === "data") {
-				const next = event.parsedMessage.data as TypesGen.Workspace;
-				queryClient.setQueryData<TypesGen.Workspace | undefined>(
-					workspaceByIdKey(workspaceId),
-					(prev) => {
-						// Return the same reference when nothing the UI
-						// reads has changed. This prevents react-query
-						// from notifying subscribers and avoids a full
-						// AgentChatPage re-render on every heartbeat.
-						if (
-							prev &&
-							prev.latest_build.status === next.latest_build.status &&
-							prev.latest_build.resources === next.latest_build.resources &&
-							prev.name === next.name &&
-							prev.owner_name === next.owner_name
-						) {
-							return prev;
-						}
-						return next;
-					},
-				);
-			}
+		return createReconnectingWebSocket({
+			connect() {
+				const socket = watchWorkspace(workspaceId);
+				socket.addEventListener("message", (event) => {
+					if (event.parseError) {
+						return;
+					}
+					if (event.parsedMessage.type === "data") {
+						const next = event.parsedMessage.data as TypesGen.Workspace;
+						queryClient.setQueryData<TypesGen.Workspace | undefined>(
+							workspaceByIdKey(workspaceId),
+							(prev) => {
+								// Return the same reference when nothing the UI
+								// reads has changed. This prevents react-query
+								// from notifying subscribers and avoids a full
+								// AgentChatPage re-render on every heartbeat.
+								const prevAgent = getWorkspaceAgent(prev, undefined);
+								const nextAgent = getWorkspaceAgent(next, undefined);
+								if (
+									prev &&
+									prev.latest_build.status === next.latest_build.status &&
+									prev.name === next.name &&
+									prev.owner_name === next.owner_name &&
+									prevAgent?.id === nextAgent?.id &&
+									prevAgent?.status === nextAgent?.status &&
+									prevAgent?.name === nextAgent?.name &&
+									prevAgent?.expanded_directory ===
+										nextAgent?.expanded_directory
+								) {
+									return prev;
+								}
+								return next;
+							},
+						);
+					}
+				});
+				return socket;
+			},
+			onOpen() {
+				// Refetch workspace data on reconnection to cover
+				// events missed while disconnected. Also fires on the
+				// initial connection (harmless, may deduplicate with
+				// the in-flight useQuery fetch).
+				void queryClient.invalidateQueries({
+					queryKey: workspaceByIdKey(workspaceId),
+				});
+			},
 		});
-		return () => socket.close();
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;

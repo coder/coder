@@ -181,7 +181,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
       - name: golangci-lint cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -1340,34 +1340,6 @@ jobs:
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.main_digest }}
-          predicate-type: "https://slsa.dev/provenance/v1"
-          predicate: |
-            {
-              "buildType": "https://github.com/actions/runner-images/",
-              "builder": {
-                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "invocation": {
-                "configSource": {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/ci.yaml"
-                },
-                "environment": {
-                  "github_workflow": "${{ github.workflow }}",
-                  "github_run_id": "${{ github.run_id }}"
-                }
-              },
-              "metadata": {
-                "buildInvocationID": "${{ github.run_id }}",
-                "completeness": {
-                  "environment": true,
-                  "materials": true
-                }
-              }
-            }
           push-to-registry: true
 
       - name: GitHub Attestation for Docker image (latest tag)
@@ -1378,34 +1350,6 @@ jobs:
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
-          predicate-type: "https://slsa.dev/provenance/v1"
-          predicate: |
-            {
-              "buildType": "https://github.com/actions/runner-images/",
-              "builder": {
-                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "invocation": {
-                "configSource": {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/ci.yaml"
-                },
-                "environment": {
-                  "github_workflow": "${{ github.workflow }}",
-                  "github_run_id": "${{ github.run_id }}"
-                }
-              },
-              "metadata": {
-                "buildInvocationID": "${{ github.run_id }}",
-                "completeness": {
-                  "environment": true,
-                  "materials": true
-                }
-              }
-            }
           push-to-registry: true
 
       - name: GitHub Attestation for version-specific Docker image
@@ -1416,34 +1360,6 @@ jobs:
         with:
           subject-name: ghcr.io/coder/coder-preview
           subject-digest: ${{ steps.docker_digests.outputs.version_digest }}
-          predicate-type: "https://slsa.dev/provenance/v1"
-          predicate: |
-            {
-              "buildType": "https://github.com/actions/runner-images/",
-              "builder": {
-                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "invocation": {
-                "configSource": {
-                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/ci.yaml"
-                },
-                "environment": {
-                  "github_workflow": "${{ github.workflow }}",
-                  "github_run_id": "${{ github.run_id }}"
-                }
-              },
-              "metadata": {
-                "buildInvocationID": "${{ github.run_id }}",
-                "completeness": {
-                  "environment": true,
-                  "materials": true
-                }
-              }
-            }
           push-to-registry: true
 
       # Report attestation failures but don't fail the workflow

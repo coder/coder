@@ -75,6 +75,11 @@ type Chat struct {
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
 	HasUnread bool `json:"has_unread"`
+	// LastInjectedContext holds the most recently persisted
+	// injected context parts (AGENTS.md files and skills). It
+	// is updated only when context changes — first workspace
+	// attach or agent change.
+	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file

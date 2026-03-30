@@ -8,6 +8,7 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { useClientFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
@@ -56,6 +57,15 @@ const AISessionListPage: FC = () => {
 			}),
 	});
 
+	const clientMenu = useClientFilterMenu({
+		value: filter.values.client,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				client: option?.value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Bridge")}</title>
@@ -76,6 +86,7 @@ const AISessionListPage: FC = () => {
 					menus: {
 						user: userMenu,
 						provider: providerMenu,
+						client: clientMenu,
 					},
 				}}
 			/>

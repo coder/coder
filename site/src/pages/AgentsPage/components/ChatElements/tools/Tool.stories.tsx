@@ -1244,9 +1244,9 @@ export const WaitAgentComputerUseRunning: Story = {
 	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Waiting for/)).toBeInTheDocument();
-		// Running state shows the spinner icon.
-		expect(canvasElement.querySelector(".lucide-loader")).not.toBeNull();
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		// Running state shows the monitor icon instead of a spinner.
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
 		// is expected — we only verify the container renders).

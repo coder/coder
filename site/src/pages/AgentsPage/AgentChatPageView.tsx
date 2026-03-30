@@ -13,20 +13,23 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import type { ChatDetailError } from "../utils/usageLimitMessage";
-import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type ChatMessageInputRef,
+} from "./components/AgentChatInput";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
-} from "./AgentsSkeletons";
-import type { useChatStore } from "./ChatConversation/chatStore";
-import type { ModelSelectorOption } from "./ChatElements";
-import { DesktopPanelContext } from "./ChatElements/tools/DesktopPanelContext";
-import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
-import { ChatTopBar } from "./ChatTopBar";
-import { GitPanel } from "./GitPanel/GitPanel";
-import { RightPanel } from "./RightPanel/RightPanel";
-import { SidebarTabView } from "./Sidebar/SidebarTabView";
+} from "./components/AgentsSkeletons";
+import type { useChatStore } from "./components/ChatConversation/chatStore";
+import type { ModelSelectorOption } from "./components/ChatElements";
+import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
+import { ChatTopBar } from "./components/ChatTopBar";
+import { GitPanel } from "./components/GitPanel/GitPanel";
+import { RightPanel } from "./components/RightPanel/RightPanel";
+import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -96,7 +99,7 @@ interface AgentChatPageViewProps {
 	diffStatusData: ChatDiffStatus | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
-		refresh: () => void;
+		refresh: () => boolean;
 	};
 
 	// Workspace action handlers.
@@ -564,12 +567,14 @@ function scrollTranscriptToBottom({
 	scrollContainerRef,
 	autoScrollRef,
 	isRestoringScrollRef,
+	restoreGuardRafIdRef,
 	setShowScrollToBottom,
 }: {
 	behavior: "smooth" | "instant";
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	autoScrollRef: { current: boolean };
 	isRestoringScrollRef: { current: boolean };
+	restoreGuardRafIdRef: { current: number | null };
 	setShowScrollToBottom: (next: boolean) => void;
 }): void {
 	const container = scrollContainerRef.current;
@@ -577,6 +582,12 @@ function scrollTranscriptToBottom({
 		return;
 	}
 
+	// Cancel any pending guard-clear so it cannot drop the flag
+	// during a smooth scroll animation.
+	if (restoreGuardRafIdRef.current !== null) {
+		cancelAnimationFrame(restoreGuardRafIdRef.current);
+		restoreGuardRafIdRef.current = null;
+	}
 	autoScrollRef.current = true;
 	isRestoringScrollRef.current = true;
 	const top = Math.max(container.scrollHeight - container.clientHeight, 0);
@@ -623,6 +634,13 @@ const ScrollAnchoredContainer: FC<{
 	// when this is set, preventing user-visible jitter. Cleared when the
 	// scroll reaches its destination or the user actively interrupts.
 	const isRestoringScrollRef = useRef(false);
+	// Shared guard-clear RAF ID across both the content and container
+	// ResizeObservers. Both observers set isRestoringScrollRef before
+	// pinning and schedule a one-frame-delayed clear. Without a shared
+	// ID, one observer's clear can fire while the other's pin chain is
+	// still in-flight, leaving a window where the scroll handler reads
+	// stale position data and disables auto-scroll.
+	const restoreGuardRafIdRef = useRef<number | null>(null);
 	const cancelPendingPinsRef = useRef<(() => void) | null>(null);
 	// Guard counter: positive while one or more touch contacts are active.
 	// Prevents ResizeObserver callbacks from snapping scroll to bottom
@@ -661,6 +679,7 @@ const ScrollAnchoredContainer: FC<{
 				scrollContainerRef,
 				autoScrollRef,
 				isRestoringScrollRef,
+				restoreGuardRafIdRef,
 				setShowScrollToBottom,
 			});
 		};
@@ -775,7 +794,6 @@ const ScrollAnchoredContainer: FC<{
 		let prevContentWidth = initialContentRect.width;
 		let pinOuterRafId: number | null = null;
 		let pinInnerRafId: number | null = null;
-		let restoreGuardRafId: number | null = null;
 
 		const cancelPendingPins = () => {
 			if (pinOuterRafId !== null) {
@@ -789,7 +807,27 @@ const ScrollAnchoredContainer: FC<{
 		};
 
 		const scheduleBottomPin = () => {
-			cancelPendingPins();
+			// If a pin is already in-flight, let it complete. The
+			// inner RAF reads scrollHeight at execution time so it
+			// always targets the latest bottom. Cancelling and
+			// rescheduling on every ResizeObserver notification
+			// starves the pin on Safari, where sticky-element
+			// repositioning generates extra resize events that
+			// perpetually restart the double-RAF chain.
+			if (pinOuterRafId !== null || pinInnerRafId !== null) {
+				return;
+			}
+			// Cancel any pending guard-clear from a previous pin
+			// chain (or the container resize observer). Without
+			// this, the stale guard-clear fires during the new
+			// chain's double-RAF window, setting
+			// isRestoringScrollRef to false. A scroll event in
+			// that gap reads the wrong position and disables
+			// auto-scroll, causing the pin to be skipped.
+			if (restoreGuardRafIdRef.current !== null) {
+				cancelAnimationFrame(restoreGuardRafIdRef.current);
+				restoreGuardRafIdRef.current = null;
+			}
 			pendingWheelPinRef.current = false;
 			isRestoringScrollRef.current = true;
 			// Double-RAF lets React's commit phase and the browser's
@@ -802,24 +840,31 @@ const ScrollAnchoredContainer: FC<{
 						isRestoringScrollRef.current = false;
 						return;
 					}
-					if (restoreGuardRafId !== null) {
-						cancelAnimationFrame(restoreGuardRafId);
+					if (restoreGuardRafIdRef.current !== null) {
+						cancelAnimationFrame(restoreGuardRafIdRef.current);
+						restoreGuardRafIdRef.current = null;
 					}
 					container.scrollTop = Math.max(
 						container.scrollHeight - container.clientHeight,
 						0,
 					);
 					setShowScrollToBottom(false);
-					restoreGuardRafId = requestAnimationFrame(() => {
+					restoreGuardRafIdRef.current = requestAnimationFrame(() => {
+						restoreGuardRafIdRef.current = null;
+						// Content may have grown between the pin and
+						// this callback. Re-pin instead of dropping the
+						// guard if we drifted off-bottom.
+						if (!isNearBottom(container)) {
+							scheduleBottomPin();
+							return;
+						}
 						isRestoringScrollRef.current = false;
-						restoreGuardRafId = null;
 					});
 				});
 			});
 		};
 
 		cancelPendingPinsRef.current = cancelPendingPins;
-
 		const observer = new ResizeObserver((entries) => {
 			const entry = entries[0];
 			const nextHeight =
@@ -850,14 +895,14 @@ const ScrollAnchoredContainer: FC<{
 					const scrollHeightDelta =
 						container.scrollHeight - pending.scrollHeight;
 					if (scrollHeightDelta > 0) {
-						if (restoreGuardRafId !== null) {
-							cancelAnimationFrame(restoreGuardRafId);
+						if (restoreGuardRafIdRef.current !== null) {
+							cancelAnimationFrame(restoreGuardRafIdRef.current);
 						}
 						isRestoringScrollRef.current = true;
 						container.scrollTop = container.scrollTop + scrollHeightDelta;
-						restoreGuardRafId = requestAnimationFrame(() => {
+						restoreGuardRafIdRef.current = requestAnimationFrame(() => {
 							isRestoringScrollRef.current = false;
-							restoreGuardRafId = null;
+							restoreGuardRafIdRef.current = null;
 						});
 					}
 				}
@@ -897,8 +942,9 @@ const ScrollAnchoredContainer: FC<{
 			cancelPendingPinsRef.current = null;
 			observer.disconnect();
 			cancelPendingPins();
-			if (restoreGuardRafId !== null) {
-				cancelAnimationFrame(restoreGuardRafId);
+			if (restoreGuardRafIdRef.current !== null) {
+				cancelAnimationFrame(restoreGuardRafIdRef.current);
+				restoreGuardRafIdRef.current = null;
 			}
 			isRestoringScrollRef.current = false;
 		};
@@ -909,7 +955,6 @@ const ScrollAnchoredContainer: FC<{
 		if (!container) return;
 
 		let prevContainerHeight = container.clientHeight;
-		let restoreGuardRafId: number | null = null;
 
 		const observer = new ResizeObserver((entries) => {
 			const nextHeight =
@@ -927,26 +972,41 @@ const ScrollAnchoredContainer: FC<{
 				return;
 			}
 
-			if (restoreGuardRafId !== null) {
-				cancelAnimationFrame(restoreGuardRafId);
+			if (restoreGuardRafIdRef.current !== null) {
+				cancelAnimationFrame(restoreGuardRafIdRef.current);
 			}
 			isRestoringScrollRef.current = true;
 			container.scrollTop = Math.max(
 				container.scrollHeight - container.clientHeight,
 				0,
 			);
-			restoreGuardRafId = requestAnimationFrame(() => {
+			restoreGuardRafIdRef.current = requestAnimationFrame(() => {
+				restoreGuardRafIdRef.current = null;
+				if (!isNearBottom(container)) {
+					// Content grew between the pin and this frame.
+					// Re-pin directly since scheduleBottomPin is in
+					// a different effect closure.
+					container.scrollTop = Math.max(
+						container.scrollHeight - container.clientHeight,
+						0,
+					);
+					restoreGuardRafIdRef.current = requestAnimationFrame(() => {
+						restoreGuardRafIdRef.current = null;
+						isRestoringScrollRef.current = false;
+					});
+					return;
+				}
 				isRestoringScrollRef.current = false;
-				restoreGuardRafId = null;
 			});
 		});
 		observer.observe(container);
-
 		return () => {
 			observer.disconnect();
-			if (restoreGuardRafId !== null) {
-				cancelAnimationFrame(restoreGuardRafId);
-			}
+			// The shared restoreGuardRafIdRef is cancelled by the
+			// content observer's cleanup (same dependency array, React
+			// runs cleanups in declaration order). Reset the guard
+			// defensively so this effect is self-contained if the
+			// ordering ever changes.
 			isRestoringScrollRef.current = false;
 		};
 	}, [scrollContainerRef]);
@@ -964,7 +1024,7 @@ const ScrollAnchoredContainer: FC<{
 			// scroll-to-bottom), suppress normal handling. Clear the
 			// guard once the scroll reaches the bottom so normal
 			// tracking resumes. User-input interruptions are handled
-			// separately via wheel/touchstart listeners.
+			// separately via wheel/touchstart/pointerdown listeners.
 			if (isRestoringScrollRef.current) {
 				if (isNearBottom(container)) {
 					isRestoringScrollRef.current = false;
@@ -975,7 +1035,44 @@ const ScrollAnchoredContainer: FC<{
 			}
 
 			const nearBottom = isNearBottom(container);
-			autoScrollRef.current = nearBottom;
+			// Only ENABLE follow mode from the scroll handler.
+			// Never disable it here. WebKit internally adjusts
+			// scrollTop during layout when content above the
+			// viewport changes height (a form of scroll anchoring
+			// it applies even with overflow-anchor:none). These
+			// browser-initiated adjustments fire scroll events
+			// that see isNearBottom=false and would permanently
+			// kill follow mode. Disabling follow is exclusive to
+			// user-interaction handlers (wheel, touch, scrollbar
+			// pointer) which call handleUserInterrupt directly.
+			if (nearBottom) {
+				autoScrollRef.current = true;
+			} else if (
+				autoScrollRef.current &&
+				!isWheelScrollingRef.current &&
+				activeTouchCountRef.current === 0
+			) {
+				// Follow mode is on but we are not at bottom, and
+				// the user is not actively scrolling. This indicates
+				// WebKit adjusted scrollTop during layout (a form of
+				// scroll anchoring it applies even with
+				// overflow-anchor:none). Re-pin immediately and keep
+				// the restore guard up so the next scroll event from
+				// this pin is suppressed.
+				isRestoringScrollRef.current = true;
+				container.scrollTop = Math.max(
+					container.scrollHeight - container.clientHeight,
+					0,
+				);
+				if (restoreGuardRafIdRef.current !== null) {
+					cancelAnimationFrame(restoreGuardRafIdRef.current);
+				}
+				restoreGuardRafIdRef.current = requestAnimationFrame(() => {
+					restoreGuardRafIdRef.current = null;
+					isRestoringScrollRef.current = false;
+				});
+				return;
+			}
 
 			// Throttle the button visibility state update to once per
 			// frame. This is the only part that triggers a re-render.
@@ -1045,6 +1142,7 @@ const ScrollAnchoredContainer: FC<{
 							scrollContainerRef,
 							autoScrollRef,
 							isRestoringScrollRef,
+							restoreGuardRafIdRef,
 							setShowScrollToBottom,
 						});
 					} else {
@@ -1093,6 +1191,19 @@ const ScrollAnchoredContainer: FC<{
 		container.addEventListener("wheel", handleWheel, {
 			passive: true,
 		});
+		// Scrollbar-track drags don't fire wheel or touch events.
+		// Detect them via pointerdown on the container element
+		// itself (content clicks target child elements, scrollbar
+		// clicks target the scroller). This is the only non-wheel,
+		// non-touch user interaction that scrolls.
+		const handlePointerDown = (event: PointerEvent) => {
+			if (event.target === container) {
+				handleUserInterrupt();
+			}
+		};
+		container.addEventListener("pointerdown", handlePointerDown, {
+			passive: true,
+		});
 		container.addEventListener("touchstart", handleTouchStart, {
 			passive: true,
 		});
@@ -1118,6 +1229,7 @@ const ScrollAnchoredContainer: FC<{
 		return () => {
 			container.removeEventListener("scroll", handleScroll);
 			container.removeEventListener("wheel", handleWheel);
+			container.removeEventListener("pointerdown", handlePointerDown);
 			container.removeEventListener("touchstart", handleTouchStart);
 			container.removeEventListener("touchend", handleTouchEnd);
 			container.removeEventListener("touchcancel", handleTouchEnd);
@@ -1137,6 +1249,7 @@ const ScrollAnchoredContainer: FC<{
 			scrollContainerRef,
 			autoScrollRef,
 			isRestoringScrollRef,
+			restoreGuardRafIdRef,
 			setShowScrollToBottom,
 		});
 	};
@@ -1146,7 +1259,7 @@ const ScrollAnchoredContainer: FC<{
 			<div
 				ref={scrollContainerRef}
 				data-testid="scroll-container"
-				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [overscroll-behavior:contain] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div ref={contentRef}>
 					{hasMoreMessages && (

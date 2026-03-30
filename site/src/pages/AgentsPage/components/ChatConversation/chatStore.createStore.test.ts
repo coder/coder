@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore } from "./chatStore";
+import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -582,5 +582,76 @@ describe("subscribe", () => {
 
 		expect(countA).toBe(1);
 		expect(countB).toBe(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// selectIsAwaitingFirstStreamChunk
+// ---------------------------------------------------------------------------
+
+describe("selectIsAwaitingFirstStreamChunk", () => {
+	it("returns true when running with no stream state and no assistant message", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns false when the latest message is from the assistant", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns false when stream state is present", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.applyMessagePart({ type: "text", text: "response" });
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns false during pending status even when stream state is null", () => {
+		const store = createChatStore();
+		store.setChatStatus("pending");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+
+		// "pending" should NOT be treated as awaiting because the
+		// transport drops message_part events during pending status.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns false when chat status is null", () => {
+		const store = createChatStore();
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
+
+	it("returns true when latest message is a tool result during running", () => {
+		const store = createChatStore();
+		store.setChatStatus("running");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
+		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
+	});
+
+	it("returns false when latest message is a tool result during pending", () => {
+		const store = createChatStore();
+		store.setChatStatus("pending");
+		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
+		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
+
+		// During "pending", the transport cannot deliver parts, so
+		// we should not be in a "starting" state.
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
 });

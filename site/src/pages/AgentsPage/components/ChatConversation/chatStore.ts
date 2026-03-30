@@ -64,7 +64,7 @@ const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
 	}
 };
 
-const chatMessagesEqualByValue = (
+export const chatMessagesEqualByValue = (
 	left: TypesGen.ChatMessage,
 	right: TypesGen.ChatMessage,
 ): boolean =>
@@ -551,9 +551,15 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
+	// Only treat "running" as awaiting a first chunk. During "pending"
+	// status the transport drops incoming message_part events
+	// (shouldApplyMessagePart returns false), so streamState can never
+	// transition away from null. Including "pending" here caused the
+	// "Response startup is taking longer than expected" warning to
+	// fire spuriously during multi-turn tool-call cycles.
 	return (
 		state.streamState === null &&
-		isActiveChatStatus(state.chatStatus) &&
+		state.chatStatus === "running" &&
 		latestMessageNeedsAssistantResponse
 	);
 };
