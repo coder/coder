@@ -1404,7 +1404,8 @@ CREATE TABLE chats (
     agent_id uuid,
     pin_order integer DEFAULT 0 NOT NULL,
     last_read_message_id bigint,
-    last_injected_context jsonb
+    last_injected_context jsonb,
+    organization_id uuid NOT NULL
 );
 
 CREATE TABLE connection_logs (
@@ -4047,6 +4048,9 @@ ALTER TABLE ONLY chats
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;

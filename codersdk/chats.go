@@ -47,6 +47,7 @@ const (
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                uuid.UUID         `json:"id" format:"uuid"`
+	OrganizationID    uuid.UUID         `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID         `json:"owner_id" format:"uuid"`
 	WorkspaceID       *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID        `json:"build_id,omitempty" format:"uuid"`
@@ -337,11 +338,12 @@ type ChatInputPart struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Content       []ChatInputPart   `json:"content"`
-	WorkspaceID   *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels        map[string]string `json:"labels,omitempty"`
+	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	Content        []ChatInputPart   `json:"content"`
+	WorkspaceID    *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels         map[string]string `json:"labels,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.

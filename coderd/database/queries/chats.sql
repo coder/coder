@@ -329,6 +329,10 @@ WHERE
         ELSE true
     END
     AND CASE
+        WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.organization_id = @organization_id
+        ELSE true
+    END
+    AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
@@ -368,6 +372,7 @@ LIMIT
 
 -- name: InsertChat :one
 INSERT INTO chats (
+    organization_id,
     owner_id,
     workspace_id,
     build_id,
@@ -380,6 +385,7 @@ INSERT INTO chats (
     mcp_server_ids,
     labels
 ) VALUES (
+    @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('build_id')::uuid,

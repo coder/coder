@@ -311,10 +311,11 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				// predefined computer use model and include the
 				// computer tool.
 				childChat, err := p.CreateChat(ctx, CreateOptions{
-					OwnerID:     parent.OwnerID,
-					WorkspaceID: parent.WorkspaceID,
-					BuildID:     parent.BuildID,
-					AgentID:     parent.AgentID,
+					OrganizationID: parent.OrganizationID,
+					OwnerID:        parent.OwnerID,
+					WorkspaceID:    parent.WorkspaceID,
+					BuildID:        parent.BuildID,
+					AgentID:        parent.AgentID,
 					ParentChatID: uuid.NullUUID{
 						UUID:  parent.ID,
 						Valid: true,
@@ -383,10 +384,11 @@ func (p *Server) createChildSubagentChat(
 	}
 
 	child, err := p.CreateChat(ctx, CreateOptions{
-		OwnerID:     parent.OwnerID,
-		WorkspaceID: parent.WorkspaceID,
-		BuildID:     parent.BuildID,
-		AgentID:     parent.AgentID,
+		OrganizationID: parent.OrganizationID,
+		OwnerID:        parent.OwnerID,
+		WorkspaceID:    parent.WorkspaceID,
+		BuildID:        parent.BuildID,
+		AgentID:        parent.AgentID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,

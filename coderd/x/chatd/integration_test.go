@@ -51,7 +51,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an Anthropic provider with the real API key.
@@ -83,6 +83,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// --- Step 1: Send a message that triggers web_search ---
 	t.Log("Creating chat with web search query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -311,7 +312,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an OpenAI provider with the real API key.
@@ -347,6 +348,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	// --- Step 1: Send a message that triggers reasoning ---
 	t.Log("Creating chat with reasoning query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -465,7 +467,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an OpenAI provider with the real API key.
@@ -500,6 +502,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	// --- Step 1: Send a message that triggers reasoning ---
 	t.Log("Creating chat with reasoning query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -730,7 +733,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: deploymentValues,
 	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
@@ -764,6 +767,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 
 	t.Logf("Creating chat with reasoning + web search query (store=%t)...", store)
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "Search for the latest AI news and summarize it briefly.",
