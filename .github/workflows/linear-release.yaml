@@ -5,8 +5,6 @@ on:
     branches:
       - main
       - "release/2.[0-9]+"
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -28,9 +26,9 @@ jobs:
 
       - name: Detect next release version
         id: version
-        # Find the highest release/2.X branch (exact pattern, no suffixes like
-        # release/2.31_hotfix) and derive the next minor version for the release
-        # currently in development on main.
+        # Find the highest release/2.X branch (exact pattern, no suffixes
+        # like release/2.31_hotfix) and derive the next minor version for
+        # the release currently in development on main.
         run: |
           LATEST_MINOR=$(git branch -r | grep -E '^\s*origin/release/2\.[0-9]+$' | \
             sed 's/.*release\/2\.//' | sort -n | tail -1)
@@ -39,8 +37,10 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "version=2.$((LATEST_MINOR + 1))" >> "$GITHUB_OUTPUT"
+          NEXT="2.$((LATEST_MINOR + 1))"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Detected next release: $NEXT"
 
       - name: Sync issues
         id: sync
@@ -50,6 +50,7 @@ jobs:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
           version: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
           timeout: 300
 
   sync-release-branch:
@@ -75,6 +76,7 @@ jobs:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
           version: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
           timeout: 300
 
   code-freeze:
@@ -105,38 +107,7 @@ jobs:
           version: ${{ steps.version.outputs.version }}
           timeout: 300
 
-  complete:
-    name: Complete Linear release
-    if: github.event_name == 'release'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Extract release version
-        id: version
-        # Strip "v" prefix and patch: "v2.31.0" -> "2.31". Also detect whether
-        # this is a minor release (v*.*.0) — patch releases (v2.31.1, v2.31.2,
-        # ...) are grouped into the same Linear release and must not re-complete
-        # it after it has already shipped.
-        run: |
-          VERSION=$(echo "$TAG" | sed 's/^v//' | cut -d. -f1,2)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.0$ ]]; then
-            echo "is_minor=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_minor=false" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          TAG: ${{ github.event.release.tag_name }}
-
-      - name: Complete release
-        id: complete
-        if: steps.version.outputs.is_minor == 'true'
-        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
-        with:
-          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
-          command: complete
-          version: ${{ steps.version.outputs.version }}
-          timeout: 300
+  # NOTE: The `complete` step is in release.yaml, not here. The
+  # `release: published` event does not trigger this workflow because
+  # release.yaml publishes with GITHUB_TOKEN and GitHub does not
+  # cascade events from that token (infinite-loop prevention).

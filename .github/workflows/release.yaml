@@ -647,6 +647,44 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
+      # Complete the matching Linear release when a .0 minor release is
+      # published.  Patch releases (v2.32.1, v2.32.2, ...) are grouped
+      # under the same Linear release and must not re-complete it.
+      #
+      # This runs here instead of in linear-release.yaml because that
+      # workflow listens on `release: published`, but releases created
+      # with GITHUB_TOKEN do not trigger downstream workflows (GitHub
+      # infinite-loop prevention).
+      - name: Complete Linear release
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          version="$VERSION"
+          tag="v${version}"
+
+          # Only complete on .0 minor releases.
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.0$ ]]; then
+            echo "Patch release ${tag}, skipping Linear release completion."
+            exit 0
+          fi
+
+          # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
+          linear_version=$(echo "$version" | cut -d. -f1,2)
+          echo "Completing Linear release ${linear_version}"
+
+          # Download and run the Linear Release CLI directly. This avoids
+          # needing a separate job or the action wrapper.
+          curl -fsSL \
+            "https://github.com/linear/linear-release/releases/latest/download/linear-release-linux-x64" \
+            -o /tmp/linear-release
+          chmod +x /tmp/linear-release
+          /tmp/linear-release complete \
+            --release-version="${linear_version}" \
+            --timeout=300
+        env:
+          LINEAR_ACCESS_KEY: ${{ secrets.LINEAR_ACCESS_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
