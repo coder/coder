@@ -27,52 +27,60 @@ func TestHandleBuildUpdate_Coverage(t *testing.T) {
 					for _, noWaitForScripts := range []bool{true, false} {
 						t.Run(fmt.Sprintf("%d_%s_%s_%t_%t", s, trans, jobStatus, noAutostart, noWaitForScripts), func(t *testing.T) {
 							t.Parallel()
-							ctrl := gomock.NewController(t)
-							mAgentConn := agentconnmock.NewMockAgentConn(ctrl)
-							logger := testutil.Logger(t)
-
-							testCtx := testutil.Context(t, testutil.WaitShort)
-							ctx, cancel := context.WithCancel(testCtx)
-							uut := &Tunneler{
-								config: Config{
-									WorkspaceID:      workspaceID,
-									App:              fakeApp{},
-									WorkspaceStarter: &fakeWorkspaceStarter{},
-									AgentName:        "test",
-									NoAutostart:      noAutostart,
-									NoWaitForScripts: noWaitForScripts,
-									DebugLogger:      logger.Named("tunneler"),
-								},
-								events:    make(chan tunnelerEvent),
-								ctx:       ctx,
-								cancel:    cancel,
-								state:     s,
-								agentConn: mAgentConn,
-							}
-
-							mAgentConn.EXPECT().Close().Return(nil).AnyTimes()
-
-							uut.handleBuildUpdate(&buildUpdate{transition: trans, jobStatus: jobStatus})
-							done := make(chan struct{})
-							go func() {
-								defer close(done)
-								uut.wg.Wait()
-							}()
-							cancel() // cancel in case the update triggers a go routine that writes another event
-							// ensure we don't leak a go routine
-							_ = testutil.TryReceive(testCtx, t, done)
-
-							// We're not asserting the resulting state, as there are just too many to directly enumerate
-							// due to the combinations. Unhandled cases will hit a critical log in the handler and fail
-							// the test.
-							require.Less(t, uut.state, maxState)
-							require.GreaterOrEqual(t, uut.state, 0)
+							coverUpdate(t, workspaceID, noAutostart, noWaitForScripts, s, func(uut *Tunneler) {
+								uut.handleBuildUpdate(&buildUpdate{transition: trans, jobStatus: jobStatus})
+							})
 						})
 					}
 				}
 			}
 		}
 	}
+}
+
+func coverUpdate(t *testing.T, workspaceID uuid.UUID, noAutostart bool, noWaitForScripts bool, s state, update func(uut *Tunneler)) {
+	ctrl := gomock.NewController(t)
+	mAgentConn := agentconnmock.NewMockAgentConn(ctrl)
+	logger := testutil.Logger(t)
+	fClient := &fakeClient{conn: mAgentConn}
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	uut := &Tunneler{
+		client: fClient,
+		config: Config{
+			WorkspaceID:      workspaceID,
+			App:              fakeApp{},
+			WorkspaceStarter: &fakeWorkspaceStarter{},
+			AgentName:        "test",
+			NoAutostart:      noAutostart,
+			NoWaitForScripts: noWaitForScripts,
+			DebugLogger:      logger.Named("tunneler"),
+		},
+		events:    make(chan tunnelerEvent),
+		ctx:       ctx,
+		cancel:    cancel,
+		state:     s,
+		agentConn: mAgentConn,
+	}
+
+	mAgentConn.EXPECT().Close().Return(nil).AnyTimes()
+
+	update(uut)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.wg.Wait()
+	}()
+	cancel() // cancel in case the update triggers a go routine that writes another event
+	// ensure we don't leak a go routine
+	_ = testutil.TryReceive(testCtx, t, done)
+
+	// We're not asserting the resulting state, as there are just too many to directly enumerate
+	// due to the combinations. Unhandled cases will hit a critical log in the handler and fail
+	// the test.
+	require.Less(t, uut.state, maxState)
+	require.GreaterOrEqual(t, uut.state, 0)
 }
 
 func TestBuildUpdatesStoppedWorkspace(t *testing.T) {
@@ -234,6 +242,96 @@ func TestBuildUpdatesNoAutostart(t *testing.T) {
 	require.Error(t, ctx.Err())
 }
 
+func TestAgentUpdate_Coverage(t *testing.T) {
+	t.Parallel()
+	workspaceID := uuid.UUID{1}
+	agentID := uuid.UUID{2}
+
+	for s := range maxState {
+		for _, lifecycle := range codersdk.WorkspaceAgentLifecycleOrder {
+			for _, noAutostart := range []bool{true, false} {
+				for _, noWaitForScripts := range []bool{true, false} {
+					t.Run(fmt.Sprintf("%d_%s_%t_%t", s, lifecycle, noAutostart, noWaitForScripts), func(t *testing.T) {
+						t.Parallel()
+						coverUpdate(t, workspaceID, noAutostart, noWaitForScripts, s, func(uut *Tunneler) {
+							uut.handleAgentUpdate(&agentUpdate{lifecycle: lifecycle, id: agentID})
+						})
+					})
+				}
+			}
+		}
+	}
+}
+
+func TestAgentUpdateReady(t *testing.T) {
+	t.Parallel()
+	workspaceID := uuid.UUID{1}
+	agentID := uuid.UUID{2}
+	logger := testutil.Logger(t)
+
+	ctrl := gomock.NewController(t)
+	mAgentConn := agentconnmock.NewMockAgentConn(ctrl)
+	fClient := &fakeClient{conn: mAgentConn}
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	uut := &Tunneler{
+		config: Config{
+			WorkspaceID: workspaceID,
+			AgentName:   "test",
+			DebugLogger: logger.Named("tunneler"),
+		},
+		events: make(chan tunnelerEvent),
+		ctx:    ctx,
+		cancel: cancel,
+		state:  waitForAgent,
+		client: fClient,
+	}
+
+	uut.handleAgentUpdate(&agentUpdate{lifecycle: codersdk.WorkspaceAgentLifecycleReady, id: agentID})
+	require.Equal(t, establishTailnet, uut.state)
+	event := testutil.RequireReceive(testCtx, t, uut.events)
+	require.NotNil(t, event.tailnetUpdate)
+	require.True(t, fClient.dialed)
+	require.Equal(t, mAgentConn, event.tailnetUpdate.conn)
+	require.True(t, event.tailnetUpdate.up)
+}
+
+func TestAgentUpdateNoWait(t *testing.T) {
+	t.Parallel()
+	workspaceID := uuid.UUID{1}
+	agentID := uuid.UUID{2}
+	logger := testutil.Logger(t)
+
+	ctrl := gomock.NewController(t)
+	mAgentConn := agentconnmock.NewMockAgentConn(ctrl)
+	fClient := &fakeClient{conn: mAgentConn}
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	uut := &Tunneler{
+		config: Config{
+			WorkspaceID:      workspaceID,
+			AgentName:        "test",
+			DebugLogger:      logger.Named("tunneler"),
+			NoWaitForScripts: true,
+		},
+		events: make(chan tunnelerEvent),
+		ctx:    ctx,
+		cancel: cancel,
+		state:  waitForAgent,
+		client: fClient,
+	}
+
+	uut.handleAgentUpdate(&agentUpdate{lifecycle: codersdk.WorkspaceAgentLifecycleStarting, id: agentID})
+	require.Equal(t, establishTailnet, uut.state)
+	event := testutil.RequireReceive(testCtx, t, uut.events)
+	require.NotNil(t, event.tailnetUpdate)
+	require.True(t, fClient.dialed)
+	require.Equal(t, mAgentConn, event.tailnetUpdate.conn)
+	require.True(t, event.tailnetUpdate.up)
+}
+
 func waitForGoroutines(ctx context.Context, t *testing.T, tunneler *Tunneler) {
 	done := make(chan struct{})
 	go func() {
@@ -259,3 +357,13 @@ func (fakeApp) Close() error {
 }
 
 func (fakeApp) Start(workspacesdk.AgentConn) {}
+
+type fakeClient struct {
+	conn   workspacesdk.AgentConn
+	dialed bool
+}
+
+func (f *fakeClient) DialAgent(context.Context, uuid.UUID, *workspacesdk.DialAgentOptions) (workspacesdk.AgentConn, error) {
+	f.dialed = true
+	return f.conn, nil
+}
