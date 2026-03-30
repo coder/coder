@@ -124,7 +124,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				{proxyContextValue.proxies && (
-					<div className="max-h-[calc(100vh-22rem)] overflow-y-auto">
+					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 						<DropdownMenuRadioGroup value={selectedProxy?.id}>
 							{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
 								(proxy) => (
