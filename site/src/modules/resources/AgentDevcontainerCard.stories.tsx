@@ -53,9 +53,29 @@ export const HasError: Story = {
 	args: {
 		devcontainer: {
 			...MockWorkspaceAgentDevcontainer,
+			status: "error",
 			error: "unable to inject devcontainer with agent",
 			agent: undefined,
+			container: undefined,
 		},
+		subAgents: [],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = canvasElement.ownerDocument.body;
+		const canvas = within(canvasElement);
+
+		// Verify the three-dot menu is accessible on errored devcontainers.
+		const moreActionsButton = canvas.getByRole("button", {
+			name: "Dev Container actions",
+		});
+		await user.click(moreActionsButton);
+
+		const deleteButton = await within(body).findByText("Delete…");
+		await user.click(deleteButton);
+
+		// Confirm the delete dialog opens.
+		within(body).getByRole("button", { name: "Delete" });
 	},
 };
 
