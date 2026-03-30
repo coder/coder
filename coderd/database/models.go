@@ -4173,9 +4173,9 @@ type Chat struct {
 	Labels            StringMap      `db:"labels" json:"labels"`
 	BuildID           uuid.NullUUID  `db:"build_id" json:"build_id"`
 	AgentID           uuid.NullUUID  `db:"agent_id" json:"agent_id"`
-	FileIds           []uuid.UUID    `db:"file_ids" json:"file_ids"`
 	PinOrder          int32          `db:"pin_order" json:"pin_order"`
 	LastReadMessageID sql.NullInt64  `db:"last_read_message_id" json:"last_read_message_id"`
+	FileIds           []uuid.UUID    `db:"file_ids" json:"file_ids"`
 }
 
 type ChatDiffStatus struct {

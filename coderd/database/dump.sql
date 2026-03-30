@@ -1402,9 +1402,9 @@ CREATE TABLE chats (
     labels jsonb DEFAULT '{}'::jsonb NOT NULL,
     build_id uuid,
     agent_id uuid,
-    file_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     pin_order integer DEFAULT 0 NOT NULL,
-    last_read_message_id bigint
+    last_read_message_id bigint,
+    file_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL
 );
 
 CREATE TABLE connection_logs (
