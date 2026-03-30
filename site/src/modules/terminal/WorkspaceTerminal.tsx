@@ -19,6 +19,7 @@ import {
 	WebsocketBuilder,
 	WebsocketEvent,
 } from "websocket-ts";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
 import { terminalWebsocketUrl } from "#/utils/terminal";
@@ -81,8 +82,12 @@ export const WorkspaceTerminal = ({
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	const websocketRef = useRef<Websocket | undefined>(undefined);
-	const openLinkRef = useRef(onOpenLink);
-	const statusChangeRef = useRef(onStatusChange);
+	const handleOpenLink = useEffectEvent((uri: string) => {
+		onOpenLink ? onOpenLink(uri) : window.open(uri, "_blank", "noopener");
+	});
+	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
+		onStatusChange?.(status);
+	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard } = useClipboard();
 
@@ -137,14 +142,6 @@ export const WorkspaceTerminal = ({
 	);
 
 	useEffect(() => {
-		openLinkRef.current = onOpenLink;
-	}, [onOpenLink]);
-
-	useEffect(() => {
-		statusChangeRef.current = onStatusChange;
-	}, [onStatusChange]);
-
-	useEffect(() => {
 		const mountNode = terminalWrapperRef.current;
 		if (!mountNode) {
 			const error = new Error("Terminal mount container is unavailable");
@@ -173,11 +170,7 @@ export const WorkspaceTerminal = ({
 		nextTerminal.unicode.activeVersion = "11";
 		nextTerminal.loadAddon(
 			new WebLinksAddon((_, uri) => {
-				if (openLinkRef.current) {
-					openLinkRef.current(uri);
-				} else {
-					window.open(uri, "_blank", "noopener");
-				}
+				handleOpenLink(uri);
 			}),
 		);
 
@@ -277,7 +270,7 @@ export const WorkspaceTerminal = ({
 
 		if (errorMessage) {
 			terminal.writeln(errorMessage);
-			statusChangeRef.current?.("disconnected");
+			handleStatusChange("disconnected");
 			return;
 		}
 
@@ -285,7 +278,7 @@ export const WorkspaceTerminal = ({
 			const error = new Error("Terminal requires agentId to connect");
 			reportTerminalError(error);
 			terminal.writeln(error.message);
-			statusChangeRef.current?.("disconnected");
+			handleStatusChange("disconnected");
 			return;
 		}
 
@@ -347,7 +340,7 @@ export const WorkspaceTerminal = ({
 						const dimensions = getTerminalDimensions(terminal);
 						if (!dimensions) {
 							terminal.options.disableStdin = true;
-							statusChangeRef.current?.("disconnected");
+							handleStatusChange("disconnected");
 							return;
 						}
 
@@ -368,16 +361,16 @@ export const WorkspaceTerminal = ({
 					};
 					refit();
 					scheduleTerminalResize();
-					statusChangeRef.current?.("connected");
+					handleStatusChange("connected");
 				});
 				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
 					console.error("WebSocket error:", event);
 					terminal.options.disableStdin = true;
-					statusChangeRef.current?.("disconnected");
+					handleStatusChange("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.close, () => {
 					terminal.options.disableStdin = true;
-					statusChangeRef.current?.("disconnected");
+					handleStatusChange("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
 					if (typeof event.data === "string") {
@@ -398,7 +391,7 @@ export const WorkspaceTerminal = ({
 					const dimensions = getTerminalDimensions(terminal);
 					if (!dimensions) {
 						terminal.options.disableStdin = true;
-						statusChangeRef.current?.("disconnected");
+						handleStatusChange("disconnected");
 						return;
 					}
 					websocket.send(
@@ -417,7 +410,7 @@ export const WorkspaceTerminal = ({
 				reportTerminalError(
 					error instanceof Error ? error : new Error(String(error)),
 				);
-				statusChangeRef.current?.("disconnected");
+				handleStatusChange("disconnected");
 			});
 
 		return () => {
