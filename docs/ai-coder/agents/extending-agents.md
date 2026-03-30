@@ -115,7 +115,7 @@ to the HTTP endpoint from the workspace.
 ### How discovery works
 
 The agent reads `.mcp.json` via the workspace agent connection on each chat
-turn. Discovery uses a 5-second timeout per server. Servers that fail to
+turn. Discovery uses a 5-second timeout. Servers that fail to
 respond are skipped — partial success is acceptable. Empty results are not
 cached because the MCP servers may still be starting.
 
@@ -126,5 +126,5 @@ avoid collisions between servers and with built-in tools.
 
 ### Timeouts
 
-- **Discovery**: 5 seconds per server.
+- **Discovery**: 5-second timeout.
 - **Tool calls**: 60 seconds per invocation.

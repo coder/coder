@@ -28,14 +28,14 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 | Field       | Required | Description                                               |
 |-------------|----------|-----------------------------------------------------------|
 | `url`       | Yes      | The MCP server endpoint URL.                              |
-| `transport` | No       | Transport protocol. `streamable_http` (default) or `sse`. |
+| `transport` | Yes      | Transport protocol. `streamable_http` or `sse`.           |
 
 ### Availability
 
 | Field          | Required | Description                                                                                                                   |
 |----------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
 | `enabled`      | No       | Master toggle. Disabled servers are hidden from non-admin users.                                                              |
-| `availability` | No       | Controls how the server appears in chat sessions. See [Availability policies](#availability-policies).                        |
+| `availability` | Yes      | Controls how the server appears in chat sessions. See [Availability policies](#availability-policies).                        |
 | `model_intent` | No       | When enabled, requires the model to describe each tool call's purpose in natural language, shown as a status label in the UI. |
 
 #### Availability policies
