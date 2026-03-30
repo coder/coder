@@ -51,6 +51,10 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 		aibridge.NewCopilotProvider(aibridge.CopilotConfig{
 			CircuitBreaker: cbConfig,
 		}),
+		aibridge.NewChatGPTProvider(aibridge.ChatGPTConfig{
+			CircuitBreaker:   cbConfig,
+			SendActorHeaders: cfg.SendActorHeaders.Value(),
+		}),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
