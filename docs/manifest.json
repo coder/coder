@@ -803,7 +803,8 @@
 						{
 							"title": "OAuth2 Provider",
 							"description": "Use Coder as an OAuth2 provider",
-							"path": "./admin/integrations/oauth2-provider.md"
+							"path": "./admin/integrations/oauth2-provider.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Dev Containers",
@@ -1152,7 +1153,7 @@
 									"title": "MCP Tools Injection",
 									"description": "How to configure MCP servers for tools injection through AI Bridge",
 									"path": "./ai-coder/ai-bridge/mcp.md",
-									"state": ["early access"]
+									"state": ["deprecated"]
 								},
 								{
 									"title": "AI Bridge Proxy",
