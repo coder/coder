@@ -140,7 +140,6 @@ export const WorkspaceTerminal = ({
 		}),
 		[refit],
 	);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: useEffectEvent returns stable refs
 
 	useEffect(() => {
 		const mountNode = terminalWrapperRef.current;
