@@ -58,6 +58,10 @@ function collectFiles(dir) {
  * Shorten a compiler diagnostic message to its first sentence, stripping
  * the leading "Error: " prefix and any trailing URL references so the
  * one-line report stays readable.
+ *
+ * Example:
+ *   "Error: Ref values are not allowed. Use ref types instead (https://react.dev/...)."
+ *   → "Ref values are not allowed"
  */
 function shortenMessage(msg) {
 	if (typeof msg !== "string") {
