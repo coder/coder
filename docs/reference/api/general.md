@@ -517,6 +517,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "chat_files": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },

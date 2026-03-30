@@ -2865,6 +2865,46 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const deleteOldChatFiles = `-- name: DeleteOldChatFiles :execrows
+WITH kept_file_ids AS (
+    SELECT DISTINCT unnest(file_ids) AS file_id
+    FROM chats
+    WHERE archived = false
+       OR updated_at >= $1::timestamptz
+),
+deletable AS (
+    SELECT cf.id
+    FROM chat_files cf
+    LEFT JOIN kept_file_ids k ON cf.id = k.file_id
+    WHERE cf.created_at < $1::timestamptz
+      AND k.file_id IS NULL
+    ORDER BY cf.created_at ASC
+    LIMIT $2
+)
+DELETE FROM chat_files
+USING deletable
+WHERE chat_files.id = deletable.id
+`
+
+type DeleteOldChatFilesParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes chat files that are older than the given threshold and are
+// not referenced by any chat that is still active or was archived
+// within the same threshold window. This covers two cases:
+//  1. Orphaned files not linked to any chat.
+//  2. Files whose every referencing chat has been archived for longer
+//     than the retention period.
+func (q *sqlQuerier) DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatFiles, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getChatFileByID = `-- name: GetChatFileByID :one
 SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = $1::uuid
 `

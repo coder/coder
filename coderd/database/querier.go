@@ -127,6 +127,13 @@ type sqlcQuerier interface {
 	// connection events (connect, disconnect, open, close) which are handled
 	// separately by DeleteOldAuditLogConnectionEvents.
 	DeleteOldAuditLogs(ctx context.Context, arg DeleteOldAuditLogsParams) (int64, error)
+	// Deletes chat files that are older than the given threshold and are
+	// not referenced by any chat that is still active or was archived
+	// within the same threshold window. This covers two cases:
+	// 1. Orphaned files not linked to any chat.
+	// 2. Files whose every referencing chat has been archived for longer
+	//    than the retention period.
+	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error

@@ -17766,6 +17766,10 @@
 					"description": "AuditLogs controls how long audit log entries are retained.\nSet to 0 to disable (keep indefinitely).",
 					"type": "integer"
 				},
+				"chat_files": {
+					"description": "ChatFiles controls how long uploaded chat files are retained.\nOrphaned files (not linked to any chat) and files belonging\nto chats archived longer than this duration are deleted. Set\nto 0 to disable (keep indefinitely).",
+					"type": "integer"
+				},
 				"connection_logs": {
 					"description": "ConnectionLogs controls how long connection log entries are retained.\nSet to 0 to disable (keep indefinitely).",
 					"type": "integer"
