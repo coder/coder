@@ -108,13 +108,12 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 							Select a region nearest to you
 						</div>
 						<div className="text-xs text-content-secondary leading-relaxed">
-							Workspace proxies improve terminal and web app connections to
-							workspaces. This does not apply to{" "}
+							Workspace proxies improve terminal and web app connections.{" "}
 							<Abbr title="Command-Line Interface" pronunciation="initialism">
 								CLI
 							</Abbr>{" "}
-							connections. A region must be manually selected, otherwise the
-							default primary region will be used.
+							connections are unaffected. If no region is selected, the
+							primary region will be used.
 						</div>
 					</DropdownMenuItem>
 				)}
