@@ -1249,7 +1249,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 		// We do not call setChatWaiting here because it intentionally preserves
 		// pending chats so queued-message promotion can win. Archiving is a
 		// harder stop: both pending and running chats must transition to waiting.
-		if isPendingOrRunningChatStatus(lockedChat.Status) {
+		if lockedChat.Status == database.ChatStatusPending || lockedChat.Status == database.ChatStatusRunning {
 			statusChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 				ID:          chat.ID,
 				Status:      database.ChatStatusWaiting,
