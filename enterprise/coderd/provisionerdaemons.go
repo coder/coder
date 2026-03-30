@@ -240,8 +240,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	)
 
 	authCtx := ctx
-	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" || r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
-		//nolint:gocritic // PSK/key auth means no user actor; use provisionerd for daemon registration.
+	if httpmw.ProvisionerDaemonAuthenticated(r) {
+		//nolint:gocritic // Validated PSK/key auth means no user actor;
+		// use provisionerd for daemon registration.
 		authCtx = dbauthz.AsProvisionerd(ctx)
 	}
 

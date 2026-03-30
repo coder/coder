@@ -512,6 +512,70 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Len(t, daemons, 0)
 	})
 
+	// Regression test: verify that a garbage PSK header does not
+	// bypass the normal user authorization checks. The handler's
+	// authorize() call runs BEFORE the authCtx assignment, so an
+	// unprivileged user is rejected regardless of headers. This
+	// test ensures that invariant holds.
+	t.Run("GarbagePSKHeaderIgnored", func(t *testing.T) {
+		t.Parallel()
+
+		// Sending a HTTP request triggers an error log, which would
+		// otherwise fail the test.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+			ProvisionerDaemonPSK: "provisionersftw",
+			Options: &coderdtest.Options{
+				Logger: &logger,
+			},
+		})
+
+		// Create a regular member — no template-admin or org-admin
+		// role, so they cannot create org-scoped provisioner daemons.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Build the serve URL.
+		srvURL, err := memberClient.URL.Parse(
+			fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", user.OrganizationID),
+		)
+		require.NoError(t, err)
+		q := srvURL.Query()
+		q.Add("provisioner", "echo")
+		q.Add("version", proto.CurrentVersion.String())
+		q.Add("tag", fmt.Sprintf("%s=%s", provisionersdk.TagScope, provisionersdk.ScopeOrganization))
+		srvURL.RawQuery = q.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srvURL.String(), nil)
+		require.NoError(t, err)
+
+		// Send BOTH the member's valid session token AND a garbage
+		// PSK header. The session token authenticates the user; the
+		// garbage PSK should be ignored (not trigger elevation).
+		req.Header.Set(codersdk.SessionTokenHeader, memberClient.SessionToken())
+		req.Header.Set(codersdk.ProvisionerDaemonPSK, "not-the-real-psk")
+
+		resp, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// The member does not have ProvisionerDaemon:create
+		// permission at org scope, so this should be rejected.
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		// Verify no daemon was created.
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		require.Len(t, daemons, 0)
+	})
+
 	t.Run("NoAuth", func(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
