@@ -3549,6 +3549,58 @@ func TestPatchChatMessage(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid chat message ID.", sdkErr.Message)
 	})
+
+	t.Run("FilesLinkedOnEdit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a text-only chat.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "before file edit"},
+			},
+		})
+		require.NoError(t, err)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "edit-linked.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Find the user message ID.
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// Edit the message to include the file.
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "after file edit"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		// GET the chat — file should be linked.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, 1)
+		f := chatResult.Files[0]
+		require.Equal(t, uploadResp.ID, f.ID)
+		require.Equal(t, "edit-linked.png", f.Name)
+		require.Equal(t, "image/png", f.MimeType)
+	})
 }
 
 func TestStreamChat(t *testing.T) {
