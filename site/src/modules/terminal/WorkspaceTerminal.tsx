@@ -142,6 +142,10 @@ export const WorkspaceTerminal = ({
 	);
 
 	useEffect(() => {
+		if (!isVisible) {
+			return;
+		}
+
 		const mountNode = terminalWrapperRef.current;
 		if (!mountNode) {
 			const error = new Error("Terminal mount container is unavailable");
@@ -236,10 +240,12 @@ export const WorkspaceTerminal = ({
 			resizeObserver.disconnect();
 			fitAddonRef.current = undefined;
 			nextTerminal.dispose();
+			setTerminal(undefined);
 		};
 	}, [
 		copyToClipboard,
 		handleOpenLink,
+		isVisible,
 		refit,
 		renderer,
 		reportTerminalError,
