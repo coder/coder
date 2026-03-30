@@ -1684,36 +1684,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		run  func(t *testing.T)
 	}{
 		{
-			name: "RetentionDisabled",
-			run: func(t *testing.T) {
-				clk := quartz.NewMock(t)
-				clk.Set(now).MustWait(ctx)
-
-				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-				user := dbgen.User(t, db, database.User{})
-				org := dbgen.Organization(t, db, database.Organization{})
-				_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-
-				// Create an orphaned old file (31 days ago).
-				oldFile := createChatFile(t, db, rawDB, user.ID, org.ID, now.Add(-31*24*time.Hour))
-
-				// Run purge with retention disabled (zero value).
-				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-					Retention: codersdk.RetentionConfig{
-						ChatFiles: serpent.Duration(0),
-					},
-				}, clk, prometheus.NewRegistry())
-				defer closer.Close()
-				testutil.TryReceive(ctx, t, done)
-
-				// File should still exist because retention is disabled.
-				_, err := db.GetChatFileByID(ctx, oldFile)
-				require.NoError(t, err, "old orphaned file should NOT be deleted when retention is disabled")
-			},
-		},
-		{
 			name: "OrphanedOldFilesDeleted",
 			run: func(t *testing.T) {
 				clk := quartz.NewMock(t)
@@ -1753,13 +1723,9 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File C: 10 days old, NOT in any chat → should be retained (too young).
 				fileC := createChatFile(t, db, rawDB, user.ID, org.ID, now.Add(-10*24*time.Hour))
 
-				// Run purge with 30-day retention.
+				// Run purge.
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-					Retention: codersdk.RetentionConfig{
-						ChatFiles: serpent.Duration(30 * 24 * time.Hour),
-					},
-				}, clk, prometheus.NewRegistry())
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1850,13 +1816,9 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Run purge with 30-day retention.
+				// Run purge.
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
-					Retention: codersdk.RetentionConfig{
-						ChatFiles: serpent.Duration(30 * 24 * time.Hour),
-					},
-				}, clk, prometheus.NewRegistry())
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 

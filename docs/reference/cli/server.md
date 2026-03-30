@@ -2014,14 +2014,3 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
-
-### --chat-files-retention
-
-|             |                                          |
-|-------------|------------------------------------------|
-| Type        | <code>duration</code>                    |
-| Environment | <code>$CODER_CHAT_FILES_RETENTION</code> |
-| YAML        | <code>retention.chat_files</code>        |
-| Default     | <code>30d</code>                         |
-
-How long uploaded chat files are retained. Orphaned files and files from long-archived chats older than this are automatically deleted. Set to 0 to disable.
