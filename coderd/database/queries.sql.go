@@ -6415,8 +6415,8 @@ RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, hear
 `
 
 type UpdateChatLastInjectedContextParams struct {
-	LastInjectedContext json.RawMessage `db:"last_injected_context" json:"last_injected_context"`
-	ID                  uuid.UUID       `db:"id" json:"id"`
+	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	ID                  uuid.UUID             `db:"id" json:"id"`
 }
 
 // Updates the cached injected context parts (AGENTS.md +

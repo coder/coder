@@ -4955,19 +4955,22 @@ func (p *Server) persistInstructionFiles(
 			chatprompt.CurrentContentVersion,
 		))
 		_, _ = p.db.InsertChatMessages(ctx, msgParams)
-		// Persist discovered skills (if any) to the cache
-		// column, excluding the sentinel context-file part
-		// which is internal bookkeeping.
+		// Update the cache column: persist skills if any
+		// exist, or clear to NULL so stale data from a
+		// previous agent doesn't linger.
 		if len(discoveredSkills) > 0 {
 			skillParts := make([]codersdk.ChatMessagePart, 0, len(discoveredSkills))
 			for _, s := range discoveredSkills {
 				skillParts = append(skillParts, codersdk.ChatMessagePart{
-					Type:             codersdk.ChatMessagePartTypeSkill,
-					SkillName:        s.Name,
-					SkillDescription: s.Description,
+					Type:               codersdk.ChatMessagePartTypeSkill,
+					SkillName:          s.Name,
+					SkillDescription:   s.Description,
+					ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
 				})
 			}
 			p.updateLastInjectedContext(ctx, chat.ID, skillParts)
+		} else {
+			p.updateLastInjectedContext(ctx, chat.ID, nil)
 		}
 		return "", discoveredSkills, nil
 	}
@@ -5035,17 +5038,21 @@ func (p *Server) persistInstructionFiles(
 // best-effort — a failure here is logged but does not block
 // the turn.
 func (p *Server) updateLastInjectedContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
-	raw, err := json.Marshal(parts)
-	if err != nil {
-		p.logger.Warn(ctx, "failed to marshal injected context",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return
+	param := pqtype.NullRawMessage{Valid: false}
+	if parts != nil {
+		raw, err := json.Marshal(parts)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to marshal injected context",
+				slog.F("chat_id", chatID),
+				slog.Error(err),
+			)
+			return
+		}
+		param = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
 	}
 	if _, err := p.db.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
 		ID:                  chatID,
-		LastInjectedContext: json.RawMessage(raw),
+		LastInjectedContext: param,
 	}); err != nil {
 		p.logger.Warn(ctx, "failed to update injected context",
 			slog.F("chat_id", chatID),

@@ -534,7 +534,7 @@ RETURNING *;
 -- (first workspace attach or agent change). updated_at is
 -- intentionally not touched to avoid reordering the chat list.
 UPDATE chats SET
-    last_injected_context = @last_injected_context::jsonb
+    last_injected_context = sqlc.narg('last_injected_context')::jsonb
 WHERE
     id = @id::uuid
 RETURNING *;

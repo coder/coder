@@ -490,8 +490,11 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 			if !ok || arg.ID != chat.ID {
 				return false
 			}
+			if !arg.LastInjectedContext.Valid {
+				return false
+			}
 			var parts []codersdk.ChatMessagePart
-			if err := json.Unmarshal(arg.LastInjectedContext, &parts); err != nil {
+			if err := json.Unmarshal(arg.LastInjectedContext.RawMessage, &parts); err != nil {
 				return false
 			}
 			// Expect at least one context-file part for the
