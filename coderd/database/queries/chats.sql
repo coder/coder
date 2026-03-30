@@ -3,7 +3,8 @@ UPDATE chats SET archived = true, pin_order = 0, updated_at = NOW()
 WHERE id = @id OR root_chat_id = @id;
 
 -- name: UnarchiveChatByID :exec
-UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
+UPDATE chats SET archived = false, updated_at = NOW()
+WHERE id = @id OR root_chat_id = @id;
 
 -- name: PinChatByID :exec
 WITH target_chat AS (
