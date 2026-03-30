@@ -23,6 +23,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 		onCreateChat: fn(),
 		isCreating: false,
 		createError: undefined,
+		canCreateChat: true,
 		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
@@ -272,25 +273,7 @@ export const UsageLimitExceeded: Story = {
 export const ForbiddenNoAgentsRole: Story = {
 	args: {
 		...defaultArgs,
-		createError: Object.assign(
-			new Error("Request failed with status code 403"),
-			{
-				isAxiosError: true,
-				response: {
-					status: 403,
-					statusText: "Forbidden",
-					data: {
-						message: "Forbidden.",
-						detail:
-							"You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
-					},
-					headers: {},
-					config: {},
-				},
-				config: {},
-				toJSON: () => ({}),
-			},
-		),
+		canCreateChat: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -304,7 +287,7 @@ export const ForbiddenNoAgentsRole: Story = {
 			canvas.queryByRole("heading", { name: "Forbidden." }),
 		).not.toBeInTheDocument();
 		// The textarea should be disabled so the user cannot
-		// re-trigger the generic error.
+		// accidentally trigger the generic error.
 		await expect(canvas.getByRole("textbox")).toBeDisabled();
 	},
 };

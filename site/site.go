@@ -571,9 +571,13 @@ func init() {
 func (h *Handler) renderPermissions(ctx context.Context, actor rbac.Subject) string {
 	response := make(codersdk.AuthorizationResponse)
 	for k, v := range permissionChecks {
+		ownerID := v.Object.OwnerID
+		if ownerID == "me" {
+			ownerID = actor.ID
+		}
 		obj := rbac.Object{
 			ID:          v.Object.ResourceID,
-			Owner:       v.Object.OwnerID,
+			Owner:       ownerID,
 			OrgID:       v.Object.OrganizationID,
 			AnyOrgOwner: v.Object.AnyOrgOwner,
 			Type:        string(v.Object.ResourceType),
