@@ -102,7 +102,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		APIKey:               "test-key",
 		BaseUrl:              serverURL,
 	}}, nil)
-	db.EXPECT().GetUserChatProviderKeys(gomock.Any(), ownerID).Return([]database.UserChatProviderKey{}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
