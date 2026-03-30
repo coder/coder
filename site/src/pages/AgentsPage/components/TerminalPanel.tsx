@@ -51,23 +51,15 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 		}),
 	);
 
-	const handleOpenLink = useCallback(
-		(uri: string) => {
-			openMaybePortForwardedURL(
-				uri,
-				proxy.preferredWildcardHostname,
-				workspaceAgent?.name,
-				workspace?.name,
-				workspace?.owner_name,
-			);
-		},
-		[
+	const handleOpenLink = (uri: string) => {
+		openMaybePortForwardedURL(
+			uri,
 			proxy.preferredWildcardHostname,
 			workspaceAgent?.name,
 			workspace?.name,
 			workspace?.owner_name,
-		],
-	);
+		);
+	};
 
 	const handleTerminalError = (error: Error) => {
 		console.error("WebSocket failed:", error);
