@@ -495,10 +495,13 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 				return false
 			}
 			// Expect at least one context-file part for the
-			// working-directory AGENTS.md.
+			// working-directory AGENTS.md, with internal fields
+			// stripped (no content, OS, or directory).
 			for _, p := range parts {
 				if p.Type == codersdk.ChatMessagePartTypeContextFile && p.ContextFilePath != "" {
-					return true
+					return p.ContextFileContent == "" &&
+						p.ContextFileOS == "" &&
+						p.ContextFileDirectory == ""
 				}
 			}
 			return false

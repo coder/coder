@@ -4955,9 +4955,21 @@ func (p *Server) persistInstructionFiles(
 			chatprompt.CurrentContentVersion,
 		))
 		_, _ = p.db.InsertChatMessages(ctx, msgParams)
-		// Don't persist sentinel-only parts to
-		// last_workspace_context — they are internal
-		// bookkeeping, not real workspace context.
+		// Persist discovered skills (if any) to the cache
+		// column, excluding the sentinel context-file part
+		// which is internal bookkeeping.
+		if len(discoveredSkills) > 0 {
+			skillParts := make([]codersdk.ChatMessagePart, 0, len(discoveredSkills))
+			for _, s := range discoveredSkills {
+				p := codersdk.ChatMessagePart{
+					Type:             codersdk.ChatMessagePartTypeSkill,
+					SkillName:        s.Name,
+					SkillDescription: s.Description,
+				}
+				skillParts = append(skillParts, p)
+			}
+			p.updateLastWorkspaceContext(ctx, chat.ID, skillParts)
+		}
 		return "", discoveredSkills, nil
 	}
 
@@ -5003,7 +5015,15 @@ func (p *Server) persistInstructionFiles(
 	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
 		return "", nil, xerrors.Errorf("persist instruction files: %w", err)
 	}
-	p.updateLastWorkspaceContext(ctx, chat.ID, parts)
+	// Build stripped copies for the cache column so internal
+	// fields (full file content, OS, directory, skill paths)
+	// are never persisted or returned to API clients.
+	stripped := make([]codersdk.ChatMessagePart, len(parts))
+	copy(stripped, parts)
+	for i := range stripped {
+		stripped[i].StripInternal()
+	}
+	p.updateLastWorkspaceContext(ctx, chat.ID, stripped)
 
 	// Return the formatted instruction text and discovered skills
 	// so the caller can inject them into this turn's prompt (since
