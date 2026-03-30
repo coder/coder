@@ -53,7 +53,7 @@ group names, and template to match your use case.
 
 Create a dedicated service account that will own the shared workspace. Service
 accounts are non-human accounts intended for automation and shared ownership.
-Because no individual user owns the workspace, it is not affected when someone
+Because no individual user owns the workspace, there are no personal credentials to expose and the shared environment is not affected when any user
 leaves the team or the organization.
 
 ```shell
@@ -118,8 +118,8 @@ coder sharing share oncall-sre/oncall-workspace --user alice
 This gives `alice` the default `use` role, which allows connection via SSH and
 workspace apps, starting and stopping the workspace, and viewing logs and stats.
 
-To grant `admin` permissions (which also allows renaming, updating, and inviting
-others with the `use` role):
+To grant `admin` permissions (which includes all `use` permissions as well as renaming, updating, and inviting
+others to join with the `use` role):
 
 ```shell
 coder sharing share oncall-sre/oncall-workspace --user alice:admin
