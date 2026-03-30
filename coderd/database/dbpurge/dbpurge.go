@@ -34,8 +34,11 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Batch size for chat file deletion. Smaller than other batch
-	// sizes because chat files contain bytea blob data.
+	// Chat files retention period. Chats are currently experimental,
+	// so we hard-code this rather than exposing a deployment config
+	// knob. This can be promoted to a configurable setting if and
+	// when chats graduate from experimental status.
+	maxChatFileAge     = 30 * 24 * time.Hour // 30 days
 	chatFilesBatchSize = 1000
 )
 
@@ -216,17 +219,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		var purgedChatFiles int64
-		chatFilesRetention := i.vals.Retention.ChatFiles.Value()
-		if chatFilesRetention > 0 {
-			deleteChatFilesBefore := start.Add(-chatFilesRetention)
-			purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
-				BeforeTime: deleteChatFilesBefore,
-				LimitCount: chatFilesBatchSize,
-			})
-			if err != nil {
-				return xerrors.Errorf("failed to delete old chat files: %w", err)
-			}
+		deleteChatFilesBefore := start.Add(-maxChatFileAge)
+		purgedChatFiles, err := tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+			BeforeTime: deleteChatFilesBefore,
+			LimitCount: chatFilesBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete old chat files: %w", err)
 		}
 
 		i.logger.Debug(ctx, "purged old database entries",
