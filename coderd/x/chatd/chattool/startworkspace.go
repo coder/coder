@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -144,7 +145,7 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 	)
 }
 
-// waitForAgentAndRespond looks up the first agent in the workspace's
+// waitForAgentAndRespond selects the chat agent from the workspace's
 // latest build, waits for it to become reachable, and returns a
 // success response.
 func waitForAgentAndRespond(
@@ -155,7 +156,7 @@ func waitForAgentAndRespond(
 ) (fantasy.ToolResponse, error) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil || len(agents) == 0 {
-		// Workspace started but no agent found — still report
+		// Workspace started but no agent found - still report
 		// success so the model knows the workspace is up.
 		return toolResponse(map[string]any{
 			"started":        true,
@@ -164,11 +165,21 @@ func waitForAgentAndRespond(
 		}), nil
 	}
 
+	selected, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		return toolResponse(map[string]any{
+			"started":        true,
+			"workspace_name": ws.Name,
+			"agent_status":   "selection_error",
+			"agent_error":    err.Error(),
+		}), nil
+	}
+
 	result := map[string]any{
 		"started":        true,
 		"workspace_name": ws.Name,
 	}
-	for k, v := range waitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
+	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
 		result[k] = v
 	}
 	return toolResponse(result), nil

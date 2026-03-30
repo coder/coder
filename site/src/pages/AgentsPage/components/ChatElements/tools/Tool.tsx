@@ -56,6 +56,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	args?: unknown;
 	result?: unknown;
 	isError?: boolean;
+	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from spawn tool results. */
 	subagentTitles?: Map<string, string>;
 	/** Set of chat IDs spawned by `spawn_computer_use_agent`. */
@@ -81,6 +82,7 @@ type ToolRendererProps = {
 	args: unknown;
 	result: unknown;
 	isError: boolean;
+	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
 	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
@@ -99,6 +101,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	killedBySignal,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const command = parsedArgs ? asString(parsedArgs.command) : "";
@@ -128,6 +131,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			output={output}
 			status={status}
 			isError={isError}
+			killedBySignal={killedBySignal}
 		/>
 	);
 };
@@ -136,6 +140,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
+	killedBySignal,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
@@ -151,6 +156,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			isRunning={status === "running"}
 			exitCode={exitCode}
 			isError={isError}
+			killedBySignal={killedBySignal}
 		/>
 	);
 };
@@ -326,6 +332,18 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		subagentIsError &&
 		(resultStr.toLowerCase().includes("timed out") ||
 			errorStr.toLowerCase().includes("timed out"));
+
+	// Postpone rendering wait_agent / message_agent until the
+	// chat_id has been parsed from the streaming args. Without it
+	// we can't determine variant or title, which causes a brief
+	// flash of the generic "Waiting for Sub-agent" text.
+	if (
+		!chatId &&
+		status === "running" &&
+		(name === "wait_agent" || name === "message_agent")
+	) {
+		return null;
+	}
 
 	const variant =
 		name === "spawn_computer_use_agent" || computerUseSubagentIds?.has(chatId)
@@ -615,12 +633,31 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
+// process_signal — thin wrapper that promotes soft failures (success=false
+// in the result body, isError=false at protocol level) so the generic
+// renderer shows the error indicator and tooltip.
+// ---------------------------------------------------------------------------
+
+const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
+	const rec = asRecord(props.result);
+	const isSoftFailure =
+		!props.isError &&
+		props.status !== "running" &&
+		rec !== null &&
+		!rec.success;
+	return (
+		<GenericToolRenderer {...props} isError={props.isError || isSoftFailure} />
+	);
+};
+
+// ---------------------------------------------------------------------------
 // Renderer lookup map — maps tool names to their specialized renderers.
 // ---------------------------------------------------------------------------
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
+	process_signal: ProcessSignalRenderer,
 	wait_for_external_auth: WaitForExternalAuthRenderer,
 	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
@@ -650,6 +687,7 @@ export const Tool = memo(
 		args,
 		result,
 		isError = false,
+		killedBySignal,
 		subagentTitles,
 		computerUseSubagentIds,
 		showDesktopPreviews,
@@ -681,6 +719,7 @@ export const Tool = memo(
 					args={args}
 					result={result}
 					isError={isError}
+					killedBySignal={killedBySignal}
 					subagentTitles={subagentTitles}
 					computerUseSubagentIds={computerUseSubagentIds}
 					showDesktopPreviews={showDesktopPreviews}

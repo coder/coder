@@ -16,6 +16,10 @@ import (
 // that use per-user LLM credentials but cannot set custom headers.
 const HeaderCoderToken = "X-Coder-AI-Governance-Token" //nolint:gosec // This is a header name, not a credential.
 
+// HeaderCoderRequestID is a header set by aibridgeproxyd on each
+// request forwarded to aibridged for cross-service log correlation.
+const HeaderCoderRequestID = "X-Coder-AI-Governance-Request-Id"
+
 // IsBYOK reports whether the request is using BYOK mode, determined
 // by the presence of the X-Coder-AI-Governance-Token header.
 func IsBYOK(header http.Header) bool {

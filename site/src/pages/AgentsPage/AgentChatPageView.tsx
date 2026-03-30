@@ -99,7 +99,7 @@ interface AgentChatPageViewProps {
 	diffStatusData: ChatDiffStatus | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
-		refresh: () => void;
+		refresh: () => boolean;
 	};
 
 	// Workspace action handlers.
@@ -792,7 +792,16 @@ const ScrollAnchoredContainer: FC<{
 		};
 
 		const scheduleBottomPin = () => {
-			cancelPendingPins();
+			// If a pin is already in-flight, let it complete. The
+			// inner RAF reads scrollHeight at execution time so it
+			// always targets the latest bottom. Cancelling and
+			// rescheduling on every ResizeObserver notification
+			// starves the pin on Safari, where sticky-element
+			// repositioning generates extra resize events that
+			// perpetually restart the double-RAF chain.
+			if (pinOuterRafId !== null || pinInnerRafId !== null) {
+				return;
+			}
 			pendingWheelPinRef.current = false;
 			isRestoringScrollRef.current = true;
 			// Double-RAF lets React's commit phase and the browser's
@@ -1149,7 +1158,7 @@ const ScrollAnchoredContainer: FC<{
 			<div
 				ref={scrollContainerRef}
 				data-testid="scroll-container"
-				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [overscroll-behavior:contain] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div ref={contentRef}>
 					{hasMoreMessages && (
