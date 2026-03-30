@@ -450,6 +450,7 @@ jobs:
           syft "${MULTIARCH_IMAGE}" -o spdx-json > "coder_${VERSION}_sbom.spdx.json"
 
           echo "Attesting SBOM to multi-arch image: ${MULTIARCH_IMAGE}"
+          cosign clean --force=true "${MULTIARCH_IMAGE}"
           cosign attest --type spdxjson \
             --predicate "coder_${VERSION}_sbom.spdx.json" \
             --yes \
@@ -462,6 +463,7 @@ jobs:
             syft "${latest_tag}" -o spdx-json > coder_latest_sbom.spdx.json
 
             echo "Attesting SBOM to latest image: ${latest_tag}"
+            cosign clean --force=true "${latest_tag}"
             cosign attest --type spdxjson \
               --predicate coder_latest_sbom.spdx.json \
               --yes \
