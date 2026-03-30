@@ -21,6 +21,166 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestResolveUserProviderKeys(t *testing.T) {
+	t.Parallel()
+
+	configuredProvider := func(id uuid.UUID, provider string, centralEnabled bool, centralKey string, allowUser bool, allowCentralFallback bool) chatprovider.ConfiguredProvider {
+		return chatprovider.ConfiguredProvider{
+			ProviderID:                 id,
+			Provider:                   provider,
+			APIKey:                     centralKey,
+			CentralAPIKeyEnabled:       centralEnabled,
+			AllowUserAPIKey:            allowUser,
+			AllowCentralAPIKeyFallback: allowCentralFallback,
+		}
+	}
+
+	userProviderKey := func(id uuid.UUID, apiKey string) chatprovider.UserProviderKey {
+		return chatprovider.UserProviderKey{
+			ChatProviderID: id,
+			APIKey:         apiKey,
+		}
+	}
+
+	openAIProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	anthropicProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+
+	tests := []struct {
+		name             string
+		fallback         chatprovider.ProviderAPIKeys
+		providers        []chatprovider.ConfiguredProvider
+		userKeys         []chatprovider.UserProviderKey
+		wantAvailability map[string]chatprovider.ProviderAvailability
+		wantKeys         map[string]string
+	}{
+		{
+			name:      "CentralOnlyKeyPresent",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "sk-central", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "sk-central",
+			},
+		},
+		{
+			name:      "CentralOnlyKeyMissing",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "",
+			},
+		},
+		{
+			name:      "UserOnlyUserHasKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, false, "sk-central", true, false)},
+			userKeys:  []chatprovider.UserProviderKey{userProviderKey(openAIProviderID, "sk-user")},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "sk-user",
+			},
+		},
+		{
+			name:      "UserOnlyUserHasNoKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, false, "sk-central", true, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "",
+			},
+		},
+		{
+			name:      "BothEnabledFallbackOffUserHasKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "sk-central", true, false)},
+			userKeys:  []chatprovider.UserProviderKey{userProviderKey(openAIProviderID, "sk-user")},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "sk-user",
+			},
+		},
+		{
+			name:      "BothEnabledFallbackOffUserHasNoKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "sk-central", true, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "",
+			},
+		},
+		{
+			name:      "BothEnabledFallbackOnUserHasKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "sk-central", true, true)},
+			userKeys:  []chatprovider.UserProviderKey{userProviderKey(openAIProviderID, "sk-user")},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "sk-user",
+			},
+		},
+		{
+			name:      "BothEnabledFallbackOnUserHasNoKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "sk-central", true, true)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "sk-central",
+			},
+		},
+		{
+			name:      "BothEnabledFallbackOnCentralKeyEmptyUserHasNoKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "", true, true)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name: "",
+			},
+		},
+		{
+			name: "MultipleProvidersDifferentPolicies",
+			providers: []chatprovider.ConfiguredProvider{
+				configuredProvider(openAIProviderID, fantasyopenai.Name, true, "sk-central", false, false),
+				configuredProvider(anthropicProviderID, fantasyanthropic.Name, false, "", true, false),
+			},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name:    {Available: true},
+				fantasyanthropic.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasyopenai.Name:    "sk-central",
+				fantasyanthropic.Name: "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			keys, availability := chatprovider.ResolveUserProviderKeys(tt.fallback, tt.providers, tt.userKeys)
+
+			require.Len(t, availability, len(tt.wantAvailability))
+			for provider, wantAvailability := range tt.wantAvailability {
+				gotAvailability, ok := availability[provider]
+				require.True(t, ok, "expected availability for provider %q", provider)
+				require.Equal(t, wantAvailability, gotAvailability)
+				require.Equal(t, tt.wantKeys[provider], keys.APIKey(provider))
+			}
+		})
+	}
+}
+
 func TestReasoningEffortFromChat(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +247,55 @@ func TestReasoningEffortFromChat(t *testing.T) {
 
 			got := chatprovider.ReasoningEffortFromChat(tt.provider, tt.input)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		provider   chatprovider.ConfiguredProvider
+		wantReason codersdk.ChatModelProviderUnavailableReason
+	}{
+		{
+			name: "FallbackConfiguredWithoutCentralKeyReturnsUserAPIKeyRequired",
+			provider: chatprovider.ConfiguredProvider{
+				Provider:                   "anthropic",
+				CentralAPIKeyEnabled:       true,
+				AllowUserAPIKey:            true,
+				AllowCentralAPIKeyFallback: true,
+			},
+			wantReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+		},
+		{
+			name: "UserKeyRequiredWithoutFallback",
+			provider: chatprovider.ConfiguredProvider{
+				Provider:             "anthropic",
+				CentralAPIKeyEnabled: true,
+				AllowUserAPIKey:      true,
+			},
+			wantReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			keys, availability := chatprovider.ResolveUserProviderKeys(
+				chatprovider.ProviderAPIKeys{},
+				[]chatprovider.ConfiguredProvider{tt.provider},
+				nil,
+			)
+
+			require.Empty(t, keys.APIKey(tt.provider.Provider))
+			resolved, ok := availability[tt.provider.Provider]
+			require.True(t, ok)
+			require.False(t, resolved.Available)
+			require.Equal(t, tt.wantReason, resolved.UnavailableReason)
 		})
 	}
 }

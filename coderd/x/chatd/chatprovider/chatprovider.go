@@ -81,11 +81,28 @@ type ProviderAPIKeys struct {
 	BaseURLByProvider map[string]string
 }
 
+// UserProviderKey is a user-supplied API key for a specific provider.
+type UserProviderKey struct {
+	ChatProviderID uuid.UUID
+	APIKey         string
+}
+
+// ProviderAvailability describes whether a provider has a usable
+// API key and, if not, why.
+type ProviderAvailability struct {
+	Available         bool
+	UnavailableReason codersdk.ChatModelProviderUnavailableReason
+}
+
 // ConfiguredProvider is an enabled provider loaded from database config.
 type ConfiguredProvider struct {
-	Provider string
-	APIKey   string
-	BaseURL  string
+	ProviderID                 uuid.UUID
+	Provider                   string
+	APIKey                     string
+	BaseURL                    string
+	CentralAPIKeyEnabled       bool
+	AllowUserAPIKey            bool
+	AllowCentralAPIKeyFallback bool
 }
 
 // ConfiguredModel is an enabled model loaded from database config.
@@ -187,6 +204,133 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 	}
 
 	return merged
+}
+
+// ResolveUserProviderKeys computes effective API keys and per-provider
+// availability for a given user. It considers the provider's credential
+// policy flags alongside central (DB/deployment) keys and the user's
+// personal keys.
+func ResolveUserProviderKeys(
+	fallback ProviderAPIKeys,
+	providers []ConfiguredProvider,
+	userKeys []UserProviderKey,
+) (ProviderAPIKeys, map[string]ProviderAvailability) {
+	merged := ProviderAPIKeys{
+		OpenAI:            strings.TrimSpace(fallback.OpenAI),
+		Anthropic:         strings.TrimSpace(fallback.Anthropic),
+		ByProvider:        map[string]string{},
+		BaseURLByProvider: map[string]string{},
+	}
+	for provider, apiKey := range fallback.ByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if key := strings.TrimSpace(apiKey); key != "" {
+			merged.ByProvider[normalizedProvider] = key
+		}
+	}
+	for provider, baseURL := range fallback.BaseURLByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		if url := strings.TrimSpace(baseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+	}
+	if merged.OpenAI != "" {
+		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
+	}
+	if merged.Anthropic != "" {
+		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
+	}
+
+	userKeyByProviderID := make(map[uuid.UUID]string, len(userKeys))
+	for _, userKey := range userKeys {
+		if userKey.ChatProviderID == uuid.Nil {
+			continue
+		}
+		if key := strings.TrimSpace(userKey.APIKey); key != "" {
+			userKeyByProviderID[userKey.ChatProviderID] = key
+		}
+	}
+
+	availabilityByProvider := make(map[string]ProviderAvailability, len(providers))
+	for _, provider := range providers {
+		normalizedProvider := NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+
+		if url := strings.TrimSpace(provider.BaseURL); url != "" {
+			merged.BaseURLByProvider[normalizedProvider] = url
+		}
+
+		var userKey string
+		if provider.ProviderID != uuid.Nil {
+			userKey = userKeyByProviderID[provider.ProviderID]
+		}
+
+		var centralKey string
+		if provider.CentralAPIKeyEnabled {
+			if key := strings.TrimSpace(provider.APIKey); key != "" {
+				centralKey = key
+			} else {
+				centralKey = fallback.APIKey(normalizedProvider)
+			}
+		}
+
+		resolved := ProviderAvailability{}
+		chosenKey := ""
+		switch {
+		case provider.AllowUserAPIKey && userKey != "":
+			chosenKey = userKey
+			resolved.Available = true
+		case centralKey != "":
+			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
+				chosenKey = centralKey
+				resolved.Available = true
+			} else {
+				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+			}
+		case provider.AllowUserAPIKey && provider.AllowCentralAPIKeyFallback && provider.CentralAPIKeyEnabled:
+			// When users can add their own key, a missing central fallback key is
+			// still something the user can remedy.
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+		case provider.AllowUserAPIKey:
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
+		default:
+			resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
+		}
+
+		setResolvedProviderAPIKey(&merged, normalizedProvider, chosenKey)
+		availabilityByProvider[normalizedProvider] = resolved
+	}
+
+	return merged, availabilityByProvider
+}
+
+func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey string) {
+	normalizedProvider := NormalizeProvider(provider)
+	if normalizedProvider == "" {
+		return
+	}
+	if keys.ByProvider == nil {
+		keys.ByProvider = map[string]string{}
+	}
+
+	delete(keys.ByProvider, normalizedProvider)
+	trimmedKey := strings.TrimSpace(apiKey)
+	switch normalizedProvider {
+	case fantasyopenai.Name:
+		keys.OpenAI = trimmedKey
+	case fantasyanthropic.Name:
+		keys.Anthropic = trimmedKey
+	}
+	if trimmedKey != "" {
+		keys.ByProvider[normalizedProvider] = trimmedKey
+	}
 }
 
 type ModelCatalog struct {
