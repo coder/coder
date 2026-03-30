@@ -625,6 +625,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -635,6 +639,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -645,6 +653,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
