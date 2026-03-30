@@ -71,6 +71,13 @@ const (
 	// events cached per chat for same-replica stream catch-up.
 	maxDurableMessageCacheSize = 256
 
+	// maxConcurrentRecordingUploads caps the number of recording
+	// stop-and-store operations that can run concurrently. Each
+	// slot buffers up to MaxRecordingSize (100 MB) in memory, so
+	// this value implicitly bounds memory to roughly
+	// maxConcurrentRecordingUploads * 100 MB.
+	maxConcurrentRecordingUploads = 25
+
 	// staleRecoveryIntervalDivisor determines how often the stale
 	// recovery loop runs relative to the stale threshold. A value
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
@@ -129,6 +136,7 @@ type Server struct {
 
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
+	recordingSem chan struct{}
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
@@ -2372,6 +2380,7 @@ func New(cfg Config) *Server {
 		chatHeartbeatInterval:          chatHeartbeatInterval,
 		usageTracker:                   cfg.UsageTracker,
 		clock:                          clk,
+		recordingSem:                   make(chan struct{}, maxConcurrentRecordingUploads),
 		wakeCh:                         make(chan struct{}, 1),
 	}
 

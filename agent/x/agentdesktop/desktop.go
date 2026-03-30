@@ -2,7 +2,10 @@ package agentdesktop
 
 import (
 	"context"
+	"io"
 	"net"
+
+	"golang.org/x/xerrors"
 )
 
 // Desktop abstracts a virtual desktop session running inside a workspace.
@@ -58,8 +61,50 @@ type Desktop interface {
 	// CursorPosition returns the current cursor coordinates.
 	CursorPosition(ctx context.Context) (x, y int, err error)
 
+	// RecordActivity marks the desktop as having received user
+	// interaction, resetting the idle-recording timer.
+	RecordActivity()
+
+	// StartRecording begins recording the desktop to an MP4 file
+	// using the caller-provided recording ID. Safe to call
+	// repeatedly - active recordings continue unchanged, stopped
+	// recordings are discarded and restarted. Concurrent recordings
+	// are supported.
+	StartRecording(ctx context.Context, recordingID string) error
+
+	// StopRecording finalizes the recording identified by the given
+	// ID. Idempotent - safe to call on an already-stopped recording.
+	// Returns a RecordingArtifact that the caller can stream. The
+	// caller must close the artifact when done. Returns an error if
+	// the recording ID is unknown.
+	StopRecording(ctx context.Context, recordingID string) (*RecordingArtifact, error)
+
 	// Close shuts down the desktop session and cleans up resources.
 	Close() error
+}
+
+// ErrUnknownRecording is returned by StopRecording when the
+// recording ID is not recognized.
+var ErrUnknownRecording = xerrors.New("unknown recording ID")
+
+// ErrDesktopClosed is returned when an operation is attempted on a
+// closed desktop session.
+var ErrDesktopClosed = xerrors.New("desktop closed")
+
+// ErrRecordingCorrupted is returned by StopRecording when the
+// recording process was force-killed and the artifact is likely
+// incomplete or corrupt.
+var ErrRecordingCorrupted = xerrors.New("recording corrupted: process was force-killed")
+
+// RecordingArtifact is a finalized recording returned by StopRecording.
+// The caller streams the artifact and must call Close when done. The
+// artifact remains valid even if the same recording ID is restarted
+// or the desktop is closed while the caller is reading.
+type RecordingArtifact struct {
+	// Reader is the MP4 content. Callers must close it when done.
+	Reader io.ReadCloser
+	// Size is the byte length of the MP4 content.
+	Size int64
 }
 
 // DisplayConfig describes a running desktop session.

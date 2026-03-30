@@ -398,7 +398,7 @@ func (a *agent) init() {
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
-		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
+		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.logger.Named("mcp"))
