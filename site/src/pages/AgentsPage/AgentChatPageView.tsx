@@ -6,7 +6,6 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import { TerminalPanel } from "./components/TerminalPanel";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
