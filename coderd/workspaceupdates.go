@@ -21,7 +21,7 @@ import (
 )
 
 type UpdatesQuerier interface {
-	// GetAuthorizedWorkspacesAndAgentsByOwnerID requires a context with an actor set.
+	// GetAuthorizedWorkspacesAndAgentsByOwnerID requires a context with an actor set
 	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error)
 }
