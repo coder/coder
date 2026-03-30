@@ -1,4 +1,4 @@
-import { type FC, useCallback, useRef, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
@@ -69,13 +69,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 		],
 	);
 
-	const handleTerminalError = useCallback((error: Error) => {
+	const handleTerminalError = (error: Error) => {
 		console.error("WebSocket failed:", error);
-	}, []);
+	};
 
-	const handleAlertChange = useCallback(() => {
+	const handleAlertChange = () => {
 		terminalRef.current?.refit();
-	}, []);
+	};
 
 	if (!workspaceAgent) {
 		return (
