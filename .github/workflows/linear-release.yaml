@@ -107,7 +107,3 @@ jobs:
           version: ${{ steps.version.outputs.version }}
           timeout: 300
 
-  # NOTE: The `complete` step is in release.yaml, not here. The
-  # `release: published` event does not trigger this workflow because
-  # release.yaml publishes with GITHUB_TOKEN and GitHub does not
-  # cascade events from that token (infinite-loop prevention).

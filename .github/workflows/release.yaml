@@ -647,17 +647,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
-      # Complete the matching Linear release. All releases (v2.32.0,
-      # v2.32.1, ...) target the same Linear release ("2.32"). Running
-      # complete on an already-completed release is harmless — the
-      # server either no-ops or errors out, caught by continue-on-error.
-      # This makes the step self-healing: if the .0 release fails before
-      # completing, the next patch will pick it up.
-      #
-      # This runs here instead of in linear-release.yaml because a
-      # `release: published` trigger there would not fire — releases
-      # created with GITHUB_TOKEN do not trigger downstream workflows
-      # (GitHub infinite-loop prevention).
+      # Mark the Linear release as shipped. Runs for every release
+      # (including patches) and relies on idempotency — re-completing
+      # an already-completed release is harmless.
       - name: Extract Linear release version
         if: ${{ !inputs.dry_run }}
         id: linear_version
