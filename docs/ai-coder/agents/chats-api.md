@@ -79,13 +79,13 @@ A typical integration follows three steps:
 
 `POST /api/experimental/chats`
 
-| Field             | Type              | Required | Description                                     |
-|-------------------|-------------------|----------|-------------------------------------------------|
-| `content`         | `ChatInputPart[]` | yes      | The user's prompt as one or more content parts. |
-| `workspace_id`    | `uuid`            | no       | Pin the chat to a specific workspace.           |
-| `model_config_id` | `uuid`            | no       | Override the default model configuration.       |
-| `mcp_server_ids`  | `uuid[]`          | no       | Attach MCP servers to this chat.                |
-| `labels`          | `map[string]string` | no     | Key-value labels for the chat (max 50).         |
+| Field             | Type                | Required | Description                                     |
+|-------------------|---------------------|----------|-------------------------------------------------|
+| `content`         | `ChatInputPart[]`   | yes      | The user's prompt as one or more content parts. |
+| `workspace_id`    | `uuid`              | no       | Pin the chat to a specific workspace.           |
+| `model_config_id` | `uuid`              | no       | Override the default model configuration.       |
+| `mcp_server_ids`  | `uuid[]`            | no       | Attach MCP servers to this chat.                |
+| `labels`          | `map[string]string` | no       | Key-value labels for the chat (max 50).         |
 
 Each `ChatInputPart` has a `type` field. The simplest form is a text part:
 
@@ -103,11 +103,11 @@ range).
 
 `POST /api/experimental/chats/{chat}/messages`
 
-| Field             | Type              | Required | Description                           |
-|-------------------|-------------------|----------|---------------------------------------|
-| `content`         | `ChatInputPart[]` | yes      | The follow-up message content.        |
-| `model_config_id` | `uuid`            | no       | Override the model for this turn.     |
-| `mcp_server_ids`  | `uuid[]`          | no       | Override MCP servers for this turn.   |
+| Field             | Type              | Required | Description                         |
+|-------------------|-------------------|----------|-------------------------------------|
+| `content`         | `ChatInputPart[]` | yes      | The follow-up message content.      |
+| `model_config_id` | `uuid`            | no       | Override the model for this turn.   |
+| `mcp_server_ids`  | `uuid[]`          | no       | Override MCP servers for this turn. |
 
 If the agent is currently processing, the message is queued automatically.
 The response indicates whether the message was delivered immediately or
@@ -130,9 +130,9 @@ returned instead.
 Edits a previously sent user message. The agent re-processes from the
 edited message onward, truncating any messages that followed it.
 
-| Field     | Type              | Required | Description                     |
-|-----------|-------------------|----------|---------------------------------|
-| `content` | `ChatInputPart[]` | yes      | The replacement message content.|
+| Field     | Type              | Required | Description                      |
+|-----------|-------------------|----------|----------------------------------|
+| `content` | `ChatInputPart[]` | yes      | The replacement message content. |
 
 ### Stream updates
 
@@ -189,13 +189,13 @@ indicator without polling.
 
 Each event is a JSON object with `kind` and `chat` fields:
 
-| Kind                 | Description                              |
-|----------------------|------------------------------------------|
-| `created`            | A new chat was created.                  |
-| `status_change`      | A chat's status changed.                 |
-| `title_change`       | A chat's title was updated.              |
-| `diff_status_change` | A chat's diff/PR status changed.         |
-| `deleted`            | A chat was deleted.                      |
+| Kind                 | Description                      |
+|----------------------|----------------------------------|
+| `created`            | A new chat was created.          |
+| `status_change`      | A chat's status changed.         |
+| `title_change`       | A chat's title was updated.      |
+| `diff_status_change` | A chat's diff/PR status changed. |
+| `deleted`            | A chat was deleted.              |
 
 ### List chats
 
@@ -203,10 +203,10 @@ Each event is a JSON object with `kind` and `chat` fields:
 
 Returns all chats owned by the authenticated user.
 
-| Query parameter | Type     | Required | Description                                                         |
-|-----------------|----------|----------|---------------------------------------------------------------------|
-| `q`             | `string` | no       | Search query string.                                                |
-| `label`         | `string` | no       | Filter by label as `key:value`. Repeat for multiple (AND logic).    |
+| Query parameter | Type     | Required | Description                                                      |
+|-----------------|----------|----------|------------------------------------------------------------------|
+| `q`             | `string` | no       | Search query string.                                             |
+| `label`         | `string` | no       | Filter by label as `key:value`. Repeat for multiple (AND logic). |
 
 ### Get a chat
 
@@ -234,12 +234,12 @@ Returns available models. Use this to discover valid values for
 Updates chat metadata. All fields are optional; omitted fields are left
 unchanged.
 
-| Field       | Type                | Description                                                              |
-|-------------|---------------------|--------------------------------------------------------------------------|
-| `title`     | `string`            | Set a new title.                                                         |
-| `archived`  | `bool`              | `true` to archive, `false` to unarchive. Archiving clears `pin_order`.   |
+| Field       | Type                | Description                                                                         |
+|-------------|---------------------|-------------------------------------------------------------------------------------|
+| `title`     | `string`            | Set a new title.                                                                    |
+| `archived`  | `bool`              | `true` to archive, `false` to unarchive. Archiving clears `pin_order`.              |
 | `pin_order` | `int32`             | `0` to unpin; `>0` on an unpinned chat to pin it; `>0` on a pinned chat to reorder. |
-| `labels`    | `map[string]string` | Replace all labels. Use `null`/omit to leave unchanged, `{}` to clear.   |
+| `labels`    | `map[string]string` | Replace all labels. Use `null`/omit to leave unchanged, `{}` to clear.              |
 
 **Response**: `204 No Content`.
 
@@ -297,27 +297,27 @@ validates actual file content regardless of the declared `Content-Type`.
 
 ## Chat object fields
 
-| Field                 | Type              | Description                                                        |
-|-----------------------|-------------------|--------------------------------------------------------------------|
-| `id`                  | `uuid`            | Unique chat identifier.                                            |
-| `owner_id`            | `uuid`            | The user who owns the chat.                                        |
-| `workspace_id`        | `uuid` or `null`  | The workspace this chat is bound to.                               |
-| `build_id`            | `uuid` or `null`  | The workspace build the agent is connected to.                     |
-| `agent_id`            | `uuid` or `null`  | The workspace agent the chat is using.                             |
-| `parent_chat_id`      | `uuid` or `null`  | The parent chat, if this is a delegated sub-chat.                  |
-| `root_chat_id`        | `uuid` or `null`  | The root of the delegation chain.                                  |
-| `last_model_config_id`| `uuid`            | The model configuration used for the last turn.                    |
-| `title`               | `string`          | Auto-generated or manually set title.                              |
-| `status`              | `string`          | Current status (see [Chat statuses](#chat-statuses)).              |
-| `last_error`          | `string` or `null`| Error message if status is `error`.                                |
-| `diff_status`         | `object` or `null`| PR/diff metadata (additions, deletions, PR state, etc.).           |
-| `created_at`          | `datetime`        | When the chat was created.                                         |
-| `updated_at`          | `datetime`        | When the chat was last updated.                                    |
-| `archived`            | `bool`            | Whether the chat is archived.                                      |
-| `pin_order`           | `int32`           | Pin position (`0` = unpinned, `1+` = pinned in order).             |
-| `mcp_server_ids`      | `uuid[]`          | MCP servers attached to this chat.                                 |
-| `labels`              | `map[string]string`| Key-value labels.                                                 |
-| `has_unread`          | `bool`            | Whether there are unread assistant messages since the last stream.  |
+| Field                  | Type                | Description                                                        |
+|------------------------|---------------------|--------------------------------------------------------------------|
+| `id`                   | `uuid`              | Unique chat identifier.                                            |
+| `owner_id`             | `uuid`              | The user who owns the chat.                                        |
+| `workspace_id`         | `uuid` or `null`    | The workspace this chat is bound to.                               |
+| `build_id`             | `uuid` or `null`    | The workspace build the agent is connected to.                     |
+| `agent_id`             | `uuid` or `null`    | The workspace agent the chat is using.                             |
+| `parent_chat_id`       | `uuid` or `null`    | The parent chat, if this is a delegated sub-chat.                  |
+| `root_chat_id`         | `uuid` or `null`    | The root of the delegation chain.                                  |
+| `last_model_config_id` | `uuid`              | The model configuration used for the last turn.                    |
+| `title`                | `string`            | Auto-generated or manually set title.                              |
+| `status`               | `string`            | Current status (see [Chat statuses](#chat-statuses)).              |
+| `last_error`           | `string` or `null`  | Error message if status is `error`.                                |
+| `diff_status`          | `object` or `null`  | PR/diff metadata (additions, deletions, PR state, etc.).           |
+| `created_at`           | `datetime`          | When the chat was created.                                         |
+| `updated_at`           | `datetime`          | When the chat was last updated.                                    |
+| `archived`             | `bool`              | Whether the chat is archived.                                      |
+| `pin_order`            | `int32`             | Pin position (`0` = unpinned, `1+` = pinned in order).             |
+| `mcp_server_ids`       | `uuid[]`            | MCP servers attached to this chat.                                 |
+| `labels`               | `map[string]string` | Key-value labels.                                                  |
+| `has_unread`           | `bool`              | Whether there are unread assistant messages since the last stream. |
 
 ## Chat statuses
 
