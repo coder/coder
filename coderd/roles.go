@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -43,7 +44,17 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, rbac.SiteBuiltInRoles(), dbCustomRoles))
+	siteRoles := rbac.SiteBuiltInRoles()
+	// Hide the chat-access role when the agents experiment is
+	// not enabled, since chat is an experimental feature.
+	if !api.Experiments.Enabled(codersdk.ExperimentAgents) {
+		siteRoles = slices.DeleteFunc(siteRoles, func(r rbac.Role) bool {
+			return r.Identifier == rbac.RoleChatAccess()
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK,
+		assignableRoles(actorRoles.Roles, siteRoles, dbCustomRoles))
 }
 
 // assignableOrgRoles returns all org wide roles that can be assigned.
