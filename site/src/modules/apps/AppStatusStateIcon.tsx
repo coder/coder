@@ -37,10 +37,9 @@ export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
 			return (
 				<PauseIcon
 					className={cn([
-						"text-content-secondary",
-						"[stroke-width:0]",
-						className,
+						"text-content-secondary stroke-0",
 						disabled ? "fill-content-disabled" : "fill-content-secondary",
+						className,
 					])}
 				/>
 			);
