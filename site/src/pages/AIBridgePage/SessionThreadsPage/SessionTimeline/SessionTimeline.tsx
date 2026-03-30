@@ -189,7 +189,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	outputTokens,
 	timestamp,
 	tokenUsageMetadata,
-	expandedByDefault = true,
+	expandedByDefault = false,
 }) => {
 	const [isOpen, setIsOpen] = useState(expandedByDefault);
 
@@ -231,7 +231,7 @@ interface AgenticLoopCompletedBlockProps {
 const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
 	inputTokens,
 	outputTokens,
-	expandedByDefault = true,
+	expandedByDefault = false,
 }) => {
 	const [isOpen, setIsOpen] = useState(expandedByDefault);
 
@@ -295,7 +295,7 @@ interface ThreadItemProps {
 }
 
 const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
-	const [agenticLoopOpen, setAgenticLoopOpen] = useState(true);
+	const [agenticLoopOpen, setAgenticLoopOpen] = useState(false);
 
 	const durationInMs =
 		new Date(thread.ended_at ?? Date.now()).getTime() -
