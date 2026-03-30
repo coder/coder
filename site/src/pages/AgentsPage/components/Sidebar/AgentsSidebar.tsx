@@ -855,9 +855,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
-	// The filter dropdown attaches to the first visible section
-	// header. When pinned chats exist, that's the Pinned header;
-	// otherwise it falls through to the first non-empty time group.
+	// Attach the archived filter to the first visible section header.
+	// When the list is empty, render it in the same header slot above
+	// the empty state so the placement stays consistent.
 	const showFilterOnPinned = pinnedChats.length > 0;
 	const firstNonEmptyGroup = showFilterOnPinned
 		? undefined
@@ -1061,23 +1061,28 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						) : (
 							<ChatTreeContext value={chatTreeCtx}>
 								{visibleRootIDs.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										<p className="m-0">
-											{normalizedSearch
-												? "No matching agents"
-												: archivedFilter === "archived"
-													? "No archived agents"
-													: "No agents yet"}
-										</p>
-										{archivedFilter === "archived" && (
-											<button
-												type="button"
-												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-												onClick={() => onArchivedFilterChange?.("active")}
-											>
-												← Back to active
-											</button>
-										)}
+									<div className="space-y-2">
+										<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-end text-xs font-medium text-content-secondary">
+											{filterDropdown}
+										</div>
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">
+												{normalizedSearch
+													? "No matching agents"
+													: archivedFilter === "archived"
+														? "No archived agents"
+														: "No agents yet"}
+											</p>
+											{archivedFilter === "archived" && (
+												<button
+													type="button"
+													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+													onClick={() => onArchivedFilterChange?.("active")}
+												>
+													← Back to active
+												</button>
+											)}
+										</div>
 									</div>
 								) : (
 									<div>

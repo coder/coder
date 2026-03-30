@@ -448,6 +448,49 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 	},
 };
 
+export const EmptyActiveShowsFilter: Story = {
+	args: {
+		chats: [],
+		archivedFilter: "active",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("No agents yet")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+		});
+	},
+};
+
+export const EmptyArchivedShowsFilter: Story = {
+	args: {
+		chats: [],
+		archivedFilter: "archived",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("No archived agents")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+			expect(
+				canvas.getByRole("button", { name: "← Back to active" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
 export const NoArchivedSection: Story = {
 	args: {
 		chats: [
