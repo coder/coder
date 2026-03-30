@@ -2,6 +2,7 @@ package prebuilds
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	"github.com/google/uuid"
@@ -22,7 +23,11 @@ type PubsubWorkspaceClaimPublisher struct {
 
 func (p PubsubWorkspaceClaimPublisher) PublishWorkspaceClaim(claim agentsdk.ReinitializationEvent) error {
 	channel := agentsdk.PrebuildClaimedChannel(claim.WorkspaceID)
-	if err := p.ps.Publish(channel, []byte(claim.Reason)); err != nil {
+	payload, err := json.Marshal(claim)
+	if err != nil {
+		return xerrors.Errorf("marshal claim event: %w", err)
+	}
+	if err := p.ps.Publish(channel, payload); err != nil {
 		return xerrors.Errorf("failed to trigger prebuilt workspace agent reinitialization: %w", err)
 	}
 	return nil
@@ -48,10 +53,15 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 	default:
 	}
 
-	cancelSub, err := p.ps.Subscribe(agentsdk.PrebuildClaimedChannel(workspaceID), func(inner context.Context, reason []byte) {
-		claim := agentsdk.ReinitializationEvent{
-			WorkspaceID: workspaceID,
-			Reason:      agentsdk.ReinitializationReason(reason),
+	cancelSub, err := p.ps.Subscribe(agentsdk.PrebuildClaimedChannel(workspaceID), func(inner context.Context, payload []byte) {
+		var event agentsdk.ReinitializationEvent
+		if err := json.Unmarshal(payload, &event); err != nil {
+			// Rolling upgrade: old publishers send the raw reason
+			// string instead of JSON.
+			event = agentsdk.ReinitializationEvent{
+				WorkspaceID: workspaceID,
+				Reason:      agentsdk.ReinitializationReason(payload),
+			}
 		}
 
 		select {
@@ -59,7 +69,7 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 			return
 		case <-inner.Done():
 			return
-		case reinitEvents <- claim:
+		case reinitEvents <- event:
 		}
 	})
 	if err != nil {

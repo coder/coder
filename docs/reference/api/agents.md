@@ -483,22 +483,30 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
 
 `GET /workspaceagents/me/reinit`
 
+### Parameters
+
+| Name   | In    | Type    | Required | Description                     |
+|--------|-------|---------|----------|---------------------------------|
+| `wait` | query | boolean | false    | Opt in to durable reinit checks |
+
 ### Example responses
 
 > 200 Response
 
 ```json
 {
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "reason": "prebuild_claimed",
-  "workspaceID": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                     |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ReinitializationEvent](schemas.md#agentsdkreinitializationevent) |
+| Status | Meaning                                                       | Description | Schema                                                                     |
+|--------|---------------------------------------------------------------|-------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)       | OK          | [agentsdk.ReinitializationEvent](schemas.md#agentsdkreinitializationevent) |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8) | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

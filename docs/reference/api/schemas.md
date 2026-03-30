@@ -186,17 +186,19 @@
 
 ```json
 {
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "reason": "prebuild_claimed",
-  "workspaceID": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                               | Required | Restrictions | Description |
-|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
-| `workspaceID` | string                                                             | false    |              |             |
+| Name           | Type                                                               | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `owner_id`     | string                                                             | false    |              |             |
+| `reason`       | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `workspace_id` | string                                                             | false    |              |             |
 
 ## agentsdk.ReinitializationReason
 
