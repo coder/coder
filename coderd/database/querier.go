@@ -858,6 +858,11 @@ type sqlcQuerier interface {
 	// Updates the last read message ID for a chat. This is used to track
 	// which messages the owner has seen, enabling unread indicators.
 	UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error
+	// Updates the cached workspace context parts (AGENTS.md +
+	// skills) on the chat row. Called only when context changes
+	// (first workspace attach or agent change). updated_at is
+	// intentionally not touched to avoid reordering the chat list.
+	UpdateChatLastWorkspaceContext(ctx context.Context, arg UpdateChatLastWorkspaceContextParams) (Chat, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)

@@ -4955,6 +4955,7 @@ func (p *Server) persistInstructionFiles(
 			chatprompt.CurrentContentVersion,
 		))
 		_, _ = p.db.InsertChatMessages(ctx, msgParams)
+		p.updateLastWorkspaceContext(ctx, chat.ID, parts)
 		return "", discoveredSkills, nil
 	}
 
@@ -5000,11 +5001,37 @@ func (p *Server) persistInstructionFiles(
 	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
 		return "", nil, xerrors.Errorf("persist instruction files: %w", err)
 	}
+	p.updateLastWorkspaceContext(ctx, chat.ID, parts)
 
 	// Return the formatted instruction text and discovered skills
 	// so the caller can inject them into this turn's prompt (since
 	// the prompt was built before we persisted).
 	return formatSystemInstructions(agent.OperatingSystem, directory, sections), discoveredSkills, nil
+}
+
+// updateLastWorkspaceContext persists the workspace context
+// parts (AGENTS.md files and skills) on the chat row so they
+// are directly queryable without scanning messages. This is
+// best-effort — a failure here is logged but does not block
+// the turn.
+func (p *Server) updateLastWorkspaceContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
+	raw, err := json.Marshal(parts)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to marshal last_workspace_context",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+	if _, err := p.db.UpdateChatLastWorkspaceContext(ctx, database.UpdateChatLastWorkspaceContextParams{
+		ID:                   chatID,
+		LastWorkspaceContext: json.RawMessage(raw),
+	}); err != nil {
+		p.logger.Warn(ctx, "failed to update last_workspace_context",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
 }
 
 // resolveUserCompactionThreshold looks up the user's per-model

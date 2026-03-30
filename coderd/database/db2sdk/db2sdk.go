@@ -1572,6 +1572,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
+	if c.LastWorkspaceContext.Valid {
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(c.LastWorkspaceContext.RawMessage, &parts); err == nil {
+			chat.LastWorkspaceContext = parts
+		}
+	}
 	return chat
 }
 

@@ -5774,6 +5774,17 @@ func (q *querier) UpdateChatLastReadMessageID(ctx context.Context, arg database.
 	return q.db.UpdateChatLastReadMessageID(ctx, arg)
 }
 
+func (q *querier) UpdateChatLastWorkspaceContext(ctx context.Context, arg database.UpdateChatLastWorkspaceContextParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatLastWorkspaceContext(ctx, arg)
+}
+
 func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.UpdateChatMCPServerIDsParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {

@@ -528,6 +528,17 @@ WHERE
     id = @id::uuid
 RETURNING *;
 
+-- name: UpdateChatLastWorkspaceContext :one
+-- Updates the cached workspace context parts (AGENTS.md +
+-- skills) on the chat row. Called only when context changes
+-- (first workspace attach or agent change). updated_at is
+-- intentionally not touched to avoid reordering the chat list.
+UPDATE chats SET
+    last_workspace_context = @last_workspace_context::jsonb
+WHERE
+    id = @id::uuid
+RETURNING *;
+
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
     chats

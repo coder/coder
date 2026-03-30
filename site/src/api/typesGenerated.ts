@@ -1200,6 +1200,13 @@ export interface Chat {
 	 * connect and disconnect.
 	 */
 	readonly has_unread: boolean;
+	/**
+	 * LastWorkspaceContext holds the most recently persisted
+	 * workspace context parts (AGENTS.md files and skills). It
+	 * is updated only when context changes — first workspace
+	 * attach or agent rebuild.
+	 */
+	readonly last_workspace_context?: readonly ChatMessagePart[];
 }
 
 // From codersdk/chats.go

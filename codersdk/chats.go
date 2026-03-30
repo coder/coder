@@ -68,6 +68,11 @@ type Chat struct {
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
 	HasUnread bool `json:"has_unread"`
+	// LastWorkspaceContext holds the most recently persisted
+	// workspace context parts (AGENTS.md files and skills). It
+	// is updated only when context changes — first workspace
+	// attach or agent rebuild.
+	LastWorkspaceContext []ChatMessagePart `json:"last_workspace_context,omitempty"`
 }
 
 // ChatMessage represents a single message in a chat.

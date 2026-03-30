@@ -7819,6 +7819,21 @@ func (mr *MockStoreMockRecorder) UpdateChatLastReadMessageID(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatLastReadMessageID", reflect.TypeOf((*MockStore)(nil).UpdateChatLastReadMessageID), ctx, arg)
 }
 
+// UpdateChatLastWorkspaceContext mocks base method.
+func (m *MockStore) UpdateChatLastWorkspaceContext(ctx context.Context, arg database.UpdateChatLastWorkspaceContextParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatLastWorkspaceContext", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatLastWorkspaceContext indicates an expected call of UpdateChatLastWorkspaceContext.
+func (mr *MockStoreMockRecorder) UpdateChatLastWorkspaceContext(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatLastWorkspaceContext", reflect.TypeOf((*MockStore)(nil).UpdateChatLastWorkspaceContext), ctx, arg)
+}
+
 // UpdateChatMCPServerIDs mocks base method.
 func (m *MockStore) UpdateChatMCPServerIDs(ctx context.Context, arg database.UpdateChatMCPServerIDsParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
