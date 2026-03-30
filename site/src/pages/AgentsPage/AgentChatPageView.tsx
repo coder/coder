@@ -6,7 +6,6 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import { TerminalPanel } from "./components/TerminalPanel";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -24,6 +23,7 @@ import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
+import { TerminalPanel } from "./components/TerminalPanel";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
