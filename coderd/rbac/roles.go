@@ -404,6 +404,21 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
 
+	chatAccessRole := Role{
+		Identifier:  RoleChatAccess(),
+		DisplayName: "Chat Access",
+		Site:        []Permission{},
+		User: Permissions(map[string][]policy.Action{
+			ResourceChat.Type: {
+				policy.ActionCreate,
+				policy.ActionRead,
+				policy.ActionUpdate,
+				policy.ActionDelete,
+			},
+		}),
+		ByOrgID: map[string]OrgPermissions{},
+	}.withCachedRegoValue()
+
 	builtInRoles = map[string]func(orgID uuid.UUID) Role{
 		// admin grants all actions to all resources.
 		owner: func(_ uuid.UUID) Role {
@@ -434,20 +449,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// by the user. Without this role, members cannot create
 		// or interact with chats.
 		chatAccess: func(_ uuid.UUID) Role {
-			return Role{
-				Identifier:  RoleChatAccess(),
-				DisplayName: "Chat Access",
-				Site:        []Permission{},
-				User: Permissions(map[string][]policy.Action{
-					ResourceChat.Type: {
-						policy.ActionCreate,
-						policy.ActionRead,
-						policy.ActionUpdate,
-						policy.ActionDelete,
-					},
-				}),
-				ByOrgID: map[string]OrgPermissions{},
-			}.withCachedRegoValue()
+			return chatAccessRole
 		},
 
 		// orgAdmin returns a role with all actions allows in a given

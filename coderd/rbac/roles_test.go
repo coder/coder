@@ -49,6 +49,11 @@ func TestBuiltInRoles(t *testing.T) {
 			require.NoError(t, r.Valid(), "invalid role")
 		})
 	}
+
+	t.Run("chat-access", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, rbac.ChatAccessRole().Valid(), "invalid role")
+	})
 }
 
 // permissionGranted checks whether a permission list contains a
@@ -1071,22 +1076,6 @@ func TestRolePermissions(t *testing.T) {
 				false: {
 					memberMe,
 					orgAdmin, otherOrgAdmin,
-					orgAuditor, otherOrgAuditor,
-					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
-					userAdmin, orgUserAdmin, otherOrgUserAdmin,
-				},
-			},
-		},
-		{
-			Name:     "ChatFileUsage",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
-			Resource: rbac.ResourceChat.WithOwner(currentUser.String()).InOrg(orgID),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, orgAdmin},
-				false: {
-					chatAccessUser,
-					memberMe,
-					otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
