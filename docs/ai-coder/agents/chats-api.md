@@ -295,30 +295,6 @@ file, use `GET /api/experimental/chats/files/{file}`.
 Supported formats: PNG, JPEG, GIF, WebP (up to 10 MB). The server
 validates actual file content regardless of the declared `Content-Type`.
 
-## Chat object fields
-
-| Field                  | Type                | Description                                                        |
-|------------------------|---------------------|--------------------------------------------------------------------|
-| `id`                   | `uuid`              | Unique chat identifier.                                            |
-| `owner_id`             | `uuid`              | The user who owns the chat.                                        |
-| `workspace_id`         | `uuid` or `null`    | The workspace this chat is bound to.                               |
-| `build_id`             | `uuid` or `null`    | The workspace build the agent is connected to.                     |
-| `agent_id`             | `uuid` or `null`    | The workspace agent the chat is using.                             |
-| `parent_chat_id`       | `uuid` or `null`    | The parent chat, if this is a delegated sub-chat.                  |
-| `root_chat_id`         | `uuid` or `null`    | The root of the delegation chain.                                  |
-| `last_model_config_id` | `uuid`              | The model configuration used for the last turn.                    |
-| `title`                | `string`            | Auto-generated or manually set title.                              |
-| `status`               | `string`            | Current status (see [Chat statuses](#chat-statuses)).              |
-| `last_error`           | `string` or `null`  | Error message if status is `error`.                                |
-| `diff_status`          | `object` or `null`  | PR/diff metadata (additions, deletions, PR state, etc.).           |
-| `created_at`           | `datetime`          | When the chat was created.                                         |
-| `updated_at`           | `datetime`          | When the chat was last updated.                                    |
-| `archived`             | `bool`              | Whether the chat is archived.                                      |
-| `pin_order`            | `int32`             | Pin position (`0` = unpinned, `1+` = pinned in order).             |
-| `mcp_server_ids`       | `uuid[]`            | MCP servers attached to this chat.                                 |
-| `labels`               | `map[string]string` | Key-value labels.                                                  |
-| `has_unread`           | `bool`              | Whether there are unread assistant messages since the last stream. |
-
 ## Chat statuses
 
 | Status      | Meaning                                                      |
