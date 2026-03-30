@@ -67,6 +67,9 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use the same filters to count the number of audit logs
+	// NOTE: The count query is capped with LIMIT N+1 to avoid a slow
+	// sequential scan on a large table. The frontend infers capping
+	// from count > N.
 	count, err := api.Database.CountAuditLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)

@@ -2263,93 +2263,98 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 }
 
 const countAuditLogs = `-- name: CountAuditLogs :one
-SELECT COUNT(*)
-FROM audit_logs
-	LEFT JOIN users ON audit_logs.user_id = users.id
-	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
-	-- First join on workspaces to get the initial workspace create
-	-- to workspace build 1 id. This is because the first create is
-	-- is a different audit log than subsequent starts.
-	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
-	AND audit_logs.resource_id = workspaces.id
-	-- Get the reason from the build if the resource type
-	-- is a workspace_build
-	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
-	AND audit_logs.resource_id = wb_build.id
-	-- Get the reason from the build #1 if this is the first
-	-- workspace create.
-	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
-	AND audit_logs.action = 'create'
-	AND workspaces.id = wb_workspace.workspace_id
-	AND wb_workspace.build_number = 1
-WHERE
-	-- Filter resource_type
-	CASE
-		WHEN $1::text != '' THEN resource_type = $1::resource_type
-		ELSE true
-	END
-	-- Filter resource_id
-	AND CASE
-		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
-		ELSE true
-	END
-	-- Filter organization_id
-	AND CASE
-		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
-		ELSE true
-	END
-	-- Filter by resource_target
-	AND CASE
-		WHEN $4::text != '' THEN resource_target = $4
-		ELSE true
-	END
-	-- Filter action
-	AND CASE
-		WHEN $5::text != '' THEN action = $5::audit_action
-		ELSE true
-	END
-	-- Filter by user_id
-	AND CASE
-		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
-		ELSE true
-	END
-	-- Filter by username
-	AND CASE
-		WHEN $7::text != '' THEN user_id = (
-			SELECT id
-			FROM users
-			WHERE lower(username) = lower($7)
-				AND deleted = false
-		)
-		ELSE true
-	END
-	-- Filter by user_email
-	AND CASE
-		WHEN $8::text != '' THEN users.email = $8
-		ELSE true
-	END
-	-- Filter by date_from
-	AND CASE
-		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
-		ELSE true
-	END
-	-- Filter by date_to
-	AND CASE
-		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
-		ELSE true
-	END
-	-- Filter by build_reason
-	AND CASE
-		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
-		ELSE true
-	END
-	-- Filter request_id
-	AND CASE
-		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
-		ELSE true
-	END
-	-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
-	-- @authorize_filter
+SELECT COUNT(*) FROM (
+	SELECT 1
+	FROM audit_logs
+		LEFT JOIN users ON audit_logs.user_id = users.id
+		LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+		-- First join on workspaces to get the initial workspace create
+		-- to workspace build 1 id. This is because the first create is
+		-- is a different audit log than subsequent starts.
+		LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+		AND audit_logs.resource_id = workspaces.id
+		-- Get the reason from the build if the resource type
+		-- is a workspace_build
+		LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+		AND audit_logs.resource_id = wb_build.id
+		-- Get the reason from the build #1 if this is the first
+		-- workspace create.
+		LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+		AND audit_logs.action = 'create'
+		AND workspaces.id = wb_workspace.workspace_id
+		AND wb_workspace.build_number = 1
+	WHERE
+		-- Filter resource_type
+		CASE
+			WHEN $1::text != '' THEN resource_type = $1::resource_type
+			ELSE true
+		END
+		-- Filter resource_id
+		AND CASE
+			WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
+			ELSE true
+		END
+		-- Filter organization_id
+		AND CASE
+			WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
+			ELSE true
+		END
+		-- Filter by resource_target
+		AND CASE
+			WHEN $4::text != '' THEN resource_target = $4
+			ELSE true
+		END
+		-- Filter action
+		AND CASE
+			WHEN $5::text != '' THEN action = $5::audit_action
+			ELSE true
+		END
+		-- Filter by user_id
+		AND CASE
+			WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
+			ELSE true
+		END
+		-- Filter by username
+		AND CASE
+			WHEN $7::text != '' THEN user_id = (
+				SELECT id
+				FROM users
+				WHERE lower(username) = lower($7)
+					AND deleted = false
+			)
+			ELSE true
+		END
+		-- Filter by user_email
+		AND CASE
+			WHEN $8::text != '' THEN users.email = $8
+			ELSE true
+		END
+		-- Filter by date_from
+		AND CASE
+			WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
+			ELSE true
+		END
+		-- Filter by date_to
+		AND CASE
+			WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
+			ELSE true
+		END
+		-- Filter by build_reason
+		AND CASE
+			WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+			ELSE true
+		END
+		-- Filter request_id
+		AND CASE
+			WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
+			ELSE true
+		END
+		-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
+		-- @authorize_filter
+	-- Avoid a full sequential scan on a large table: if count > 2000,
+	-- the frontend will show "of 2000+"
+	LIMIT 2001
+) AS limited_count
 `
 
 type CountAuditLogsParams struct {
@@ -7185,110 +7190,114 @@ func (q *sqlQuerier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg U
 }
 
 const countConnectionLogs = `-- name: CountConnectionLogs :one
-SELECT
-	COUNT(*) AS count
-FROM
-	connection_logs
-JOIN users AS workspace_owner ON
-	connection_logs.workspace_owner_id = workspace_owner.id
-LEFT JOIN users ON
-	connection_logs.user_id = users.id
-JOIN organizations ON
-	connection_logs.organization_id = organizations.id
-WHERE
-	-- Filter organization_id
-	CASE
-		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			connection_logs.organization_id = $1
-		ELSE true
-	END
-	-- Filter by workspace owner username
-	AND CASE
-		WHEN $2 :: text != '' THEN
-			workspace_owner_id = (
-				SELECT id FROM users
-				WHERE lower(username) = lower($2) AND deleted = false
-			)
-		ELSE true
-	END
-	-- Filter by workspace_owner_id
-	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspace_owner_id = $3
-		ELSE true
-	END
-	-- Filter by workspace_owner_email
-	AND CASE
-		WHEN $4 :: text != '' THEN
-			workspace_owner_id = (
-				SELECT id FROM users
-				WHERE email = $4 AND deleted = false
-			)
-		ELSE true
-	END
-	-- Filter by type
-	AND CASE
-		WHEN $5 :: text != '' THEN
-			type = $5 :: connection_type
-		ELSE true
-	END
-	-- Filter by user_id
-	AND CASE
-		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $6
-		ELSE true
-	END
-	-- Filter by username
-	AND CASE
-		WHEN $7 :: text != '' THEN
-			user_id = (
-				SELECT id FROM users
-				WHERE lower(username) = lower($7) AND deleted = false
-			)
-		ELSE true
-	END
-	-- Filter by user_email
-	AND CASE
-		WHEN $8 :: text != '' THEN
-			users.email = $8
-		ELSE true
-	END
-	-- Filter by connected_after
-	AND CASE
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			connect_time >= $9
-		ELSE true
-	END
-	-- Filter by connected_before
-	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			connect_time <= $10
-		ELSE true
-	END
-	-- Filter by workspace_id
-	AND CASE
-		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			connection_logs.workspace_id = $11
-		ELSE true
-	END
-	-- Filter by connection_id
-	AND CASE
-		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			connection_logs.connection_id = $12
-		ELSE true
-	END
-	-- Filter by whether the session has a disconnect_time
-	AND CASE
-		WHEN $13 :: text != '' THEN
-			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
-			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
-		ELSE true
-	END
-	-- Authorize Filter clause will be injected below in
-	-- CountAuthorizedConnectionLogs
-	-- @authorize_filter
+SELECT COUNT(*) AS count FROM (
+	SELECT 1
+	FROM
+		connection_logs
+	JOIN users AS workspace_owner ON
+		connection_logs.workspace_owner_id = workspace_owner.id
+	LEFT JOIN users ON
+		connection_logs.user_id = users.id
+	JOIN organizations ON
+		connection_logs.organization_id = organizations.id
+	WHERE
+		-- Filter organization_id
+		CASE
+			WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				connection_logs.organization_id = $1
+			ELSE true
+		END
+		-- Filter by workspace owner username
+		AND CASE
+			WHEN $2 :: text != '' THEN
+				workspace_owner_id = (
+					SELECT id FROM users
+					WHERE lower(username) = lower($2) AND deleted = false
+				)
+			ELSE true
+		END
+		-- Filter by workspace_owner_id
+		AND CASE
+			WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				workspace_owner_id = $3
+			ELSE true
+		END
+		-- Filter by workspace_owner_email
+		AND CASE
+			WHEN $4 :: text != '' THEN
+				workspace_owner_id = (
+					SELECT id FROM users
+					WHERE email = $4 AND deleted = false
+				)
+			ELSE true
+		END
+		-- Filter by type
+		AND CASE
+			WHEN $5 :: text != '' THEN
+				type = $5 :: connection_type
+			ELSE true
+		END
+		-- Filter by user_id
+		AND CASE
+			WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				user_id = $6
+			ELSE true
+		END
+		-- Filter by username
+		AND CASE
+			WHEN $7 :: text != '' THEN
+				user_id = (
+					SELECT id FROM users
+					WHERE lower(username) = lower($7) AND deleted = false
+				)
+			ELSE true
+		END
+		-- Filter by user_email
+		AND CASE
+			WHEN $8 :: text != '' THEN
+				users.email = $8
+			ELSE true
+		END
+		-- Filter by connected_after
+		AND CASE
+			WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+				connect_time >= $9
+			ELSE true
+		END
+		-- Filter by connected_before
+		AND CASE
+			WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+				connect_time <= $10
+			ELSE true
+		END
+		-- Filter by workspace_id
+		AND CASE
+			WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				connection_logs.workspace_id = $11
+			ELSE true
+		END
+		-- Filter by connection_id
+		AND CASE
+			WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				connection_logs.connection_id = $12
+			ELSE true
+		END
+		-- Filter by whether the session has a disconnect_time
+		AND CASE
+			WHEN $13 :: text != '' THEN
+				(($13 = 'ongoing' AND disconnect_time IS NULL) OR
+				($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
+				-- Exclude web events, since we don't know their close time.
+				"type" NOT IN ('workspace_app', 'port_forwarding')
+			ELSE true
+		END
+		-- Authorize Filter clause will be injected below in
+		-- CountAuthorizedConnectionLogs
+		-- @authorize_filter
+	-- Avoid a full sequential scan on a large table: if count > 2000,
+	-- the frontend will show "of 2000+"
+	LIMIT 2001
+) AS limited_count
 `
 
 type CountConnectionLogsParams struct {

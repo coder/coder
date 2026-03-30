@@ -49,6 +49,9 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
+	// NOTE: The count query is capped with LIMIT N+1 to avoid a slow
+	// sequential scan on a large table. The frontend infers capping
+	// from count > N.
 	count, err := api.Database.CountConnectionLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)

@@ -20,6 +20,14 @@ const DEFAULT_RECORDS_PER_PAGE = 25;
 const PAGE_NUMBER_PARAMS_KEY = "page";
 
 /**
+ * Some count queries (audit logs, connection logs) use LIMIT 2001
+ * in SQL to avoid slow sequential scans on large tables. When the
+ * response count exceeds this cap, the true total is unknown and
+ * the UI displays "2,000+".
+ */
+const COUNT_CAP = 2000;
+
+/**
  * A more specialized version of UseQueryOptions built specifically for
  * paginated queries.
  */
@@ -144,16 +152,32 @@ export function usePaginatedQuery<
 		placeholderData: keepPreviousData,
 	});
 
-	const totalRecords = query.data?.count;
+	// Audit and connection log count queries return at most 2001
+	// (COUNT_CAP + 1). A value above COUNT_CAP means the true
+	// total is unknown, so we clamp to COUNT_CAP for display.
+	const rawCount = query.data?.count;
+	const countIsCapped = rawCount !== undefined && rawCount > COUNT_CAP;
+	const totalRecords = countIsCapped ? COUNT_CAP : rawCount;
+	// When the count is capped, ensure totalPages is at least
+	// currentPage so the pagination widget stays visible as the
+	// user navigates beyond the known range.
 	const totalPages =
-		totalRecords !== undefined ? Math.ceil(totalRecords / limit) : undefined;
+		totalRecords !== undefined
+			? Math.max(
+					Math.ceil(totalRecords / limit),
+					countIsCapped ? currentPage : 0,
+				)
+			: undefined;
 
+	// When the count is capped, we don't know the true total so there
+	// is always potentially a next page.
 	const hasNextPage =
-		totalRecords !== undefined && limit + currentPageOffset < totalRecords;
+		totalRecords !== undefined &&
+		(countIsCapped || limit + currentPageOffset < totalRecords);
 	const hasPreviousPage =
 		totalRecords !== undefined &&
 		currentPage > 1 &&
-		currentPageOffset - limit < totalRecords;
+		(countIsCapped || currentPageOffset - limit < totalRecords);
 
 	const queryClient = useQueryClient();
 	const prefetchPage = useEffectEvent((newPage: number) => {
@@ -224,10 +248,48 @@ export function usePaginatedQuery<
 	});
 
 	useEffect(() => {
-		if (!query.isFetching && totalPages !== undefined) {
+		// When the count is capped we don't know the true total, so
+		// skip the page-validity check to allow navigating beyond the
+		// capped page range.
+		if (!countIsCapped && !query.isFetching && totalPages !== undefined) {
 			void updatePageIfInvalid(totalPages);
 		}
-	}, [updatePageIfInvalid, query.isFetching, totalPages]);
+	}, [updatePageIfInvalid, query.isFetching, totalPages, countIsCapped]);
+
+	// When the count is capped and the user navigates to a page
+	// beyond the actual data, the response contains zero items.
+	// Redirect to the last page guaranteed to have data, which
+	// is page 81 for rawCount 2001.
+	const lastKnownPage =
+		rawCount !== undefined ? Math.ceil(rawCount / limit) : 1;
+	useEffect(() => {
+		if (
+			!countIsCapped ||
+			query.isFetching ||
+			!query.isSuccess ||
+			!query.data ||
+			currentPage <= 1
+		) {
+			return;
+		}
+		const hasItems = Object.values(query.data).some(
+			(v) => Array.isArray(v) && v.length > 0,
+		);
+		if (!hasItems) {
+			const updated = getParamsWithoutPage(searchParams);
+			updated.set(PAGE_NUMBER_PARAMS_KEY, String(lastKnownPage));
+			setSearchParams(updated);
+		}
+	}, [
+		countIsCapped,
+		query.isFetching,
+		query.isSuccess,
+		query.data,
+		currentPage,
+		lastKnownPage,
+		searchParams,
+		setSearchParams,
+	]);
 
 	const onPageChange = (newPage: number) => {
 		// Page 1 is the only page that can be safely navigated to without knowing
@@ -236,7 +298,12 @@ export function usePaginatedQuery<
 			return;
 		}
 
-		const cleanedInput = clamp(Math.trunc(newPage), 1, totalPages ?? 1);
+		// When the count is capped we allow navigating beyond the known
+		// page range, so only enforce a lower bound of 1.
+		const upperBound = countIsCapped
+			? Number.MAX_SAFE_INTEGER
+			: (totalPages ?? 1);
+		const cleanedInput = clamp(Math.trunc(newPage), 1, upperBound);
 		if (Number.isNaN(cleanedInput)) {
 			return;
 		}
@@ -274,6 +341,7 @@ export function usePaginatedQuery<
 					totalRecords: totalRecords as number,
 					totalPages: totalPages as number,
 					currentOffsetStart: currentPageOffset + 1,
+					countIsCapped,
 				}
 			: {
 					isSuccess: false,
@@ -282,6 +350,7 @@ export function usePaginatedQuery<
 					totalRecords: undefined,
 					totalPages: undefined,
 					currentOffsetStart: undefined,
+					countIsCapped: false as const,
 				}),
 	};
 
@@ -323,6 +392,7 @@ export type PaginationResultInfo = {
 			totalRecords: undefined;
 			totalPages: undefined;
 			currentOffsetStart: undefined;
+			countIsCapped: false;
 	  }
 	| {
 			isSuccess: true;
@@ -331,6 +401,7 @@ export type PaginationResultInfo = {
 			totalRecords: number;
 			totalPages: number;
 			currentOffsetStart: number;
+			countIsCapped: boolean;
 	  }
 );
 
