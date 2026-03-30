@@ -214,6 +214,13 @@ type turnWorkspaceContext struct {
 	conn              workspacesdk.AgentConn
 	releaseConn       func()
 	cachedWorkspaceID uuid.NullUUID
+
+	// readinessOnce ensures only one goroutine polls the
+	// workspace build status when multiple tools call
+	// getWorkspaceConn concurrently on a building workspace.
+	// All callers share the single result.
+	readinessOnce sync.Once
+	readinessErr  error
 }
 
 func (c *turnWorkspaceContext) close() {
@@ -228,6 +235,10 @@ func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 	c.conn = nil
 	c.releaseConn = nil
 	c.cachedWorkspaceID = uuid.NullUUID{}
+	// Reset readiness tracking so a new workspace (or
+	// rebuilt workspace) triggers a fresh readiness wait.
+	c.readinessOnce = sync.Once{}
+	c.readinessErr = nil
 	c.mu.Unlock()
 
 	if releaseConn != nil {
@@ -251,6 +262,96 @@ func (c *turnWorkspaceContext) currentChatSnapshot() database.Chat {
 func (c *turnWorkspaceContext) selectWorkspace(chat database.Chat) {
 	c.setCurrentChat(chat)
 	c.clearCachedWorkspaceState()
+}
+
+// waitForWorkspaceReady blocks until the chat's workspace build
+// completes and the agent comes online. Returns immediately if
+// the workspace is already running. Concurrent callers share a
+// single wait via sync.Once.
+func (c *turnWorkspaceContext) waitForWorkspaceReady(ctx context.Context) error {
+	c.chatStateMu.Lock()
+	wsID := c.currentChat.WorkspaceID
+	c.chatStateMu.Unlock()
+
+	if !wsID.Valid {
+		return xerrors.New(
+			"no workspace associated with this chat; " +
+				"use create_workspace first",
+		)
+	}
+
+	db := c.server.db
+
+	// Fast path: if agents already exist in the latest build
+	// the workspace is usable regardless of any current build
+	// status. This covers workspaces that were pre-attached
+	// at chat creation time (already running) and workspaces
+	// where a new build was triggered on top of a running one.
+	agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		ctx, wsID.UUID,
+	)
+	if agentsErr == nil && len(agents) > 0 {
+		return nil
+	}
+
+	// No agents yet — check the build status.
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(
+		ctx, wsID.UUID,
+	)
+	if err != nil {
+		return xerrors.Errorf("check workspace build: %w", err)
+	}
+	job, err := db.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		return xerrors.Errorf("check provisioner job: %w", err)
+	}
+	if job.JobStatus == database.ProvisionerJobStatusSucceeded {
+		return nil
+	}
+	if job.JobStatus == database.ProvisionerJobStatusFailed ||
+		job.JobStatus == database.ProvisionerJobStatusCanceled {
+		errMsg := "workspace build failed"
+		if job.Error.Valid {
+			errMsg = job.Error.String
+		}
+		return xerrors.New(errMsg)
+	}
+
+	// Slow path: workspace is building. Wait once, share result
+	// across concurrent tool calls within this turn.
+	c.readinessOnce.Do(func() {
+		c.readinessErr = c.doWaitForWorkspaceReady(
+			ctx, wsID.UUID,
+		)
+	})
+	return c.readinessErr
+}
+
+func (c *turnWorkspaceContext) doWaitForWorkspaceReady(
+	ctx context.Context, workspaceID uuid.UUID,
+) error {
+	db := c.server.db
+
+	// Phase 1: wait for the provisioner build to complete.
+	if err := chattool.WaitForBuild(ctx, db, workspaceID); err != nil {
+		return xerrors.Errorf("workspace build: %w", err)
+	}
+
+	// Phase 2: resolve the agent and wait for it to come
+	// online. This is best-effort — if it times out, we
+	// still try to dial and let the dial give a better error.
+	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		ctx, workspaceID,
+	)
+	if err != nil || len(agents) == 0 {
+		return nil
+	}
+
+	agentConnFn := chattool.AgentConnFunc(c.server.agentConnFn)
+	_ = chattool.WaitForAgentReady(
+		ctx, db, agents[0].ID, agentConnFn,
+	)
+	return nil
 }
 
 func (c *turnWorkspaceContext) currentWorkspaceMatches(expected uuid.NullUUID) (database.Chat, bool) {
@@ -497,6 +598,14 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
+	}
+
+	// Wait for the workspace build to finish if it is still in
+	// progress. This transparently blocks workspace-dependent
+	// tools until the workspace is ready, without requiring the
+	// create_workspace tool to block.
+	if err := c.waitForWorkspaceReady(ctx); err != nil {
+		return nil, xerrors.Errorf("workspace not ready: %w", err)
 	}
 
 	for attempt := 0; attempt < 2; attempt++ {
@@ -850,7 +959,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		if opts.WorkspaceID.Valid {
 			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
 		} else {
-			workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+			workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools. Workspace creation runs in the background — you can continue using other tools while it builds."
 		}
 		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(workspaceAwareness),

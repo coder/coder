@@ -86,6 +86,10 @@ Propose a plan when:
 - The user asks for a plan.
 
 If no workspace is attached to this chat yet, create and start one first using create_workspace and start_workspace.
+Workspace creation is non-blocking — the build runs in the background while you continue working.
+Use this time to gather context with non-workspace tools (GitHub, web search, spawn_agent for research, etc.) and plan your approach.
+Workspace tools (execute, read_file, write_file, etc.) will automatically wait for the workspace to be ready when called.
+
 Once a workspace is available:
 1. Use spawn_agent and wait_agent to research the codebase and gather context as needed.
 2. Use write_file to create a Markdown plan file in the workspace (e.g. /home/coder/PLAN.md).

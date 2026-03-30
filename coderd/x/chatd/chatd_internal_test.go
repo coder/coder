@@ -484,6 +484,11 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
 	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	// waitForWorkspaceReady checks for existing agents to
+	// fast-path workspaces that are already running.
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		gomock.Any(), workspaceID,
+	).Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -751,6 +756,9 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	updatedChat.AgentID = uuid.NullUUID{UUID: currentAgentID, Valid: true}
 
 	gomock.InOrder(
+		// waitForWorkspaceReady checks for existing agents to
+		// fast-path workspaces that are already running.
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{staleAgent}, nil),
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(staleAgent, nil),
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{currentAgent}, nil),
 		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
@@ -819,9 +827,17 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 
 	staleAgent := database.WorkspaceAgent{ID: staleAgentID}
 
+	// waitForWorkspaceReady checks for existing agents first
+	// to fast-path running workspaces. Return the stale agent
+	// here so the readiness check passes.
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{staleAgent}, nil).
+		Times(1)
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).
 		Return(staleAgent, nil).
 		Times(1)
+	// The validation flow then calls this again and finds no
+	// agents, triggering errChatHasNoWorkspaceAgent.
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{}, nil).
 		Times(1)
