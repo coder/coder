@@ -250,6 +250,8 @@ func instructionFromContextFiles(
 // skill parts. This is analogous to instructionFromContextFiles
 // so the skill index can be re-injected after compaction without
 // re-dialing the workspace agent.
+//
+//nolint:unused
 func skillsFromParts(
 	messages []database.ChatMessage,
 ) []chattool.SkillMeta {

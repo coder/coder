@@ -440,13 +440,14 @@ func seedModelConfig(
 	t.Helper()
 
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		BaseUrl:     "",
-		ApiKeyKeyID: sql.NullString{},
-		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:     true,
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		BaseUrl:              "",
+		ApiKeyKeyID:          sql.NullString{},
+		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
 	})
 	require.NoError(t, err)
 

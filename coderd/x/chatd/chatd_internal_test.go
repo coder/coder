@@ -23,8 +23,8 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -48,7 +48,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	ownerID := uuid.New()
 	chatID := uuid.New()
 	modelConfigID := uuid.New()
-	workerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
 	wantTitle := "Review PR 23633"
 
@@ -56,8 +55,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		ID:                chatID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
-		Status:            database.ChatStatusRunning,
-		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
+		Status:            database.ChatStatusCompleted,
 		Title:             fallbackChatTitle(userPrompt),
 	}
 	modelConfig := database.ChatModelConfig{
@@ -99,10 +97,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "openai",
-		APIKey:   "test-key",
-		BaseUrl:  serverURL,
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+		APIKey:               "test-key",
+		BaseUrl:              serverURL,
 	}}, nil)
+	db.EXPECT().GetUserChatProviderKeys(gomock.Any(), ownerID).Return([]database.UserChatProviderKey{}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
@@ -157,14 +157,14 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	)
 
 	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-
-	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
-		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
-			require.Equal(t, []uuid.UUID{modelConfigID}, arg.ModelConfigID)
-			require.Equal(t, []string{"[]"}, arg.Content)
-			return []database.ChatMessage{{ID: 91}}, nil
+	lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
+		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
+			require.Equal(t, chatID, arg.ID)
+			require.Equal(t, chat.Status, arg.Status)
+			require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
+			require.True(t, arg.StartedAt.Valid)
+			require.True(t, arg.HeartbeatAt.Valid)
+			return chat, nil
 		},
 	)
 	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
@@ -261,9 +261,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
-		Provider: "openai",
-		APIKey:   "test-key",
-		BaseUrl:  serverURL,
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+		APIKey:               "test-key",
+		BaseUrl:              serverURL,
 	}}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
@@ -349,19 +350,18 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 		Title: wantTitle,
 	}).Return(updatedChat, nil)
 
-	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
-	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
-		gomock.Any(),
-		database.UpdateChatStatusPreserveUpdatedAtParams{
-			ID:          updatedChat.ID,
-			Status:      updatedChat.Status,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   updatedChat.LastError,
-			UpdatedAt:   updatedChat.UpdatedAt,
+	lockedChatWithMarker := updatedChat
+	lockedChatWithMarker.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
+	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChatWithMarker, nil)
+	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{})).DoAndReturn(
+		func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
+			require.Equal(t, chatID, arg.ID)
+			require.False(t, arg.WorkerID.Valid)
+			require.False(t, arg.StartedAt.Valid)
+			require.False(t, arg.HeartbeatAt.Valid)
+			return updatedChat, nil
 		},
-	).Return(unlockedChat, nil)
+	)
 
 	gotChat, err := server.RegenerateChatTitle(ctx, chat)
 	require.NoError(t, err)
@@ -376,6 +376,87 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for title change pubsub event")
 	}
+}
+
+func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI:    "openai-deployment-key",
+			Anthropic: "anthropic-deployment-key",
+			ByProvider: map[string]string{
+				"openai":    "openai-deployment-key",
+				"anthropic": "anthropic-deployment-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"openai":    "https://openai.example.com",
+				"anthropic": "https://anthropic.example.com",
+			},
+		},
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider:                   "anthropic",
+		CentralApiKeyEnabled:       true,
+		AllowCentralApiKeyFallback: true,
+	}}, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	require.NoError(t, err)
+	require.Empty(t, keys.OpenAI)
+	require.Empty(t, keys.APIKey("openai"))
+	require.Empty(t, keys.BaseURL("openai"))
+	require.Equal(t, "anthropic-deployment-key", keys.Anthropic)
+	require.Equal(t, "anthropic-deployment-key", keys.APIKey("anthropic"))
+	require.Equal(t, "https://anthropic.example.com", keys.BaseURL("anthropic"))
+	require.Equal(t, map[string]string{"anthropic": "anthropic-deployment-key"}, keys.ByProvider)
+	require.Equal(t, map[string]string{"anthropic": "https://anthropic.example.com"}, keys.BaseURLByProvider)
+}
+
+func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI: "openai-deployment-key",
+			ByProvider: map[string]string{
+				"openai": "openai-deployment-key",
+			},
+		},
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider:             "openai",
+		CentralApiKeyEnabled: true,
+	}}, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	require.NoError(t, err)
+	require.Equal(t, "openai-deployment-key", keys.OpenAI)
+	require.Equal(t, "openai-deployment-key", keys.APIKey("openai"))
 }
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {
@@ -522,8 +603,9 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 		workspacesdk.LSResponse{},
 		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
-	).AnyTimes()
-	conn.EXPECT().ReadFile(gomock.Any(),
+	).Times(1)
+	conn.EXPECT().ReadFile(
+		gomock.Any(),
 		"/home/coder/project/AGENTS.md",
 		int64(0),
 		int64(maxInstructionFileBytes+1)).Return(
@@ -1950,156 +2032,6 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 		}
 	}
 	t.Fatalf("field %q not found in log entry", name)
-}
-
-func TestSkillsFromParts(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Empty", func(t *testing.T) {
-		t.Parallel()
-		got := skillsFromParts(nil)
-		require.Empty(t, got)
-	})
-
-	t.Run("NoSkillParts", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
-				{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
-			}),
-		}
-		got := skillsFromParts(msgs)
-		require.Empty(t, got)
-	})
-
-	t.Run("SingleSkill", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
-				{
-					Type:             codersdk.ChatMessagePartTypeSkill,
-					SkillName:        "deep-review",
-					SkillDescription: "Multi-reviewer code review",
-					SkillDir:         "/home/coder/.agents/skills/deep-review",
-				},
-			}),
-		}
-		got := skillsFromParts(msgs)
-		require.Len(t, got, 1)
-		require.Equal(t, "deep-review", got[0].Name)
-		require.Equal(t, "Multi-reviewer code review", got[0].Description)
-		require.Equal(t, "/home/coder/.agents/skills/deep-review", got[0].Dir)
-	})
-
-	t.Run("MultipleSkillsAcrossMessages", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
-				{
-					Type:      codersdk.ChatMessagePartTypeSkill,
-					SkillName: "pull-requests",
-					SkillDir:  "/home/coder/.agents/skills/pull-requests",
-				},
-			}),
-			chatMessageWithParts([]codersdk.ChatMessagePart{
-				{
-					Type:      codersdk.ChatMessagePartTypeSkill,
-					SkillName: "deep-review",
-					SkillDir:  "/home/coder/.agents/skills/deep-review",
-				},
-			}),
-		}
-		got := skillsFromParts(msgs)
-		require.Len(t, got, 2)
-		require.Equal(t, "pull-requests", got[0].Name)
-		require.Equal(t, "deep-review", got[1].Name)
-	})
-
-	t.Run("MixedPartTypes", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
-				{
-					Type:            codersdk.ChatMessagePartTypeContextFile,
-					ContextFilePath: "/home/coder/.coder/AGENTS.md",
-				},
-				{
-					Type:      codersdk.ChatMessagePartTypeSkill,
-					SkillName: "refine-plan",
-					SkillDir:  "/home/coder/.agents/skills/refine-plan",
-				},
-			}),
-			// A text-only message should be skipped entirely.
-			chatMessageWithParts([]codersdk.ChatMessagePart{
-				{Type: codersdk.ChatMessagePartTypeText, Text: "user turn"},
-			}),
-		}
-		got := skillsFromParts(msgs)
-		require.Len(t, got, 1)
-		require.Equal(t, "refine-plan", got[0].Name)
-		require.Equal(t, "/home/coder/.agents/skills/refine-plan", got[0].Dir)
-	})
-
-	t.Run("OptionalDescriptionOmitted", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			chatMessageWithParts([]codersdk.ChatMessagePart{
-				{
-					Type:      codersdk.ChatMessagePartTypeSkill,
-					SkillName: "refine-plan",
-					SkillDir:  "/home/coder/.agents/skills/refine-plan",
-				},
-			}),
-		}
-		got := skillsFromParts(msgs)
-		require.Len(t, got, 1)
-		require.Equal(t, "refine-plan", got[0].Name)
-		require.Empty(t, got[0].Description)
-	})
-
-	t.Run("InvalidJSON", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			{
-				Content: pqtype.NullRawMessage{
-					RawMessage: []byte(`not valid json with "skill" in it`),
-					Valid:      true,
-				},
-			},
-		}
-		got := skillsFromParts(msgs)
-		require.Empty(t, got)
-	})
-
-	t.Run("RoundTrip", func(t *testing.T) {
-		// Simulate persist -> reconstruct cycle: marshal skill
-		// parts the same way persistInstructionFiles does, then
-		// verify skillsFromParts recovers the metadata.
-		t.Parallel()
-		want := []chattool.SkillMeta{
-			{Name: "deep-review", Description: "Multi-reviewer review", Dir: "/skills/deep-review"},
-			{Name: "pull-requests", Description: "", Dir: "/skills/pull-requests"},
-		}
-		agentID := uuid.New()
-		var parts []codersdk.ChatMessagePart
-		for _, s := range want {
-			parts = append(parts, codersdk.ChatMessagePart{
-				Type:               codersdk.ChatMessagePartTypeSkill,
-				SkillName:          s.Name,
-				SkillDescription:   s.Description,
-				SkillDir:           s.Dir,
-				ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
-			})
-		}
-		msgs := []database.ChatMessage{chatMessageWithParts(parts)}
-		got := skillsFromParts(msgs)
-		require.Len(t, got, len(want))
-		for i, w := range want {
-			require.Equal(t, w.Name, got[i].Name)
-			require.Equal(t, w.Description, got[i].Description)
-			require.Equal(t, w.Dir, got[i].Dir)
-		}
-	})
 }
 
 func TestContextFileAgentID(t *testing.T) {

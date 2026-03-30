@@ -127,6 +127,10 @@ type Server struct {
 	// keyed by chat ID and invalidated when the agent changes.
 	workspaceMCPToolsCache sync.Map // uuid.UUID -> *cachedWorkspaceMCPTools
 
+	// skillsCache caches discovered skill metadata per chat so
+	// we avoid re-scanning .agents/skills/ on every turn.
+	skillsCache sync.Map // uuid.UUID -> *cachedSkills
+
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
 
@@ -179,21 +183,69 @@ type cachedWorkspaceMCPTools struct {
 	tools   []workspacesdk.MCPToolInfo
 }
 
-// loadCachedWorkspaceContext checks the MCP tools cache for the
-// given chat and agent. Returns non-nil tools when the cache hits,
-// which signals the caller to skip the slow MCP discovery path.
+// cachedSkills stores discovered skill metadata from a workspace
+// agent, keyed by the agent ID that provided them.
+type cachedSkills struct {
+	agentID uuid.UUID
+	skills  []chattool.SkillMeta
+}
+
+// discoverWorkspaceSkills returns cached skill metadata for a chat
+// or discovers them fresh using the provided agent connection. The
+// result is cached per chat+agent so subsequent turns skip the
+// filesystem scan.
+func (p *Server) discoverWorkspaceSkills(
+	ctx context.Context,
+	chatID uuid.UUID,
+	agent database.WorkspaceAgent,
+	conn workspacesdk.AgentConn,
+	logger slog.Logger,
+) []chattool.SkillMeta {
+	// Check cache first.
+	if cached, ok := p.skillsCache.Load(chatID); ok {
+		if entry, ok2 := cached.(*cachedSkills); ok2 {
+			if entry.agentID == agent.ID {
+				return entry.skills
+			}
+		}
+	}
+
+	dir := agent.ExpandedDirectory
+	if dir == "" {
+		dir = agent.Directory
+	}
+	discovered, err := chattool.DiscoverSkills(ctx, conn, dir)
+	if err != nil {
+		logger.Warn(ctx, "failed to discover skills",
+			slog.Error(err))
+		return nil
+	}
+	// Cache the result. Unlike MCP tools, an empty skills
+	// list is a valid stable state (the workspace simply has
+	// no skills), so we always cache.
+	p.skillsCache.Store(chatID, &cachedSkills{
+		agentID: agent.ID,
+		skills:  discovered,
+	})
+	return discovered
+}
+
+// loadCachedWorkspaceContext checks the MCP tools and skills caches
+// for the given chat and agent. Returns non-nil tools when the MCP
+// cache hits, which signals the caller to skip the slow discovery
+// path. Skills may also be populated from the skills cache.
 func (p *Server) loadCachedWorkspaceContext(
 	chatID uuid.UUID,
 	agent database.WorkspaceAgent,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
-) []fantasy.AgentTool {
+) ([]fantasy.AgentTool, []chattool.SkillMeta) {
 	cached, ok := p.workspaceMCPToolsCache.Load(chatID)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	entry, ok := cached.(*cachedWorkspaceMCPTools)
 	if !ok || entry.agentID != agent.ID {
-		return nil
+		return nil, nil
 	}
 
 	var tools []fantasy.AgentTool
@@ -201,7 +253,14 @@ func (p *Server) loadCachedWorkspaceContext(
 		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn))
 	}
 
-	return tools
+	var skills []chattool.SkillMeta
+	if sc, ok := p.skillsCache.Load(chatID); ok {
+		if se, ok := sc.(*cachedSkills); ok && se.agentID == agent.ID {
+			skills = se.skills
+		}
+	}
+
+	return tools, skills
 }
 
 type turnWorkspaceContext struct {
@@ -1535,6 +1594,15 @@ var manualTitleLockWorkerID = uuid.MustParse(
 
 const manualTitleLockStaleAfter = time.Minute
 
+func isPendingOrRunningChatStatus(status database.ChatStatus) bool {
+	switch status {
+	case database.ChatStatusPending, database.ChatStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
 func isFreshManualTitleLock(chat database.Chat, now time.Time) bool {
 	if !chat.WorkerID.Valid || chat.WorkerID.UUID != manualTitleLockWorkerID {
 		return false
@@ -1577,28 +1645,17 @@ func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) e
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
 		}
-		if isFreshManualTitleLock(lockedChat, now) {
+		if isPendingOrRunningChatStatus(lockedChat.Status) ||
+			isFreshManualTitleLock(lockedChat, now) {
 			return ErrManualTitleRegenerationInProgress
 		}
-
-		// Only write the lock marker when no real worker owns WorkerID.
-		// When a real worker is running, we skip the DB lock but still
-		// allow regeneration. The frontend prevents same-browser
-		// double-clicks, and concurrent regeneration from different
-		// replicas is harmless, last write wins.
-		hasRealWorker := lockedChat.WorkerID.Valid &&
-			lockedChat.WorkerID.UUID != manualTitleLockWorkerID
-		if hasRealWorker {
-			return nil
-		}
-
 		_, err = updateChatStatusPreserveUpdatedAt(
 			ctx,
 			tx,
 			lockedChat,
 			uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
 			sql.NullTime{Time: now, Valid: true},
-			sql.NullTime{},
+			sql.NullTime{Time: now, Valid: true},
 		)
 		if err != nil {
 			return xerrors.Errorf("mark chat for manual title regeneration: %w", err)
@@ -1650,7 +1707,7 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	keys, err := p.resolveProviderAPIKeys(chatdCtx)
+	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("resolve chat providers: %w", err)
 	}
@@ -2667,6 +2724,7 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
 	if !state.buffering && len(state.subscribers) == 0 {
 		p.chatStreams.Delete(chatID)
 		p.workspaceMCPToolsCache.Delete(chatID)
+		p.skillsCache.Delete(chatID)
 	}
 }
 
@@ -3976,10 +4034,9 @@ func (p *Server) runChat(
 			return nil
 		})
 	} else if hasContextFiles {
-		// On subsequent turns, extract the instruction text and
-		// skill index from persisted parts so they can be
-		// re-injected via InsertSystem after compaction drops
-		// those messages. No workspace dial needed.
+		// On subsequent turns, extract the instruction text from
+		// the persisted context-file parts so it can be re-injected
+		// via InsertSystem after compaction drops those messages.
 		instruction = instructionFromContextFiles(messages)
 		skills = skillsFromParts(messages)
 		if restored := skillMetaFileFromParts(messages); restored != "" {
@@ -4008,7 +4065,7 @@ func (p *Server) runChat(
 			// query on the common subsequent-turn path.
 			agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
 			if agentErr == nil {
-				if workspaceMCPTools = p.loadCachedWorkspaceContext(
+				if workspaceMCPTools, skills = p.loadCachedWorkspaceContext(
 					chat.ID, agent, workspaceCtx.getWorkspaceConn,
 				); workspaceMCPTools != nil {
 					return nil
@@ -4026,6 +4083,7 @@ func (p *Server) runChat(
 			if agentErr != nil {
 				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
 					p.workspaceMCPToolsCache.Delete(chat.ID)
+					p.skillsCache.Delete(chat.ID)
 					return nil
 				}
 				logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
@@ -4033,19 +4091,29 @@ func (p *Server) runChat(
 				return nil
 			}
 
-			// List workspace MCP tools via the agent conn.
+			// Discover skills and MCP tools using the
+			// same conn to avoid a second dial attempt.
 			conn, connErr := workspaceCtx.getWorkspaceConn(workspaceMCPCtx)
 			if connErr != nil {
 				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
 					slog.Error(connErr))
 				return nil
 			}
+
+			agent, agentErr = workspaceCtx.getWorkspaceAgent(workspaceMCPCtx)
+			if agentErr == nil {
+				skills = p.discoverWorkspaceSkills(
+					workspaceMCPCtx, chat.ID, agent, conn, logger,
+				)
+			}
+
 			toolsResp, listErr := conn.ListMCPTools(workspaceMCPCtx)
 			if listErr != nil {
 				logger.Warn(ctx, "failed to list workspace MCP tools",
 					slog.Error(listErr))
 				return nil
 			}
+
 			// Cache the result for subsequent turns. Skip
 			// caching when the list is empty because the
 			// agent's MCP Connect may not have finished yet;
@@ -4799,7 +4867,7 @@ func (p *Server) resolveChatModel(
 	})
 	g.Go(func() error {
 		var err error
-		keys, err = p.resolveProviderAPIKeys(ctx)
+		keys, err = p.resolveUserProviderAPIKeys(ctx, chat.OwnerID)
 		if err != nil {
 			return xerrors.Errorf("resolve provider API keys: %w", err)
 		}
@@ -4821,8 +4889,9 @@ func (p *Server) resolveChatModel(
 	return model, dbConfig, keys, nil
 }
 
-func (p *Server) resolveProviderAPIKeys(
+func (p *Server) resolveUserProviderAPIKeys(
 	ctx context.Context,
+	ownerID uuid.UUID,
 ) (chatprovider.ProviderAPIKeys, error) {
 	providers, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
@@ -4831,17 +4900,42 @@ func (p *Server) resolveProviderAPIKeys(
 			err,
 		)
 	}
-	dbProviders := make(
+	configuredProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(providers),
 	)
 	for _, provider := range providers {
-		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
+		configuredProviders = append(
+			configuredProviders, chatprovider.ConfiguredProvider{
+				ProviderID:                 provider.ID,
+				Provider:                   provider.Provider,
+				APIKey:                     provider.APIKey,
+				BaseURL:                    provider.BaseUrl,
+				CentralAPIKeyEnabled:       provider.CentralApiKeyEnabled,
+				AllowUserAPIKey:            provider.AllowUserApiKey,
+				AllowCentralAPIKeyFallback: provider.AllowCentralApiKeyFallback,
+			},
+		)
+	}
+	userKeyRows, err := p.db.GetUserChatProviderKeys(ctx, ownerID)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+			"get user chat provider keys: %w",
+			err,
+		)
+	}
+	userKeys := make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
+	for _, userKey := range userKeyRows {
+		userKeys = append(userKeys, chatprovider.UserProviderKey{
+			ChatProviderID: userKey.ChatProviderID,
+			APIKey:         userKey.APIKey,
 		})
 	}
-	return chatprovider.MergeProviderAPIKeys(p.providerAPIKeys, dbProviders), nil
+	keys, _ := chatprovider.ResolveUserProviderKeys(
+		p.providerAPIKeys,
+		configuredProviders,
+		userKeys,
+	)
+	return keys, nil
 }
 
 // resolveModelConfig looks up the chat's model config by its
@@ -5061,23 +5155,14 @@ func (p *Server) persistInstructionFiles(
 		if !workspaceConnOK {
 			return "", nil, agentCfg.SkillMetaFile, nil
 		}
-		// Persist a sentinel (plus any discovered skill parts)
-		// so subsequent turns skip the workspace agent dial.
+		// Persist a sentinel so subsequent turns skip the
+		// workspace agent dial.
 		parts := []codersdk.ChatMessagePart{{
 			Type:                     codersdk.ChatMessagePartTypeContextFile,
 			ContextFilePath:          "",
 			ContextFileAgentID:       uuid.NullUUID{UUID: agent.ID, Valid: true},
 			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
 		}}
-		for _, s := range discoveredSkills {
-			parts = append(parts, codersdk.ChatMessagePart{
-				Type:               codersdk.ChatMessagePartTypeSkill,
-				SkillName:          s.Name,
-				SkillDescription:   s.Description,
-				SkillDir:           s.Dir,
-				ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
-			})
-		}
 		content, err := chatprompt.MarshalParts(parts)
 		if err != nil {
 			return "", nil, agentCfg.SkillMetaFile, nil
@@ -5112,9 +5197,9 @@ func (p *Server) persistInstructionFiles(
 		}
 		return "", discoveredSkills, agentCfg.SkillMetaFile, nil
 	}
-	// Build context-file parts (one per instruction file) and
-	// skill parts (one per discovered skill).
-	parts := make([]codersdk.ChatMessagePart, 0, len(sections)+len(discoveredSkills))
+
+	// Build context-file parts, one per instruction file.
+	parts := make([]codersdk.ChatMessagePart, 0, len(sections))
 	for _, s := range sections {
 		parts = append(parts, codersdk.ChatMessagePart{
 			Type:                     codersdk.ChatMessagePartTypeContextFile,
@@ -5125,15 +5210,6 @@ func (p *Server) persistInstructionFiles(
 			ContextFileOS:            agent.OperatingSystem,
 			ContextFileDirectory:     directory,
 			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
-		})
-	}
-	for _, s := range discoveredSkills {
-		parts = append(parts, codersdk.ChatMessagePart{
-			Type:               codersdk.ChatMessagePartTypeSkill,
-			SkillName:          s.Name,
-			SkillDescription:   s.Description,
-			SkillDir:           s.Dir,
-			ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
 		})
 	}
 

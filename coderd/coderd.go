@@ -1221,6 +1221,13 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
 				})
 			})
+			r.Route("/user-provider-configs", func(r chi.Router) {
+				r.Get("/", api.listUserChatProviderConfigs)
+				r.Route("/{providerConfig}", func(r chi.Router) {
+					r.Put("/", api.upsertUserChatProviderKey)
+					r.Delete("/", api.deleteUserChatProviderKey)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
