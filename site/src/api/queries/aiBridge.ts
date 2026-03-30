@@ -8,6 +8,8 @@ import type {
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
+const SESSION_THREADS_INFINITE_PAGE_SIZE = 20;
+
 export const paginatedInterceptions = (
 	searchParams: URLSearchParams,
 ): UsePaginatedQueryOptions<AIBridgeListInterceptionsResponse, string> => {
@@ -45,21 +47,19 @@ export const paginatedSessions = (
 };
 
 export const infiniteSessionThreads = (sessionId: string) => {
-	const limit = 20;
-
 	return {
 		queryKey: ["aiBridgeSessionThreads", sessionId],
 		getNextPageParam: (lastPage: AIBridgeSessionThreadsResponse) => {
 			const threads = lastPage.threads;
-			if (threads.length < limit) {
+			if (threads.length < SESSION_THREADS_INFINITE_PAGE_SIZE) {
 				return undefined;
 			}
-			return threads[threads.length - 1].id;
+			return threads.at(-1)?.id;
 		},
 		initialPageParam: undefined as string | undefined,
 		queryFn: ({ pageParam }) =>
 			API.getAIBridgeSessionThreads(sessionId, {
-				limit,
+				limit: SESSION_THREADS_INFINITE_PAGE_SIZE,
 				after_id: pageParam as string | undefined,
 			}),
 	} satisfies UseInfiniteQueryOptions<AIBridgeSessionThreadsResponse>;
