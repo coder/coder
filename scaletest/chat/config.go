@@ -7,7 +7,14 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/scaletest/chatcontrol"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
+)
+
+const (
+	// MaxToolCallStepsPerTurn leaves room for the final text completion within
+	// chatd's per-turn max-step budget.
+	MaxToolCallStepsPerTurn = 1199
 )
 
 type Config struct {
@@ -32,6 +39,22 @@ type Config struct {
 	// Turns is the total number of user→assistant exchanges per chat.
 	// Must be at least 1.
 	Turns int `json:"turns"`
+
+	// ToolCallsPerChat is the total number of mock tool-call rounds to
+	// distribute across the chat's turns. Turns already controls the number of
+	// assistant responses; tool calls add extra model invocations within a turn.
+	ToolCallsPerChat int `json:"tool_calls_per_chat,omitempty"`
+
+	// ToolCallSeed is the deterministic seed used to derive the mock's per-chat
+	// tool-call distribution.
+	ToolCallSeed int64 `json:"tool_call_seed,omitempty"`
+
+	// ToolCallTool is the tool name used when the mock emits a tool call.
+	ToolCallTool string `json:"tool_call_tool,omitempty"`
+
+	// ToolCallCommand is the harmless execute command used when the mock emits a
+	// tool call.
+	ToolCallCommand string `json:"tool_call_command,omitempty"`
 
 	// FollowUpPrompt is the text content for turns 2..N.
 	FollowUpPrompt string `json:"follow_up_prompt"`
@@ -67,6 +90,36 @@ func (c Config) HasFollowUps() bool {
 
 func (c Config) ShouldGateFollowUps() bool {
 	return c.HasFollowUps() && c.FollowUpStartDelay > 0
+}
+
+func (c Config) PromptForTurn(turnIndex int) (string, error) {
+	if turnIndex < 0 || turnIndex >= c.Turns {
+		return "", xerrors.Errorf("turn index %d out of range [0,%d)", turnIndex, c.Turns)
+	}
+
+	basePrompt := c.Prompt
+	if turnIndex > 0 {
+		basePrompt = c.FollowUpPrompt
+	}
+	if c.ToolCallsPerChat == 0 {
+		return basePrompt, nil
+	}
+
+	toolCallsByTurn := chatcontrol.ToolCallsByTurn(c.Turns, c.ToolCallsPerChat, c.ToolCallSeed)
+	toolCallsThisTurn := toolCallsByTurn[turnIndex]
+	if toolCallsThisTurn == 0 {
+		return basePrompt, nil
+	}
+	control := chatcontrol.Control{
+		ToolCallsThisTurn: toolCallsThisTurn,
+		Tool:              c.ToolCallTool,
+		Command:           c.ToolCallCommand,
+	}
+	prompt, err := chatcontrol.PrefixPrompt(basePrompt, control)
+	if err != nil {
+		return "", xerrors.Errorf("prefix prompt for turn %d: %w", turnIndex+1, err)
+	}
+	return prompt, nil
 }
 
 func (c Config) UsesExistingWorkspace() bool {
@@ -113,6 +166,16 @@ func (c *Config) Validate() error {
 
 	if c.Turns < 1 {
 		return xerrors.Errorf("validate turns: must be at least 1")
+	}
+
+	if c.ToolCallsPerChat < 0 {
+		return xerrors.Errorf("validate tool_calls_per_chat: must not be negative")
+	}
+	if c.ToolCallsPerChat > c.Turns*MaxToolCallStepsPerTurn {
+		return xerrors.Errorf("validate tool_calls_per_chat: must be at most %d for %d turns", c.Turns*MaxToolCallStepsPerTurn, c.Turns)
+	}
+	if c.ToolCallsPerChat > 0 && c.ToolCallCommand == "" {
+		return xerrors.Errorf("validate tool_call_command: must not be empty when tool_calls_per_chat > 0")
 	}
 
 	if c.HasFollowUps() && c.FollowUpPrompt == "" {

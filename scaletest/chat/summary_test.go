@@ -41,6 +41,10 @@ func TestNewSummary(t *testing.T) {
 			ModelConfigID:      &modelConfigID,
 			Count:              25,
 			Turns:              10,
+			ToolCallsPerChat:   7,
+			ToolCallSeed:       42,
+			ToolCallTool:       "execute",
+			ToolCallCommand:    "echo scaletest",
 			Prompt:             "Reply with one short sentence.",
 			FollowUpPrompt:     "Continue.",
 			FollowUpStartDelay: 45 * time.Second,
@@ -56,6 +60,10 @@ func TestNewSummary(t *testing.T) {
 		require.EqualValues(t, 1, summary.WorkspaceCount)
 		require.EqualValues(t, 25, summary.ChatsPerWorkspace)
 		require.Zero(t, summary.CreatedWorkspaceCount)
+		require.Equal(t, 7, summary.ToolCallsPerChat)
+		require.EqualValues(t, 42, summary.ToolCallSeed)
+		require.Equal(t, "execute", summary.ToolCallTool)
+		require.Equal(t, "echo scaletest", summary.ToolCallCommand)
 		require.True(t, summary.FollowUpDelayEnabled)
 		require.Equal(t, followUpReleasedAt, *summary.FollowUpPhaseReleasedAt)
 		require.Equal(t, 25, summary.Results.TotalRuns)
@@ -85,6 +93,10 @@ func TestNewSummary(t *testing.T) {
 			ModelConfigID:         &modelConfigID,
 			Count:                 25,
 			Turns:                 1,
+			ToolCallsPerChat:      0,
+			ToolCallSeed:          0,
+			ToolCallTool:          "execute",
+			ToolCallCommand:       "echo scaletest",
 			Prompt:                "Reply with one short sentence.",
 			FollowUpStartDelay:    0,
 			OutputSpecs:           []string{"text"},

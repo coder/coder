@@ -34,6 +34,10 @@ type SummaryConfig struct {
 	ModelConfigID         *uuid.UUID
 	Count                 int64
 	Turns                 int
+	ToolCallsPerChat      int
+	ToolCallSeed          int64
+	ToolCallTool          string
+	ToolCallCommand       string
 	Prompt                string
 	FollowUpPrompt        string
 	FollowUpStartDelay    time.Duration
@@ -56,6 +60,10 @@ type Summary struct {
 	ModelConfigID             *uuid.UUID     `json:"model_config_id,omitempty"`
 	Count                     int64          `json:"count"`
 	Turns                     int            `json:"turns"`
+	ToolCallsPerChat          int            `json:"tool_calls_per_chat"`
+	ToolCallSeed              int64          `json:"tool_call_seed"`
+	ToolCallTool              string         `json:"tool_call_tool,omitempty"`
+	ToolCallCommand           string         `json:"tool_call_command,omitempty"`
 	PromptFingerprint         string         `json:"prompt_fingerprint"`
 	PromptLength              int            `json:"prompt_length"`
 	FollowUpPromptFingerprint string         `json:"follow_up_prompt_fingerprint,omitempty"`
@@ -97,6 +105,10 @@ func NewSummary(cfg SummaryConfig, results harness.Results, startedAt, completed
 		ModelConfigID:         cfg.ModelConfigID,
 		Count:                 cfg.Count,
 		Turns:                 cfg.Turns,
+		ToolCallsPerChat:      cfg.ToolCallsPerChat,
+		ToolCallSeed:          cfg.ToolCallSeed,
+		ToolCallTool:          cfg.ToolCallTool,
+		ToolCallCommand:       cfg.ToolCallCommand,
 		PromptFingerprint:     promptFingerprint(cfg.Prompt),
 		PromptLength:          len(cfg.Prompt),
 		LLMMockURL:            cfg.LLMMockURL,

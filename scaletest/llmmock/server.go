@@ -56,26 +56,53 @@ type Config struct {
 }
 
 type llmRequest struct {
-	Model  string `json:"model"`
-	Stream bool   `json:"stream,omitempty"`
+	Model    string          `json:"model"`
+	Messages []openAIMessage `json:"messages,omitempty"`
+	Tools    []openAITool    `json:"tools,omitempty"`
+	Stream   bool            `json:"stream,omitempty"`
 }
 
 type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content,omitempty"`
+	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+}
+
+type openAITool struct {
+	Type     string             `json:"type"`
+	Function openAIToolFunction `json:"function"`
+}
+
+type openAIToolFunction struct {
+	Name string `json:"name"`
+}
+
+type openAIToolCall struct {
+	ID       string                 `json:"id,omitempty"`
+	Type     string                 `json:"type,omitempty"`
+	Function openAIToolCallFunction `json:"function,omitempty"`
+	Index    int                    `json:"index,omitempty"`
+}
+
+type openAIToolCallFunction struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+}
+
+type openAIResponseChoice struct {
+	Index        int           `json:"index"`
+	Message      openAIMessage `json:"message"`
+	FinishReason string        `json:"finish_reason"`
 }
 
 type openAIResponse struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	Model   string `json:"model"`
-	Choices []struct {
-		Index        int           `json:"index"`
-		Message      openAIMessage `json:"message"`
-		FinishReason string        `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
+	ID      string                 `json:"id"`
+	Object  string                 `json:"object"`
+	Created int64                  `json:"created"`
+	Model   string                 `json:"model"`
+	Choices []openAIResponseChoice `json:"choices"`
+	Usage   struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
@@ -304,39 +331,12 @@ func (s *Server) handleOpenAIWithLabels(w http.ResponseWriter, r *http.Request) 
 		time.Sleep(s.artificialLatency)
 	}
 
-	var resp openAIResponse
-	resp.ID = fmt.Sprintf("chatcmpl-%s", requestID.String()[:8])
-	resp.Object = "chat.completion"
-	resp.Created = now.Unix()
-	resp.Model = req.Model
-
-	var responseContent string
-	if s.responsePayloadSize > 0 {
-		pattern := "x"
-		repeated := strings.Repeat(pattern, s.responsePayloadSize)
-		responseContent = repeated[:s.responsePayloadSize]
-	} else {
-		responseContent = "This is a mock response from OpenAI."
+	resp, err := buildOpenAIResponse(req, requestID, now, s.responsePayloadSize)
+	if err != nil {
+		s.logger.Error(ctx, "failed to build OpenAI response", slog.Error(err))
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
-
-	resp.Choices = []struct {
-		Index        int           `json:"index"`
-		Message      openAIMessage `json:"message"`
-		FinishReason string        `json:"finish_reason"`
-	}{
-		{
-			Index: 0,
-			Message: openAIMessage{
-				Role:    "assistant",
-				Content: responseContent,
-			},
-			FinishReason: "stop",
-		},
-	}
-
-	resp.Usage.PromptTokens = 10
-	resp.Usage.CompletionTokens = 5
-	resp.Usage.TotalTokens = 15
 
 	responseBody, _ := json.Marshal(resp)
 
@@ -541,7 +541,31 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 	}
 
 	totalDuration := s.randomStreamDuration()
-	if totalDuration == 0 {
+	choice := resp.Choices[0]
+	if len(choice.Message.ToolCalls) > 0 {
+		chunk := map[string]interface{}{
+			"id":      resp.ID,
+			"object":  "chat.completion.chunk",
+			"created": resp.Created,
+			"model":   resp.Model,
+			"choices": []map[string]interface{}{
+				{
+					"index": 0,
+					"delta": map[string]interface{}{
+						"role":       "assistant",
+						"tool_calls": choice.Message.ToolCalls,
+					},
+					"finish_reason": nil,
+				},
+			},
+		}
+		chunkBytes, _ := json.Marshal(chunk)
+		if !writeChunk(fmt.Sprintf(`data: %s
+
+`, chunkBytes)) {
+			return
+		}
+	} else if totalDuration == 0 {
 		chunk := map[string]interface{}{
 			"id":      resp.ID,
 			"object":  "chat.completion.chunk",
@@ -552,7 +576,7 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 					"index": 0,
 					"delta": map[string]interface{}{
 						"role":    "assistant",
-						"content": resp.Choices[0].Message.Content,
+						"content": choice.Message.Content,
 					},
 					"finish_reason": nil,
 				},
@@ -565,9 +589,9 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 			return
 		}
 	} else {
-		chunks := streamContentChunks(resp.Choices[0].Message.Content)
+		chunks := streamContentChunks(choice.Message.Content)
 		if s.responsePayloadSize > 0 {
-			chunks = streamContentFixedWindows(resp.Choices[0].Message.Content)
+			chunks = streamContentFixedWindows(choice.Message.Content)
 		}
 		delay := totalDuration / time.Duration(len(chunks))
 		for i, content := range chunks {
