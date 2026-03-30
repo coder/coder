@@ -50,6 +50,7 @@ import {
 import {
 	createContext,
 	type FC,
+	memo,
 	useContext,
 	useEffect,
 	useRef,
@@ -360,19 +361,9 @@ const collectVisibleChatIDs = ({
 	return visible;
 };
 
-interface ChatTreeContextValue {
-	readonly chatTree: ChatTree;
-	readonly chatById: ReadonlyMap<string, Chat>;
-	readonly visibleChatIDs: ReadonlySet<string>;
-	readonly normalizedSearch: string;
-	readonly expandedById: Record<string, boolean>;
+interface ChatTreeCallbacksValue {
 	readonly modelOptions: readonly ModelSelectorOption[];
 	readonly modelConfigs: readonly ChatModelConfig[];
-	readonly chatErrorReasons: Record<string, string>;
-	readonly activeChatId: string | undefined;
-	readonly isArchiving: boolean;
-	readonly archivingChatId: string | null;
-	readonly regeneratingTitleChatIds: readonly string[];
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
@@ -385,308 +376,389 @@ interface ChatTreeContextValue {
 	readonly onRegenerateTitle: (chatId: string) => void;
 }
 
-const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
+interface ChatTreeDataValue {
+	readonly chatTree: ChatTree;
+	readonly chatById: ReadonlyMap<string, Chat>;
+	readonly visibleChatIDs: ReadonlySet<string>;
+	readonly normalizedSearch: string;
+	readonly expandedById: Record<string, boolean>;
+	readonly chatErrorReasons: Record<string, string>;
+	readonly activeChatId: string | undefined;
+	readonly isArchiving: boolean;
+	readonly archivingChatId: string | null;
+	readonly regeneratingTitleChatIds: readonly string[];
+}
 
-function useChatTree(): ChatTreeContextValue {
-	const ctx = useContext(ChatTreeContext);
+const ChatTreeCallbacksContext = createContext<ChatTreeCallbacksValue | null>(
+	null,
+);
+const ChatTreeDataContext = createContext<ChatTreeDataValue | null>(null);
+
+function useChatTreeCallbacks(): ChatTreeCallbacksValue {
+	const ctx = useContext(ChatTreeCallbacksContext);
 	if (!ctx) {
-		throw new Error("useChatTree must be used within ChatTreeContext.Provider");
+		throw new Error(
+			"useChatTreeCallbacks must be used within ChatTreeCallbacksContext.Provider",
+		);
 	}
 	return ctx;
 }
 
+function useChatTreeData(): ChatTreeDataValue {
+	const ctx = useContext(ChatTreeDataContext);
+	if (!ctx) {
+		throw new Error(
+			"useChatTreeData must be used within ChatTreeDataContext.Provider",
+		);
+	}
+	return ctx;
+}
+
+const deriveNodeProps = (
+	chat: Chat,
+	ctx: ChatTreeDataValue,
+): {
+	hasChildren: boolean;
+	isExpanded: boolean;
+	errorReason: string | undefined;
+	isArchivingThis: boolean;
+	isRegeneratingThis: boolean;
+	isArchivingGlobal: boolean;
+	isActiveChat: boolean;
+} => {
+	const childIDs = (ctx.chatTree.childrenById.get(chat.id) ?? []).filter(
+		(childID) => ctx.visibleChatIDs.has(childID),
+	);
+	const hasChildren = childIDs.length > 0;
+	const isExpanded = ctx.normalizedSearch
+		? true
+		: (ctx.expandedById[chat.id] ?? false);
+	const errorReason =
+		chat.status === "error"
+			? ctx.chatErrorReasons[chat.id] || chat.last_error || undefined
+			: undefined;
+	const isArchivingThis = ctx.isArchiving && ctx.archivingChatId === chat.id;
+	const isRegeneratingThis = ctx.regeneratingTitleChatIds.includes(chat.id);
+	const isArchivingGlobal = ctx.isArchiving;
+	const isActiveChat = ctx.activeChatId === chat.id;
+	return {
+		hasChildren,
+		isExpanded,
+		errorReason,
+		isArchivingThis,
+		isRegeneratingThis,
+		isArchivingGlobal,
+		isActiveChat,
+	};
+};
+
 interface ChatTreeNodeProps {
 	readonly chat: Chat;
 	readonly isChildNode: boolean;
+	readonly hasChildren: boolean;
+	readonly isExpanded: boolean;
+	readonly errorReason: string | undefined;
+	readonly isArchivingThis: boolean;
+	readonly isRegeneratingThis: boolean;
+	readonly isArchivingGlobal: boolean;
+	readonly isActiveChat: boolean;
 }
 
-const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
-	const {
-		chatTree,
-		chatById,
-		visibleChatIDs,
-		normalizedSearch,
-		expandedById,
-		modelOptions,
-		modelConfigs,
-		chatErrorReasons,
-		activeChatId,
-		isArchiving,
-		archivingChatId,
-		regeneratingTitleChatIds,
-		toggleExpanded,
-		onArchiveAgent,
-		onUnarchiveAgent,
-		onArchiveAndDeleteWorkspace,
-		onPinAgent,
-		onUnpinAgent,
-		onRegenerateTitle,
-	} = useChatTree();
-	const chatID = chat.id;
-	const isActiveChat = activeChatId === chatID;
-	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
-		visibleChatIDs.has(childID),
-	);
-	const hasChildren = childIDs.length > 0;
-	const isDelegated = Boolean(getParentChatID(chat));
-	const isDelegatedExecuting =
-		isDelegated && (chat.status === "pending" || chat.status === "running");
-	const modelName = getModelDisplayName(
-		chat.last_model_config_id,
-		modelConfigs,
-		modelOptions,
-	);
-	const errorReason =
-		chat.status === "error"
-			? chatErrorReasons[chat.id] || chat.last_error || undefined
-			: undefined;
-	const subtitle = errorReason || modelName;
-	const diffStatus = getChatDiffStatus(chat);
-	const baseConfig = getStatusConfig(chat.status);
-	const prConfig =
-		chat.status === "waiting" || chat.status === "completed"
-			? getPRIconConfig(diffStatus)
-			: undefined;
-	const config = prConfig ?? baseConfig;
-	const StatusIcon = config.icon;
-	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
-	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
-	const filesChangedLabel = `${changedFiles} ${
-		changedFiles === 1 ? "file" : "files"
-	}`;
-	const workspaceId = chat.workspace_id;
-	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
-	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
+const ChatTreeNode = memo<ChatTreeNodeProps>(
+	({
+		chat,
+		isChildNode,
+		hasChildren,
+		isExpanded,
+		errorReason,
+		isArchivingThis,
+		isRegeneratingThis,
+		isArchivingGlobal,
+		isActiveChat,
+	}) => {
+		const {
+			modelOptions,
+			modelConfigs,
+			toggleExpanded,
+			onArchiveAgent,
+			onUnarchiveAgent,
+			onArchiveAndDeleteWorkspace,
+			onPinAgent,
+			onUnpinAgent,
+			onRegenerateTitle,
+		} = useChatTreeCallbacks();
+		const chatID = chat.id;
+		const isDelegated = Boolean(getParentChatID(chat));
+		const isDelegatedExecuting =
+			isDelegated && (chat.status === "pending" || chat.status === "running");
+		const modelName = getModelDisplayName(
+			chat.last_model_config_id,
+			modelConfigs,
+			modelOptions,
+		);
+		const subtitle = errorReason || modelName;
+		const diffStatus = getChatDiffStatus(chat);
+		const baseConfig = getStatusConfig(chat.status);
+		const prConfig =
+			chat.status === "waiting" || chat.status === "completed"
+				? getPRIconConfig(diffStatus)
+				: undefined;
+		const config = prConfig ?? baseConfig;
+		const StatusIcon = config.icon;
+		const hasLinkedDiffStatus = Boolean(diffStatus?.url);
+		const changedFiles = diffStatus?.changed_files ?? 0;
+		const additions = diffStatus?.additions ?? 0;
+		const deletions = diffStatus?.deletions ?? 0;
+		const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
+		const filesChangedLabel = `${changedFiles} ${
+			changedFiles === 1 ? "file" : "files"
+		}`;
+		const workspaceId = chat.workspace_id;
 
-	return (
-		<div className="flex min-w-0 flex-col">
-			<div
-				data-testid={`agents-tree-node-${chat.id}`}
-				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
-					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-					isChildNode &&
-						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
-				)}
-			>
+		return (
+			<div className="flex min-w-0 flex-col">
 				<div
+					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
-						"group/icon relative mt-1.5 h-5 w-5 shrink-0",
-						hasChildren && "cursor-pointer",
+						"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+						"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+						isChildNode &&
+							"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
 					)}
 				>
 					<div
 						className={cn(
-							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
+							"group/icon relative mt-1.5 h-5 w-5 shrink-0",
+							hasChildren && "cursor-pointer",
 						)}
 					>
-						<StatusIcon
-							data-testid={
-								isDelegatedExecuting
-									? `agents-tree-executing-${chat.id}`
-									: undefined
-							}
-							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-						/>
-					</div>
-					{hasChildren && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={() => toggleExpanded(chatID)}
+						<div
 							className={cn(
-								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								"[@media(hover:hover)]:group-hover/icon:visible",
+								"flex h-5 w-5 items-center justify-center rounded-md",
+								hasChildren &&
+									"[@media(hover:hover)]:group-hover/icon:invisible",
 							)}
-							data-testid={`agents-tree-toggle-${chat.id}`}
-							aria-label={isExpanded ? "Collapse" : "Expand"}
-							aria-expanded={isExpanded}
 						>
-							{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						</Button>
-					)}
-				</div>
-				<NavLink
-					to={`/agents/${chat.id}`}
-					className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-				>
-					{({ isActive }) => (
-						<>
-							<div className="min-w-0 flex-1 overflow-hidden text-left">
-								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-									<span
-										aria-busy={isRegeneratingThisChat}
-										className={cn(
-											"block flex-1 truncate text-[13px] text-content-primary",
-											isActive && "font-medium",
-											// Pulse-only in sidebar (no spinner) — space-constrained card layout.
-											isRegeneratingThisChat && "animate-pulse",
-										)}
-									>
-										{chat.title}
-									</span>
-									{chat.has_unread && !isActiveChat && (
-										<span className="sr-only">(unread)</span>
-									)}
-									{isRegeneratingThisChat && (
-										<span className="sr-only" role="status">
-											Regenerating title…
-										</span>
-									)}
-								</div>
-								<div className="flex min-w-0 items-center gap-1.5">
-									{hasLinkedDiffStatus && hasLineStats && (
+							<StatusIcon
+								data-testid={
+									isDelegatedExecuting
+										? `agents-tree-executing-${chat.id}`
+										: undefined
+								}
+								className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+							/>
+						</div>
+						{hasChildren && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={() => toggleExpanded(chatID)}
+								className={cn(
+									"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+									"[@media(hover:hover)]:group-hover/icon:visible",
+								)}
+								data-testid={`agents-tree-toggle-${chat.id}`}
+								aria-label={isExpanded ? "Collapse" : "Expand"}
+								aria-expanded={isExpanded}
+							>
+								{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+							</Button>
+						)}
+					</div>
+					<NavLink
+						to={`/agents/${chat.id}`}
+						className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+					>
+						{({ isActive }) => (
+							<>
+								<div className="min-w-0 flex-1 overflow-hidden text-left">
+									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-											title={`${filesChangedLabel}, +${additions} -${deletions}`}
+											aria-busy={isRegeneratingThis}
+											className={cn(
+												"block flex-1 truncate text-[13px] text-content-primary",
+												isActive && "font-medium",
+												// Pulse-only in sidebar (no spinner) — space-constrained card layout.
+												isRegeneratingThis && "animate-pulse",
+											)}
 										>
-											<span className="text-git-added-bright">
-												+{additions}
-											</span>
-											<span className="text-git-deleted-bright">
-												&minus;{deletions}
-											</span>
+											{chat.title}
 										</span>
-									)}
-									<div
-										className={cn(
-											"min-w-0 overflow-hidden text-[13px] leading-4",
-											errorReason
-												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-												: "truncate text-content-secondary",
+										{chat.has_unread && !isActiveChat && (
+											<span className="sr-only">(unread)</span>
 										)}
-										title={subtitle}
-									>
-										{subtitle}
+										{isRegeneratingThis && (
+											<span className="sr-only" role="status">
+												Regenerating title…
+											</span>
+										)}
+									</div>
+									<div className="flex min-w-0 items-center gap-1.5">
+										{hasLinkedDiffStatus && hasLineStats && (
+											<span
+												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+												title={`${filesChangedLabel}, +${additions} -${deletions}`}
+											>
+												<span className="text-git-added-bright">
+													+{additions}
+												</span>
+												<span className="text-git-deleted-bright">
+													&minus;{deletions}
+												</span>
+											</span>
+										)}
+										<div
+											className={cn(
+												"min-w-0 overflow-hidden text-[13px] leading-4",
+												errorReason
+													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+													: "truncate text-content-secondary",
+											)}
+											title={subtitle}
+										>
+											{subtitle}
+										</div>
 									</div>
 								</div>
-							</div>
-						</>
-					)}
-				</NavLink>
-				<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-					{isArchivingThisChat ? (
-						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
-					) : (
-						<>
-							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{chat.has_unread && !isActiveChat ? (
-									<span
-										className="h-2 w-2 shrink-0 rounded-full bg-content-link"
-										data-testid={`unread-indicator-${chat.id}`}
-										aria-hidden="true"
-									/>
-								) : (
-									shortRelativeTime(chat.updated_at)
-								)}
-							</span>
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
-									>
-										<EllipsisIcon className="h-3.5 w-3.5" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="[&_[role=menuitem]]:text-[13px]"
-								>
-									{!chat.archived && !isChildNode && (
-										<DropdownMenuItem
-											onSelect={() =>
-												chat.pin_order > 0
-													? onUnpinAgent(chat.id)
-													: onPinAgent(chat.id)
-											}
-										>
-											{chat.pin_order > 0 ? (
-												<>
-													<PinOffIcon className="h-3.5 w-3.5" />
-													Unpin agent
-												</>
-											) : (
-												<>
-													<PinIcon className="h-3.5 w-3.5" />
-													Pin agent
-												</>
-											)}
-										</DropdownMenuItem>
-									)}
-									{chat.archived ? (
-										<DropdownMenuItem
-											disabled={isArchiving}
-											onSelect={() => onUnarchiveAgent(chat.id)}
-										>
-											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
-											Unarchive agent
-										</DropdownMenuItem>
+							</>
+						)}
+					</NavLink>
+					<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+						{isArchivingThis ? (
+							<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
+						) : (
+							<>
+								<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+									{chat.has_unread && !isActiveChat ? (
+										<span
+											className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+											data-testid={`unread-indicator-${chat.id}`}
+											aria-hidden="true"
+										/>
 									) : (
-										<>
+										shortRelativeTime(chat.updated_at)
+									)}
+								</span>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											aria-label={`Open actions for ${chat.title}`}
+										>
+											<EllipsisIcon className="h-3.5 w-3.5" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent
+										align="end"
+										className="[& [role=menuitem]]:text-[13px]"
+									>
+										{!chat.archived && !isChildNode && (
 											<DropdownMenuItem
-												disabled={isRegeneratingThisChat}
-												onSelect={() => onRegenerateTitle(chat.id)}
+												onSelect={() =>
+													chat.pin_order > 0
+														? onUnpinAgent(chat.id)
+														: onPinAgent(chat.id)
+												}
 											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
+												{chat.pin_order > 0 ? (
+													<>
+														<PinOffIcon className="h-3.5 w-3.5" />
+														Unpin agent
+													</>
+												) : (
+													<>
+														<PinIcon className="h-3.5 w-3.5" />
+														Pin agent
+													</>
+												)}
 											</DropdownMenuItem>
-											<DropdownMenuSeparator />
+										)}
+										{chat.archived ? (
 											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
-												disabled={isArchiving}
-												onSelect={() => onArchiveAgent(chat.id)}
+												disabled={isArchivingGlobal}
+												onSelect={() => onUnarchiveAgent(chat.id)}
 											>
-												<ArchiveIcon className="h-3.5 w-3.5" />
-												Archive agent
+												<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+												Unarchive agent
 											</DropdownMenuItem>
-											{workspaceId && (
+										) : (
+											<>
+												<DropdownMenuItem
+													disabled={isRegeneratingThis}
+													onSelect={() => onRegenerateTitle(chat.id)}
+												>
+													<WandSparklesIcon className="h-3.5 w-3.5" />
+													Generate new title
+												</DropdownMenuItem>
+												<DropdownMenuSeparator />
 												<DropdownMenuItem
 													className="text-content-destructive focus:text-content-destructive"
-													disabled={isArchiving}
-													onSelect={() =>
-														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-													}
+													disabled={isArchivingGlobal}
+													onSelect={() => onArchiveAgent(chat.id)}
 												>
-													<Trash2Icon className="h-3.5 w-3.5" />
-													Archive & delete workspace
+													<ArchiveIcon className="h-3.5 w-3.5" />
+													Archive agent
 												</DropdownMenuItem>
-											)}
-										</>
-									)}
-								</DropdownMenuContent>
-							</DropdownMenu>
-						</>
-					)}
+												{workspaceId && (
+													<DropdownMenuItem
+														className="text-content-destructive focus:text-content-destructive"
+														disabled={isArchivingGlobal}
+														onSelect={() =>
+															onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+														}
+													>
+														<Trash2Icon className="h-3.5 w-3.5" />
+														Archive & delete workspace
+													</DropdownMenuItem>
+												)}
+											</>
+										)}
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</>
+						)}
+					</div>
 				</div>
-			</div>
 
-			{hasChildren && isExpanded && (
-				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
-					{childIDs.map((childID) => {
-						const childChat = chatById.get(childID);
-						if (!childChat) return null;
-						return (
-							<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
-						);
-					})}
-				</div>
-			)}
-		</div>
+				{hasChildren && isExpanded && (
+					<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+						<ChatTreeChildren parentChatId={chatID} />
+					</div>
+				)}
+			</div>
+		);
+	},
+);
+
+const ChatTreeChildren: FC<{ parentChatId: string }> = ({ parentChatId }) => {
+	const ctx = useChatTreeData();
+	const childIDs = (ctx.chatTree.childrenById.get(parentChatId) ?? []).filter(
+		(childID) => ctx.visibleChatIDs.has(childID),
+	);
+	return (
+		<>
+			{childIDs.map((childID) => {
+				const childChat = ctx.chatById.get(childID);
+				if (!childChat) return null;
+				return (
+					<ChatTreeNode
+						key={childChat.id}
+						chat={childChat}
+						isChildNode
+						{...deriveNodeProps(childChat, ctx)}
+					/>
+				);
+			})}
+		</>
 	);
 };
 
-const SortableChatTreeNode: FC<{
-	chat: Chat;
-}> = ({ chat }) => {
+const SortableChatTreeNode = memo<{ chat: Chat }>(({ chat }) => {
+	const ctx = useChatTreeData();
+	const nodeProps = deriveNodeProps(chat, ctx);
 	const {
 		attributes,
 		listeners,
@@ -721,10 +793,10 @@ const SortableChatTreeNode: FC<{
 			{...attributes}
 			{...listeners}
 		>
-			<ChatTreeNode chat={chat} isChildNode={false} />
+			<ChatTreeNode chat={chat} isChildNode={false} {...nodeProps} />
 		</div>
 	);
-};
+});
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
@@ -943,19 +1015,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
 
-	const chatTreeCtx: ChatTreeContextValue = {
-		chatTree,
-		chatById,
-		visibleChatIDs,
-		normalizedSearch,
-		expandedById,
+	const callbacksCtx: ChatTreeCallbacksValue = {
 		modelOptions,
 		modelConfigs,
-		chatErrorReasons,
-		activeChatId,
-		isArchiving,
-		archivingChatId,
-		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -963,6 +1025,19 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onPinAgent,
 		onUnpinAgent,
 		onRegenerateTitle,
+	};
+
+	const dataCtx: ChatTreeDataValue = {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
+		chatErrorReasons,
+		activeChatId,
+		isArchiving,
+		archivingChatId,
+		regeneratingTitleChatIds,
 	};
 
 	const subNavTitle = "Settings";
@@ -1059,104 +1134,108 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								</div>
 							</>
 						) : (
-							<ChatTreeContext value={chatTreeCtx}>
-								{visibleRootIDs.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										<p className="m-0">
-											{normalizedSearch
-												? "No matching agents"
-												: archivedFilter === "archived"
-													? "No archived agents"
-													: "No agents yet"}
-										</p>
-										{archivedFilter === "archived" && (
-											<button
-												type="button"
-												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-												onClick={() => onArchivedFilterChange?.("active")}
-											>
-												← Back to active
-											</button>
-										)}
-									</div>
-								) : (
-									<div>
-										{visibleRootIDs.length > 0 && (
-											<div className="pb-2">
-												{/* ── Pinned section ── */}
-												{pinnedChats.length > 0 && (
-													<div className="[&:not(:first-child)]:mt-3">
-														<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-															<span>Pinned</span>
-															{showFilterOnPinned && filterDropdown}
-														</div>
-														<DndContext
-															sensors={sensors}
-															collisionDetection={closestCenter}
-															onDragEnd={handleDragEnd}
-														>
-															<SortableContext
-																items={pinnedChatIds}
-																strategy={verticalListSortingStrategy}
+							<ChatTreeCallbacksContext value={callbacksCtx}>
+								<ChatTreeDataContext value={dataCtx}>
+									{visibleRootIDs.length === 0 ? (
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">
+												{normalizedSearch
+													? "No matching agents"
+													: archivedFilter === "archived"
+														? "No archived agents"
+														: "No agents yet"}
+											</p>
+											{archivedFilter === "archived" && (
+												<button
+													type="button"
+													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+													onClick={() => onArchivedFilterChange?.("active")}
+												>
+													← Back to active
+												</button>
+											)}
+										</div>
+									) : (
+										<div>
+											{visibleRootIDs.length > 0 && (
+												<div className="pb-2">
+													{/* ── Pinned section ── */}
+													{pinnedChats.length > 0 && (
+														<div className="[&:not(:first-child)]:mt-3">
+															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																<span>Pinned</span>
+																{showFilterOnPinned && filterDropdown}
+															</div>
+															<DndContext
+																sensors={sensors}
+																collisionDetection={closestCenter}
+																onDragEnd={handleDragEnd}
 															>
-																<div
-																	ref={pinnedContainerRef}
-																	className="flex flex-col gap-0.5"
+																<SortableContext
+																	items={pinnedChatIds}
+																	strategy={verticalListSortingStrategy}
 																>
-																	{sortedPinnedChats.map((chat) => (
-																		<SortableChatTreeNode
+																	<div
+																		ref={pinnedContainerRef}
+																		className="flex flex-col gap-0.5"
+																	>
+																		{sortedPinnedChats.map((chat) => (
+																			<SortableChatTreeNode
+																				key={chat.id}
+																				chat={chat}
+																			/>
+																		))}
+																	</div>
+																</SortableContext>
+															</DndContext>
+														</div>
+													)}
+													{/* ── Time-grouped sections ── */}
+													{TIME_GROUPS.map((group) => {
+														const groupChats = visibleRootIDs
+															.map((id) => chatById.get(id))
+															.filter(
+																(chat): chat is Chat =>
+																	chat !== undefined &&
+																	getTimeGroup(chat.updated_at) === group &&
+																	chat.pin_order === 0,
+															);
+														if (groupChats.length === 0) return null;
+														return (
+															<div
+																key={group}
+																className="[&:not(:first-child)]:mt-3"
+															>
+																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																	<span>{group}</span>
+																	{group === firstNonEmptyGroup &&
+																		filterDropdown}
+																</div>
+																<div className="flex flex-col gap-0.5">
+																	{groupChats.map((chat) => (
+																		<ChatTreeNode
 																			key={chat.id}
 																			chat={chat}
+																			isChildNode={false}
+																			{...deriveNodeProps(chat, dataCtx)}
 																		/>
 																	))}
 																</div>
-															</SortableContext>
-														</DndContext>
-													</div>
-												)}
-												{/* ── Time-grouped sections ── */}
-												{TIME_GROUPS.map((group) => {
-													const groupChats = visibleRootIDs
-														.map((id) => chatById.get(id))
-														.filter(
-															(chat): chat is Chat =>
-																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group &&
-																chat.pin_order === 0,
+															</div>
 														);
-													if (groupChats.length === 0) return null;
-													return (
-														<div
-															key={group}
-															className="[&:not(:first-child)]:mt-3"
-														>
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<span>{group}</span>
-																{group === firstNonEmptyGroup && filterDropdown}
-															</div>
-															<div className="flex flex-col gap-0.5">
-																{groupChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
-																))}
-															</div>
-														</div>
-													);
-												})}
-											</div>
-										)}
-									</div>
-								)}
-								{(hasNextPage || isFetchingNextPage) && (
-									<LoadMoreSentinel
-										onLoadMore={onLoadMore}
-										isFetchingNextPage={isFetchingNextPage}
-									/>
-								)}
-							</ChatTreeContext>
+													})}
+												</div>
+											)}
+										</div>
+									)}
+									{(hasNextPage || isFetchingNextPage) && (
+										<LoadMoreSentinel
+											onLoadMore={onLoadMore}
+											isFetchingNextPage={isFetchingNextPage}
+										/>
+									)}
+								</ChatTreeDataContext>
+							</ChatTreeCallbacksContext>
 						)}
 					</div>
 				</ScrollArea>
