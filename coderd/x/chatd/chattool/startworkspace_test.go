@@ -33,8 +33,14 @@ func TestStartWorkspace(t *testing.T) {
 
 		user := dbgen.User(t, db, database.User{})
 		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-no-workspace",
@@ -77,6 +83,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -155,6 +162,7 @@ func TestStartWorkspace(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, preferredAgentID)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -214,6 +222,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -276,6 +285,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -332,6 +342,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
@@ -400,6 +411,7 @@ func TestStartWorkspace(t *testing.T) {
 		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,

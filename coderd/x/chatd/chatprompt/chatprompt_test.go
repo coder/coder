@@ -1481,7 +1481,14 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             "nul-roundtrip-test",
@@ -1940,6 +1947,11 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
 
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:    "anthropic",
@@ -1978,6 +1990,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		t.Helper()
 
 		chat, chatErr := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			LastModelConfigID: model.ID,
 			Title:             "media-roundtrip-" + callID,
