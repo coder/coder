@@ -327,6 +327,18 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		(resultStr.toLowerCase().includes("timed out") ||
 			errorStr.toLowerCase().includes("timed out"));
 
+	// Postpone rendering wait_agent / message_agent until the
+	// chat_id has been parsed from the streaming args. Without it
+	// we can't determine variant or title, which causes a brief
+	// flash of the generic "Waiting for Sub-agent" text.
+	if (
+		!chatId &&
+		status === "running" &&
+		(name === "wait_agent" || name === "message_agent")
+	) {
+		return null;
+	}
+
 	const variant =
 		name === "spawn_computer_use_agent" || computerUseSubagentIds?.has(chatId)
 			? "computer-use"

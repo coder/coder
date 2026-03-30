@@ -13,6 +13,7 @@ import { Link } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
 import { Response } from "../Response";
+import { Shimmer } from "../Shimmer";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import {
@@ -70,12 +71,14 @@ const SubagentStatusIcon: React.FC<{
 	isError: boolean;
 	isTimeout: boolean;
 	variant?: "default" | "computer-use";
+	showDesktopPreview?: boolean;
 }> = ({
 	subagentStatus,
 	toolStatus,
 	isError,
 	isTimeout,
 	variant = "default",
+	showDesktopPreview = false,
 }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = variant === "computer-use" ? MonitorIcon : BotIcon;
@@ -86,6 +89,11 @@ const SubagentStatusIcon: React.FC<{
 		return <CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
 	}
 	if (toolStatus === "running") {
+		if (showDesktopPreview) {
+			return (
+				<MonitorIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+			);
+		}
 		return (
 			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
@@ -155,18 +163,27 @@ export const SubagentTool: React.FC<{
 					isError={isError}
 					isTimeout={isTimeout}
 					variant={variant}
-				/>
+					showDesktopPreview={showDesktopPreview}
+				/>{" "}
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
-					{SUBAGENT_VERBS[toolName]?.[
-						isTimeout
-							? "timeout"
-							: toolStatus === "completed"
-								? "completed"
-								: toolStatus === "error"
-									? "error"
-									: "running"
-					] ?? ""}
-					<span className="text-content-secondary opacity-60">{title}</span>
+					{showDesktopPreview && toolStatus === "running" ? (
+						<Shimmer as="span" className="text-sm">
+							Using the computer...
+						</Shimmer>
+					) : (
+						<>
+							{SUBAGENT_VERBS[toolName]?.[
+								isTimeout
+									? "timeout"
+									: toolStatus === "completed"
+										? "completed"
+										: toolStatus === "error"
+											? "error"
+											: "running"
+							] ?? ""}
+							<span className="text-content-secondary opacity-60">{title}</span>
+						</>
+					)}
 					{chatId && (
 						<Link
 							to={`/agents/${chatId}`}
@@ -194,7 +211,7 @@ export const SubagentTool: React.FC<{
 			</button>
 
 			{showDesktopPreview && desktopChatId && (
-				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
+				<div className="mt-1.5 w-fit overflow-hidden rounded-lg border border-solid border-border-default">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
 						onClick={onOpenDesktop}
