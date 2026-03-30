@@ -16,11 +16,13 @@ import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAle
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 
 interface TerminalPanelProps {
+	isVisible?: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 }
 
 export const TerminalPanel: FC<TerminalPanelProps> = ({
+	isVisible,
 	workspace,
 	workspaceAgent,
 }) => {
@@ -98,6 +100,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 					agentId={workspaceAgent.id}
 					operatingSystem={workspaceAgent.operating_system}
 					autoFocus={false}
+					isVisible={isVisible}
 					onStatusChange={setConnectionStatus}
 					onError={handleTerminalError}
 					reconnectionToken={reconnectionToken}
