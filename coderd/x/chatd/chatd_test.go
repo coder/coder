@@ -297,6 +297,180 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	require.False(t, fromDB.WorkerID.Valid)
 }
 
+func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "archive-pending",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	err = replica.ArchiveChat(ctx, chat)
+	require.NoError(t, err)
+
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
+	require.False(t, fromDB.WorkerID.Valid)
+	require.False(t, fromDB.StartedAt.Valid)
+	require.False(t, fromDB.HeartbeatAt.Valid)
+	require.True(t, fromDB.Archived)
+	require.Zero(t, fromDB.PinOrder)
+}
+
+func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	streamStarted := make(chan struct{})
+	streamCanceled := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunks := make(chan chattest.OpenAIChunk, 1)
+		go func() {
+			defer close(chunks)
+			chunks <- chattest.OpenAITextChunks("partial")[0]
+			select {
+			case <-streamStarted:
+			default:
+				close(streamStarted)
+			}
+			<-req.Context().Done()
+			select {
+			case <-streamCanceled:
+			default:
+				close(streamCanceled)
+			}
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
+	})
+
+	server := newActiveTestServer(t, db, ps)
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "archive-interrupt",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+	}, testutil.IntervalFast)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.NotNil(t, queuedResult.QueuedMessage)
+
+	err = server.ArchiveChat(ctx, chat)
+	require.NoError(t, err)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case <-streamCanceled:
+			return true
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+
+	gotWaitingStatus := false
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		for {
+			select {
+			case ev := <-events:
+				if ev.Type == codersdk.ChatStreamEventTypeStatus &&
+					ev.Status != nil &&
+					ev.Status.Status == codersdk.ChatStatusWaiting {
+					gotWaitingStatus = true
+					return true
+				}
+			default:
+				return gotWaitingStatus
+			}
+		}
+	}, testutil.IntervalFast)
+	require.True(t, gotWaitingStatus, "expected a waiting status event after archive")
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Archived &&
+			fromDB.Status == database.ChatStatusWaiting &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.StartedAt.Valid &&
+			!fromDB.HeartbeatAt.Valid
+	}, testutil.IntervalFast)
+
+	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queuedMessages, 1)
+	require.Equal(t, queuedResult.QueuedMessage.ID, queuedMessages[0].ID)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	userMessages := 0
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleUser {
+			userMessages++
+		}
+	}
+	require.Equal(t, 1, userMessages, "expected queued message to stay queued after archive")
+}
+
 func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 	t.Parallel()
 
