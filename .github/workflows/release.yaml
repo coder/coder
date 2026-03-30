@@ -647,9 +647,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
-      # Mark the Linear release as shipped. Runs for every release
-      # (including patches) and relies on idempotency — re-completing
-      # an already-completed release is harmless.
+      # Mark the Linear release as shipped.
       - name: Extract Linear release version
         if: ${{ !inputs.dry_run }}
         id: linear_version
