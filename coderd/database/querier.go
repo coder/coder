@@ -854,6 +854,11 @@ type sqlcQuerier interface {
 	// replicas know the worker is still alive.
 	UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHeartbeatParams) (int64, error)
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
+	// Updates the cached injected context parts (AGENTS.md +
+	// skills) on the chat row. Called only when context changes
+	// (first workspace attach or agent change). updated_at is
+	// intentionally not touched to avoid reordering the chat list.
+	UpdateChatLastInjectedContext(ctx context.Context, arg UpdateChatLastInjectedContextParams) (Chat, error)
 	UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error)
 	// Updates the last read message ID for a chat. This is used to track
 	// which messages the owner has seen, enabling unread indicators.
