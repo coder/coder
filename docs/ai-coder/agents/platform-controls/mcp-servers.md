@@ -25,10 +25,10 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 
 ### Connection
 
-| Field       | Required | Description                                               |
-|-------------|----------|-----------------------------------------------------------|
-| `url`       | Yes      | The MCP server endpoint URL.                              |
-| `transport` | Yes      | Transport protocol. `streamable_http` or `sse`.           |
+| Field       | Required | Description                                     |
+|-------------|----------|-------------------------------------------------|
+| `url`       | Yes      | The MCP server endpoint URL.                    |
+| `transport` | Yes      | Transport protocol. `streamable_http` or `sse`. |
 
 ### Availability
 
