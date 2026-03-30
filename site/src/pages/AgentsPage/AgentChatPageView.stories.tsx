@@ -524,14 +524,6 @@ const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 };
 
 const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
-	// Dispatch a wheel event first so the scroll handler treats
-	// this as user-initiated scrolling and disables follow mode.
-	// A bare scrollTop assignment fires a scroll event but the
-	// handler only re-pins (never disables autoScroll) unless
-	// a user-interaction event (wheel/touch/pointer) is active.
-	scrollContainer.dispatchEvent(
-		new WheelEvent("wheel", { bubbles: true, deltaY: -100 }),
-	);
 	scrollContainer.scrollTop = 0;
 	scrollContainer.dispatchEvent(new Event("scroll"));
 };
@@ -682,7 +674,6 @@ export const ScrollPositionPreservedOnNewContent: Story = {
 			]),
 		);
 
-		// Wait for ResizeObserver + RAF compensation to settle.
 		// We should remain significantly away from the bottom.
 		await waitFor(
 			() => {
@@ -713,7 +704,7 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 
 		await waitForScrollOverflow(scrollContainer);
 
-		// Wait for the initial bottom pin (double-RAF) to settle.
+		// Wait for the initial bottom pin to settle.
 		await waitFor(
 			() => {
 				const dist =
@@ -742,7 +733,7 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 			]),
 		);
 
-		// Wait for the double-RAF pin to complete.
+		// Wait for the auto-scroll to complete.
 		await waitFor(
 			() => {
 				const dist =
@@ -757,6 +748,80 @@ export const ScrollPinnedToBottomOnNewContent: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Scroll to bottom" }),
 		).toBeNull();
+	},
+};
+
+const escapeFromBottomStore = buildStoreWithMessages(buildLongConversation(30));
+
+/** User scrolls away from bottom and stays away while new content
+ *  arrives. This is the mobile escape regression test. */
+export const ScrollEscapeFromBottom: Story = {
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={escapeFromBottomStore} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Wait for the initial bottom pin to settle.
+		await waitFor(
+			() => {
+				const dist =
+					scrollContainer.scrollHeight -
+					scrollContainer.scrollTop -
+					scrollContainer.clientHeight;
+				expect(dist).toBeLessThan(5);
+			},
+			{ timeout: 2000 },
+		);
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => resolve()),
+		);
+
+		// Scroll away from bottom.
+		scrollAwayFromBottom(scrollContainer);
+
+		// Wait for the button to confirm we are away from the bottom.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: "Scroll to bottom" }),
+				).toBeVisible();
+			},
+			{ timeout: 2000 },
+		);
+
+		// Record position while clearly away from the bottom.
+		const scrollTopBefore = scrollContainer.scrollTop;
+
+		// Append new messages (simulating streaming / git watcher update).
+		const existing = getStoreMessages(escapeFromBottomStore);
+		escapeFromBottomStore.replaceMessages(
+			existing.concat([
+				buildMessage(31, "assistant", "New content arriving. ".repeat(5)),
+				buildMessage(32, "assistant", "Even more content. ".repeat(5)),
+			]),
+		);
+
+		// Give the ResizeObserver and rAF a chance to fire.
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		);
+
+		// The user must stay at their scroll position, not be
+		// yanked to the bottom.
+		const dist =
+			scrollContainer.scrollHeight -
+			scrollContainer.scrollTop -
+			scrollContainer.clientHeight;
+		expect(dist).toBeGreaterThan(50);
+		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(scrollTopBefore + 1);
+
+		// Button should still be visible.
+		expect(
+			canvas.getByRole("button", { name: "Scroll to bottom" }),
+		).toBeVisible();
 	},
 };
 
@@ -775,13 +840,13 @@ const dispatchTouchEvent = (
 	scrollContainer.dispatchEvent(event);
 };
 
-const touchGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
+const touchGuardStore = buildStoreWithMessages(buildLongConversation(30));
 
-/** During an active touch gesture, the container ResizeObserver must not
- *  snap scroll to bottom. This prevents the mobile URL bar resize jump. */
-export const ScrollNotJumpedDuringTouch: Story = {
+/** During an active touch gesture, content growth must not snap
+ *  scroll to bottom. Prevents mobile URL bar resize jump. */
+export const ScrollNotSnappedDuringTouch: Story = {
 	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={touchGuardScrollStore} />,
+	render: () => <StoryAgentChatPageView store={touchGuardStore} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
@@ -799,233 +864,35 @@ export const ScrollNotJumpedDuringTouch: Story = {
 			},
 			{ timeout: 2000 },
 		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
-		);
 
-		// Simulate a multi-touch gesture starting with two fingers down.
-		dispatchTouchEvent(scrollContainer, "touchstart", 2);
+		// Simulate a touch gesture.
+		dispatchTouchEvent(scrollContainer, "touchstart", 1);
 
-		// Scroll partway up, within the 100px threshold but not at the
-		// absolute bottom. This simulates the user dragging up slightly
-		// during a touch.
-		const offsetFromBottom = 50;
-		const targetScrollTop =
-			scrollContainer.scrollHeight -
-			scrollContainer.clientHeight -
-			offsetFromBottom;
-		scrollContainer.scrollTop = targetScrollTop;
+		// Move slightly away from the absolute bottom.
+		const target =
+			scrollContainer.scrollHeight - scrollContainer.clientHeight - 50;
+		scrollContainer.scrollTop = target;
 		scrollContainer.dispatchEvent(new Event("scroll"));
 
-		const originalHeight = scrollContainer.clientHeight;
-		const shrunkHeight = originalHeight - 10;
+		const scrollTopBefore = scrollContainer.scrollTop;
 
-		// Record the scroll position before the first resize.
-		const scrollTopBeforeFirstResize = scrollContainer.scrollTop;
-
-		// Simulate a container resize that models the mobile URL bar
-		// appearing. Shrink the container height slightly to trigger
-		// the ResizeObserver.
-		scrollContainer.style.height = `${shrunkHeight}px`;
+		// Append content while touch is active.
+		const existing = getStoreMessages(touchGuardStore);
+		touchGuardStore.replaceMessages(
+			existing.concat([
+				buildMessage(31, "assistant", "Arriving during touch."),
+			]),
+		);
 
 		// Give the ResizeObserver a chance to fire.
 		await new Promise<void>((resolve) =>
 			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 		);
 
-		// During an active touch, the resize guard should prevent the
-		// container observer from snapping to the absolute bottom.
-		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeFirstResize + 1,
-		);
+		// Touch guard should have blocked the auto-scroll.
+		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(scrollTopBefore + 1);
 
-		// Lift one finger, leaving a second touch active. The guard should
-		// still block resize snaps until the final finger is lifted.
+		// End touch.
 		dispatchTouchEvent(scrollContainer, "touchend", 1);
-		const scrollTopBeforeSecondResize = scrollContainer.scrollTop;
-		scrollContainer.style.height = `${originalHeight}px`;
-
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-		);
-
-		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeSecondResize + 1,
-		);
-
-		// End the remaining touch.
-		dispatchTouchEvent(scrollContainer, "touchend", 1);
-
-		// After touch ends, normal scroll tracking should resume.
-		// Scroll to the very bottom and verify the button disappears.
-		scrollContainer.scrollTop =
-			scrollContainer.scrollHeight - scrollContainer.clientHeight;
-		scrollContainer.dispatchEvent(new Event("scroll"));
-
-		await waitFor(() => {
-			expect(
-				canvas.queryByRole("button", { name: "Scroll to bottom" }),
-			).toBeNull();
-		});
-	},
-};
-
-const wheelGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
-
-/** During active wheel/trackpad scrolling, the container ResizeObserver
- *  must not snap scroll to bottom. This prevents desktop scroll jump. */
-export const ScrollNotJumpedDuringWheel: Story = {
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={wheelGuardScrollStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin to settle.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
-		);
-
-		// Simulate a wheel event (trackpad/mouse scroll).
-		scrollContainer.dispatchEvent(
-			new WheelEvent("wheel", { bubbles: true, deltaY: -50 }),
-		);
-
-		// Scroll partway up, within the 100px threshold but not at
-		// the absolute bottom. This simulates the user scrolling up
-		// slightly with a trackpad.
-		const offsetFromBottom = 25;
-		const targetScrollTop =
-			scrollContainer.scrollHeight -
-			scrollContainer.clientHeight -
-			offsetFromBottom;
-		scrollContainer.scrollTop = targetScrollTop;
-		scrollContainer.dispatchEvent(new Event("scroll"));
-
-		// Record the scroll position before new content arrives.
-		const scrollTopBeforeAppend = scrollContainer.scrollTop;
-		const scrollHeightBeforeAppend = scrollContainer.scrollHeight;
-
-		// Simulate new assistant content arriving while the wheel guard is
-		// active. Keep the append small enough to remain within the
-		// near-bottom threshold so auto-follow should resume.
-		const existing = getStoreMessages(wheelGuardScrollStore);
-		wheelGuardScrollStore.replaceMessages(
-			existing.concat([buildMessage(31, "assistant", "Short update.")]),
-		);
-
-		await waitFor(() => {
-			expect(scrollContainer.scrollHeight).toBeGreaterThan(
-				scrollHeightBeforeAppend,
-			);
-		});
-
-		// During active wheel scrolling, the deferred pin should stay
-		// suppressed until the debounce expires.
-		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeAppend + 1,
-		);
-
-		// Wait for the wheel debounce to clear (150ms) plus a
-		// buffer, then verify the missed bottom pin is applied.
-		await new Promise<void>((resolve) => setTimeout(resolve, 200));
-
-		await waitFor(() => {
-			const dist =
-				scrollContainer.scrollHeight -
-				scrollContainer.scrollTop -
-				scrollContainer.clientHeight;
-			expect(dist).toBeLessThan(5);
-			expect(
-				canvas.queryByRole("button", { name: "Scroll to bottom" }),
-			).toBeNull();
-		});
-	},
-};
-
-const wheelDeferredStore = buildStoreWithMessages(buildLongConversation(30));
-
-/**
- * Regression: when content grows during a wheel burst (so
- * ResizeObserver pins are deferred), the transcript must recover
- * auto-follow after the wheel debounce expires instead of getting
- * stuck in a jumped-up position.
- */
-export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={wheelDeferredStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Wait for the initial bottom pin to settle.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-		await new Promise<void>((resolve) =>
-			requestAnimationFrame(() => resolve()),
-		);
-
-		// Start a wheel burst to activate the wheel guard.
-		scrollContainer.dispatchEvent(
-			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
-		);
-
-		// Append content while the wheel guard is active. This
-		// defers the ResizeObserver pin (pendingWheelPinRef = true)
-		// and creates the gap that previously triggered the bug.
-		const existing = getStoreMessages(wheelDeferredStore);
-		wheelDeferredStore.replaceMessages(
-			existing.concat([
-				buildMessage(31, "assistant", "A ".repeat(200)),
-				buildMessage(32, "assistant", "B ".repeat(200)),
-			]),
-		);
-
-		// Fire a second wheel tick. In the old code, this wheel
-		// event called handleUserInterrupt() which saw the gap
-		// and falsely disabled auto-follow.
-		scrollContainer.dispatchEvent(
-			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
-		);
-
-		// Wait for the 150ms wheel debounce to expire, plus the
-		// catch-up scrollTranscriptToBottom to settle.
-		await waitFor(
-			() => {
-				const dist =
-					scrollContainer.scrollHeight -
-					scrollContainer.scrollTop -
-					scrollContainer.clientHeight;
-				expect(dist).toBeLessThan(5);
-			},
-			{ timeout: 2000 },
-		);
-
-		// Scroll-to-bottom button should not be visible.
-		expect(
-			canvas.queryByRole("button", { name: "Scroll to bottom" }),
-		).toBeNull();
 	},
 };
