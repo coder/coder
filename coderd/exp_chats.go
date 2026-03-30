@@ -506,8 +506,15 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link any user-uploaded files referenced in the initial
-	// message to this newly created chat.
-	api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	// message to this newly created chat. The chat was just
+	// created, so existing count is zero.
+	if err := api.linkFilesToChat(ctx, chat.ID, 0, fileIDs); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many files associated with chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	// Hydrate file metadata so the response includes files.
 	var chatFiles []database.GetChatFileMetadataByIDsRow
@@ -1822,7 +1829,13 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 
 	// Link any user-uploaded files referenced in this message
 	// to the chat.
-	api.linkFilesToChat(ctx, chatID, fileIDs)
+	if err := api.linkFilesToChat(ctx, chatID, len(chat.FileIds), fileIDs); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many files associated with chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -1906,7 +1919,13 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	// Link any user-uploaded files referenced in the edited
 	// message to the chat.
-	api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	if err := api.linkFilesToChat(ctx, chat.ID, len(chat.FileIds), fileIDs); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many files associated with chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	message := convertChatMessage(editResult.Message)
 	httpapi.Write(ctx, rw, http.StatusOK, message)
 }
@@ -3876,23 +3895,23 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-// linkFilesToChat is a best-effort helper that appends file IDs to
-// a chat's file_ids array. Failures are logged but do not block
-// the request.
-func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) {
+// linkFilesToChat appends file IDs to a chat's file_ids array,
+// enforcing the MaxChatFileIDs cap. Returns an error if the cap
+// would be exceeded or if the database update fails.
+func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, existingFileCount int, fileIDs []uuid.UUID) error {
 	if len(fileIDs) == 0 {
-		return
+		return nil
+	}
+	if existingFileCount+len(fileIDs) > codersdk.MaxChatFileIDs {
+		return xerrors.Errorf("chat already has %d file(s) and cannot add %d more (limit: %d)", existingFileCount, len(fileIDs), codersdk.MaxChatFileIDs)
 	}
 	if err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
 		ChatID:  chatID,
 		FileIds: fileIDs,
 	}); err != nil {
-		api.Logger.Error(ctx, "failed to link files to chat",
-			slog.F("chat_id", chatID),
-			slog.F("file_ids", fileIDs),
-			slog.Error(err),
-		)
+		return xerrors.Errorf("append file IDs: %w", err)
 	}
+	return nil
 }
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {

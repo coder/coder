@@ -4076,6 +4076,15 @@ export interface MatchedProvisioners {
 	readonly most_recently_seen?: string;
 }
 
+// From codersdk/chats.go
+/**
+ * MaxChatFileIDs is the maximum number of file IDs that can be
+ * associated with a single chat. This limit prevents unbounded
+ * array growth in the chats table. It is easier to raise this
+ * limit than to lower it.
+ */
+export const MaxChatFileIDs = 20;
+
 // From codersdk/organizations.go
 export interface MinimalOrganization {
 	readonly id: string;

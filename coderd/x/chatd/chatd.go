@@ -4377,8 +4377,10 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
-				// Best-effort: link the file to the chat. Failures here should not block
-				// the tool response, but will result in an orphaned file row.
+				// Enforce the file cap before linking.
+				if len(chatSnapshot.FileIds)+1 > codersdk.MaxChatFileIDs {
+					return uuid.Nil, xerrors.Errorf("chat file limit reached (%d/%d)", len(chatSnapshot.FileIds), codersdk.MaxChatFileIDs)
+				}
 				if err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
 					ChatID:  chatSnapshot.ID,
 					FileIds: []uuid.UUID{row.ID},
