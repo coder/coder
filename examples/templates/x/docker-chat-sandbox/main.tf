@@ -228,7 +228,7 @@ resource "docker_container" "dev" {
 #   - Read-write /home/coder (shared project files)
 #   - Private /tmp (tmpfs scratch space)
 #   - Shared network namespace with outbound TCP restricted to the
-#     Coder control-plane endpoint used by the agent
+#     Coder control-plane endpoint used by the agent over IPv4 and IPv6
 #
 # Because the agent itself runs inside bwrap, there is no way for
 # a tool call to escape the sandbox by invoking /bin/bash or any

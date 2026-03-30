@@ -57,10 +57,10 @@ namespace.
 - **Shared /proc and /dev**: bind-mounted from the container so CLI
   tools and the agent work normally.
 - **Outbound TCP allowlist**: before entering bwrap, the wrapper
-  installs `iptables` OUTPUT rules that allow loopback,
+  installs `iptables` and `ip6tables` OUTPUT rules that allow loopback,
   `ESTABLISHED,RELATED`, and new TCP connections only to the
   control-plane host and port used by the agent. All other outbound TCP
-  is rejected.
+  is rejected over both IPv4 and IPv6.
 - **Near-zero capabilities**: bwrap drops all Linux capabilities
   except `CAP_DAC_OVERRIDE` before exec'ing the agent. This prevents
   mount escape (`mount --bind`), ptrace, raw network access, and all
@@ -73,7 +73,8 @@ namespace.
 1. Docker starts the container as root with `CAP_SYS_ADMIN`,
    `CAP_NET_ADMIN`, and `CAP_DAC_OVERRIDE`.
 2. The entrypoint runs `bwrap-agent`, which resolves the control-plane
-   host and installs the outbound TCP allowlist with `iptables`.
+   host and installs the outbound TCP allowlist with `iptables` and
+   `ip6tables`.
 3. bwrap creates the mount namespace using `CAP_SYS_ADMIN`.
 4. bwrap drops all capabilities except `DAC_OVERRIDE`.
 5. bwrap exec's the agent binary with only `DAC_OVERRIDE`.
@@ -97,10 +98,11 @@ sandbox runs as root.
   still follow Docker's normal container networking rules. DNS usually
   continues to work over UDP, but DNS-over-TCP is blocked unless it uses
   the control-plane endpoint.
-- **IPv4 resolution at startup**: the outbound allowlist resolves the
-  control-plane hostname once with `getent ahostsv4`. If that lookup
-  fails, or if the endpoint later moves to a different IP, the chat
-  container must restart to refresh the rules.
+- **IP resolution at startup**: the outbound allowlist resolves the
+  control-plane hostname once with `getent ahostsv4` and, when IPv6 is
+  enabled, `getent ahostsv6`. If those lookups fail, or if the endpoint
+  later moves to a different IP, the chat container must restart to
+  refresh the rules.
 - **seccomp=unconfined**: Docker's default seccomp profile blocks
   `pivot_root`, which bwrap needs. A custom seccomp profile that allows
   only `pivot_root` and `mount` would be more restrictive.
