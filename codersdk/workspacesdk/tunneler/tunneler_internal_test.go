@@ -50,7 +50,7 @@ func coverUpdate(t *testing.T, workspaceID uuid.UUID, noAutostart bool, noWaitFo
 		client: fClient,
 		config: Config{
 			WorkspaceID:      workspaceID,
-			App:              fakeApp{},
+			App:              &fakeApp{},
 			WorkspaceStarter: &fakeWorkspaceStarter{},
 			AgentName:        "test",
 			NoAutostart:      noAutostart,
@@ -94,7 +94,7 @@ func TestBuildUpdatesStoppedWorkspace(t *testing.T) {
 	uut := &Tunneler{
 		config: Config{
 			WorkspaceID:      workspaceID,
-			App:              fakeApp{},
+			App:              &fakeApp{},
 			WorkspaceStarter: &fWorkspaceStarter,
 			AgentName:        "test",
 			DebugLogger:      logger.Named("tunneler"),
@@ -145,7 +145,7 @@ func TestBuildUpdatesNewBuildWhileWaiting(t *testing.T) {
 	uut := &Tunneler{
 		config: Config{
 			WorkspaceID:      workspaceID,
-			App:              fakeApp{},
+			App:              &fakeApp{},
 			WorkspaceStarter: &fWorkspaceStarter,
 			AgentName:        "test",
 			DebugLogger:      logger.Named("tunneler"),
@@ -182,7 +182,7 @@ func TestBuildUpdatesBadJobs(t *testing.T) {
 			uut := &Tunneler{
 				config: Config{
 					WorkspaceID:      workspaceID,
-					App:              fakeApp{},
+					App:              &fakeApp{},
 					WorkspaceStarter: &fWorkspaceStarter,
 					AgentName:        "test",
 					DebugLogger:      logger.Named("tunneler"),
@@ -220,7 +220,7 @@ func TestBuildUpdatesNoAutostart(t *testing.T) {
 	uut := &Tunneler{
 		config: Config{
 			WorkspaceID:      workspaceID,
-			App:              fakeApp{},
+			App:              &fakeApp{},
 			WorkspaceStarter: &fWorkspaceStarter,
 			AgentName:        "test",
 			NoAutostart:      true,
@@ -332,6 +332,89 @@ func TestAgentUpdateNoWait(t *testing.T) {
 	require.True(t, event.tailnetUpdate.up)
 }
 
+func TestAppUpdate(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                                  string
+		up                                    bool
+		initState, expected                   state
+		expectCloseApp, expectShutdownTailnet bool
+	}{
+		{
+			name:      "mainline_up",
+			up:        true,
+			initState: tailnetUp,
+			expected:  applicationUp,
+		},
+		{
+			name:                  "mainline_down",
+			up:                    false,
+			initState:             applicationUp,
+			expected:              shutdownTailnet,
+			expectShutdownTailnet: true,
+		},
+		{
+			name:                  "failed_app_start",
+			up:                    false,
+			initState:             tailnetUp,
+			expected:              shutdownTailnet,
+			expectShutdownTailnet: true,
+		},
+		{
+			name:           "graceful_shutdown_while_starting",
+			up:             true,
+			initState:      shutdownApplication,
+			expected:       shutdownApplication,
+			expectCloseApp: true,
+		},
+		{
+			name:                  "graceful_shutdown_of_app",
+			up:                    false,
+			initState:             shutdownApplication,
+			expected:              shutdownTailnet,
+			expectShutdownTailnet: true,
+		},
+		// note that we don't expect initState: applicationUp with an up update, so only five valid cases
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			workspaceID := uuid.UUID{1}
+			logger := testutil.Logger(t)
+
+			ctrl := gomock.NewController(t)
+			mAgentConn := agentconnmock.NewMockAgentConn(ctrl)
+			fApp := &fakeApp{}
+
+			testCtx := testutil.Context(t, testutil.WaitShort)
+			ctx, cancel := context.WithCancel(testCtx)
+			uut := &Tunneler{
+				config: Config{
+					WorkspaceID:      workspaceID,
+					AgentName:        "test",
+					DebugLogger:      logger.Named("tunneler"),
+					NoWaitForScripts: true,
+					App:              fApp,
+				},
+				events:    make(chan tunnelerEvent),
+				ctx:       ctx,
+				cancel:    cancel,
+				state:     tc.initState,
+				agentConn: mAgentConn,
+			}
+			if tc.expectShutdownTailnet {
+				mAgentConn.EXPECT().Close().Return(nil).Times(1)
+			}
+
+			uut.handleAppUpdate(&networkedApplicationUpdate{up: tc.up})
+			require.Equal(t, tc.expected, uut.state)
+			cancel() // so that any goroutines can complete without an event loop
+			waitForGoroutines(testCtx, t, uut)
+			require.Equal(t, tc.expectCloseApp, fApp.closed)
+		})
+	}
+}
+
 func waitForGoroutines(ctx context.Context, t *testing.T, tunneler *Tunneler) {
 	done := make(chan struct{})
 	go func() {
@@ -350,13 +433,16 @@ func (f *fakeWorkspaceStarter) StartWorkspace() error {
 	return nil
 }
 
-type fakeApp struct{}
+type fakeApp struct {
+	closed bool
+}
 
-func (fakeApp) Close() error {
+func (f *fakeApp) Close() error {
+	f.closed = true
 	return nil
 }
 
-func (fakeApp) Start(workspacesdk.AgentConn) {}
+func (*fakeApp) Start(workspacesdk.AgentConn) {}
 
 type fakeClient struct {
 	conn   workspacesdk.AgentConn
