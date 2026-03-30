@@ -4955,7 +4955,9 @@ func (p *Server) persistInstructionFiles(
 			chatprompt.CurrentContentVersion,
 		))
 		_, _ = p.db.InsertChatMessages(ctx, msgParams)
-		p.updateLastWorkspaceContext(ctx, chat.ID, parts)
+		// Don't persist sentinel-only parts to
+		// last_workspace_context — they are internal
+		// bookkeeping, not real workspace context.
 		return "", discoveredSkills, nil
 	}
 
@@ -5017,7 +5019,7 @@ func (p *Server) persistInstructionFiles(
 func (p *Server) updateLastWorkspaceContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
 	raw, err := json.Marshal(parts)
 	if err != nil {
-		p.logger.Warn(ctx, "failed to marshal last_workspace_context",
+		p.logger.Warn(ctx, "failed to marshal workspace context",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
@@ -5027,7 +5029,7 @@ func (p *Server) updateLastWorkspaceContext(ctx context.Context, chatID uuid.UUI
 		ID:                   chatID,
 		LastWorkspaceContext: json.RawMessage(raw),
 	}); err != nil {
-		p.logger.Warn(ctx, "failed to update last_workspace_context",
+		p.logger.Warn(ctx, "failed to update workspace context",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)

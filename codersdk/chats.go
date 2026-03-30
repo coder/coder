@@ -71,7 +71,7 @@ type Chat struct {
 	// LastWorkspaceContext holds the most recently persisted
 	// workspace context parts (AGENTS.md files and skills). It
 	// is updated only when context changes — first workspace
-	// attach or agent rebuild.
+	// attach or agent change.
 	LastWorkspaceContext []ChatMessagePart `json:"last_workspace_context,omitempty"`
 }
 

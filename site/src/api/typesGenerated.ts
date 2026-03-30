@@ -1204,7 +1204,7 @@ export interface Chat {
 	 * LastWorkspaceContext holds the most recently persisted
 	 * workspace context parts (AGENTS.md files and skills). It
 	 * is updated only when context changes — first workspace
-	 * attach or agent rebuild.
+	 * attach or agent change.
 	 */
 	readonly last_workspace_context?: readonly ChatMessagePart[];
 }

@@ -1574,6 +1574,12 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	}
 	if c.LastWorkspaceContext.Valid {
 		var parts []codersdk.ChatMessagePart
+		// Unmarshal errors are intentionally suppressed here.
+		// The column is written by us with a known schema, so
+		// failures would indicate corruption or manual edits.
+		// db2sdk.Chat does not have a logger today, and logging
+		// on every list-chats call for a rare edge case is not
+		// worth the plumbing.
 		if err := json.Unmarshal(c.LastWorkspaceContext.RawMessage, &parts); err == nil {
 			chat.LastWorkspaceContext = parts
 		}

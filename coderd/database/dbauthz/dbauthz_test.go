@@ -1208,7 +1208,7 @@ func (s *MethodTestSuite) TestChats() {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatLastWorkspaceContextParams{
 			ID:                   chat.ID,
-			LastWorkspaceContext: json.RawMessage(`{}`),
+			LastWorkspaceContext: json.RawMessage(`[{"type":"text","text":"test"}]`),
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatLastWorkspaceContext(gomock.Any(), arg).Return(chat, nil).AnyTimes()
