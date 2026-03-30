@@ -410,8 +410,6 @@ jobs:
 
           multiarch_image="$(./scripts/image_tag.sh)"
           echo "multiarch_image=${multiarch_image}" >> "$GITHUB_OUTPUT"
-          multiarch_digest=$(docker buildx imagetools inspect --raw "${multiarch_image}" | sha256sum | awk '{print "sha256:"$1}')
-          echo "multiarch_digest=${multiarch_digest}" >> "$GITHUB_OUTPUT"
 
           # For debugging, print all docker image tags
           docker images
@@ -427,8 +425,7 @@ jobs:
               --target "${latest_target}" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
             echo "created_latest_tag=true" >> "$GITHUB_OUTPUT"
-            latest_digest=$(docker buildx imagetools inspect --raw "${latest_target}" | sha256sum | awk '{print "sha256:"$1}')
-            echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
+            echo "latest_target=${latest_target}" >> "$GITHUB_OUTPUT"
           else
             echo "created_latest_tag=false" >> "$GITHUB_OUTPUT"
           fi
@@ -470,14 +467,32 @@ jobs:
               "${latest_tag}"
           fi
 
+      - name: Resolve Docker image digests for attestation
+        id: docker_digests
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        env:
+          MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
+          LATEST_TARGET: ${{ steps.build_docker.outputs.latest_target }}
+        run: |
+          set -euxo pipefail
+          if [[ -n "${MULTIARCH_IMAGE}" ]]; then
+            multiarch_digest=$(docker buildx imagetools inspect --raw "${MULTIARCH_IMAGE}" | sha256sum | awk '{print "sha256:"$1}')
+            echo "multiarch_digest=${multiarch_digest}" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ -n "${LATEST_TARGET}" ]]; then
+            latest_digest=$(docker buildx imagetools inspect --raw "${LATEST_TARGET}" | sha256sum | awk '{print "sha256:"$1}')
+            echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: GitHub Attestation for Docker image
         id: attest_main
-        if: ${{ !inputs.dry_run && steps.build_docker.outputs.multiarch_digest != '' }}
+        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.multiarch_digest != '' }}
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ghcr.io/coder/coder
-          subject-digest: ${{ steps.build_docker.outputs.multiarch_digest }}
+          subject-digest: ${{ steps.docker_digests.outputs.multiarch_digest }}
           predicate-type: "https://slsa.dev/provenance/v1"
           predicate: |
             {
@@ -510,12 +525,12 @@ jobs:
 
       - name: GitHub Attestation for "latest" Docker image
         id: attest_latest
-        if: ${{ !inputs.dry_run && steps.build_docker.outputs.latest_digest != '' }}
+        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.latest_digest != '' }}
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ghcr.io/coder/coder
-          subject-digest: ${{ steps.build_docker.outputs.latest_digest }}
+          subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
           predicate-type: "https://slsa.dev/provenance/v1"
           predicate: |
             {

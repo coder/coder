@@ -1319,6 +1319,7 @@ jobs:
       - name: Resolve Docker image digests for attestation
         id: docker_digests
         if: github.ref == 'refs/heads/main'
+        continue-on-error: true
         env:
           IMAGE_BASE: ghcr.io/coder/coder-preview
           BUILD_TAG: ${{ steps.build-docker.outputs.tag }}
