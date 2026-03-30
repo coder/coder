@@ -10,6 +10,7 @@
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { transformSync } from "@babel/core";
 
 // Resolve the site/ directory (ESM equivalent of __dirname + "..").
@@ -205,9 +206,12 @@ function printReport(failures, totalCompiled, fileCount, hadErrors) {
 // Main
 // ---------------------------------------------------------------------------
 
-let hadCollectionErrors = false;
+// Only run the main block when executed directly, not when imported
+// by tests for the exported pure functions.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+	let hadCollectionErrors = false;
 
-const files = targetDirs.flatMap((d) => collectFiles(join(siteDir, d)));
+	const files = targetDirs.flatMap((d) => collectFiles(join(siteDir, d)));
 
 let totalCompiled = 0;
 const failures = [];
@@ -224,4 +228,5 @@ printReport(failures, totalCompiled, files.length, hadCollectionErrors);
 
 if (failures.length > 0 || hadCollectionErrors) {
 	process.exitCode = 1;
+}
 }
