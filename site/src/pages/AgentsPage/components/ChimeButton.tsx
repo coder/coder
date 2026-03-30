@@ -6,7 +6,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { getChimeEnabled, setChimeEnabled } from "./AgentDetail/useAgentChime";
+import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 export const ChimeButton: FC = () => {
 	const [enabled, setEnabled] = useState(getChimeEnabled);

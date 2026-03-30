@@ -1,6 +1,6 @@
-import { chromatic } from "testHelpers/chromatic";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chromatic } from "#/testHelpers/chromatic";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplateFiles } from "./TemplateFiles";
 
 const exampleFiles = {

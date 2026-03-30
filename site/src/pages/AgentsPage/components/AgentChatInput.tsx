@@ -1,10 +1,8 @@
 import {
-	AlertTriangleIcon,
 	ArrowUpIcon,
 	Check,
 	CheckIcon,
 	ChevronRightIcon,
-	ClipboardPasteIcon,
 	ImageIcon,
 	MicIcon,
 	MonitorIcon,
@@ -25,10 +23,6 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import {
 	ChatMessageInput,
@@ -52,43 +46,27 @@ import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { useSpeechRecognition } from "#/hooks/useSpeechRecognition";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isMobileViewport } from "#/utils/mobile";
-import {
-	fetchTextAttachmentContent,
-	formatTextAttachmentPreview,
-} from "../utils/fetchTextAttachment";
+import { useOverflowCount } from "../hooks/useOverflowCount";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { formatProviderLabel } from "../utils/modelOptions";
+import type { UploadState } from "./AttachmentPreview";
+import { AttachmentPreview } from "./AttachmentPreview";
+import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
+import type { AgentContextUsage } from "./ContextUsageIndicator";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
 export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
-
-export type UploadState = {
-	status: "uploading" | "uploaded" | "error";
-	fileId?: string;
-	error?: string;
-};
-
-export interface AgentContextUsage {
-	readonly usedTokens?: number;
-	readonly contextLimitTokens?: number;
-	readonly inputTokens?: number;
-	readonly outputTokens?: number;
-	readonly cacheReadTokens?: number;
-	readonly cacheCreationTokens?: number;
-	readonly reasoningTokens?: number;
-	// Percentage (0–100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
-}
+export {
+	ImageThumbnail,
+	type UploadState,
+} from "./AttachmentPreview";
+export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
@@ -136,6 +114,7 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
+	onEditLastUserMessage?: () => void;
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -154,305 +133,64 @@ interface AgentChatInputProps {
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
 }
-const hasFiniteTokenValue = (value: number | undefined): value is number =>
-	typeof value === "number" && Number.isFinite(value) && value >= 0;
+type ToolBadgeData =
+	| { kind: "workspace"; name: string }
+	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
 
-const formatTokenCount = (value: number | undefined): string =>
-	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
+const ToolBadge: FC<{
+	badge: ToolBadgeData;
+	onRemoveWorkspace?: () => void;
+	onRemoveMcp?: (serverId: string) => void;
+	className?: string;
+}> = ({ badge, onRemoveWorkspace, onRemoveMcp, className }) => {
+	const badgeCls = cn(
+		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+		className,
+	);
 
-const formatTokenCountCompact = (value: number | undefined): string => {
-	if (!hasFiniteTokenValue(value)) {
-		return "--";
+	if (badge.kind === "workspace") {
+		return (
+			<span className={badgeCls}>
+				<MonitorIcon className="size-3" />
+				{badge.name}
+				{onRemoveWorkspace && (
+					<button
+						type="button"
+						onClick={onRemoveWorkspace}
+						className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+						aria-label={`Remove workspace ${badge.name}`}
+					>
+						<XIcon className="!size-2.5" />
+					</button>
+				)}
+			</span>
+		);
 	}
-	if (value >= 1_000_000) {
-		const m = value / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1).replace(/\.0$/, "")}M`;
-	}
-	if (value >= 1_000) {
-		const k = value / 1_000;
-		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
-	}
-	return String(value);
-};
 
-const getIndicatorToneClassName = (percentUsed: number | null): string => {
-	if (percentUsed === null) {
-		return "text-content-secondary/60";
-	}
-	if (percentUsed >= 95) {
-		return "text-content-destructive";
-	}
-	if (percentUsed >= 85) {
-		return "text-content-warning";
-	}
-	return "text-content-secondary/60";
-};
-
-const RING_SIZE = 18;
-const RING_STROKE = 2.5;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
-	usage,
-}) => {
-	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
-		? usage.usedTokens
-		: undefined;
-	const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
-		? usage.contextLimitTokens
-		: undefined;
-	const percentUsed =
-		usedTokens !== undefined &&
-		contextLimitTokens !== undefined &&
-		contextLimitTokens > 0
-			? (usedTokens / contextLimitTokens) * 100
-			: null;
-	const hasPercent = percentUsed !== null;
-	const percentLabel =
-		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-	const clampedPercent = hasPercent
-		? Math.min(Math.max(percentUsed, 0), 100)
-		: 100;
-	const dashOffset =
-		RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
-	const toneClassName = getIndicatorToneClassName(percentUsed);
-	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
-		: "Context usage";
-
+	const isForceOn = badge.server.availability === "force_on";
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
+		<span className={badgeCls}>
+			{badge.server.icon_url ? (
+				<ExternalImage
+					src={badge.server.icon_url}
+					alt=""
+					className="size-3 rounded-sm"
+				/>
+			) : (
+				<ServerIcon className="size-3" />
+			)}
+			{badge.server.display_name}
+			{!isForceOn && onRemoveMcp && (
 				<button
 					type="button"
-					aria-label={ariaLabel}
-					className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+					onClick={() => onRemoveMcp(badge.server.id)}
+					className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+					aria-label={`Remove ${badge.server.display_name}`}
 				>
-					<svg
-						className={cn("size-icon-sm -rotate-90", toneClassName)}
-						viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-						aria-hidden
-					>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							className="stroke-content-secondary/25"
-						/>
-						<circle
-							cx={RING_SIZE / 2}
-							cy={RING_SIZE / 2}
-							r={RING_RADIUS}
-							fill="none"
-							strokeWidth={RING_STROKE}
-							strokeLinecap="round"
-							className="stroke-current transition-all duration-300 ease-out"
-							style={{
-								strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-								strokeDashoffset: dashOffset,
-							}}
-						/>
-					</svg>
+					<XIcon className="!size-2.5" />
 				</button>
-			</TooltipTrigger>
-			<TooltipContent side="top">
-				<div className="text-xs text-content-primary">
-					{hasPercent
-						? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-						: "Context usage unavailable"}
-					{hasPercent &&
-						usage?.compressionThreshold !== undefined &&
-						usage.compressionThreshold > 0 && (
-							<div className="mt-1 text-content-secondary">
-								Compacts at {usage.compressionThreshold}%
-							</div>
-						)}
-				</div>
-			</TooltipContent>
-		</Tooltip>
-	);
-};
-
-/** Renders an image thumbnail from a pre-created preview URL. */
-export const ImageThumbnail: FC<{
-	previewUrl: string;
-	name: string;
-	className?: string;
-}> = ({ previewUrl, name, className }) => (
-	<img
-		src={previewUrl}
-		alt={name}
-		className={cn(
-			"h-16 w-16 rounded-md border border-border-default object-cover",
-			className,
-		)}
-	/>
-);
-
-/** Renders a horizontal strip of attachment thumbnails above the input. */
-export const AttachmentPreview: FC<{
-	attachments: readonly File[];
-	onRemove: (attachment: number | File) => void;
-	uploadStates?: Map<File, UploadState>;
-	previewUrls?: Map<File, string>;
-	onPreview?: (url: string) => void;
-	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
-	onInlineText?: (file: File, content?: string) => void;
-}> = ({
-	attachments,
-	onRemove,
-	uploadStates,
-	previewUrls,
-	onPreview,
-	textContents,
-	onTextPreview,
-	onInlineText,
-}) => {
-	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => textAttachmentLoadControllerRef.current?.abort();
-	}, []);
-
-	if (attachments.length === 0) return null;
-
-	const loadTextAttachmentContent = async (
-		content: string | undefined,
-		fileId: string | undefined,
-	): Promise<string | undefined> => {
-		textAttachmentLoadControllerRef.current?.abort();
-		if (content !== undefined || !fileId) {
-			textAttachmentLoadControllerRef.current = null;
-			return content;
-		}
-		const controller = new AbortController();
-		textAttachmentLoadControllerRef.current = controller;
-		try {
-			const fetchedContent = await fetchTextAttachmentContent(
-				fileId,
-				controller.signal,
-			);
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			return fetchedContent;
-		} catch (err) {
-			if (textAttachmentLoadControllerRef.current === controller) {
-				textAttachmentLoadControllerRef.current = null;
-			}
-			if (err instanceof Error && err.name === "AbortError") {
-				return undefined;
-			}
-			console.error("Failed to load text attachment:", err);
-			return undefined;
-		}
-	};
-
-	return (
-		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
-			{attachments.map((file, index) => {
-				const uploadState = uploadStates?.get(file);
-				const previewUrl = previewUrls?.get(file) ?? "";
-				const textContent = textContents?.get(file);
-				const textFileId =
-					uploadState?.status === "uploaded" ? uploadState.fileId : undefined;
-				const hasTextAttachment =
-					file.type === "text/plain" &&
-					(textContent !== undefined || textFileId !== undefined);
-				return (
-					<div
-						// Key combines file metadata with index as a fallback for
-						// duplicate names. Acceptable for a small, append-only list.
-						key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-						className="group relative"
-					>
-						{file.type.startsWith("image/") && previewUrl ? (
-							<button
-								type="button"
-								className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
-								onClick={() => onPreview?.(previewUrl)}
-							>
-								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
-							</button>
-						) : hasTextAttachment ? (
-							<button
-								type="button"
-								aria-label="View text attachment"
-								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									if (nextContent !== undefined) {
-										onTextPreview?.(nextContent, file.name);
-									}
-								}}
-							>
-								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{formatTextAttachmentPreview(textContent ?? "")}
-								</span>
-							</button>
-						) : (
-							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
-								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
-							</div>
-						)}
-						{hasTextAttachment && (
-							<button
-								type="button"
-								onClick={async () => {
-									const nextContent = await loadTextAttachmentContent(
-										textContent,
-										textFileId,
-									);
-									onInlineText?.(file, nextContent);
-								}}
-								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-label="Paste inline"
-							>
-								<ClipboardPasteIcon className="h-3.5 w-3.5" />
-							</button>
-						)}
-						{uploadState?.status === "uploading" && (
-							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
-								<Spinner className="h-5 w-5 text-white" loading />
-							</div>
-						)}
-						{uploadState?.status === "error" && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<div
-										className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
-										role="img"
-										aria-label="Upload error"
-									>
-										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
-									</div>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									<p className="max-w-xs text-xs">
-										{uploadState.error ?? "Upload failed"}
-									</p>
-								</TooltipContent>
-							</Tooltip>
-						)}
-						<button
-							type="button"
-							onClick={() => onRemove(file)}
-							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-							aria-label={`Remove ${file.name}`}
-						>
-							<XIcon className="h-3.5 w-3.5" />
-						</button>
-					</div>
-				);
-			})}
-		</div>
+			)}
+		</span>
 	);
 };
 
@@ -485,6 +223,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
+	onEditLastUserMessage,
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -598,8 +337,29 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!(s.auth_type === "oauth2" && !s.auth_connected),
 	);
 
-	const fileInputRef = useRef<HTMLInputElement>(null);
+	const badgeContainerRef = useRef<HTMLDivElement>(null);
 
+	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
+
+	// Ordered list of active tool badge data so we can determine
+	// which ones ended up in the overflow popover.
+	const allBadges: ToolBadgeData[] = [];
+	if (selectedWorkspace && onWorkspaceChange) {
+		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
+	}
+	for (const s of activeMcpServers) {
+		allBadges.push({ kind: "mcp", server: s });
+	}
+
+	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
+	const visibleCount = Math.max(0, allBadges.length - overflowCount);
+	const overflowBadges = allBadges.slice(visibleCount);
+
+	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const handleRemoveMcp = (serverId: string) =>
+		handleMcpToggle(serverId, false);
+
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
 			onAttach(Array.from(e.target.files));
@@ -691,11 +451,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
 	);
+	const hasDraftContext =
+		hasContent || attachments.length > 0 || hasFileReferences;
+	const isComposerEffectivelyEmpty = !hasDraftContext;
+	const hasSendableContent =
+		hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
 		hasModelOptions &&
-		(hasContent || hasUploadedAttachments || hasFileReferences) &&
+		hasSendableContent &&
 		!isUploading;
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
@@ -753,7 +518,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		setPreRecordingValue("");
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
+	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
 			if (editingQueuedMessageID !== null) {
 				e.preventDefault();
@@ -766,6 +531,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				onInterrupt();
 			}
 		}
+	};
+	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+		if (
+			e.key !== "ArrowUp" ||
+			editingQueuedMessageID !== null ||
+			isEditingHistoryMessage ||
+			!onEditLastUserMessage ||
+			!isComposerEffectivelyEmpty
+		) {
+			return;
+		}
+		e.preventDefault();
+		onEditLastUserMessage();
 	};
 
 	const sendButtonLabel =
@@ -809,7 +587,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
-				onKeyDown={handleKeyDown}
+				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
@@ -871,6 +649,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					placeholder={placeholder}
 					initialValue={initialValue}
 					onChange={handleContentChange}
+					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
 					disabled={isDisabled || isLoading}
 					autoFocus
@@ -934,7 +713,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										}}
 										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 									>
-										<ImageIcon className="h-3.5 w-3.5 shrink-0" />
+										<ImageIcon className="size-3.5 shrink-0" />
 										Attach image
 									</button>
 								)}
@@ -949,7 +728,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												disabled={isDisabled || isWorkspaceLoading}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<MonitorIcon className="h-3.5 w-3.5 shrink-0" />
+												<MonitorIcon className="size-3.5 shrink-0" />
 												<span>Attach workspace</span>
 												<ChevronRightIcon
 													className={cn(
@@ -966,12 +745,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											className="w-64 p-0"
 										>
 											<Command loop>
-												<CommandInput placeholder="Search workspaces..." />
+												<CommandInput
+													placeholder="Search workspaces..."
+													className="text-xs"
+												/>
 												<CommandList>
-													<CommandEmpty>No workspaces found</CommandEmpty>
+													<CommandEmpty className="text-xs">
+														No workspaces found
+													</CommandEmpty>
 													<CommandGroup>
 														{workspaceOptions.map((workspace) => (
 															<CommandItem
+																className="text-xs font-normal"
 																key={workspace.id}
 																value={workspace.name}
 																onSelect={() => {
@@ -1006,18 +791,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											return (
 												<div
 													key={server.id}
-													className="flex items-center gap-2 px-2 py-1.5"
+													className="flex items-center gap-1.5 px-1 py-1.5"
 												>
 													{server.icon_url ? (
 														<ExternalImage
 															src={server.icon_url}
 															alt=""
-															className="size-4 shrink-0 rounded-sm"
+															className="size-3.5 shrink-0 rounded-sm"
 														/>
 													) : (
-														<ServerIcon className="size-4 shrink-0 text-content-secondary" />
+														<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
 													)}
-													<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
+													<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 														{server.display_name}
 													</span>
 													{needsAuth ? (
@@ -1035,6 +820,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														</Button>
 													) : (
 														<Switch
+															size="sm"
 															checked={isSelected}
 															onCheckedChange={(checked) =>
 																handleMcpToggle(server.id, checked)
@@ -1064,50 +850,69 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								dropdownAlign="center"
 							/>
 						)}
-						{selectedWorkspace && onWorkspaceChange && (
-							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
-								<MonitorIcon className="size-3" />
-								{selectedWorkspace.name}
-								<button
-									type="button"
-									onClick={() => onWorkspaceChange(null)}
-									className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-									aria-label={`Remove workspace ${selectedWorkspace.name}`}
+						{/* Badge row — all badges and the pill always
+						 * render so the DOM structure never changes.
+						 * Overflow badges use invisible + order-1 to
+						 * hide and reorder via CSS. The pill is invisible
+						 * when there's no overflow but still occupies
+						 * layout space, preventing measurement flicker. */}
+						<div
+							ref={badgeContainerRef}
+							className="flex min-w-0 items-center gap-1 overflow-hidden"
+						>
+							{allBadges.map((badge, i) => {
+								const isOverflow = overflowCount > 0 && i >= visibleCount;
+								return (
+									<ToolBadge
+										key={badge.kind === "workspace" ? "ws" : badge.server.id}
+										badge={badge}
+										onRemoveWorkspace={handleRemoveWorkspace}
+										onRemoveMcp={handleRemoveMcp}
+										className={isOverflow ? "invisible order-1" : undefined}
+									/>
+								);
+							})}
+							{/* Pill — always in the DOM so it permanently
+							 * reserves layout space. Invisible when nothing
+							 * overflows. CSS order keeps it before order-1
+							 * (overflow) badges. */}
+							<Popover
+								open={overflowPopoverOpen && overflowCount > 0}
+								onOpenChange={setOverflowPopoverOpen}
+							>
+								<PopoverTrigger asChild>
+									<button
+										type="button"
+										className={cn(
+											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+											overflowCount === 0 && "invisible",
+										)}
+										aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
+										aria-hidden={overflowCount === 0}
+									>
+										+{overflowCount}
+									</button>
+								</PopoverTrigger>
+								<PopoverContent
+									side="top"
+									align="start"
+									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
 								>
-									<XIcon className="!size-2.5" />
-								</button>
-							</span>
-						)}
-						{activeMcpServers.map((server) => {
-							const isForceOn = server.availability === "force_on";
-							return (
-								<span
-									key={server.id}
-									className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary"
-								>
-									{server.icon_url ? (
-										<ExternalImage
-											src={server.icon_url}
-											alt=""
-											className="size-3 rounded-sm"
+									{overflowBadges.map((badge) => (
+										<ToolBadge
+											key={
+												badge.kind === "workspace"
+													? "ws-overflow"
+													: badge.server.id
+											}
+											badge={badge}
+											onRemoveWorkspace={handleRemoveWorkspace}
+											onRemoveMcp={handleRemoveMcp}
 										/>
-									) : (
-										<ServerIcon className="size-3" />
-									)}
-									{server.display_name}
-									{!isForceOn && (
-										<button
-											type="button"
-											onClick={() => handleMcpToggle(server.id, false)}
-											className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-											aria-label={`Remove ${server.display_name}`}
-										>
-											<XIcon className="!size-2.5" />
-										</button>
-									)}
-								</span>
-							);
-						})}
+									))}
+								</PopoverContent>
+							</Popover>
+						</div>
 					</div>
 					<div className="flex items-center gap-2">
 						{speech.isSupported && !isStreaming && (

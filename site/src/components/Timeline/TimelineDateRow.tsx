@@ -1,7 +1,7 @@
 import { css, useTheme } from "@emotion/react";
 import type { FC } from "react";
-import { formatDate } from "utils/time";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import { formatDate } from "#/utils/time";
 import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {

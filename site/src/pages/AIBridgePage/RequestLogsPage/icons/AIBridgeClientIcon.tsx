@@ -1,7 +1,7 @@
 import { CircleQuestionMarkIcon } from "lucide-react";
-import { cn } from "utils/cn";
 import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { cn } from "#/utils/cn";
 
 export const AIBridgeClientIcon = ({
 	client,

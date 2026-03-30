@@ -1155,6 +1155,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
+			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
@@ -1233,6 +1234,7 @@ func New(options *Options) *API {
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)

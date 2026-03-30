@@ -1,16 +1,16 @@
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "#/api/api";
+import { TemplateLayout } from "#/pages/TemplatePage/TemplateLayout";
 import {
 	MockTemplate,
 	MockTemplateVersionParameter1 as parameter1,
 	MockTemplateVersionParameter2 as parameter2,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
-import { API } from "#/api/api";
+} from "#/testHelpers/renderHelpers";
 import TemplateEmbedPage from "./TemplateEmbedPage";
 
 test("Users can fill the parameters and copy the open in coder url", async () => {

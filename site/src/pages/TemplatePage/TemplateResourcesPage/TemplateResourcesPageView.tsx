@@ -1,8 +1,8 @@
-import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import type { FC } from "react";
 import { Navigate, useLocation } from "react-router";
 import type { Template, WorkspaceResource } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 
 interface TemplateResourcesPageViewProps {
 	resources?: WorkspaceResource[];

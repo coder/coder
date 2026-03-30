@@ -1401,7 +1401,10 @@ CREATE TABLE chats (
     mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     labels jsonb DEFAULT '{}'::jsonb NOT NULL,
     build_id uuid,
-    agent_id uuid
+    agent_id uuid,
+    pin_order integer DEFAULT 0 NOT NULL,
+    last_read_message_id bigint,
+    last_injected_context jsonb
 );
 
 CREATE TABLE connection_logs (
@@ -1705,6 +1708,7 @@ CREATE TABLE mcp_server_configs (
     updated_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_intent boolean DEFAULT false NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))

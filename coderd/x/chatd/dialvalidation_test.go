@@ -108,6 +108,55 @@ func TestDialWithLazyValidation_SlowDialSameAgent(t *testing.T) {
 	require.EqualValues(t, 1, releaseCalls.Load())
 }
 
+func TestDialWithLazyValidation_SlowDialNoCurrentAgent(t *testing.T) {
+	t.Parallel()
+
+	staleAgentID := uuid.New()
+	workspaceID := uuid.New()
+	dialStarted := make(chan struct{})
+	resultCh := make(chan error, 1)
+
+	var dialCalls atomic.Int32
+	var validateCalls atomic.Int32
+
+	go func() {
+		_, err := dialWithLazyValidation(
+			context.Background(),
+			staleAgentID,
+			workspaceID,
+			func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				if id != staleAgentID {
+					return nil, nil, xerrors.Errorf("unexpected agent ID %q", id)
+				}
+				dialCalls.Add(1)
+				close(dialStarted)
+				<-ctx.Done()
+				return nil, nil, ctx.Err()
+			},
+			func(_ context.Context, id uuid.UUID) (uuid.UUID, error) {
+				if id != workspaceID {
+					return uuid.Nil, xerrors.Errorf("unexpected workspace ID %q", id)
+				}
+				<-dialStarted
+				validateCalls.Add(1)
+				return uuid.Nil, errChatHasNoWorkspaceAgent
+			},
+			0,
+		)
+		resultCh <- err
+	}()
+
+	select {
+	case err := <-resultCh:
+		require.ErrorIs(t, err, errChatHasNoWorkspaceAgent)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("dialWithLazyValidation blocked after validation reported no current agent")
+	}
+
+	require.EqualValues(t, 1, dialCalls.Load())
+	require.EqualValues(t, 1, validateCalls.Load())
+}
+
 func TestDialWithLazyValidation_SlowDialStaleAgent(t *testing.T) {
 	t.Parallel()
 

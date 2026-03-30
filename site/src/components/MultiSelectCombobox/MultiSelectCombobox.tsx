@@ -3,7 +3,6 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { useDebouncedValue } from "hooks/debounce";
 import { Info, X } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
@@ -17,7 +16,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -32,6 +30,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDebouncedValue } from "#/hooks/debounce";
+import { cn } from "#/utils/cn";
 
 export interface Option {
 	value: string;

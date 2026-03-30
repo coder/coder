@@ -1,3 +1,6 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "#/api/api";
 import {
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
@@ -7,14 +10,11 @@ import {
 	MockWorkspaceBuildParameter1,
 	MockWorkspaceBuildParameter2,
 	MockWorkspaceBuildParameter4,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithWorkspaceSettingsLayout,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "#/api/api";
+} from "#/testHelpers/renderHelpers";
 import WorkspaceParametersPage from "./WorkspaceParametersPage";
 
 test("Submit the workspace settings page successfully", async () => {

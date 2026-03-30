@@ -1,15 +1,13 @@
 import { type FC, useEffect, useRef, useState } from "react";
-import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
-import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelSelectorPlaceholder,
@@ -20,6 +18,7 @@ import {
 	isUsageLimitData,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
+import type { ModelSelectorOption } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -103,6 +102,10 @@ interface AgentCreateFormProps {
 	isModelConfigsLoading: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspaceCount: number | undefined;
+	workspaceOptions: readonly TypesGen.Workspace[];
+	workspacesError: unknown;
+	isWorkspacesLoading: boolean;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -116,6 +119,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelConfigsLoading,
 	mcpServers,
 	onMCPAuthComplete,
+	workspaceCount: _workspaceCount,
+	workspaceOptions,
+	workspacesError,
+	isWorkspacesLoading,
 }) => {
 	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
@@ -150,13 +157,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -301,9 +306,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						<ErrorAlert error={createError} />
 					)
 				) : null}
-				{workspacesQuery.isError && (
-					<ErrorAlert error={workspacesQuery.error} />
-				)}
+				{workspacesError != null && <ErrorAlert error={workspacesError} />}
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
@@ -333,12 +336,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					workspaceOptions={workspaceOptions}
 					selectedWorkspaceId={selectedWorkspaceId}
 					onWorkspaceChange={handleWorkspaceChange}
-					isWorkspaceLoading={workspacesQuery.isLoading}
+					isWorkspaceLoading={isWorkspacesLoading}
 				/>
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
 					Coder Agents is available via{" "}
 					<a
-						href="https://coder.com/docs/ai-coder/agents/early-access"
+						href={docs("/ai-coder/agents/early-access")}
 						target="_blank"
 						rel="noreferrer"
 						className="text-content-secondary/50 underline hover:text-content-secondary"

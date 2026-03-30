@@ -1,8 +1,8 @@
 import dayjs from "dayjs";
-import type { DateRangeValue } from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
 import type { FC } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

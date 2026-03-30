@@ -1,14 +1,14 @@
-import { MockUserOwner } from "testHelpers/entities";
-import {
-	render,
-	renderWithRouter,
-	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router";
+import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	render,
+	renderWithRouter,
+	waitForLoaderToBeRemoved,
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { Language } from "./Language";
 import LoginPage from "./LoginPage";
 

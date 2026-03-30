@@ -4,7 +4,7 @@
  */
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { useCallback, useRef } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {

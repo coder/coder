@@ -1,13 +1,14 @@
-import { Badge } from "components/Badge/Badge";
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
-import type { FC } from "react";
-import { prettyFormatJSON, roundTokenDisplay } from "./utils";
+} from "#/components/Tooltip/Tooltip";
+import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
+import { roundTokenDisplay } from "./utils";
 
 interface TokenBadgesProps {
 	size?: "xs" | "sm" | "md";
@@ -56,7 +57,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center justify-between gap-4">
 								<div className="text-xs text-content-secondary">Input</div>
 								<div className="text-xs text-content-secondary">
-									{roundTokenDisplay(inputTokens)}
+									{inputTokens}
 								</div>
 							</div>
 						</div>
@@ -71,7 +72,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center justify-between gap-4">
 								<div className="text-xs text-content-secondary">Output</div>
 								<div className="text-xs text-content-secondary">
-									{roundTokenDisplay(outputTokens)}
+									{outputTokens}
 								</div>
 							</div>
 						</div>
@@ -82,7 +83,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 								Token usage metadata
 							</div>
 							<pre className="mt-2 p-4 bg-surface-secondary rounded text-xs overflow-x-auto">
-								{prettyFormatJSON(JSON.stringify(tokenUsageMetadata))}
+								<JsonPrettyPrinter input={JSON.stringify(tokenUsageMetadata)} />
 							</pre>
 						</>
 					)}

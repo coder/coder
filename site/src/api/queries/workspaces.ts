@@ -1,9 +1,4 @@
 import type { Dayjs } from "dayjs";
-import {
-	type WorkspacePermissions,
-	workspaceChecks,
-} from "modules/workspaces/permissions";
-import type { ConnectionStatus } from "pages/TerminalPage/types";
 import type {
 	MutationOptions,
 	QueryClient,
@@ -29,6 +24,11 @@ import type {
 	WorkspacesRequest,
 	WorkspacesResponse,
 } from "#/api/typesGenerated";
+import {
+	type WorkspacePermissions,
+	workspaceChecks,
+} from "#/modules/workspaces/permissions";
+import type { ConnectionStatus } from "#/pages/TerminalPage/types";
 import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";

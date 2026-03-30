@@ -1,12 +1,13 @@
-import { Link } from "components/Link/Link";
-import { Margins } from "components/Margins/Margins";
+import type { FC, PropsWithChildren } from "react";
+import { Outlet } from "react-router";
+import { Link } from "#/components/Link/Link";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import type { FC, PropsWithChildren } from "react";
-import { Outlet } from "react-router";
+} from "#/components/PageHeader/PageHeader";
+import { docs } from "#/utils/docs";
 
 const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
 	return (
@@ -20,7 +21,7 @@ const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
 				<PageHeaderSubtitle>
 					Centralized auditing for LLM usage across your organization.{" "}
 					<Link
-						href="https://coder.com/docs/ai-coder/ai-governance"
+						href={docs("/ai-coder/ai-governance")}
 						className="ml-auto"
 						target="_blank"
 					>

@@ -12,13 +12,14 @@ import {
 	RowsIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
-import { cn } from "utils/cn";
+import { toast } from "sonner";
 import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
@@ -44,8 +45,8 @@ interface GitPanelProps {
 	};
 	/** Repository data from git watcher. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	/** Callback to send a refresh to the git watcher. */
-	onRefresh: () => void;
+	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
+	onRefresh: () => boolean;
 	/** Called when the user clicks the Commit button in any repo tab. */
 	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
@@ -142,7 +143,14 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
 	const handleRefresh = () => {
-		onRefresh();
+		const sent = onRefresh();
+		if (!sent) {
+			toast.error("Unable to refresh git status.", {
+				id: "git-refresh-disconnected",
+				description: "Connection lost. Reconnecting\u2026",
+			});
+			return;
+		}
 		setSpinning(true);
 		clearTimeout(spinTimerRef.current);
 		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);

@@ -57,16 +57,44 @@ func TestBatchUpdateMetadata(t *testing.T) {
 						CollectedAt: timestamppb.New(now.Add(-3 * time.Second)),
 						Age:         3,
 						Value:       "",
-						Error:       "uncool value",
+						Error:       "\t uncool error  ",
 					},
 				},
 			},
 		}
 		batchSize := len(req.Metadata)
-		// This test sends 2 metadata entries. With batch size 2, we expect
-		// exactly 1 capacity flush.
+		// This test sends 2 metadata entries (one clean, one with
+		// whitespace padding). With batch size 2 we expect exactly
+		// 1 capacity flush. The matcher verifies that stored values
+		// are trimmed while clean values pass through unchanged.
+		expectedValues := map[string]string{
+			"awesome key": "awesome value",
+			"uncool key":  "",
+		}
+		expectedErrors := map[string]string{
+			"awesome key": "",
+			"uncool key":  "uncool error",
+		}
 		store.EXPECT().
-			BatchUpdateWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).
+			BatchUpdateWorkspaceAgentMetadata(
+				gomock.Any(),
+				gomock.Cond(func(arg database.BatchUpdateWorkspaceAgentMetadataParams) bool {
+					if len(arg.Key) != len(expectedValues) {
+						return false
+					}
+					for i, key := range arg.Key {
+						expVal, ok := expectedValues[key]
+						if !ok || arg.Value[i] != expVal {
+							return false
+						}
+						expErr, ok := expectedErrors[key]
+						if !ok || arg.Error[i] != expErr {
+							return false
+						}
+					}
+					return true
+				}),
+			).
 			Return(nil).
 			Times(1)
 

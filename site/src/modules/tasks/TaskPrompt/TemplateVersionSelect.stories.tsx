@@ -1,9 +1,9 @@
-import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { spyOn, userEvent, within } from "storybook/test";
-import { daysAgo } from "utils/time";
 import { API } from "#/api/api";
+import { MockTemplate, MockTemplateVersion } from "#/testHelpers/entities";
+import { daysAgo } from "#/utils/time";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
 const meta: Meta<typeof TemplateVersionSelect> = {

@@ -61,8 +61,18 @@ type Chat struct {
 	CreatedAt         time.Time         `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time         `json:"updated_at" format:"date-time"`
 	Archived          bool              `json:"archived"`
+	PinOrder          int32             `json:"pin_order"`
 	MCPServerIDs      []uuid.UUID       `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string `json:"labels"`
+	// HasUnread is true when assistant messages exist beyond
+	// the owner's read cursor, which updates on stream
+	// connect and disconnect.
+	HasUnread bool `json:"has_unread"`
+	// LastInjectedContext holds the most recently persisted
+	// injected context parts (AGENTS.md files and skills). It
+	// is updated only when context changes — first workspace
+	// attach or agent change.
+	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -111,6 +121,7 @@ const (
 	ChatMessagePartTypeFile          ChatMessagePartType = "file"
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
+	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -124,6 +135,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeFile,
 		ChatMessagePartTypeFileReference,
 		ChatMessagePartTypeContextFile,
+		ChatMessagePartTypeSkill,
 	}
 }
 
@@ -206,6 +218,16 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
+	// SkillName is the kebab-case name of a discovered skill
+	// from the workspace's .agents/skills/ directory.
+	SkillName string `json:"skill_name" variants:"skill"`
+	// SkillDescription is the short description from the skill's
+	// SKILL.md frontmatter.
+	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
+	// SkillDir is the absolute path to the skill directory inside
+	// the workspace filesystem. Internal only: used by
+	// read_skill/read_skill_file tools to locate skill files.
+	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -222,6 +244,7 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileContent = ""
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
+	p.SkillDir = ""
 }
 
 // ChatMessageText builds a text chat message part.
@@ -323,8 +346,18 @@ type CreateChatRequest struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title    *string            `json:"title,omitempty"`
-	Archived *bool              `json:"archived,omitempty"`
+	Title    *string `json:"title,omitempty"`
+	Archived *bool   `json:"archived,omitempty"`
+	// PinOrder controls the chat's pinned state and position.
+	// - nil: no change to pin state.
+	// - 0: unpin the chat.
+	// - >0 (chat is unpinned): pin the chat, appending it to
+	//   the end of the pinned list. The specific value is
+	//   ignored; the server assigns the next available position.
+	// - >0 (chat is already pinned): move the chat to the
+	//   requested position, shifting neighbors as needed. The
+	//   value is clamped to [1, pinned_count].
+	PinOrder *int32             `json:"pin_order,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
 }
 
@@ -388,10 +421,19 @@ type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 }
 
-// ChatSystemPrompt is the request and response body for the chat
-// system prompt configuration endpoint.
-type ChatSystemPrompt struct {
-	SystemPrompt string `json:"system_prompt"`
+// ChatSystemPromptResponse is the response body for the chat system prompt
+// configuration endpoint.
+type ChatSystemPromptResponse struct {
+	SystemPrompt               string `json:"system_prompt"`
+	IncludeDefaultSystemPrompt bool   `json:"include_default_system_prompt"`
+	DefaultSystemPrompt        string `json:"default_system_prompt"`
+}
+
+// UpdateChatSystemPromptRequest is the request body for updating the chat
+// system prompt configuration.
+type UpdateChatSystemPromptRequest struct {
+	SystemPrompt               string `json:"system_prompt"`
+	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
 }
 
 // UserChatCustomPrompt is the request and response body for the
@@ -1407,21 +1449,21 @@ func (c *ExperimentalClient) GetChatCostUsers(ctx context.Context, opts ChatCost
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
-func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, error) {
+func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
 	if err != nil {
-		return ChatSystemPrompt{}, err
+		return ChatSystemPromptResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatSystemPrompt{}, ReadBodyAsError(res)
+		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
 	}
-	var resp ChatSystemPrompt
+	var resp ChatSystemPromptResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
-func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPrompt) error {
+func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
 	if err != nil {
 		return err
@@ -1850,6 +1892,21 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+// RegenerateChatTitle requests the server to regenerate the chat's
+// title using richer conversation context.
+func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, readBodyAsChatUsageLimitError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
 // GetChatGitChanges returns git changes for a chat.
 func (c *ExperimentalClient) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/git-changes", chatID), nil)
@@ -2026,6 +2083,26 @@ func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (Cha
 	}
 	var resp ChatUsageLimitStatus
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatsByWorkspace returns a mapping of workspace ID to the latest
+// non-archived chat ID for each requested workspace. Workspaces with
+// no chats are omitted from the response.
+func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	ids := make([]string, 0, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		ids = append(ids, id.String())
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/by-workspace?workspace_ids=%s", strings.Join(ids, ",")), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var result map[uuid.UUID]uuid.UUID
+	return result, json.NewDecoder(res.Body).Decode(&result)
 }
 
 func formatChatStreamResponseError(response Response) string {

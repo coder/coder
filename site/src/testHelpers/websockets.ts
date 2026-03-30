@@ -1,4 +1,4 @@
-import type { WebSocketEventType } from "utils/OneWayWebSocket";
+import type { WebSocketEventType } from "#/utils/OneWayWebSocket";
 
 type SocketSendData = Parameters<WebSocket["send"]>[0];
 

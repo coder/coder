@@ -337,6 +337,52 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.AIBridgeAgenticAction
+
+```json
+{
+  "model": "string",
+  "thinking": [
+    {
+      "text": "string"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "output_tokens": 0
+  },
+  "tool_calls": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "injected": true,
+      "input": "string",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "provider_response_id": "string",
+      "server_url": "string",
+      "tool": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                   | Required | Restrictions | Description |
+|---------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `model`       | string                                                                                 | false    |              |             |
+| `thinking`    | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |             |
+| `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+| `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
+
 ## codersdk.AIBridgeAnthropicConfig
 
 ```json
@@ -643,6 +689,20 @@
 | `count`    | integer                                                       | false    |              |             |
 | `sessions` | array of [codersdk.AIBridgeSession](#codersdkaibridgesession) | false    |              |             |
 
+## codersdk.AIBridgeModelThought
+
+```json
+{
+  "text": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `text` | string | false    |              |             |
+
 ## codersdk.AIBridgeOpenAIConfig
 
 ```json
@@ -745,6 +805,135 @@
 | `threads`             | integer                                                                                | false    |              |             |
 | `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary) | false    |              |             |
 
+## codersdk.AIBridgeSessionThreadsResponse
+
+```json
+{
+  "client": "string",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "models": [
+    "string"
+  ],
+  "page_ended_at": "2019-08-24T14:15:22Z",
+  "page_started_at": "2019-08-24T14:15:22Z",
+  "providers": [
+    "string"
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "threads": [
+    {
+      "agentic_actions": [
+        {
+          "model": "string",
+          "thinking": [
+            {
+              "text": "string"
+            }
+          ],
+          "token_usage": {
+            "input_tokens": 0,
+            "metadata": {
+              "property1": null,
+              "property2": null
+            },
+            "output_tokens": 0
+          },
+          "tool_calls": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "injected": true,
+              "input": "string",
+              "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+              "metadata": {
+                "property1": null,
+                "property2": null
+              },
+              "provider_response_id": "string",
+              "server_url": "string",
+              "tool": "string"
+            }
+          ]
+        }
+      ],
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "model": "string",
+      "prompt": "string",
+      "provider": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "token_usage": {
+        "input_tokens": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "output_tokens": 0
+      }
+    }
+  ],
+  "token_usage_summary": {
+    "input_tokens": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "output_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                   | Required | Restrictions | Description |
+|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client`              | string                                                                                 | false    |              |             |
+| `ended_at`            | string                                                                                 | false    |              |             |
+| `id`                  | string                                                                                 | false    |              |             |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `metadata`            | object                                                                                 | false    |              |             |
+| » `[any property]`    | any                                                                                    | false    |              |             |
+| `models`              | array of string                                                                        | false    |              |             |
+| `page_ended_at`       | string                                                                                 | false    |              |             |
+| `page_started_at`     | string                                                                                 | false    |              |             |
+| `providers`           | array of string                                                                        | false    |              |             |
+| `started_at`          | string                                                                                 | false    |              |             |
+| `threads`             | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                            | false    |              |             |
+| `token_usage_summary` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+
+## codersdk.AIBridgeSessionThreadsTokenUsage
+
+```json
+{
+  "input_tokens": 0,
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "output_tokens": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `input_tokens`     | integer | false    |              |             |
+| `metadata`         | object  | false    |              |             |
+| » `[any property]` | any     | false    |              |             |
+| `output_tokens`    | integer | false    |              |             |
+
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
 ```json
@@ -760,6 +949,74 @@
 |-----------------|---------|----------|--------------|-------------|
 | `input_tokens`  | integer | false    |              |             |
 | `output_tokens` | integer | false    |              |             |
+
+## codersdk.AIBridgeThread
+
+```json
+{
+  "agentic_actions": [
+    {
+      "model": "string",
+      "thinking": [
+        {
+          "text": "string"
+        }
+      ],
+      "token_usage": {
+        "input_tokens": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "output_tokens": 0
+      },
+      "tool_calls": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "injected": true,
+          "input": "string",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "provider_response_id": "string",
+          "server_url": "string",
+          "tool": "string"
+        }
+      ]
+    }
+  ],
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model": "string",
+  "prompt": "string",
+  "provider": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "token_usage": {
+    "input_tokens": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "output_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                                                   | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
+| `ended_at`        | string                                                                                 | false    |              |             |
+| `id`              | string                                                                                 | false    |              |             |
+| `model`           | string                                                                                 | false    |              |             |
+| `prompt`          | string                                                                                 | false    |              |             |
+| `provider`        | string                                                                                 | false    |              |             |
+| `started_at`      | string                                                                                 | false    |              |             |
+| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -790,6 +1047,40 @@
 | » `[any property]`     | any     | false    |              |             |
 | `output_tokens`        | integer | false    |              |             |
 | `provider_response_id` | string  | false    |              |             |
+
+## codersdk.AIBridgeToolCall
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "injected": true,
+  "input": "string",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "provider_response_id": "string",
+  "server_url": "string",
+  "tool": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `injected`             | boolean | false    |              |             |
+| `input`                | string  | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+| `server_url`           | string  | false    |              |             |
+| `tool`                 | string  | false    |              |             |
 
 ## codersdk.AIBridgeToolUsage
 
@@ -1296,6 +1587,7 @@
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
+    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1387,6 +1679,7 @@
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
+        "has_ai_seat": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1737,6 +2030,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1813,6 +2107,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "avatar_url": "http://example.com",
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
+          "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1882,6 +2177,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
+    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
@@ -4524,6 +4820,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
@@ -6127,6 +6424,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "has_ai_seat": true,
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -6150,24 +6448,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                 | Type                                            | Required | Restrictions | Description |
-|----------------------|-------------------------------------------------|----------|--------------|-------------|
-| `avatar_url`         | string                                          | false    |              |             |
-| `created_at`         | string                                          | false    |              |             |
-| `email`              | string                                          | false    |              |             |
-| `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `is_service_account` | boolean                                         | false    |              |             |
-| `last_seen_at`       | string                                          | false    |              |             |
-| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
-| `name`               | string                                          | false    |              |             |
-| `organization_id`    | string                                          | false    |              |             |
-| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `updated_at`         | string                                          | false    |              |             |
-| `user_created_at`    | string                                          | false    |              |             |
-| `user_id`            | string                                          | false    |              |             |
-| `user_updated_at`    | string                                          | false    |              |             |
-| `username`           | string                                          | false    |              |             |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | false    |              |                                                                                                  |
+| `email`              | string                                          | false    |              |                                                                                                  |
+| `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_id`    | string                                          | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `user_created_at`    | string                                          | false    |              |                                                                                                  |
+| `user_id`            | string                                          | false    |              |                                                                                                  |
+| `user_updated_at`    | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | false    |              |                                                                                                  |
 
 #### Enumerated Values
 
@@ -6431,6 +6730,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "has_ai_seat": true,
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -9070,6 +9370,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
@@ -9519,6 +9820,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -9544,23 +9846,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                 | Type                                            | Required | Restrictions | Description                                                                                |
-|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `avatar_url`         | string                                          | false    |              |                                                                                            |
-| `created_at`         | string                                          | true     |              |                                                                                            |
-| `email`              | string                                          | true     |              |                                                                                            |
-| `id`                 | string                                          | true     |              |                                                                                            |
-| `is_service_account` | boolean                                         | false    |              |                                                                                            |
-| `last_seen_at`       | string                                          | false    |              |                                                                                            |
-| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
-| `name`               | string                                          | false    |              |                                                                                            |
-| `organization_ids`   | array of string                                 | false    |              |                                                                                            |
-| `role`               | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |                                                                                            |
-| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
-| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
-| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `updated_at`         | string                                          | false    |              |                                                                                            |
-| `username`           | string                                          | true     |              |                                                                                            |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | true     |              |                                                                                                  |
+| `email`              | string                                          | true     |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_ids`   | array of string                                 | false    |              |                                                                                                  |
+| `role`               | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | true     |              |                                                                                                  |
 
 #### Enumerated Values
 
@@ -10415,6 +10718,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -10439,22 +10743,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type                                            | Required | Restrictions | Description                                                                                |
-|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `avatar_url`         | string                                          | false    |              |                                                                                            |
-| `created_at`         | string                                          | true     |              |                                                                                            |
-| `email`              | string                                          | true     |              |                                                                                            |
-| `id`                 | string                                          | true     |              |                                                                                            |
-| `is_service_account` | boolean                                         | false    |              |                                                                                            |
-| `last_seen_at`       | string                                          | false    |              |                                                                                            |
-| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
-| `name`               | string                                          | false    |              |                                                                                            |
-| `organization_ids`   | array of string                                 | false    |              |                                                                                            |
-| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
-| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
-| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `updated_at`         | string                                          | false    |              |                                                                                            |
-| `username`           | string                                          | true     |              |                                                                                            |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | true     |              |                                                                                                  |
+| `email`              | string                                          | true     |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_ids`   | array of string                                 | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | true     |              |                                                                                                  |
 
 #### Enumerated Values
 

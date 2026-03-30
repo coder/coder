@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -200,6 +201,37 @@ func instructionFromContextFiles(
 		}
 	}
 	return formatSystemInstructions(os, dir, sections)
+}
+
+// skillsFromParts reconstructs skill metadata from persisted
+// skill parts. This is analogous to instructionFromContextFiles
+// so the skill index can be re-injected after compaction without
+// re-dialing the workspace agent.
+func skillsFromParts(
+	messages []database.ChatMessage,
+) []chattool.SkillMeta {
+	var skills []chattool.SkillMeta
+	for _, msg := range messages {
+		if !msg.Content.Valid ||
+			!bytes.Contains(msg.Content.RawMessage, []byte(`"skill"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeSkill {
+				continue
+			}
+			skills = append(skills, chattool.SkillMeta{
+				Name:        part.SkillName,
+				Description: part.SkillDescription,
+				Dir:         part.SkillDir,
+			})
+		}
+	}
+	return skills
 }
 
 // pwdInstructionFilePath returns the absolute path to the AGENTS.md

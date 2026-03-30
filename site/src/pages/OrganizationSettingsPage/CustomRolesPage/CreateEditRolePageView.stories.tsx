@@ -1,11 +1,11 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	assignableRole,
 	MockRole2WithOrgPermissions,
 	MockRoleWithOrgPermissions,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+} from "#/testHelpers/entities";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
 const meta: Meta<typeof CreateEditRolePageView> = {

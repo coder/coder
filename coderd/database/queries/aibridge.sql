@@ -592,6 +592,70 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
 
+-- name: ListAIBridgeSessionThreads :many
+-- Returns all interceptions belonging to paginated threads within a session.
+-- Threads are paginated by (started_at, thread_id) cursor.
+WITH paginated_threads AS (
+	SELECT
+		-- Find thread root interceptions (thread_root_id IS NULL), apply cursor
+		-- pagination, and return the page.
+		aibridge_interceptions.id AS thread_id,
+		aibridge_interceptions.started_at
+	FROM
+		aibridge_interceptions
+	WHERE
+		aibridge_interceptions.session_id = @session_id::text
+		AND aibridge_interceptions.ended_at IS NOT NULL
+		AND aibridge_interceptions.thread_root_id IS NULL
+		-- Pagination cursor.
+		AND (@after_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(aibridge_interceptions.started_at, aibridge_interceptions.id) > (
+				(SELECT started_at FROM aibridge_interceptions ai2 WHERE ai2.id = @after_id),
+				@after_id::uuid
+			)
+		)
+		AND (@before_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR
+			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
+				(SELECT started_at FROM aibridge_interceptions ai2 WHERE ai2.id = @before_id),
+				@before_id::uuid
+			)
+		)
+		-- @authorize_filter
+	ORDER BY
+		aibridge_interceptions.started_at ASC,
+		aibridge_interceptions.id ASC
+	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
+)
+SELECT
+	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
+	sqlc.embed(aibridge_interceptions)
+FROM
+	aibridge_interceptions
+JOIN
+	paginated_threads pt
+		ON pt.thread_id = COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id)
+WHERE
+	aibridge_interceptions.session_id = @session_id::text
+	AND aibridge_interceptions.ended_at IS NOT NULL
+	-- @authorize_filter
+ORDER BY
+	-- Ensure threads and their associated interceptions (agentic loops) are sorted chronologically.
+	pt.started_at ASC,
+	pt.thread_id ASC,
+	aibridge_interceptions.started_at ASC,
+	aibridge_interceptions.id ASC
+;
+
+-- name: ListAIBridgeModelThoughtsByInterceptionIDs :many
+SELECT
+	*
+FROM
+	aibridge_model_thoughts
+WHERE
+	interception_id = ANY(@interception_ids::uuid[])
+ORDER BY
+	created_at ASC;
+
 -- name: ListAIBridgeModels :many
 SELECT
 	model
@@ -613,6 +677,30 @@ GROUP BY
 	model
 ORDER BY
 	model ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+OFFSET @offset_
+;
+
+
+-- name: ListAIBridgeClients :many
+SELECT
+	COALESCE(client, 'Unknown') AS client
+FROM
+	aibridge_interceptions
+WHERE
+	ended_at IS NOT NULL
+	-- Filter client (prefix match to allow B-tree index usage).
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE @client::text || '%'
+		ELSE true
+	END
+	-- We use an `@authorize_filter` as we are attempting to list clients
+	-- that are relevant to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in
+	-- ListAIBridgeClientsAuthorized.
+	-- @authorize_filter
+GROUP BY
+	client
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;

@@ -9,7 +9,7 @@ import type { SerpentOption } from "#/api/typesGenerated";
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
 
-import { humanDuration } from "utils/time";
+import { humanDuration } from "#/utils/time";
 import { coderPort, defaultPassword } from "./constants";
 import { findSessionToken, type LoginOptions, randomName } from "./helpers";
 

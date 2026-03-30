@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { type FC, useEffect } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 
 loader.config({ monaco });
 

@@ -7,7 +7,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
 import type * as TypesGen from "./typesGenerated";
 

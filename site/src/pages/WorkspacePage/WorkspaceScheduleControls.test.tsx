@@ -1,6 +1,3 @@
-import { MockTemplate, MockWorkspace } from "testHelpers/entities";
-import { render } from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
@@ -9,6 +6,9 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { workspaceByOwnerAndName } from "#/api/queries/workspaces";
+import { MockTemplate, MockWorkspace } from "#/testHelpers/entities";
+import { render } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 const Wrapper: FC = () => {

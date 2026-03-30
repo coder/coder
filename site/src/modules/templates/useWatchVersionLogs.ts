@@ -1,7 +1,7 @@
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { useEffect, useState } from "react";
 import { watchBuildLogsByTemplateVersionId } from "#/api/api";
 import type { ProvisionerJobLog, TemplateVersion } from "#/api/typesGenerated";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
 export const useWatchVersionLogs = (
 	templateVersion: TemplateVersion | undefined,
 	options?: { onDone: () => Promise<unknown> },

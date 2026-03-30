@@ -1,12 +1,6 @@
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
-import {
-	displayNameValidator,
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type {
@@ -33,6 +27,12 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	displayNameValidator,
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 

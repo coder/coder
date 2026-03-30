@@ -10,6 +10,18 @@ export interface ACLAvailable {
 	readonly groups: readonly Group[];
 }
 
+// From codersdk/aibridge.go
+/**
+ * AIBridgeAgenticAction represents a tool call with associated
+ * thinking blocks and token usage from one or more interceptions.
+ */
+export interface AIBridgeAgenticAction {
+	readonly model: string;
+	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	readonly thinking: readonly AIBridgeModelThought[];
+	readonly tool_calls: readonly AIBridgeToolCall[];
+}
+
 // From codersdk/deployment.go
 export interface AIBridgeAnthropicConfig {
 	readonly base_url: string;
@@ -81,6 +93,15 @@ export interface AIBridgeListSessionsResponse {
 	readonly sessions: readonly AIBridgeSession[];
 }
 
+// From codersdk/aibridge.go
+/**
+ * AIBridgeModelThought represents a single thinking block from
+ * the model.
+ */
+export interface AIBridgeModelThought {
+	readonly text: string;
+}
+
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
@@ -118,9 +139,60 @@ export interface AIBridgeSession {
 }
 
 // From codersdk/aibridge.go
+/**
+ * AIBridgeSessionThreadsResponse is the response for GET
+ * /api/v2/aibridge/sessions/{session_id} which returns a single
+ * session with fully expanded threads.
+ */
+export interface AIBridgeSessionThreadsResponse {
+	readonly id: string;
+	readonly initiator: MinimalUser;
+	readonly providers: readonly string[];
+	readonly models: readonly string[];
+	readonly client?: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly page_started_at?: string;
+	readonly page_ended_at?: string;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly token_usage_summary: AIBridgeSessionThreadsTokenUsage;
+	readonly threads: readonly AIBridgeThread[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeSessionThreadsTokenUsage represents aggregated token usage
+ * with metadata containing provider-specific fields like
+ * cache_creation_input, cache_read_input, etc.
+ */
+export interface AIBridgeSessionThreadsTokenUsage {
+	readonly input_tokens: number;
+	readonly output_tokens: number;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+}
+
+// From codersdk/aibridge.go
 export interface AIBridgeSessionTokenUsageSummary {
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeThread represents a single thread within a session.
+ * A thread groups interceptions by their thread_root_id.
+ */
+export interface AIBridgeThread {
+	readonly id: string;
+	readonly prompt?: string;
+	readonly model: string;
+	readonly provider: string;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 }
 
 // From codersdk/aibridge.go
@@ -130,6 +202,24 @@ export interface AIBridgeTokenUsage {
 	readonly provider_response_id: string;
 	readonly input_tokens: number;
 	readonly output_tokens: number;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly created_at: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeToolCall represents a tool call recorded during an
+ * interception.
+ */
+export interface AIBridgeToolCall {
+	readonly id: string;
+	readonly interception_id: string;
+	readonly provider_response_id: string;
+	readonly server_url: string;
+	readonly tool: string;
+	readonly injected: boolean;
+	readonly input: string;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
@@ -1101,8 +1191,22 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
+	/**
+	 * HasUnread is true when assistant messages exist beyond
+	 * the owner's read cursor, which updates on stream
+	 * connect and disconnect.
+	 */
+	readonly has_unread: boolean;
+	/**
+	 * LastInjectedContext holds the most recently persisted
+	 * injected context parts (AGENTS.md files and skills). It
+	 * is updated only when context changes — first workspace
+	 * attach or agent change.
+	 */
+	readonly last_injected_context?: readonly ChatMessagePart[];
 }
 
 // From codersdk/chats.go
@@ -1401,7 +1505,8 @@ export type ChatMessagePart =
 	| ChatSourcePart
 	| ChatFilePart
 	| ChatFileReferencePart
-	| ChatContextFilePart;
+	| ChatContextFilePart
+	| ChatSkillPart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -1409,6 +1514,7 @@ export type ChatMessagePartType =
 	| "file"
 	| "file-reference"
 	| "reasoning"
+	| "skill"
 	| "source"
 	| "text"
 	| "tool-call"
@@ -1419,6 +1525,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file",
 	"file-reference",
 	"reasoning",
+	"skill",
 	"source",
 	"text",
 	"tool-call",
@@ -1761,6 +1868,21 @@ export interface ChatReasoningPart {
 }
 
 // From codersdk/chats.go
+export interface ChatSkillPart {
+	readonly type: "skill";
+	/**
+	 * SkillName is the kebab-case name of a discovered skill
+	 * from the workspace's .agents/skills/ directory.
+	 */
+	readonly skill_name: string;
+	/**
+	 * SkillDescription is the short description from the skill's
+	 * SKILL.md frontmatter.
+	 */
+	readonly skill_description?: string;
+}
+
+// From codersdk/chats.go
 export interface ChatSourcePart {
 	readonly type: "source";
 	readonly url: string;
@@ -1901,11 +2023,13 @@ export interface ChatStreamStatus {
 
 // From codersdk/chats.go
 /**
- * ChatSystemPrompt is the request and response body for the chat
- * system prompt configuration endpoint.
+ * ChatSystemPromptResponse is the response body for the chat system prompt
+ * configuration endpoint.
  */
-export interface ChatSystemPrompt {
+export interface ChatSystemPromptResponse {
 	readonly system_prompt: string;
+	readonly include_default_system_prompt: boolean;
+	readonly default_system_prompt: string;
 }
 
 // From codersdk/chats.go
@@ -2313,6 +2437,7 @@ export interface CreateMCPServerConfigRequest {
 	readonly tool_deny_list?: readonly string[];
 	readonly availability: string;
 	readonly enabled: boolean;
+	readonly model_intent: boolean;
 }
 
 // From codersdk/organizations.go
@@ -3757,6 +3882,14 @@ export interface License {
 }
 
 // From codersdk/licenses.go
+export const LicenseAIGovernance90PercentWarningText =
+	"You have used %d%% of your AI Governance add-on seats.";
+
+// From codersdk/licenses.go
+export const LicenseAIGovernanceOverLimitWarningText =
+	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
+
+// From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
@@ -3900,6 +4033,7 @@ export interface MCPServerConfig {
 	 */
 	readonly availability: string; // "force_on", "default_on", "default_off"
 	readonly enabled: boolean;
+	readonly model_intent: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -4668,6 +4802,11 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly user_updated_at: string;
 	readonly is_service_account?: boolean;
 	readonly global_roles: readonly SlimRole[];
+	/**
+	 * HasAISeat intentionally omits omitempty so the API always includes the
+	 * field, even when false.
+	 */
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/users.go
@@ -7013,7 +7152,29 @@ export interface UpdateChatProviderConfigRequest {
 export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
+	/**
+	 * PinOrder controls the chat's pinned state and position.
+	 * - nil: no change to pin state.
+	 * - 0: unpin the chat.
+	 * - >0 (chat is unpinned): pin the chat, appending it to
+	 *   the end of the pinned list. The specific value is
+	 *   ignored; the server assigns the next available position.
+	 * - >0 (chat is already pinned): move the chat to the
+	 *   requested position, shifting neighbors as needed. The
+	 *   value is clamped to [1, pinned_count].
+	 */
+	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatSystemPromptRequest is the request body for updating the chat
+ * system prompt configuration.
+ */
+export interface UpdateChatSystemPromptRequest {
+	readonly system_prompt: string;
+	readonly include_default_system_prompt?: boolean;
 }
 
 // From codersdk/chats.go
@@ -7104,6 +7265,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly tool_deny_list?: string[];
 	readonly availability?: string;
 	readonly enabled?: boolean;
+	readonly model_intent?: boolean;
 }
 
 // From codersdk/notifications.go
@@ -7444,6 +7606,11 @@ export interface UsageStatsConfig {
 export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
 	readonly roles: readonly SlimRole[];
+	/**
+	 * HasAISeat intentionally omits omitempty so the API always includes the
+	 * field, even when false.
+	 */
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/insights.go

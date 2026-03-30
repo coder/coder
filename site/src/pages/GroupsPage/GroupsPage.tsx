@@ -1,11 +1,8 @@
 import { PlusIcon } from "lucide-react";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -17,6 +14,9 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView } from "./GroupsPageView";
 

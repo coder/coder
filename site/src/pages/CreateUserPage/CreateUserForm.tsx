@@ -2,13 +2,6 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { useFormik } from "formik";
 import { Check } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "utils/cn";
-import {
-	displayNameValidator,
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -26,6 +19,13 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
+import {
+	displayNameValidator,
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 const loginTypeOptions = {
 	password: {

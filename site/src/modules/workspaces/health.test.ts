@@ -1,15 +1,15 @@
-import {
-	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceBuild,
-	MockWorkspaceResource,
-} from "testHelpers/entities";
 import { describe, expect, it } from "vitest";
 import type {
 	Workspace,
 	WorkspaceAgentLifecycle,
 	WorkspaceAgentStatus,
 } from "#/api/typesGenerated";
+import {
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceBuild,
+	MockWorkspaceResource,
+} from "#/testHelpers/entities";
 import { getAgentHealthIssue } from "./health";
 
 interface AgentOverrides {

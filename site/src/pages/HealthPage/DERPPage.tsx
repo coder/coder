@@ -2,7 +2,6 @@ import { useTheme } from "@emotion/react";
 import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext } from "react-router";
-import { pageTitle } from "utils/page";
 import type {
 	HealthcheckReport,
 	HealthSeverity,
@@ -16,6 +15,7 @@ import {
 	TableCell,
 	TableRow,
 } from "#/components/Table/Table";
+import { pageTitle } from "#/utils/page";
 import {
 	Header,
 	HeaderTitle,

@@ -31,6 +31,7 @@ func (a *agent) apiHandler() http.Handler {
 	r.Mount("/api/v0/git", a.gitAPI.Routes())
 	r.Mount("/api/v0/processes", a.processAPI.Routes())
 	r.Mount("/api/v0/desktop", a.desktopAPI.Routes())
+	r.Mount("/api/v0/mcp", a.mcpAPI.Routes())
 
 	if a.devcontainers {
 		r.Mount("/api/v0/containers", a.containerAPI.Routes())

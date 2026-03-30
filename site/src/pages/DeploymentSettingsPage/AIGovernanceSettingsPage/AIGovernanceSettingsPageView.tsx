@@ -1,6 +1,4 @@
 import type { FC } from "react";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
@@ -12,6 +10,8 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Stack } from "#/components/Stack/Stack";
+import { deploymentGroupHasParent } from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type AIGovernanceSettingsPageViewProps = {

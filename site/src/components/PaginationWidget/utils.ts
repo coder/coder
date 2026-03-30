@@ -6,6 +6,7 @@
 const range = (start: number, stop: number, step = 1) =>
 	Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step);
 
+// NOTE: maxWorkspaceIDs in coderd/exp_chats.go is coupled to this value.
 export const DEFAULT_RECORDS_PER_PAGE = 25;
 
 // Number of pages to display on either side of the current page selection

@@ -1,6 +1,4 @@
 import type { FC } from "react";
-import { useDeploymentOptions } from "utils/deployOptions";
-import { docs } from "utils/docs";
 import type {
 	DAUsResponse,
 	Experiment,
@@ -14,6 +12,8 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Stack } from "#/components/Stack/Stack";
+import { useDeploymentOptions } from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import { Alert, AlertTitle } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
@@ -62,7 +62,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 						It is recommended that you remove these experiments from your
 						configuration as they have no effect. See{" "}
 						<Link
-							href="https://coder.com/docs/reference/cli/server#--experiments"
+							href={docs("/reference/cli/server#--experiments")}
 							target="_blank"
 							rel="noreferrer"
 						>
