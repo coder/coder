@@ -32,7 +32,9 @@ const MAX_ERROR_LENGTH = 120;
 
 /**
  * Recursively collect .ts/.tsx files under `dir`, skipping test and
- * story files. Returns paths relative to `siteDir`.
+ * story files. Returns paths relative to `siteDir`. Sets
+ * `hadCollectionErrors` and returns an empty array on ENOENT so the
+ * caller and recursive calls both stay safe.
  */
 function collectFiles(dir) {
 	let entries;
@@ -41,7 +43,8 @@ function collectFiles(dir) {
 	} catch (e) {
 		if (e.code === "ENOENT") {
 			console.error(`Target directory not found: ${relative(siteDir, dir)}`);
-			return null;
+			hadCollectionErrors = true;
+			return [];
 		}
 		throw e;
 	}
@@ -124,7 +127,7 @@ function compileFile(file) {
 					logger: {
 						logEvent(_filename, event) {
 							if (event.kind === "CompileError" || event.kind === "CompileSkip") {
-								const msg = event.detail || event.reason || "";
+								const msg = event.detail || event.reason || "(unknown)";
 								diagnostics.push({
 									line: event.fnLoc?.start?.line ?? 0,
 									short: shortenMessage(msg),
@@ -204,14 +207,7 @@ function printReport(failures, totalCompiled, fileCount, hadErrors) {
 
 let hadCollectionErrors = false;
 
-const files = targetDirs.flatMap((d) => {
-	const collected = collectFiles(join(siteDir, d));
-	if (collected === null) {
-		hadCollectionErrors = true;
-		return [];
-	}
-	return collected;
-});
+const files = targetDirs.flatMap((d) => collectFiles(join(siteDir, d)));
 
 let totalCompiled = 0;
 const failures = [];
