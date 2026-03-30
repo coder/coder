@@ -1,4 +1,4 @@
-import { type FC, Profiler, useEffect } from "react";
+import { type FC, Profiler, type ReactNode, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -122,6 +122,7 @@ interface ChatPageInputProps {
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
+	modelSelectorHelp?: ReactNode;
 	isModelCatalogLoading?: boolean;
 	// Controlled input value and editing state, owned by the
 	// conversation component.
@@ -167,6 +168,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onModelChange,
 	modelOptions,
 	modelSelectorPlaceholder,
+	modelSelectorHelp,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -335,6 +337,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			modelSelectorHelp={modelSelectorHelp}
 			isModelCatalogLoading={isModelCatalogLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
