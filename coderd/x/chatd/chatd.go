@@ -4850,6 +4850,27 @@ func (p *Server) resolveUserProviderAPIKeys(
 		configuredProviders,
 		userKeys,
 	)
+	enabledProviders := make(map[string]struct{}, len(configuredProviders))
+	for _, provider := range configuredProviders {
+		normalizedProvider := chatprovider.NormalizeProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		enabledProviders[normalizedProvider] = struct{}{}
+	}
+	for provider := range keys.ByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
+		delete(keys.ByProvider, provider)
+		delete(keys.BaseURLByProvider, provider)
+	}
+	if _, ok := enabledProviders[chatprovider.NormalizeProvider("openai")]; !ok {
+		keys.OpenAI = ""
+	}
+	if _, ok := enabledProviders[chatprovider.NormalizeProvider("anthropic")]; !ok {
+		keys.Anthropic = ""
+	}
 	return keys, nil
 }
 

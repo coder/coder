@@ -23,6 +23,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -208,6 +209,54 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for title change pubsub event")
 	}
+}
+
+func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		configCache: newChatConfigCache(
+			context.Background(),
+			db,
+			quartz.NewReal(),
+		),
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI:    "openai-deployment-key",
+			Anthropic: "anthropic-deployment-key",
+			ByProvider: map[string]string{
+				"openai":    "openai-deployment-key",
+				"anthropic": "anthropic-deployment-key",
+			},
+			BaseURLByProvider: map[string]string{
+				"openai":    "https://openai.example.com",
+				"anthropic": "https://anthropic.example.com",
+			},
+		},
+	}
+
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{
+		Provider:                   "anthropic",
+		CentralApiKeyEnabled:       true,
+		AllowCentralApiKeyFallback: true,
+	}}, nil)
+	db.EXPECT().GetUserChatProviderKeys(gomock.Any(), ownerID).Return(nil, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	require.NoError(t, err)
+	require.Empty(t, keys.OpenAI)
+	require.Empty(t, keys.APIKey("openai"))
+	require.Empty(t, keys.BaseURL("openai"))
+	require.Equal(t, "anthropic-deployment-key", keys.Anthropic)
+	require.Equal(t, "anthropic-deployment-key", keys.APIKey("anthropic"))
+	require.Equal(t, "https://anthropic.example.com", keys.BaseURL("anthropic"))
+	require.Equal(t, map[string]string{"anthropic": "anthropic-deployment-key"}, keys.ByProvider)
+	require.Equal(t, map[string]string{"anthropic": "https://anthropic.example.com"}, keys.BaseURLByProvider)
 }
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {

@@ -140,7 +140,7 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			name:      "BothEnabledFallbackOnCentralKeyEmptyUserHasNoKey",
 			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, true, "", true, true)},
 			wantAvailability: map[string]chatprovider.ProviderAvailability{
-				fantasyopenai.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+				fantasyopenai.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
 			},
 			wantKeys: map[string]string{
 				fantasyopenai.Name: "",
@@ -260,14 +260,14 @@ func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 		wantReason codersdk.ChatModelProviderUnavailableReason
 	}{
 		{
-			name: "FallbackConfiguredWithoutCentralKeyReturnsMissingAPIKey",
+			name: "FallbackConfiguredWithoutCentralKeyReturnsUserAPIKeyRequired",
 			provider: chatprovider.ConfiguredProvider{
 				Provider:                   "anthropic",
 				CentralAPIKeyEnabled:       true,
 				AllowUserAPIKey:            true,
 				AllowCentralAPIKeyFallback: true,
 			},
-			wantReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
+			wantReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
 		},
 		{
 			name: "UserKeyRequiredWithoutFallback",
