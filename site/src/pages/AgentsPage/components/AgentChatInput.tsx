@@ -1036,9 +1036,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											setPlusMenuOpen(false);
 											fileInputRef.current?.click();
 										}}
-										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+										className="group flex h-8 w-full cursor-pointer items-center gap-2 border-none bg-transparent px-2 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 									>
-										<ImageIcon className="h-3.5 w-3.5 shrink-0" />
+										<ImageIcon className="size-4 shrink-0" />
 										Attach image
 									</button>
 								)}
@@ -1051,9 +1051,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											<button
 												type="button"
 												disabled={isDisabled || isWorkspaceLoading}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+												className="group flex h-8 w-full cursor-pointer items-center gap-2 border-none bg-transparent px-2 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<MonitorIcon className="h-3.5 w-3.5 shrink-0" />
+												<MonitorIcon className="size-4 shrink-0" />
 												<span>Attach workspace</span>
 												<ChevronRightIcon
 													className={cn(
@@ -1145,6 +1145,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														</Button>
 													) : (
 														<Switch
+															size="sm"
 															checked={isSelected}
 															onCheckedChange={(checked) =>
 																handleMcpToggle(server.id, checked)
