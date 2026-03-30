@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -77,8 +78,12 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	level := make([]database.LogLevel, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
-		output = append(output, logEntry.Output)
-		outputLength += len(logEntry.Output)
+		// Sanitize the log output: strip null bytes which are technically valid UTF-8
+		// but not supported by PostgreSQL TEXT columns. This is a defense-in-depth
+		// measure; the client-side should also strip null bytes.
+		sanitizedOutput := strings.ReplaceAll(logEntry.Output, "\x00", "")
+		output = append(output, sanitizedOutput)
+		outputLength += len(sanitizedOutput)
 
 		var dbLevel database.LogLevel
 		switch logEntry.Level {
