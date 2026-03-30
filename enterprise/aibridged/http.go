@@ -37,6 +37,16 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
 
+	// Extract and strip proxy request ID for cross-service log
+	// correlation. Absent for direct requests not routed through
+	// aibridgeproxyd.
+	if proxyReqID := r.Header.Get(agplaibridge.HeaderCoderRequestID); proxyReqID != "" {
+		// Inject into context so downstream loggers include it.
+		ctx = slog.With(ctx, slog.F("aibridgeproxy_id", proxyReqID))
+		logger = logger.With(slog.F("aibridgeproxy_id", proxyReqID))
+	}
+	r.Header.Del(agplaibridge.HeaderCoderRequestID)
+
 	byok := agplaibridge.IsBYOK(r.Header)
 	authMode := "centralized"
 	if byok {

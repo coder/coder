@@ -1377,7 +1377,7 @@ func TestProxy_MITM(t *testing.T) {
 				receivedPath = r.URL.Path
 				receivedAuthz = r.Header.Get("Authorization")
 				receivedBYOK = r.Header.Get(agplaibridge.HeaderCoderToken)
-				receivedRequestID = r.Header.Get(aibridgeproxyd.HeaderAIBridgeRequestID)
+				receivedRequestID = r.Header.Get(agplaibridge.HeaderCoderRequestID)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
 			}))
