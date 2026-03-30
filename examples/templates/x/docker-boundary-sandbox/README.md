@@ -45,13 +45,13 @@ agent can talk to, and bubblewrap limits what it can read or write.
 
 ## Network policy
 
-| Traffic | Policy |
-|---------|--------|
-| Coder server (`host.docker.internal`) | Allowed |
-| Anthropic API | Allowed |
-| All other HTTP/HTTPS | Denied and logged |
-| Non-HTTP traffic (DNS, raw TCP) | Controlled by nsjail network namespace |
-| Visible dev agent | Unrestricted |
+| Traffic                               | Policy                                 |
+| ------------------------------------- | -------------------------------------- |
+| Coder server (`host.docker.internal`) | Allowed                                |
+| Anthropic API                         | Allowed                                |
+| All other HTTP/HTTPS                  | Denied and logged                      |
+| Non-HTTP traffic (DNS, raw TCP)       | Controlled by nsjail network namespace |
+| Visible dev agent                     | Unrestricted                           |
 
 ## How the sandbox works
 
@@ -67,9 +67,9 @@ agent can talk to, and bubblewrap limits what it can read or write.
 
 ## Docker runtime requirements
 
-| Requirement | Why |
-|-------------|-----|
-| `CAP_NET_ADMIN` | `nsjail` needs it to create network namespaces |
+| Requirement          | Why                                                                         |
+| -------------------- | --------------------------------------------------------------------------- |
+| `CAP_NET_ADMIN`      | `nsjail` needs it to create network namespaces                              |
 | `seccomp=unconfined` | Docker's default seccomp profile blocks the `clone` patterns `nsjail` needs |
 
 The visible `dev` container runs without extra capabilities.
