@@ -97,12 +97,15 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			continue
 		}
 		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-			DisplayName: provider.DisplayName,
-			APIKey:      provider.APIKey,
-			BaseUrl:     provider.BaseUrl,
-			ApiKeyKeyID: sql.NullString{}, // dbcrypt will update as required
-			Enabled:     provider.Enabled,
-			ID:          provider.ID,
+			DisplayName:                provider.DisplayName,
+			APIKey:                     provider.APIKey,
+			BaseUrl:                    provider.BaseUrl,
+			ApiKeyKeyID:                sql.NullString{}, // dbcrypt will update as required
+			Enabled:                    provider.Enabled,
+			CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
+			AllowUserApiKey:            provider.AllowUserApiKey,
+			AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
+			ID:                         provider.ID,
 		}); err != nil {
 			return xerrors.Errorf("update chat provider id=%s provider=%s: %w", provider.ID, provider.Provider, err)
 		}
@@ -209,12 +212,15 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 			continue
 		}
 		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-			DisplayName: provider.DisplayName,
-			APIKey:      provider.APIKey,
-			BaseUrl:     provider.BaseUrl,
-			ApiKeyKeyID: sql.NullString{}, // we explicitly want to clear the key id
-			Enabled:     provider.Enabled,
-			ID:          provider.ID,
+			DisplayName:                provider.DisplayName,
+			APIKey:                     provider.APIKey,
+			BaseUrl:                    provider.BaseUrl,
+			ApiKeyKeyID:                sql.NullString{}, // we explicitly want to clear the key id
+			Enabled:                    provider.Enabled,
+			CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
+			AllowUserApiKey:            provider.AllowUserApiKey,
+			AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
+			ID:                         provider.ID,
 		}); err != nil {
 			return xerrors.Errorf("update chat provider id=%s provider=%s: %w", provider.ID, provider.Provider, err)
 		}
