@@ -202,8 +202,8 @@ Each event is a JSON object with `kind` and `chat` fields:
 `GET /api/experimental/chats`
 
 Returns all chats owned by the authenticated user. The `files` field is
-only populated on the single-chat detail endpoint, not on the list
-endpoint.
+populated on `POST /chats` and `GET /chats/{id}`. Other endpoints that
+return a `Chat` object omit it.
 
 | Query parameter | Type     | Required | Description                                                      |
 |-----------------|----------|----------|------------------------------------------------------------------|
