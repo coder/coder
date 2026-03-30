@@ -1233,9 +1233,9 @@ func TestListRoles(t *testing.T) {
 		"auditor",
 		"template-admin",
 		"user-admin",
+		"chat-access",
 	},
 		siteRoleNames)
-
 	orgID := uuid.New()
 	orgRoles := rbac.OrganizationRoles(orgID)
 	orgRoleNames := make([]string, 0, len(orgRoles))

@@ -1411,7 +1411,9 @@ func TestGetAuthorizedChats(t *testing.T) {
 
 		// Use a dedicated user for pagination to avoid interference
 		// with the other parallel subtests.
-		paginationUser := dbgen.User(t, db, database.User{})
+		paginationUser := dbgen.User(t, db, database.User{
+			RBACRoles: pq.StringArray{rbac.RoleChatAccess().String()},
+		})
 		for i := range 7 {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
 				OwnerID:           paginationUser.ID,
