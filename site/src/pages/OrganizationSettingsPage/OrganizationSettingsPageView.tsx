@@ -152,9 +152,7 @@ export const OrganizationSettingsPageView: FC<
 			{onChangeShareableOwners && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
-						title={
-							<div className="flex items-center gap-2">Workspace Sharing</div>
-						}
+						title="Workspace Sharing"
 						description="Control whether workspace owners can share their workspaces."
 					>
 						<div className="flex flex-col gap-2">
