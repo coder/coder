@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -1884,7 +1885,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			CreatedAt:      now,
 		})
 
-		// Add token usage on root.
+		// Add token usage on root with metadata.
 		providerRespID := "resp-1"
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID:        root.ID,
@@ -1893,6 +1894,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			OutputTokens:          50,
 			CacheReadInputTokens:  20,
 			CacheWriteInputTokens: 10,
+			Metadata:              json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 10}`),
 			CreatedAt:             now,
 		})
 
@@ -1926,6 +1928,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			InputTokens:          200,
 			OutputTokens:         100,
 			CacheReadInputTokens: 30,
+			Metadata:             json.RawMessage(`{"cache_read_input": 30}`),
 			CreatedAt:            now.Add(time.Minute),
 		})
 
@@ -1956,11 +1959,14 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "claude-4", thread.Model)
 		require.Equal(t, "anthropic", thread.Provider)
 
-		// Thread-level token aggregation: root(20+10) + child(30+0).
+		// Thread-level token aggregation
 		require.EqualValues(t, 300, thread.TokenUsage.InputTokens)
 		require.EqualValues(t, 150, thread.TokenUsage.OutputTokens)
 		require.EqualValues(t, 50, thread.TokenUsage.CacheReadInputTokens)
 		require.EqualValues(t, 10, thread.TokenUsage.CacheWriteInputTokens)
+		require.NotEmpty(t, thread.TokenUsage.Metadata)
+		require.EqualValues(t, int64(50), thread.TokenUsage.Metadata["cache_read_input"])
+		require.EqualValues(t, int64(10), thread.TokenUsage.Metadata["cache_creation_input"])
 
 		// Two agentic actions (one per interception with tool calls).
 		require.Len(t, thread.AgenticActions, 2)
@@ -2131,6 +2137,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				OutputTokens:          50,
 				CacheReadInputTokens:  20,
 				CacheWriteInputTokens: 5,
+				Metadata:              json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 5}`),
 				CreatedAt:             now.Add(offset),
 			})
 
@@ -2153,6 +2160,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				InputTokens:          200,
 				OutputTokens:         100,
 				CacheReadInputTokens: 30,
+				Metadata:             json.RawMessage(`{"cache_read_input": 30}`),
 				CreatedAt:            now.Add(offset + 15*time.Minute),
 			})
 		}
@@ -2177,6 +2185,12 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// 3 * root 5 = 15 write.
 		require.EqualValues(t, 150, res.TokenUsageSummary.CacheReadInputTokens)
 		require.EqualValues(t, 15, res.TokenUsageSummary.CacheWriteInputTokens)
+		// Session-level metadata must aggregate across all 3 threads:
+		// cache_read_input: 3 * (root 20 + child 30) = 150
+		// cache_creation_input: 3 * (root 5) = 15
+		require.NotEmpty(t, res.TokenUsageSummary.Metadata)
+		require.EqualValues(t, int64(150), res.TokenUsageSummary.Metadata["cache_read_input"])
+		require.EqualValues(t, int64(15), res.TokenUsageSummary.Metadata["cache_creation_input"])
 	})
 
 	t.Run("InvalidCursor", func(t *testing.T) {

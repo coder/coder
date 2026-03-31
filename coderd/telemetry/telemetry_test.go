@@ -228,6 +228,7 @@ func TestTelemetry(t *testing.T) {
 			OutputTokens:          200,
 			CacheReadInputTokens:  300,
 			CacheWriteInputTokens: 400,
+			Metadata:              json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
 		})
 		_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
 			InterceptionID: aiBridgeInterception1.ID,
@@ -254,6 +255,7 @@ func TestTelemetry(t *testing.T) {
 			OutputTokens:          200,
 			CacheReadInputTokens:  300,
 			CacheWriteInputTokens: 400,
+			Metadata:              json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
 		})
 		_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
 			InterceptionID: aiBridgeInterception2.ID,

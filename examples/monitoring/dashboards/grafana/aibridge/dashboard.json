@@ -242,7 +242,7 @@
 					"editorMode": "code",
 					"format": "table",
 					"rawQuery": true,
-					"rawSql": "select u.username, sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(t.cache_read_input_tokens) AS cache_read_input,\nsum(t.cache_write_input_tokens) AS cache_creation_input\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by u.username\norder by input desc",
+					"rawSql": "select u.username, sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by u.username\norder by input desc",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -552,7 +552,7 @@
 					"editorMode": "code",
 					"format": "table",
 					"rawQuery": true,
-					"rawSql": "select sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(t.cache_read_input_tokens) AS cache_read_input,\nsum(t.cache_write_input_tokens) AS cache_creation_input\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\norder by input desc",
+					"rawSql": "select sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\norder by input desc",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -710,7 +710,7 @@
 					"format": "table",
 					"hide": false,
 					"rawQuery": true,
-					"rawSql": "select i.provider, i.model,\nsum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(t.cache_read_input_tokens) AS cache_read_input,\nsum(t.cache_write_input_tokens) AS cache_creation_input\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by i.provider, i.model\norder by input desc",
+					"rawSql": "select i.provider, i.model,\nsum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by i.provider, i.model\norder by input desc",
 					"refId": "B",
 					"sql": {
 						"columns": [
