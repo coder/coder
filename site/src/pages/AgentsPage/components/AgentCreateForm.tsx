@@ -314,7 +314,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					) : (
 						<ErrorAlert error={createError} />
 					)
-				) : null}{" "}
+				) : null}
 				{workspacesError != null && <ErrorAlert error={workspacesError} />}
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
