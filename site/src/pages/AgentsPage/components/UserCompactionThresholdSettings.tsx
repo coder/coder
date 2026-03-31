@@ -9,6 +9,7 @@ import {
 	Table,
 	TableBody,
 	TableCell,
+	TableFooter,
 	TableHead,
 	TableHeader,
 	TableRow,
@@ -354,12 +355,11 @@ export const UserCompactionThresholdSettings: FC<
 							);
 						})}
 					</TableBody>
-					{/* Raw tfoot because TableFooter adds bg-muted/50 styling
-						   that doesn't suit this compact inline footer. */}
 					{(dirtyRows.length > 0 || hasAnyErrors) && (
-						<tfoot>
-							<tr>
-								<td colSpan={3} className="p-0">
+						<TableFooter className="bg-transparent">
+							<TableRow className="border-0">
+								<TableCell colSpan={3} className="border-0 p-0">
+									{" "}
 									<div className="flex items-center justify-end gap-2 px-3 py-1.5">
 										<Button
 											size="sm"
@@ -383,9 +383,9 @@ export const UserCompactionThresholdSettings: FC<
 											</Button>
 										)}
 									</div>
-								</td>
-							</tr>
-						</tfoot>
+								</TableCell>
+							</TableRow>
+						</TableFooter>
 					)}{" "}
 				</Table>
 			)}
