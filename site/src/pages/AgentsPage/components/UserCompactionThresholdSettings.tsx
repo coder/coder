@@ -385,10 +385,9 @@ export const UserCompactionThresholdSettings: FC<
 									</div>
 								</TableCell>
 							</TableRow>
-						</TableFooter>
-					)}{" "}
-				</Table>
-			)}
+</TableFooter>
+					)}
+					</Table>			)}
 		</div>
 	);
 };
