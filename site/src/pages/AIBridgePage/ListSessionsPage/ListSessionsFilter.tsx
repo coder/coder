@@ -13,6 +13,10 @@ import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
+import {
+	ModelFilter,
+	type ModelFilterMenu,
+} from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
 
 interface ListSessionsFilterProps {
 	filter: ReturnType<typeof useFilter>;
@@ -21,6 +25,7 @@ interface ListSessionsFilterProps {
 		user: UserFilterMenu;
 		provider: ProviderFilterMenu;
 		client: ClientFilterMenu;
+		model: ModelFilterMenu;
 	};
 }
 
@@ -50,6 +55,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 					<UserMenu menu={menus.user} placeholder="All users" />
 					<ProviderFilter menu={menus.provider} />
 					<ClientFilter menu={menus.client} />
+					<ModelFilter menu={menus.model} />
 				</>
 			}
 		/>

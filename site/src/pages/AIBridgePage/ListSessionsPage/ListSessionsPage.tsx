@@ -12,6 +12,7 @@ import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { useClientFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
+import { useModelFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
 
 const AISessionListPage: FC = () => {
 	const { permissions } = useAuthenticated();
@@ -64,6 +65,15 @@ const AISessionListPage: FC = () => {
 			}),
 	});
 
+	const modelMenu = useModelFilterMenu({
+		value: filter.values.model,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				model: option?.value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Bridge")}</title>
@@ -85,6 +95,7 @@ const AISessionListPage: FC = () => {
 						user: userMenu,
 						provider: providerMenu,
 						client: clientMenu,
+						model: modelMenu,
 					},
 				}}
 			/>
