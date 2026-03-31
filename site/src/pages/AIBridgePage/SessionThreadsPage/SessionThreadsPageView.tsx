@@ -5,14 +5,18 @@ import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
 } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 
@@ -43,6 +47,8 @@ interface SessionThreadsPageViewProps {
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
+	isAISessionsEnabled: boolean;
+	isAISessionsEntitled: boolean;
 }
 
 export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
@@ -52,7 +58,31 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	hasNextPage,
 	isFetchingNextPage,
 	onFetchNextPage,
+	isAISessionsEnabled,
+	isAISessionsEntitled,
 }) => {
+	if (!isAISessionsEntitled) {
+		return <PaywallAIGovernance />;
+	}
+
+	if (!isAISessionsEnabled) {
+		return (
+			<Alert className="mb-12" severity="warning" prominent>
+				<AlertTitle>
+					AI Bridge is included in your license, but not set up yet.
+				</AlertTitle>
+				<AlertDescription>
+					You have access to AI Governance, but it still needs to be setup.
+					Check out the{" "}
+					<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
+						AI Bridge
+					</Link>{" "}
+					documentation to get started.
+				</AlertDescription>
+			</Alert>
+		);
+	}
+
 	// calculate the total number of tool calls across all loaded threads
 	const toolCallCount = threads.reduce(
 		(acc, thread) => acc + (thread.agentic_actions?.length ?? 0),
