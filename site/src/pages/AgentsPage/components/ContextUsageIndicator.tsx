@@ -78,9 +78,10 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 // the user time to move into the popover content.
 const HOVER_CLOSE_DELAY_MS = 150;
 
-export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
-	usage,
-}) => {
+export const ContextUsageIndicator: FC<{
+	usage: AgentContextUsage | null;
+	onSkillClick?: (skillName: string, skillDescription?: string) => void;
+}> = ({ usage, onSkillClick }) => {
 	const [open, setOpen] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -187,8 +188,30 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 							<TooltipProvider delayDuration={300}>
 								{skills.map((part) => {
 									if (part.type !== "skill") return null;
+									const handleClick = onSkillClick
+										? () =>
+												onSkillClick(part.skill_name, part.skill_description)
+										: undefined;
 									const row = (
-										<div className="flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary">
+										<div
+											className={cn(
+												"flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary",
+												onSkillClick && "cursor-pointer",
+											)}
+											onClick={handleClick}
+											onKeyDown={(e) => {
+												if (
+													(e.key === "Enter" || e.key === " ") &&
+													handleClick
+												) {
+													e.preventDefault();
+													handleClick();
+												}
+											}}
+											role={onSkillClick ? "button" : undefined}
+											tabIndex={onSkillClick ? 0 : undefined}
+										>
+											{" "}
 											<ZapIcon className="size-3 shrink-0" />
 											<span className="truncate">{part.skill_name}</span>
 										</div>

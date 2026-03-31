@@ -45,6 +45,7 @@ export type RenderBlock =
 	  }
 	| TypesGen.ChatFilePart
 	| TypesGen.ChatFileReferencePart
+	| TypesGen.ChatSkillPart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;

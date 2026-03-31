@@ -1007,8 +1007,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator usage={contextUsage} />
-						)}
+							<ContextUsageIndicator
+								usage={contextUsage}
+								onSkillClick={(skillName, skillDescription) => {
+									internalRef.current?.addSkill({
+										skillName,
+										skillDescription: skillDescription ?? "",
+									});
+									internalRef.current?.focus();
+								}}
+							/>
+						)}{" "}
 						{isStreaming && onInterrupt && (
 							<Button
 								size="icon"

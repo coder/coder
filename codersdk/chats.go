@@ -326,6 +326,7 @@ const (
 	ChatInputPartTypeText          ChatInputPartType = "text"
 	ChatInputPartTypeFile          ChatInputPartType = "file"
 	ChatInputPartTypeFileReference ChatInputPartType = "file-reference"
+	ChatInputPartTypeSkill         ChatInputPartType = "skill"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -340,6 +341,10 @@ type ChatInputPart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeSkill.
+	SkillName        string `json:"skill_name,omitempty"`
+	SkillDescription string `json:"skill_description,omitempty"`
 }
 
 // CreateChatRequest is the request to create a new chat.

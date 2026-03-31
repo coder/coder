@@ -4135,6 +4135,104 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 	})
 }
 
+func TestChatMessageWithSkillParts(t *testing.T) {
+	t.Parallel()
+
+	createChatForTest := func(t *testing.T, client *codersdk.ExperimentalClient) codersdk.Chat {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "initial message",
+			}},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("SkillPartRoundTrip", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "please run this skill",
+				},
+				{
+					Type:             codersdk.ChatInputPartTypeSkill,
+					SkillName:        "deep-review",
+					SkillDescription: "Multi-reviewer code review",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		checkSkill := func(part codersdk.ChatMessagePart) bool {
+			return part.Type == codersdk.ChatMessagePartTypeSkill &&
+				part.SkillName == "deep-review" &&
+				part.SkillDescription == "Multi-reviewer code review"
+		}
+
+		var found bool
+		require.Eventually(t, func() bool {
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
+			if getErr != nil {
+				return false
+			}
+			for _, message := range messagesResult.Messages {
+				if message.Role != codersdk.ChatMessageRoleUser {
+					continue
+				}
+				for _, part := range message.Content {
+					if checkSkill(part) {
+						found = true
+						return true
+					}
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range messagesResult.QueuedMessages {
+					for _, part := range queued.Content {
+						if checkSkill(part) {
+							found = true
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+		require.True(t, found, "expected to find skill part in stored message")
+	})
+
+	t.Run("SkillPartEmptyNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeSkill,
+				SkillName: "",
+			}},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "skill_name cannot be empty")
+	})
+}
+
 func TestChatMessageWithFiles(t *testing.T) {
 	t.Parallel()
 

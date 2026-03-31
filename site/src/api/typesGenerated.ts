@@ -1451,14 +1451,21 @@ export interface ChatInputPart {
 	 * The code content from the diff that was commented on.
 	 */
 	readonly content?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeSkill.
+	 */
+	readonly skill_name?: string;
+	readonly skill_description?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "file" | "file-reference" | "text";
+export type ChatInputPartType = "file" | "file-reference" | "skill" | "text";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
+	"skill",
 	"text",
 ];
 

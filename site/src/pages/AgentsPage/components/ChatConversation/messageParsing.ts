@@ -223,8 +223,11 @@ export const parseMessageContent = (
 				break;
 			}
 			case "skill": {
-				// Skill parts are metadata for the context indicator;
-				// they are not rendered in the conversation timeline.
+				// User-sent skill parts render as inline chips;
+				// backend-injected ones are metadata only but we
+				// push them as blocks either way — the timeline
+				// hides metadata-only messages separately.
+				parsed.blocks.push(part);
 				break;
 			}
 			default: {
