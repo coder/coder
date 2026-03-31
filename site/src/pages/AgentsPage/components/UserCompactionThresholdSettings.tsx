@@ -235,12 +235,12 @@ export const UserCompactionThresholdSettings: FC<
 								<th className="px-3 py-2 text-left font-semibold text-content-primary">
 									Model
 								</th>
-								<th className="px-3 py-2 text-right font-semibold text-content-primary">
+								<th className="w-0 whitespace-nowrap px-3 py-2 text-right font-semibold text-content-primary">
 									Default
 								</th>
-								<th className="px-3 py-2 text-right font-semibold text-content-primary">
+								<th className="w-0 whitespace-nowrap px-3 py-2 text-right font-semibold text-content-primary">
 									Threshold
-								</th>
+								</th>{" "}
 							</tr>
 						</thead>
 						<tbody>
@@ -276,11 +276,12 @@ export const UserCompactionThresholdSettings: FC<
 												</p>
 											)}
 										</td>
-										<td className="px-3 py-2 text-right tabular-nums text-content-secondary">
+										<td className="w-0 whitespace-nowrap px-3 py-2 text-right tabular-nums text-content-secondary">
 											{modelConfig.compression_threshold}%
 										</td>
-										<td className="px-3 py-2">
+										<td className="w-0 whitespace-nowrap px-3 py-2">
 											<div className="flex items-center justify-end gap-1.5">
+												{" "}
 												<Tooltip>
 													<TooltipTrigger asChild>
 														<Input
@@ -353,7 +354,7 @@ export const UserCompactionThresholdSettings: FC<
 						</tbody>
 					</table>
 					{(dirtyRows.length > 0 || hasAnyErrors) && (
-						<div className="flex items-center justify-end gap-2 border-0 border-t border-solid border-border bg-surface-secondary px-3 py-2">
+						<div className="flex items-center justify-end gap-2 border-0 border-t border-solid border-border bg-surface-secondary px-3 py-1.5">
 							<Button
 								size="sm"
 								variant="outline"
