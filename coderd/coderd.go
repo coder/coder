@@ -1236,6 +1236,7 @@ func New(options *Options) *API {
 				r.Post("/interrupt", api.interruptChat)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
+				r.Get("/file-content", api.getChatFileContent)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)

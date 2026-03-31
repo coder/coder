@@ -5218,3 +5218,133 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		RecentPRs:  prEntries,
 	})
 }
+
+// maxFileContentBytes is the maximum size of file contents returned
+// by the file-content proxy endpoint. This prevents unbounded reads
+// when the agent serves very large files.
+const maxFileContentBytes = 10 << 20 // 10 MiB
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatFileContent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	repoRoot := r.URL.Query().Get("repo_root")
+	filePath := r.URL.Query().Get("path")
+	side := r.URL.Query().Get("side")
+
+	if repoRoot == "" || filePath == "" || side == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing required query parameters.",
+			Detail:  "repo_root, path, and side are required.",
+		})
+		return
+	}
+	if side != "old" && side != "new" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid side parameter.",
+			Detail:  "side must be \"old\" or \"new\".",
+		})
+		return
+	}
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat has no workspace.",
+		})
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(agents) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace has no agents.",
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		agents[0],
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	var contents string
+	if side == "old" {
+		// Retrieve the file at HEAD from git.
+		contents, err = agentConn.GitShowFile(ctx, repoRoot, filePath, "HEAD")
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to read file from git.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		// Read the working tree copy of the file.
+		absPath := repoRoot + "/" + filePath
+		rc, _, err := agentConn.ReadFile(ctx, absPath, 0, maxFileContentBytes)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to read working tree file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer rc.Close()
+
+		data, err := io.ReadAll(rc)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to read file body.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		contents = string(data)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, map[string]string{
+		"contents": contents,
+	})
+}

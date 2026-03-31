@@ -99,6 +99,7 @@ const meta: Meta<typeof GitPanel> = {
 	title: "pages/AgentsPage/GitPanel",
 	component: GitPanel,
 	args: {
+		chatId: "test-chat",
 		onRefresh: fn().mockReturnValue(true),
 		onCommit: fn(),
 		repositories: new Map(),

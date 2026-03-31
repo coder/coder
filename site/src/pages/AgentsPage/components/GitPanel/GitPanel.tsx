@@ -38,6 +38,8 @@ interface DiffStats {
 }
 
 interface GitPanelProps {
+	/** Chat ID for agent API access. */
+	chatId: string;
 	/** PR tab data. Omitted if no PR is associated. */
 	prTab?: {
 		prNumber: number;
@@ -63,6 +65,7 @@ function repoTabLabel(repoRoot: string): string {
 }
 
 export const GitPanel: FC<GitPanelProps> = ({
+	chatId,
 	prTab,
 	repositories,
 	onRefresh,
@@ -285,6 +288,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					/>
 				) : (
 					<LocalRepoContent
+						chatId={chatId}
 						repoRoot={view.repoRoot}
 						repo={repositories.get(view.repoRoot)}
 						diffStats={
@@ -343,6 +347,7 @@ const RemoteContent: FC<{
 // ---------------------------------------------------------------
 
 const LocalRepoContent: FC<{
+	chatId: string;
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
@@ -351,6 +356,7 @@ const LocalRepoContent: FC<{
 	diffStyle: DiffStyle;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }> = ({
+	chatId,
 	repoRoot,
 	repo,
 	diffStats,
@@ -372,6 +378,7 @@ const LocalRepoContent: FC<{
 				onCommit={() => onCommit(repoRoot)}
 			/>
 			<LocalDiffPanel
+				chatId={chatId}
 				repo={repo}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}

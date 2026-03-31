@@ -3220,6 +3220,19 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatFileContent = async (
+		chatId: string,
+		repoRoot: string,
+		path: string,
+		side: "old" | "new",
+	): Promise<{ contents: string }> => {
+		const params = new URLSearchParams({ repo_root: repoRoot, path, side });
+		const response = await this.axios.get<{ contents: string }>(
+			`/api/experimental/chats/${chatId}/file-content?${params}`,
+		);
+		return response.data;
+	};
+
 	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
 		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
 			"/api/experimental/chats/models",

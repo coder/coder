@@ -7,7 +7,7 @@ import type {
 } from "@pierre/diffs";
 import { Virtualizer } from "@pierre/diffs";
 import { FileDiff, VirtualizerContext } from "@pierre/diffs/react";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, LoaderIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
@@ -23,6 +23,7 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { changeColor, changeLabel } from "../../utils/diffColors";
+import { expandFileDiff } from "../../utils/expandFileDiff";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
@@ -91,6 +92,18 @@ interface DiffViewerProps {
 	scrollToFile?: string | null;
 	/** Called after scrollToFile has been processed. */
 	onScrollToFileComplete?: () => void;
+	/**
+	 * Callback to fetch file contents for context expansion. When
+	 * provided, partial diffs show an "Expand context" button in
+	 * the file header. Clicking it fetches the full file contents
+	 * and re-parses the diff so the library's native hunk
+	 * expansion takes over.
+	 */
+	onRequestFileContents?: (fileName: string) => Promise<{
+		oldContents: string | null;
+		newContents: string | null;
+		patchString: string;
+	} | null>;
 }
 
 // -------------------------------------------------------------------
@@ -432,6 +445,7 @@ interface LazyFileDiffProps {
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	selectedLines?: SelectedLineRange | null;
+	renderHeaderMetadata?: (fileDiff: FileDiffMetadata) => ReactNode;
 }
 
 const LazyFileDiff: FC<LazyFileDiffProps> = ({
@@ -440,6 +454,7 @@ const LazyFileDiff: FC<LazyFileDiffProps> = ({
 	lineAnnotations,
 	renderAnnotation: renderAnnotationProp,
 	selectedLines,
+	renderHeaderMetadata: renderHeaderMetadataProp,
 }) => {
 	const placeholderRef = useRef<HTMLDivElement>(null);
 	const [visible, setVisible] = useState(false);
@@ -489,7 +504,54 @@ const LazyFileDiff: FC<LazyFileDiffProps> = ({
 			lineAnnotations={lineAnnotations}
 			renderAnnotation={renderAnnotationProp}
 			selectedLines={selectedLines}
+			renderHeaderMetadata={renderHeaderMetadataProp}
 		/>
+	);
+};
+
+// -------------------------------------------------------------------
+// Expand context button for file headers
+// -------------------------------------------------------------------
+
+/**
+ * Small button rendered in the file header via `renderHeaderMetadata`.
+ * When clicked it triggers the expansion flow that fetches full file
+ * contents and re-parses the diff with context expansion enabled.
+ */
+const ExpandContextButton: FC<{
+	fileName: string;
+	isLoading: boolean;
+	onClick: (fileName: string) => void;
+}> = ({ fileName, isLoading, onClick }) => {
+	return (
+		<button
+			type="button"
+			disabled={isLoading}
+			onClick={(e) => {
+				e.stopPropagation();
+				onClick(fileName);
+			}}
+			className={cn(
+				"flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
+				"border border-solid border-border-default bg-transparent",
+				"text-content-secondary transition-colors",
+				"hover:bg-surface-secondary hover:text-content-primary",
+				"cursor-pointer disabled:cursor-default disabled:opacity-60",
+				"outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+			)}
+		>
+			{isLoading ? (
+				<>
+					<LoaderIcon className="size-3 animate-spin" />
+					Loading…
+				</>
+			) : (
+				<>
+					<ChevronDownIcon className="size-3" />
+					Expand context
+				</>
+			)}
+		</button>
 	);
 };
 
@@ -511,15 +573,88 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	renderAnnotation,
 	scrollToFile,
 	onScrollToFileComplete,
+	onRequestFileContents,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
+
+	// ---------------------------------------------------------------
+	// Expansion state: track which files have been enriched with
+	// full contents so the library's native hunk expansion works.
+	// ---------------------------------------------------------------
+	const [expandedFiles, setExpandedFiles] = useState<
+		Map<string, FileDiffMetadata>
+	>(new Map());
+	const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
+
+	// Reset expansion state when the upstream parsedFiles change
+	// (e.g. the user switches to a different diff).
+	const prevFilesRef = useRef(parsedFiles);
+	if (prevFilesRef.current !== parsedFiles) {
+		prevFilesRef.current = parsedFiles;
+		if (expandedFiles.size > 0) setExpandedFiles(new Map());
+		if (loadingFiles.size > 0) setLoadingFiles(new Set());
+	}
+
+	const requestExpansion = (fileName: string) => {
+		if (
+			!onRequestFileContents ||
+			loadingFiles.has(fileName) ||
+			expandedFiles.has(fileName)
+		) {
+			return;
+		}
+
+		setLoadingFiles((prev) => new Set(prev).add(fileName));
+
+		onRequestFileContents(fileName)
+			.then((result) => {
+				if (!result) return;
+				const enriched = expandFileDiff(
+					fileName,
+					result.patchString,
+					result.oldContents,
+					result.newContents,
+				);
+				if (enriched) {
+					setExpandedFiles((prev) => {
+						const next = new Map(prev);
+						next.set(fileName, enriched);
+						return next;
+					});
+				}
+			})
+			.catch(() => {
+				// Silently ignore — the button just stops loading
+				// and the user can retry.
+			})
+			.finally(() => {
+				setLoadingFiles((prev) => {
+					const next = new Set(prev);
+					next.delete(fileName);
+					return next;
+				});
+			});
+	};
+
+	// Build effective file list: overlay expanded files on top of
+	// the original parsedFiles so enriched diffs with full context
+	// replace the partial originals.
+	const effectiveFiles: readonly FileDiffMetadata[] =
+		expandedFiles.size > 0
+			? parsedFiles.map((f) => expandedFiles.get(f.name) ?? f)
+			: parsedFiles;
 
 	const diffOptions = (() => {
 		const base = getDiffViewerOptions(isDark);
 		return {
 			...base,
 			diffStyle,
+			// Enable the library's native expand-context feature so
+			// that enriched (isPartial: false) files render expand
+			// buttons in their hunk separators.
+			expandUnchanged: true,
+			hunkSeparators: "line-info" as const,
 			// Extend the base CSS to make file headers sticky so they
 			// remain visible while scrolling through long diffs.
 			unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS}`,
@@ -530,7 +665,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		...diffOptions,
 		overflow: "wrap" as const,
 		enableLineSelection: true,
-		enableHoverUtility: true,
+		enableGutterUtility: true,
 		onLineSelected() {
 			// TODO: Make this add context to the input so the
 			// user can type.
@@ -546,7 +681,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		...diffOptions,
 		overflow: "wrap" as const,
 		enableLineSelection: true,
-		enableHoverUtility: true,
+		enableGutterUtility: true,
 		...(onLineNumberClick && {
 			onLineNumberClick: (props: {
 				lineNumber: number;
@@ -567,7 +702,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 				},
 	});
 
-	const fileTree = buildFileTree(parsedFiles);
+	const fileTree = buildFileTree(effectiveFiles);
 
 	// Sort diff blocks in the same order the file tree displays them
 	// (directories first, then alphabetical) so the rendering is
@@ -584,7 +719,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			}
 		};
 		walk(fileTree);
-		return [...parsedFiles].sort(
+		return [...effectiveFiles].sort(
 			(a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
 		);
 	})();
@@ -835,6 +970,22 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 					>
 						{sortedFiles.map((fileDiff, i) => {
 							const isLast = i === sortedFiles.length - 1;
+							const isFileExpanded = expandedFiles.has(fileDiff.name);
+							const isFileLoading = loadingFiles.has(fileDiff.name);
+
+							// Show the expand button for partial files when
+							// the parent provides a content fetcher.
+							const headerMetadata =
+								onRequestFileContents && fileDiff.isPartial && !isFileExpanded
+									? () => (
+											<ExpandContextButton
+												fileName={fileDiff.name}
+												isLoading={isFileLoading}
+												onClick={requestExpansion}
+											/>
+										)
+									: undefined;
+
 							return (
 								<div
 									key={fileDiff.name}
@@ -853,6 +1004,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 										selectedLines={
 											perFileSelectedLines?.get(fileDiff.name) ?? null
 										}
+										renderHeaderMetadata={headerMetadata}
 									/>
 									{isLast && (
 										<div className="flex items-center justify-center py-4 text-xs text-content-secondary">

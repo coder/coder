@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -84,6 +85,7 @@ type AgentConn interface {
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) error
+	GitShowFile(ctx context.Context, repoRoot, path, ref string) (string, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -1093,6 +1095,33 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error 
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
+}
+
+// GitShowFile retrieves a file's contents from a git repository at a
+// given ref (e.g. "HEAD").
+func (c *agentConn) GitShowFile(ctx context.Context, repoRoot, path, ref string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf(
+		"/api/v0/git/show?repo_root=%s&path=%s&ref=%s",
+		url.QueryEscape(repoRoot), url.QueryEscape(path), url.QueryEscape(ref),
+	), nil)
+	if err != nil {
+		return "", xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", codersdk.ReadBodyAsError(res)
+	}
+
+	var resp struct {
+		Contents string `json:"contents"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return "", xerrors.Errorf("decode response: %w", err)
+	}
+	return resp.Contents, nil
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.

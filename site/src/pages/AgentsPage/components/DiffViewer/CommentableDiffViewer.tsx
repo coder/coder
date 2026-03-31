@@ -193,6 +193,12 @@ interface CommentableDiffViewerProps {
 	scrollToFile?: string | null;
 	/** Called after scrollToFile has been processed. */
 	onScrollToFileComplete?: () => void;
+	/** Callback to fetch file contents for context expansion. */
+	onRequestFileContents?: (fileName: string) => Promise<{
+		oldContents: string | null;
+		newContents: string | null;
+		patchString: string;
+	} | null>;
 }
 
 /**
