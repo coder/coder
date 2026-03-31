@@ -46,6 +46,7 @@ bin/
 build/
 dist/
 out/
+target/
 
 # Bundle analysis
 site/stats/
