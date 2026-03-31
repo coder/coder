@@ -3973,9 +3973,13 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
 	)
 	for _, provider := range enabledProviders {
+		normalizedProvider := normalizeChatProvider(provider.Provider)
+		if normalizedProvider == "" {
+			continue
+		}
 		enabledConfiguredProviders = append(
 			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
-				Provider: provider.Provider,
+				Provider: normalizedProvider,
 				APIKey:   provider.APIKey,
 				BaseURL:  provider.BaseUrl,
 			},
