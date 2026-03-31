@@ -581,9 +581,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							: undefined
 					}
 					isStopping={stopWorkspaceMutation.isPending}
+					onActionSuccess={onActionSuccess}
 				/>
 			</div>
-
 			{/* Stop workspace confirmation dialog */}
 			<ConfirmDialog
 				open={isStopConfirmOpen}
