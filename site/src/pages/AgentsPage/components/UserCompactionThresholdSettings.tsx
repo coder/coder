@@ -6,6 +6,14 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
@@ -228,155 +236,147 @@ export const UserCompactionThresholdSettings: FC<
 					models before compaction thresholds can be set.
 				</p>
 			) : (
-				<div className="overflow-hidden rounded-md border border-solid border-border">
-					<table className="w-full border-collapse text-xs">
-						<thead>
-							<tr className="border-0 border-b border-solid border-border bg-surface-secondary">
-								<th className="px-3 py-2 text-left font-semibold text-content-primary">
-									Model
-								</th>
-								<th className="w-0 whitespace-nowrap px-3 py-2 text-right font-semibold text-content-primary">
-									Default
-								</th>
-								<th className="w-0 whitespace-nowrap px-3 py-2 text-right font-semibold text-content-primary">
-									Threshold
-								</th>{" "}
-							</tr>
-						</thead>
-						<tbody>
-							{enabledModelConfigs.map((modelConfig) => {
-								const existingOverride = overridesByModelID.get(modelConfig.id);
-								const hasOverride = overridesByModelID.has(modelConfig.id);
-								const draftValue =
-									drafts[modelConfig.id] ??
-									(existingOverride !== undefined
-										? String(existingOverride)
-										: "");
-								const parsedDraftValue = parseThresholdDraft(draftValue);
-								const isThisModelMutating = pendingModels.has(modelConfig.id);
-								const isInvalid =
-									draftValue.length > 0 && parsedDraftValue === null;
-								const isWarning100 = draftValue === "100";
-								const rowError = rowErrors[modelConfig.id];
-								const modelName = modelConfig.display_name || modelConfig.model;
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>Model</TableHead>
+							<TableHead className="w-0 whitespace-nowrap">Default</TableHead>
+							<TableHead className="w-0 whitespace-nowrap">Threshold</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{enabledModelConfigs.map((modelConfig) => {
+							const existingOverride = overridesByModelID.get(modelConfig.id);
+							const hasOverride = overridesByModelID.has(modelConfig.id);
+							const draftValue =
+								drafts[modelConfig.id] ??
+								(existingOverride !== undefined
+									? String(existingOverride)
+									: "");
+							const parsedDraftValue = parseThresholdDraft(draftValue);
+							const isThisModelMutating = pendingModels.has(modelConfig.id);
+							const isInvalid =
+								draftValue.length > 0 && parsedDraftValue === null;
+							const isWarning100 = draftValue === "100";
+							const rowError = rowErrors[modelConfig.id];
+							const modelName = modelConfig.display_name || modelConfig.model;
 
-								return (
-									<tr
-										key={modelConfig.id}
-										className="border-0 border-b border-solid border-border last:border-b-0"
-									>
-										<td className="px-3 py-2 text-[13px] font-medium text-content-primary">
-											{modelName}
-											{rowError && (
-												<p
-													aria-live="polite"
-													className="m-0 mt-0.5 text-2xs font-normal text-content-destructive"
-												>
-													{rowError}
-												</p>
-											)}
-										</td>
-										<td className="w-0 whitespace-nowrap px-3 py-2 text-right tabular-nums text-content-secondary">
-											{modelConfig.compression_threshold}%
-										</td>
-										<td className="w-0 whitespace-nowrap px-3 py-2">
-											<div className="flex items-center justify-end gap-1.5">
-												{" "}
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Input
-															aria-label={`${modelName} compaction threshold`}
-															type="number"
-															min={0}
-															max={100}
-															inputMode="numeric"
-															className={`h-7 w-16 px-2 text-xs tabular-nums ${
-																isInvalid
-																	? "border-content-destructive focus:ring-content-destructive/30"
-																	: ""
-															}`}
-															value={draftValue}
-															placeholder={String(
-																modelConfig.compression_threshold,
-															)}
-															onChange={(event) => {
-																setDrafts((currentDrafts) => ({
-																	...currentDrafts,
-																	[modelConfig.id]: event.target.value,
-																}));
-																clearRowError(modelConfig.id);
-															}}
-															disabled={isThisModelMutating}
-														/>
-													</TooltipTrigger>
-													{(isInvalid || isWarning100) && (
-														<TooltipContent>
-															{isInvalid
-																? "Enter a whole number between 0 and 100."
-																: "Setting 100% will disable auto-compaction for this model."}
-														</TooltipContent>
-													)}
-												</Tooltip>
-												<span className="text-xs text-content-secondary">
-													%
-												</span>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Button
-															size="icon"
-															variant="subtle"
-															className={`size-7 ${
-																hasOverride
-																	? "opacity-100"
-																	: "pointer-events-none opacity-0"
-															}`}
-															aria-label={`Reset ${modelName} to default`}
-															aria-hidden={!hasOverride}
-															tabIndex={hasOverride ? 0 : -1}
-															disabled={isThisModelMutating || !hasOverride}
-															onClick={() => handleReset(modelConfig.id)}
-														>
-															<RotateCcwIcon className="size-3.5" />
-														</Button>
-													</TooltipTrigger>
-													{hasOverride && (
-														<TooltipContent>
-															Reset to default (
-															{modelConfig.compression_threshold}%)
-														</TooltipContent>
-													)}
-												</Tooltip>
-											</div>
-										</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
+							return (
+								<TableRow key={modelConfig.id}>
+									<TableCell className="text-[13px] font-medium text-content-primary">
+										{modelName}
+										{rowError && (
+											<p
+												aria-live="polite"
+												className="m-0 mt-0.5 text-2xs font-normal text-content-destructive"
+											>
+												{rowError}
+											</p>
+										)}
+									</TableCell>
+									<TableCell className="w-0 whitespace-nowrap tabular-nums">
+										{modelConfig.compression_threshold}%
+									</TableCell>
+									<TableCell className="w-0 whitespace-nowrap">
+										<div className="flex items-center gap-1.5">
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Input
+														aria-label={`${modelName} compaction threshold`}
+														type="number"
+														min={0}
+														max={100}
+														inputMode="numeric"
+														className={`h-7 w-16 px-2 text-xs tabular-nums ${
+															isInvalid
+																? "border-content-destructive focus:ring-content-destructive/30"
+																: ""
+														}`}
+														value={draftValue}
+														placeholder={String(
+															modelConfig.compression_threshold,
+														)}
+														onChange={(event) => {
+															setDrafts((currentDrafts) => ({
+																...currentDrafts,
+																[modelConfig.id]: event.target.value,
+															}));
+															clearRowError(modelConfig.id);
+														}}
+														disabled={isThisModelMutating}
+													/>
+												</TooltipTrigger>
+												{(isInvalid || isWarning100) && (
+													<TooltipContent>
+														{isInvalid
+															? "Enter a whole number between 0 and 100."
+															: "Setting 100% will disable auto-compaction for this model."}
+													</TooltipContent>
+												)}
+											</Tooltip>
+											<span className="text-xs text-content-secondary">%</span>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className={`size-7 ${
+															hasOverride
+																? "opacity-100"
+																: "pointer-events-none opacity-0"
+														}`}
+														aria-label={`Reset ${modelName} to default`}
+														aria-hidden={!hasOverride}
+														tabIndex={hasOverride ? 0 : -1}
+														disabled={isThisModelMutating || !hasOverride}
+														onClick={() => handleReset(modelConfig.id)}
+													>
+														<RotateCcwIcon className="size-3.5" />
+													</Button>
+												</TooltipTrigger>
+												{hasOverride && (
+													<TooltipContent>
+														Reset to default (
+														{modelConfig.compression_threshold}%)
+													</TooltipContent>
+												)}
+											</Tooltip>
+										</div>
+									</TableCell>
+								</TableRow>
+							);
+						})}
+					</TableBody>
 					{(dirtyRows.length > 0 || hasAnyErrors) && (
-						<div className="flex items-center justify-end gap-2 border-0 border-t border-solid border-border bg-surface-secondary px-3 py-1.5">
-							<Button
-								size="sm"
-								variant="outline"
-								type="button"
-								onClick={handleCancelAll}
-								disabled={hasAnyPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								size="sm"
-								type="button"
-								disabled={dirtyRows.length === 0 || hasAnyPending}
-								onClick={handleSaveAll}
-							>
-								{hasAnyPending
-									? "Saving..."
-									: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
-							</Button>
-						</div>
+						<tfoot>
+							<tr>
+								<td colSpan={3} className="p-0">
+									<div className="flex items-center justify-end gap-2 px-3 py-1.5">
+										<Button
+											size="xs"
+											variant="outline"
+											type="button"
+											onClick={handleCancelAll}
+											disabled={hasAnyPending}
+										>
+											Cancel
+										</Button>
+										<Button
+											size="xs"
+											type="button"
+											disabled={dirtyRows.length === 0 || hasAnyPending}
+											onClick={handleSaveAll}
+										>
+											{hasAnyPending
+												? "Saving..."
+												: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
+										</Button>
+									</div>
+								</td>
+							</tr>
+						</tfoot>
 					)}
-				</div>
+				</Table>
 			)}
 		</div>
 	);
