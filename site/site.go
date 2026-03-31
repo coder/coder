@@ -575,7 +575,7 @@ func (h *Handler) renderPermissions(ctx context.Context, actor rbac.Subject) str
 		// run against the actual actor, matching the
 		// API-side handling in coderd/authorize.go.
 		ownerID := v.Object.OwnerID
-		if ownerID == codersdk.OwnerMeSentinel {
+		if ownerID == codersdk.Me {
 			ownerID = actor.ID
 		}
 		obj := rbac.Object{

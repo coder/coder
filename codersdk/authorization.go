@@ -6,10 +6,6 @@ import (
 	"net/http"
 )
 
-// OwnerMeSentinel is the special owner_id value in permission
-// checks that resolves to the authenticated user's own ID.
-const OwnerMeSentinel = "me"
-
 type AuthorizationResponse map[string]bool
 
 // AuthorizationRequest is a structure instead of a map because
