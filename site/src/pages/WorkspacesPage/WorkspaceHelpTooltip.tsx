@@ -1,34 +1,34 @@
 import type { FC } from "react";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { docs } from "#/utils/docs";
 
-export const WorkspaceHelpTooltip: FC = () => {
+export const WorkspaceHelpPopover: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipTitle>What is a workspace?</HelpTooltipTitle>
-				<HelpTooltipText>
+		<HelpPopover>
+			<HelpPopoverIconTrigger />
+			<HelpPopoverContent>
+				<HelpPopoverTitle>What is a workspace?</HelpPopoverTitle>
+				<HelpPopoverText>
 					A workspace is your development environment in the cloud. It includes
 					the infrastructure and tools you need to work on your project.
-				</HelpTooltipText>
-				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/user-guides")}>
+				</HelpPopoverText>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink href={docs("/user-guides")}>
 						Create Workspaces
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access")}>
+					</HelpPopoverLink>
+					<HelpPopoverLink href={docs("/user-guides/workspace-access")}>
 						Connect with SSH
-					</HelpTooltipLink>
-				</HelpTooltipLinksGroup>
-			</HelpTooltipContent>
-		</HelpTooltip>
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

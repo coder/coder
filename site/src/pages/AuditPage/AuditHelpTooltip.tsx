@@ -1,32 +1,32 @@
 import type { FC } from "react";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { docs } from "#/utils/docs";
 
-export const AuditHelpTooltip: FC = () => {
+export const AuditHelpPopover: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
+		<HelpPopover>
+			<HelpPopoverIconTrigger />
 
-			<HelpTooltipContent>
-				<HelpTooltipTitle>What is an audit log?</HelpTooltipTitle>
-				<HelpTooltipText>
+			<HelpPopoverContent>
+				<HelpPopoverTitle>What is an audit log?</HelpPopoverTitle>
+				<HelpPopoverText>
 					An audit log is a record of events and changes made throughout a
 					system.
-				</HelpTooltipText>
-				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/admin/security/audit-logs")}>
+				</HelpPopoverText>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink href={docs("/admin/security/audit-logs")}>
 						Events we track
-					</HelpTooltipLink>
-				</HelpTooltipLinksGroup>
-			</HelpTooltipContent>
-		</HelpTooltip>
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
