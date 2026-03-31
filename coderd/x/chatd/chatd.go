@@ -3145,7 +3145,11 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := db2sdk.Chat(chat, nil, nil) // diffStatus applied below; file metadata intentionally omitted from pubsub events to avoid an extra DB query per publish.
+	// diffStatus is applied below. File metadata is intentionally
+	// omitted from pubsub events to avoid an extra DB query per
+	// publish. Clients must merge pubsub updates, not replace
+	// cached file metadata.
+	sdkChat := db2sdk.Chat(chat, nil, nil)
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
