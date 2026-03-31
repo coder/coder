@@ -2032,7 +2032,6 @@ Enable Data Protection Mode. When enabled, individual user identifiers are obfus
 |-------------|----------------------------------------------|
 | Type        | <code>string-array</code>                    |
 | Environment | <code>$CODER_DATA_PROTECTION_AUDITORS</code> |
-| YAML        | <code>dataProtection.auditors</code>         |
 
 Comma-separated list of email addresses of users designated as data protection auditors. Auditors can view unobfuscated user data in reports when Data Protection Mode is enabled. Changes require a server restart.
 

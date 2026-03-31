@@ -4040,7 +4040,6 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_DATA_PROTECTION_AUDITORS",
 			Value:       &c.DataProtection.Auditors,
 			Group:       &deploymentGroupDataProtection,
-			YAML:        "auditors",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		{
