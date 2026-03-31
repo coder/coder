@@ -1157,3 +1157,23 @@ LIMIT 1;
 UPDATE chats
 SET last_read_message_id = @last_read_message_id::bigint
 WHERE id = @id::uuid;
+
+-- name: GetChatRuntimeByDay :many
+-- Aggregate runtime_ms from chat_messages by day within a date range.
+-- Only counts messages where runtime_ms is not null.
+SELECT
+    DATE_TRUNC('day', cm.created_at)::timestamptz AS date,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
+    COUNT(*)::bigint AS message_count
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    cm.runtime_ms IS NOT NULL
+    AND cm.created_at >= @start_date::timestamptz
+    AND cm.created_at < @end_date::timestamptz
+GROUP BY
+    DATE_TRUNC('day', cm.created_at)
+ORDER BY
+    date ASC;

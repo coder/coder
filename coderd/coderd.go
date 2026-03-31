@@ -1167,6 +1167,9 @@ func New(options *Options) *API {
 					r.Get("/summary", api.chatCostSummary)
 				})
 			})
+			r.Route("/runtime", func(r chi.Router) {
+				r.Get("/summary", api.chatRuntimeSummary)
+			})
 			r.Route("/insights", func(r chi.Router) {
 				r.Get("/pull-requests", api.prInsights)
 			})

@@ -5264,6 +5264,61 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 	return items, nil
 }
 
+const getChatRuntimeByDay = `-- name: GetChatRuntimeByDay :many
+SELECT
+    DATE_TRUNC('day', cm.created_at)::timestamptz AS date,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
+    COUNT(*)::bigint AS message_count
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    cm.runtime_ms IS NOT NULL
+    AND cm.created_at >= $1::timestamptz
+    AND cm.created_at < $2::timestamptz
+GROUP BY
+    DATE_TRUNC('day', cm.created_at)
+ORDER BY
+    date ASC
+`
+
+type GetChatRuntimeByDayParams struct {
+	StartDate time.Time `db:"start_date" json:"start_date"`
+	EndDate   time.Time `db:"end_date" json:"end_date"`
+}
+
+type GetChatRuntimeByDayRow struct {
+	Date           time.Time `db:"date" json:"date"`
+	TotalRuntimeMs int64     `db:"total_runtime_ms" json:"total_runtime_ms"`
+	MessageCount   int64     `db:"message_count" json:"message_count"`
+}
+
+// Aggregate runtime_ms from chat_messages by day within a date range.
+// Only counts messages where runtime_ms is not null.
+func (q *sqlQuerier) GetChatRuntimeByDay(ctx context.Context, arg GetChatRuntimeByDayParams) ([]GetChatRuntimeByDayRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatRuntimeByDay, arg.StartDate, arg.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatRuntimeByDayRow
+	for rows.Next() {
+		var i GetChatRuntimeByDayRow
+		if err := rows.Scan(&i.Date, &i.TotalRuntimeMs, &i.MessageCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatUsageLimitConfig = `-- name: GetChatUsageLimitConfig :one
 SELECT id, singleton, enabled, default_limit_micros, period, created_at, updated_at FROM chat_usage_limit_config WHERE singleton = TRUE LIMIT 1
 `

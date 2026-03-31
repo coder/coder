@@ -26,6 +26,7 @@ import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	ClockIcon,
 	EllipsisIcon,
 	FilterIcon,
 	GitMergeIcon,
@@ -1303,6 +1304,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Analytics"
 									active={sidebarView.section === "insights"}
 									to="/agents/settings/insights"
+									state={location.state}
+									adminOnly
+								/>
+								<SettingsNavItem
+									icon={ClockIcon}
+									label="Agent Hours"
+									active={sidebarView.section === "agent-hours"}
+									to="/agents/settings/agent-hours"
 									state={location.state}
 									adminOnly
 								/>

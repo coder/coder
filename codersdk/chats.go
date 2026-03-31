@@ -945,6 +945,22 @@ type ChatCostSummary struct {
 	UsageLimit               *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
 }
 
+// ChatRuntimeDay represents a single day's aggregated runtime.
+type ChatRuntimeDay struct {
+	Date           time.Time `json:"date" format:"date-time"`
+	TotalRuntimeMs int64     `json:"total_runtime_ms"`
+	MessageCount   int64     `json:"message_count"`
+}
+
+// ChatRuntimeSummary is the response from the chat runtime summary endpoint.
+type ChatRuntimeSummary struct {
+	StartDate                time.Time        `json:"start_date" format:"date-time"`
+	EndDate                  time.Time        `json:"end_date" format:"date-time"`
+	TotalRuntimeMs           int64            `json:"total_runtime_ms"`
+	Daily                    []ChatRuntimeDay `json:"daily"`
+	ProjectedYearlyRuntimeMs int64            `json:"projected_yearly_runtime_ms"`
+}
+
 // ChatCostModelBreakdown contains per-model cost aggregation.
 type ChatCostModelBreakdown struct {
 	ModelConfigID            uuid.UUID `json:"model_config_id" format:"uuid"`
@@ -1408,6 +1424,29 @@ func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string
 		return ChatCostSummary{}, ReadBodyAsError(res)
 	}
 	var summary ChatCostSummary
+	return summary, json.NewDecoder(res.Body).Decode(&summary)
+}
+
+// GetChatRuntimeSummary returns aggregated runtime_ms data from chat messages.
+func (c *ExperimentalClient) GetChatRuntimeSummary(ctx context.Context, opts ChatCostSummaryOptions) (ChatRuntimeSummary, error) {
+	qp := url.Values{}
+	if !opts.StartDate.IsZero() {
+		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
+	}
+	if !opts.EndDate.IsZero() {
+		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
+	}
+	res, err := c.Client.Request(ctx, http.MethodGet, "/api/experimental/chats/runtime/summary", nil, func(r *http.Request) {
+		r.URL.RawQuery = qp.Encode()
+	})
+	if err != nil {
+		return ChatRuntimeSummary{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatRuntimeSummary{}, ReadBodyAsError(res)
+	}
+	var summary ChatRuntimeSummary
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
 }
 

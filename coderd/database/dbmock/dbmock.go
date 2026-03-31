@@ -2238,6 +2238,21 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessages), ctx, chatID)
 }
 
+// GetChatRuntimeByDay mocks base method.
+func (m *MockStore) GetChatRuntimeByDay(ctx context.Context, arg database.GetChatRuntimeByDayParams) ([]database.GetChatRuntimeByDayRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatRuntimeByDay", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatRuntimeByDayRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatRuntimeByDay indicates an expected call of GetChatRuntimeByDay.
+func (mr *MockStoreMockRecorder) GetChatRuntimeByDay(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatRuntimeByDay", reflect.TypeOf((*MockStore)(nil).GetChatRuntimeByDay), ctx, arg)
+}
+
 // GetChatSystemPrompt mocks base method.
 func (m *MockStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()

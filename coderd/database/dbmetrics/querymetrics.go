@@ -1216,6 +1216,14 @@ func (m queryMetricsStore) GetChatQueuedMessages(ctx context.Context, chatID uui
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatRuntimeByDay(ctx context.Context, arg database.GetChatRuntimeByDayParams) ([]database.GetChatRuntimeByDayRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatRuntimeByDay(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatRuntimeByDay").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatRuntimeByDay").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatSystemPrompt(ctx)

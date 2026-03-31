@@ -2682,6 +2682,13 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 	return q.db.GetChatQueuedMessages(ctx, chatID)
 }
 
+func (q *querier) GetChatRuntimeByDay(ctx context.Context, arg database.GetChatRuntimeByDayParams) ([]database.GetChatRuntimeByDayRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatRuntimeByDay(ctx, arg)
+}
+
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	// The system prompt is a deployment-wide setting read during chat
 	// creation by every authenticated user, so no RBAC policy check

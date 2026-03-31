@@ -259,6 +259,9 @@ type sqlcQuerier interface {
 	GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
+	// Aggregate runtime_ms from chat_messages by day within a date range.
+	// Only counts messages where runtime_ms is not null.
+	GetChatRuntimeByDay(ctx context.Context, arg GetChatRuntimeByDayParams) ([]GetChatRuntimeByDayRow, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
 	// single read to avoid torn reads between separate site-config lookups.
