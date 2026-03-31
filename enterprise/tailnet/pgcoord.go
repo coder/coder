@@ -955,8 +955,7 @@ func (q *querier) cleanupConn(c *connIO) {
 }
 
 // maxBatchSize is the maximum number of keys to process in a single batch
-// query.  The first key is acquired via the blocking acquire() call, and up to
-// maxBatchSize-1 additional same-type keys are grabbed opportunistically.
+// query.
 const maxBatchSize = 50
 
 func (q *querier) peerUpdateWorker() {
@@ -1014,12 +1013,6 @@ func (q *querier) mappingWorker() {
 // peerUpdate is work scheduled in response to a new peer->binding.  We need to find out all the
 // other peers that share a tunnel with the indicated peer, and then schedule a mapping update on
 // each, so that they can find out about the new binding.
-// mappingQuery queries bindings for the given peers and dispatches each
-// that is, all the peers that it shares a tunnel with and their current node mappings (if they
-// exist).  It then sends the mapping snapshot to the corresponding mapper, where it will get
-// transmitted to the peer.
-// peerUpdate queries tunnel peers for the given peer IDs and enqueues
-// mapping queries for each tunnel partner found.
 func (q *querier) peerUpdate(peers []uuid.UUID) error {
 	q.logger.Debug(q.ctx, "batch querying peers that share tunnels",
 		slog.F("num_peers", len(peers)))
@@ -1040,8 +1033,10 @@ func (q *querier) peerUpdate(peers []uuid.UUID) error {
 	return nil
 }
 
-// mappingQuery queries the database for the node mappings that each given
-// peer should know about and sends them to the corresponding mapper.
+// mappingQuery queries bindings for the given peers and dispatches each
+// that is, all the peers that it shares a tunnel with and their current node mappings (if they
+// exist).  It then sends the mapping snapshot to the corresponding mapper, where it will get
+// transmitted to the peer.
 func (q *querier) mappingQuery(peers []mKey) error {
 	// Filter to peers with active mappers before hitting the DB.
 	q.mu.Lock()
