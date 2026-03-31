@@ -2018,3 +2018,133 @@ func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage
 		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
 	}
 }
+
+// TestGatedControlCancel verifies the channel-based gate used by
+// processChat to ignore stale pubsub notifications that arrive
+// before the processor has finished initializing.
+func TestGatedControlCancel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IgnoredBeforeArmed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancelCause(context.Background())
+		defer cancel(nil)
+
+		controlArmed := make(chan struct{})
+		gatedCancel := func(cause error) {
+			select {
+			case <-controlArmed:
+				cancel(cause)
+			default:
+			}
+		}
+
+		// Simulate a stale "pending" notification arriving before
+		// the gate is armed. This mirrors the race where
+		// SendMessage's pubsub notification is dispatched after
+		// the control subscriber registers its queue.
+		notify := coderdpubsub.ChatStreamNotifyMessage{
+			Status: string(database.ChatStatusPending),
+		}
+		workerID := uuid.New()
+		if shouldCancelChatFromControlNotification(notify, workerID) {
+			gatedCancel(xerrors.New("stale pending"))
+		}
+
+		// The context must still be alive — the gate blocked the cancel.
+		require.NoError(t, ctx.Err(),
+			"stale notification must not cancel before the gate is armed")
+	})
+
+	t.Run("AllowedAfterArmed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancelCause(context.Background())
+		defer cancel(nil)
+
+		controlArmed := make(chan struct{})
+		gatedCancel := func(cause error) {
+			select {
+			case <-controlArmed:
+				cancel(cause)
+			default:
+			}
+		}
+
+		// Arm the gate (simulates publishStatus("running") having
+		// completed).
+		close(controlArmed)
+
+		// A "waiting" notification after arming should interrupt.
+		notify := coderdpubsub.ChatStreamNotifyMessage{
+			Status: string(database.ChatStatusWaiting),
+		}
+		workerID := uuid.New()
+		if shouldCancelChatFromControlNotification(notify, workerID) {
+			gatedCancel(xerrors.New("interrupted"))
+		}
+
+		require.ErrorIs(t, ctx.Err(), context.Canceled,
+			"notification after arming must cancel the context")
+	})
+
+	t.Run("RunningFromSameWorkerIgnored", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancelCause(context.Background())
+		defer cancel(nil)
+
+		controlArmed := make(chan struct{})
+		close(controlArmed)
+		gatedCancel := func(cause error) {
+			select {
+			case <-controlArmed:
+				cancel(cause)
+			default:
+			}
+		}
+
+		workerID := uuid.New()
+		notify := coderdpubsub.ChatStreamNotifyMessage{
+			Status:   string(database.ChatStatusRunning),
+			WorkerID: workerID.String(),
+		}
+		if shouldCancelChatFromControlNotification(notify, workerID) {
+			gatedCancel(xerrors.New("same worker running"))
+		}
+
+		require.NoError(t, ctx.Err(),
+			"running notification from the same worker must not cancel")
+	})
+
+	t.Run("RunningFromDifferentWorkerCancels", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancelCause(context.Background())
+		defer cancel(nil)
+
+		controlArmed := make(chan struct{})
+		close(controlArmed)
+		gatedCancel := func(cause error) {
+			select {
+			case <-controlArmed:
+				cancel(cause)
+			default:
+			}
+		}
+
+		workerID := uuid.New()
+		otherWorkerID := uuid.New()
+		notify := coderdpubsub.ChatStreamNotifyMessage{
+			Status:   string(database.ChatStatusRunning),
+			WorkerID: otherWorkerID.String(),
+		}
+		if shouldCancelChatFromControlNotification(notify, workerID) {
+			gatedCancel(xerrors.New("different worker took over"))
+		}
+
+		require.ErrorIs(t, ctx.Err(), context.Canceled,
+			"running notification from a different worker must cancel")
+	})
+}
