@@ -978,14 +978,14 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 			requestAnimationFrame(() => resolve()),
 		);
 
-		// Start a wheel burst to activate the wheel guard.
+		// Simulate a wheel event (no debounce guard in the new code).
 		scrollContainer.dispatchEvent(
 			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
 		);
 
-		// Append content while the wheel guard is active. This
-		// defers the ResizeObserver pin (pendingWheelPinRef = true)
-		// and creates the gap that previously triggered the bug.
+		// Append content while a wheel event is active. The new
+		// implementation pins immediately via ResizeObserver rather
+		// than deferring through a wheel guard.
 		const existing = getStoreMessages(wheelDeferredStore);
 		wheelDeferredStore.replaceMessages(
 			existing.concat([
@@ -994,15 +994,15 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 			]),
 		);
 
-		// Fire a second wheel tick. In the old code, this wheel
-		// event called handleUserInterrupt() which saw the gap
-		// and falsely disabled auto-follow.
+		// Fire a second wheel tick. The new code processes this
+		// as a downward wheel event and does not disengage
+		// follow mode.
 		scrollContainer.dispatchEvent(
 			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
 		);
 
-		// Wait for the 150ms wheel debounce to expire, plus the
-		// catch-up scrollTranscriptToBottom to settle.
+		// The new code pins synchronously via ResizeObserver.
+		// Verify the scroll position settled at the bottom.
 		await waitFor(
 			() => {
 				const dist =

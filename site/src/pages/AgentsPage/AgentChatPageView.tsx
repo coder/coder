@@ -312,7 +312,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								mcpServers={mcpServers}
 							/>
 						</div>
-					</ChatScrollContainer>{" "}
+					</ChatScrollContainer>
 					<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 						<ChatPageInput
 							store={store}

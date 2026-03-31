@@ -35,6 +35,7 @@ interface InternalState {
 	viewportObserver: ResizeObserver | null;
 	previousContentHeight: number | undefined;
 	mouseDown: boolean;
+	suppressNextResize: boolean;
 }
 
 /** The maximum scrollable offset for the container. */
@@ -82,6 +83,8 @@ interface StickToBottomInstance {
 	scrollToBottom: (behavior?: ScrollBehavior) => void;
 	/** True when the view is locked to the bottom or physically near it. */
 	isAtBottom: boolean;
+	/** Tell the hook to skip the next content resize auto-pin. */
+	suppressNextResize: () => void;
 }
 
 function useStickToBottom(): StickToBottomInstance {
@@ -100,6 +103,7 @@ function useStickToBottom(): StickToBottomInstance {
 		viewportObserver: null,
 		previousContentHeight: undefined,
 		mouseDown: false,
+		suppressNextResize: false,
 	});
 
 	// Sync helpers — keep mutable state and React state in lockstep.
@@ -137,6 +141,10 @@ function useStickToBottom(): StickToBottomInstance {
 		}
 	});
 
+	const suppressNextResize = useEffectEvent(() => {
+		stateRef.current.suppressNextResize = true;
+	});
+
 	// -----------------------------------------------------------------------
 	// Event handlers
 	// -----------------------------------------------------------------------
@@ -160,12 +168,25 @@ function useStickToBottom(): StickToBottomInstance {
 
 		setNearBottom(isNearBottom(s));
 
+		// Synchronous escape logic — must run before any resize
+		// handler so they see up-to-date internalIsAtBottom.
+		if (s.resizeDifference === 0) {
+			if (currentScrollTop < lastST) {
+				syncEscapedFromLock(true);
+				syncIsAtBottom(false);
+			} else if (currentScrollTop > lastST) {
+				syncEscapedFromLock(false);
+			}
+
+			if (!s.escapedFromLock && isNearBottom(s)) {
+				syncIsAtBottom(true);
+			}
+		}
+
+		// Text-selection escape deferred — getSelection() needs
+		// post-layout DOM state to reflect the current drag.
 		setTimeout(() => {
 			if (s.resizeDifference !== 0) return;
-
-			// If the user is selecting text inside the scroll
-			// container, treat it as an escape so the selection
-			// isn't fought by auto-scroll.
 			if (s.mouseDown && s.scrollElement) {
 				const sel = window.getSelection();
 				if (sel && sel.rangeCount > 0) {
@@ -178,20 +199,8 @@ function useStickToBottom(): StickToBottomInstance {
 					) {
 						syncEscapedFromLock(true);
 						syncIsAtBottom(false);
-						return;
 					}
 				}
-			}
-
-			if (currentScrollTop < lastST) {
-				syncEscapedFromLock(true);
-				syncIsAtBottom(false);
-			} else if (currentScrollTop > lastST) {
-				syncEscapedFromLock(false);
-			}
-
-			if (!s.escapedFromLock && isNearBottom(s)) {
-				syncIsAtBottom(true);
 			}
 		}, 1);
 	});
@@ -202,14 +211,16 @@ function useStickToBottom(): StickToBottomInstance {
 		// Walk up from target to find the nearest scrollable ancestor.
 		let el = e.target as HTMLElement | null;
 		while (el && el !== s.scrollElement) {
-			const style = getComputedStyle(el);
-			if (
-				style.overflow === "scroll" ||
-				style.overflow === "auto" ||
-				style.overflowY === "scroll" ||
-				style.overflowY === "auto"
-			) {
-				break;
+			if (el.scrollHeight > el.clientHeight) {
+				const style = getComputedStyle(el);
+				if (
+					style.overflow === "scroll" ||
+					style.overflow === "auto" ||
+					style.overflowY === "scroll" ||
+					style.overflowY === "auto"
+				) {
+					break;
+				}
 			}
 			el = el.parentElement;
 		}
@@ -244,7 +255,12 @@ function useStickToBottom(): StickToBottomInstance {
 
 		setNearBottom(isNearBottom(s));
 
-		if (difference >= 0) {
+		// If a prepend restoration just adjusted scrollTop, skip
+		// the auto-pin logic so the wasAtBottom heuristic doesn't
+		// undo the restoration.
+		if (s.suppressNextResize) {
+			s.suppressNextResize = false;
+		} else if (difference >= 0) {
 			if (previousHeight === undefined) {
 				// First observation — jump to bottom instantly.
 				if (s.internalIsAtBottom) {
@@ -396,6 +412,7 @@ function useStickToBottom(): StickToBottomInstance {
 		contentRef,
 		scrollToBottom,
 		isAtBottom: isAtBottom || nearBottom,
+		suppressNextResize,
 	};
 }
 
@@ -426,8 +443,13 @@ const ChatScrollContainer: FC<{
 	onFetchMoreMessages,
 	children,
 }) => {
-	const { scrollRef, contentRef, scrollToBottom, isAtBottom } =
-		useStickToBottom();
+	const {
+		scrollRef,
+		contentRef,
+		scrollToBottom,
+		isAtBottom,
+		suppressNextResize,
+	} = useStickToBottom();
 
 	// Merge our callback ref with the external RefObject so both
 	// point at the same DOM node, and expose scrollToBottom to the
@@ -532,10 +554,11 @@ const ChatScrollContainer: FC<{
 
 		const delta = container.scrollHeight - pending.scrollHeight;
 		if (delta > 0) {
+			suppressNextResize();
 			container.scrollTop += delta;
 		}
 		pendingPrependRef.current = null;
-	}, [isFetchingMoreMessages, scrollContainerRef]);
+	}, [isFetchingMoreMessages, scrollContainerRef, suppressNextResize]);
 
 	// -------------------------------------------------------------------
 	// Render
