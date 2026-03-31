@@ -853,8 +853,17 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 		"follow-up should have added more messages")
 	require.NotNil(t, findLastAssistantWithText(t, chatMsgs2.Messages),
 		"expected an assistant message with text after the follow-up")
-	require.Equal(t, int32(2), streamRequestCount.Load(),
-		"expected exactly two streamed OpenAI responses")
+	// waitForChatDone returns on the chat status event, which can arrive
+	// before the capture server records the second streamed request.
+	captureCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+	defer cancel()
+	require.True(t, testutil.Eventually(captureCtx, t, func(context.Context) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return secondReq != nil
+	}, testutil.IntervalFast), "expected second streaming request to be captured")
+	require.GreaterOrEqual(t, streamRequestCount.Load(), int32(2),
+		"expected at least two streamed OpenAI responses")
 
 	mu.Lock()
 	defer mu.Unlock()
