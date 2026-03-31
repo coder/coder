@@ -36,6 +36,7 @@ interface InternalState {
 	previousContentHeight: number | undefined;
 	mouseDown: boolean;
 	suppressNextResize: boolean;
+	activeTouchCount: number;
 }
 
 /** The maximum scrollable offset for the container. */
@@ -104,6 +105,7 @@ function useStickToBottom(): StickToBottomInstance {
 		previousContentHeight: undefined,
 		mouseDown: false,
 		suppressNextResize: false,
+		activeTouchCount: 0,
 	});
 
 	// Sync helpers — keep mutable state and React state in lockstep.
@@ -135,9 +137,12 @@ function useStickToBottom(): StickToBottomInstance {
 				top,
 				behavior: behavior ?? "smooth",
 			});
-			// Record the target so the scroll handler doesn't
-			// interpret the smooth-scroll frames as user scrolls.
-			s.ignoreScrollToTop = top;
+			// Don't set ignoreScrollToTop for smooth scroll.
+			// Each animation frame naturally reads as a downward
+			// scroll (currentScrollTop > lastScrollTop), which
+			// correctly clears escapedFromLock. Setting it to
+			// the target inflates lastST, making intermediate
+			// frames look like upward scrolls.
 		}
 	});
 
@@ -255,10 +260,12 @@ function useStickToBottom(): StickToBottomInstance {
 
 		setNearBottom(isNearBottom(s));
 
-		// If a prepend restoration just adjusted scrollTop, skip
-		// the auto-pin logic so the wasAtBottom heuristic doesn't
-		// undo the restoration.
-		if (s.suppressNextResize) {
+		// Skip auto-pin while touch contacts are active to
+		// prevent mobile URL bar resizes from fighting the
+		// user's finger.
+		if (s.activeTouchCount > 0) {
+			// No auto-pin during active touch.
+		} else if (s.suppressNextResize) {
 			s.suppressNextResize = false;
 		} else if (difference >= 0) {
 			if (previousHeight === undefined) {
@@ -314,11 +321,23 @@ function useStickToBottom(): StickToBottomInstance {
 	// shifts and we may no longer be at the bottom. Re-pin if locked.
 	const handleViewportResize = useEffectEvent(() => {
 		const s = stateRef.current;
-		if (!s.scrollElement || !s.internalIsAtBottom) {
+		if (!s.scrollElement || !s.internalIsAtBottom || s.activeTouchCount > 0) {
 			return;
 		}
 
 		scrollTo(s, maxScrollTop(s));
+	});
+
+	const handleTouchStart = useEffectEvent((e: TouchEvent) => {
+		stateRef.current.activeTouchCount += Math.max(e.changedTouches.length, 1);
+	});
+
+	const handleTouchEnd = useEffectEvent((e: TouchEvent) => {
+		const s = stateRef.current;
+		s.activeTouchCount = Math.max(
+			0,
+			s.activeTouchCount - Math.max(e.changedTouches.length, 1),
+		);
 	});
 
 	// -----------------------------------------------------------------------
@@ -330,6 +349,9 @@ function useStickToBottom(): StickToBottomInstance {
 		const prev = s.scrollElement;
 
 		if (prev) {
+			prev.removeEventListener("touchstart", handleTouchStart);
+			prev.removeEventListener("touchend", handleTouchEnd);
+			prev.removeEventListener("touchcancel", handleTouchEnd);
 			prev.removeEventListener("scroll", handleScroll);
 			prev.removeEventListener("wheel", handleWheel);
 		}
@@ -344,6 +366,15 @@ function useStickToBottom(): StickToBottomInstance {
 		if (el) {
 			el.addEventListener("scroll", handleScroll, { passive: true });
 			el.addEventListener("wheel", handleWheel, { passive: true });
+			el.addEventListener("touchstart", handleTouchStart, {
+				passive: true,
+			});
+			el.addEventListener("touchend", handleTouchEnd, {
+				passive: true,
+			});
+			el.addEventListener("touchcancel", handleTouchEnd, {
+				passive: true,
+			});
 
 			const vo = new ResizeObserver(handleViewportResize);
 			vo.observe(el);
@@ -390,6 +421,23 @@ function useStickToBottom(): StickToBottomInstance {
 		};
 	}, []);
 
+	// Reset touch counter on tab switch. The browser may not
+	// fire touchend/touchcancel when the user switches away
+	// mid-gesture, leaving the counter positive and blocking
+	// resize observer pins permanently.
+	useEffect(() => {
+		const s = stateRef.current;
+		const handleVisibilityChange = () => {
+			if (document.hidden) {
+				s.activeTouchCount = 0;
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+		return () => {
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
+		};
+	}, []);
+
 	// Cleanup on unmount.
 	useEffect(() => {
 		return () => {
@@ -397,6 +445,9 @@ function useStickToBottom(): StickToBottomInstance {
 			if (s.scrollElement) {
 				s.scrollElement.removeEventListener("scroll", handleScroll);
 				s.scrollElement.removeEventListener("wheel", handleWheel);
+				s.scrollElement.removeEventListener("touchstart", handleTouchStart);
+				s.scrollElement.removeEventListener("touchend", handleTouchEnd);
+				s.scrollElement.removeEventListener("touchcancel", handleTouchEnd);
 			}
 			if (s.resizeObserver) {
 				s.resizeObserver.disconnect();
@@ -405,7 +456,7 @@ function useStickToBottom(): StickToBottomInstance {
 				s.viewportObserver.disconnect();
 			}
 		};
-	}, [handleScroll, handleWheel]);
+	}, [handleScroll, handleWheel, handleTouchStart, handleTouchEnd]);
 
 	return {
 		scrollRef,
@@ -476,8 +527,7 @@ const ChatScrollContainer: FC<{
 		}
 	}, [isFetchingMoreMessages]);
 
-	// Snapshot captured before a fetch so we can restore scroll
-	// position after older messages are prepended.
+	// Snapshot captured before a fetch so we can restore scroll	// position after older messages are prepended.
 	const pendingPrependRef = useRef<{
 		scrollHeight: number;
 	} | null>(null);
@@ -539,10 +589,21 @@ const ChatScrollContainer: FC<{
 		}
 	}, [isFetchingMoreMessages]);
 
+	// Keep the prepend scrollHeight snapshot current while
+	// streaming, so the restoration delta only reflects
+	// prepended content, not streaming growth during fetch.
+	useLayoutEffect(() => {
+		if (!isFetchingMoreMessages) return;
+		const pending = pendingPrependRef.current;
+		const container = scrollContainerRef.current;
+		if (pending && container) {
+			pending.scrollHeight = container.scrollHeight;
+		}
+	});
+
 	// -------------------------------------------------------------------
 	// Prepend scroll restoration
 	// -------------------------------------------------------------------
-
 	// When older messages are prepended the browser keeps scrollTop
 	// constant while scrollHeight grows, shifting the viewport down.
 	// Compensate by adding the height delta to scrollTop.
