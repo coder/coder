@@ -1244,17 +1244,57 @@ func (p *Server) EditMessage(
 	return result, nil
 }
 
-// ArchiveChat archives a chat and all descendants, then broadcasts a deleted event.
+// ArchiveChat archives a chat and all descendants. If the target chat is
+// pending or running, it first transitions the chat back to waiting so active
+// processing stops before the archive is broadcast.
 func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	if err := p.db.ArchiveChatByID(ctx, chat.ID); err != nil {
-		return xerrors.Errorf("archive chat: %w", err)
+	statusChat := chat
+	interrupted := false
+	if err := p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for archive: %w", err)
+		}
+		statusChat = lockedChat
+
+		// We do not call setChatWaiting here because it intentionally preserves
+		// pending chats so queued-message promotion can win. Archiving is a
+		// harder stop: both pending and running chats must transition to waiting.
+		if lockedChat.Status == database.ChatStatusPending || lockedChat.Status == database.ChatStatusRunning {
+			statusChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:          chat.ID,
+				Status:      database.ChatStatusWaiting,
+				WorkerID:    uuid.NullUUID{},
+				StartedAt:   sql.NullTime{},
+				HeartbeatAt: sql.NullTime{},
+				LastError:   sql.NullString{},
+			})
+			if err != nil {
+				return xerrors.Errorf("set chat waiting before archive: %w", err)
+			}
+			interrupted = true
+		}
+
+		if err := tx.ArchiveChatByID(ctx, chat.ID); err != nil {
+			return xerrors.Errorf("archive chat: %w", err)
+		}
+		return nil
+	}, nil); err != nil {
+		return err
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDeleted, nil)
+	if interrupted {
+		p.publishStatus(chat.ID, statusChat.Status, statusChat.WorkerID)
+		p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	}
+
+	statusChat.Archived = true
+	statusChat.PinOrder = 0
+	p.publishChatPubsubEvent(statusChat, coderdpubsub.ChatEventKindDeleted, nil)
 	return nil
 }
 
@@ -3563,9 +3603,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			// the worker and let the processor pick it back up.
 			if latestChat.Status == database.ChatStatusPending {
 				status = database.ChatStatusPending
-			} else if status == database.ChatStatusWaiting {
+			} else if status == database.ChatStatusWaiting && !latestChat.Archived {
 				// Queued messages were already admitted through SendMessage,
-				// so auto-promotion only preserves FIFO order here.
+				// so auto-promotion only preserves FIFO order here. Archived
+				// chats skip promotion so archiving behaves like a hard stop.
 				var promoteErr error
 				promotedMessage, remainingQueuedMessages, shouldPublishQueueUpdate, promoteErr = p.tryAutoPromoteQueuedMessage(cleanupCtx, tx, latestChat)
 				if promoteErr != nil {

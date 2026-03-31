@@ -143,6 +143,8 @@ interface AgentChatPageViewProps {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
+
+	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 }
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
@@ -199,6 +201,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	desktopChatId,
+	lastInjectedContext,
 }) => {
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
@@ -350,6 +353,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							selectedMCPServerIds={selectedMCPServerIds}
 							onMCPSelectionChange={onMCPSelectionChange}
 							onMCPAuthComplete={onMCPAuthComplete}
+							lastInjectedContext={lastInjectedContext}
 						/>
 					</div>
 				</div>

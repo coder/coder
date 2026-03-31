@@ -877,3 +877,149 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, antCount, "antagonist workspaces (deleted and regular) should not be migrated")
 }
+
+func TestMigration000457ChatAccessRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 457
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before the one that grants
+	// agents-access roles.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Define test users.
+	userWithChat := uuid.New()         // Has a chat, no agents-access role.
+	userAlreadyHasRole := uuid.New()   // Has a chat and already has agents-access.
+	userNoChat := uuid.New()           // No chat at all.
+	userWithChatAndRoles := uuid.New() // Has a chat and other existing roles.
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// We need a chat_provider and chat_model_config for the chats FK.
+	providerID := uuid.New()
+	modelConfigID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		// Insert test users with varying rbac_roles.
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithChat, "user-with-chat", "chat@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userAlreadyHasRole, "user-already-has-role", "already@test.com", []byte{}, now, now, "active", pq.StringArray{"agents-access"}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userNoChat, "user-no-chat", "nochat@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithChatAndRoles, "user-with-roles", "roles@test.com", []byte{}, now, now, "active", pq.StringArray{"template-admin"}, "password"},
+		},
+		// Insert a chat provider and model config for the chats FK.
+		{
+			`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{providerID, "openai", "OpenAI", "", true, now, now},
+		},
+		{
+			`INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{modelConfigID, "openai", "gpt-4", "GPT 4", true, 100000, 70, now, now},
+		},
+		// Insert chats for users A, B, and D (not C).
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			[]any{uuid.New(), userWithChat, modelConfigID, "Chat A", now, now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			[]any{uuid.New(), userAlreadyHasRole, modelConfigID, "Chat B", now, now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			[]any{uuid.New(), userWithChatAndRoles, modelConfigID, "Chat D", now, now},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run the migration.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Helper to get rbac_roles for a user.
+	getRoles := func(t *testing.T, userID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT rbac_roles FROM users WHERE id = $1", userID,
+		).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
+
+	// Verify: user with chat gets agents-access.
+	roles := getRoles(t, userWithChat)
+	require.Contains(t, roles, "agents-access",
+		"user with chat should get agents-access")
+
+	// Verify: user who already had agents-access has no duplicate.
+	roles = getRoles(t, userAlreadyHasRole)
+	count := 0
+	for _, r := range roles {
+		if r == "agents-access" {
+			count++
+		}
+	}
+	require.Equal(t, 1, count,
+		"user who already had agents-access should not get a duplicate")
+
+	// Verify: user without chat does NOT get agents-access.
+	roles = getRoles(t, userNoChat)
+	require.NotContains(t, roles, "agents-access",
+		"user without chat should not get agents-access")
+
+	// Verify: user with chat and existing roles gets agents-access
+	// appended while preserving existing roles.
+	roles = getRoles(t, userWithChatAndRoles)
+	require.Contains(t, roles, "agents-access",
+		"user with chat and other roles should get agents-access")
+	require.Contains(t, roles, "template-admin",
+		"existing roles should be preserved")
+}
