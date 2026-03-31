@@ -1616,6 +1616,17 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 					continue
 				}
 
+				// Verify that this specific option was directly set,
+				// not just inheriting a ValueSource from a sibling
+				// option that shares the same Value pointer. Without
+				// this check, setting CODER_EMAIL_FROM (new name)
+				// would also warn about CODER_NOTIFICATIONS_EMAIL_FROM
+				// (old name) because serpent propagates ValueSource
+				// across options sharing the same Value.
+				if !isDirectlySet(inv, opt) {
+					continue
+				}
+
 				var warnStr strings.Builder
 				_, _ = warnStr.WriteString(translateSource(opt.ValueSource, opt))
 				_, _ = warnStr.WriteString(" is deprecated, please use ")
@@ -1634,6 +1645,29 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 
 			return next(inv)
 		}
+	}
+}
+
+// isDirectlySet checks whether a specific option was directly set by
+// the user, rather than inheriting its ValueSource from another option
+// that shares the same Value pointer.
+func isDirectlySet(inv *serpent.Invocation, opt serpent.Option) bool {
+	switch opt.ValueSource {
+	case serpent.ValueSourceFlag:
+		if inv.ParsedFlags() == nil {
+			return false
+		}
+		f := inv.ParsedFlags().Lookup(opt.Flag)
+		return f != nil && f.Changed
+	case serpent.ValueSourceEnv:
+		_, exists := os.LookupEnv(opt.Env)
+		return exists
+	case serpent.ValueSourceYAML:
+		// YAML source cannot be cheaply verified here without
+		// re-parsing the config file. Assume it is correct.
+		return true
+	default:
+		return false
 	}
 }
 

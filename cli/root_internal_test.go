@@ -191,6 +191,111 @@ func Test_wrapTransportWithTelemetryHeader(t *testing.T) {
 	require.Equal(t, ti.Command, "test")
 }
 
+//nolint:paralleltest // t.Setenv is incompatible with t.Parallel.
+func TestPrintDeprecatedOptions(t *testing.T) {
+	//nolint:paralleltest // t.Setenv is incompatible with t.Parallel.
+	t.Run("NoWarningWhenNewEnvSet", func(t *testing.T) {
+		// Simulate the scenario from #23847: the new env var
+		// (CODER_EMAIL_FROM) is set, but the old deprecated one
+		// (CODER_NOTIFICATIONS_EMAIL_FROM) is not. Both options
+		// share the same Value pointer, so serpent propagates
+		// ValueSource to both. The warning should NOT fire for the
+		// deprecated option because it was not directly set.
+		var value serpent.String
+
+		newOpt := serpent.Option{
+			Name:        "Email From",
+			Flag:        "email-from",
+			Env:         "CODER_TEST_EMAIL_FROM",
+			Value:       &value,
+			ValueSource: serpent.ValueSourceEnv,
+		}
+		deprecatedOpt := serpent.Option{
+			Name:  "Notifications Email From",
+			Flag:  "notifications-email-from",
+			Env:   "CODER_TEST_NOTIFICATIONS_EMAIL_FROM",
+			Value: &value,
+			// Serpent propagates ValueSource from the new option.
+			ValueSource: serpent.ValueSourceEnv,
+			UseInstead:  serpent.OptionSet{newOpt},
+		}
+
+		// Set only the new env var, not the deprecated one.
+		t.Setenv("CODER_TEST_EMAIL_FROM", "test@example.com")
+
+		cmd := &serpent.Command{
+			Use: "test",
+			Options: serpent.OptionSet{
+				newOpt,
+				deprecatedOpt,
+			},
+			Handler: func(_ *serpent.Invocation) error {
+				return nil
+			},
+		}
+
+		var stderr bytes.Buffer
+		inv := cmd.Invoke()
+		inv.Stderr = &stderr
+		inv.Stdout = io.Discard
+
+		mw := PrintDeprecatedOptions()
+		err := mw(func(_ *serpent.Invocation) error {
+			return nil
+		})(inv)
+		require.NoError(t, err)
+		require.Empty(t, stderr.String(), "should not warn when deprecated env var is not set")
+	})
+
+	//nolint:paralleltest // t.Setenv is incompatible with t.Parallel.
+	t.Run("WarningWhenDeprecatedEnvSet", func(t *testing.T) {
+		var value serpent.String
+
+		newOpt := serpent.Option{
+			Name:  "Email From",
+			Flag:  "email-from",
+			Env:   "CODER_TEST_EMAIL_FROM_2",
+			Value: &value,
+		}
+		deprecatedOpt := serpent.Option{
+			Name:        "Notifications Email From",
+			Flag:        "notifications-email-from-2",
+			Env:         "CODER_TEST_NOTIFICATIONS_EMAIL_FROM_2",
+			Value:       &value,
+			ValueSource: serpent.ValueSourceEnv,
+			UseInstead:  serpent.OptionSet{newOpt},
+		}
+
+		// Set the deprecated env var.
+		t.Setenv("CODER_TEST_NOTIFICATIONS_EMAIL_FROM_2", "test@example.com")
+
+		cmd := &serpent.Command{
+			Use: "test",
+			Options: serpent.OptionSet{
+				newOpt,
+				deprecatedOpt,
+			},
+			Handler: func(_ *serpent.Invocation) error {
+				return nil
+			},
+		}
+
+		var stderr bytes.Buffer
+		inv := cmd.Invoke()
+		inv.Stderr = &stderr
+		inv.Stdout = io.Discard
+
+		mw := PrintDeprecatedOptions()
+		err := mw(func(_ *serpent.Invocation) error {
+			return nil
+		})(inv)
+		require.NoError(t, err)
+		require.Contains(t, stderr.String(), "CODER_TEST_NOTIFICATIONS_EMAIL_FROM_2",
+			"should warn when deprecated env var is set")
+		require.Contains(t, stderr.String(), "deprecated")
+	})
+}
+
 func Test_wrapTransportWithEntitlementsCheck(t *testing.T) {
 	t.Parallel()
 
