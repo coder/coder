@@ -33,6 +33,4 @@ const meta: Meta<typeof HelpPopover> = {
 export default meta;
 type Story = StoryObj<typeof HelpPopover>;
 
-const Example: Story = {};
-
-export { Example as HelpPopover };
+export const Example: Story = {};
