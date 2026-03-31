@@ -221,7 +221,7 @@ async fn fetch_workspaces(query: String) -> Result<WorkspacesResponse, String> {
     let url = format!("{}/api/v2/workspaces?q={}&limit=25", base,
         js_sys::encode_uri_component(&query));
 
-    let resp = match gloo_net::http::Request::get(&url).send().await {
+    let resp = match crate::api::http::get(&url).send().await {
         Ok(r) => r,
         Err(_) => return Ok(mock_workspaces()),
     };

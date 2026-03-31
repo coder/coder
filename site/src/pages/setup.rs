@@ -35,8 +35,7 @@ async fn create_first_user(req: CreateFirstUserRequest) -> Result<(), String> {
     let base = window.location().origin().unwrap_or_default();
     let url = format!("{}/api/v2/users/first", base);
 
-    let resp = gloo_net::http::Request::post(&url)
-        .header("Content-Type", "application/json")
+    let resp = crate::api::http::post(&url)
         .body(serde_json::to_string(&req).unwrap())
         .map_err(|e| format!("Request build error: {e}"))?
         .send()
@@ -62,8 +61,7 @@ async fn login(email: &str, password: &str) -> Result<(), String> {
         "password": password,
     });
 
-    let resp = gloo_net::http::Request::post(&url)
-        .header("Content-Type", "application/json")
+    let resp = crate::api::http::post(&url)
         .body(body.to_string())
         .map_err(|e| format!("Request build error: {e}"))?
         .send()

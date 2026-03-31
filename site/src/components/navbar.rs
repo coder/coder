@@ -28,7 +28,7 @@ pub fn Navbar() -> impl IntoView {
             let url = format!("{}/api/v2/users/logout", base);
 
             // Best-effort logout — redirect regardless of outcome.
-            let _ = gloo_net::http::Request::post(&url).send().await;
+            let _ = crate::api::http::post(&url).send().await;
 
             let _ = window.location().set_href("/login");
         });

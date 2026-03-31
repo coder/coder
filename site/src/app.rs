@@ -52,7 +52,7 @@ fn DashboardLayout(children: Children) -> impl IntoView {
         let base = window.location().origin().unwrap_or_default();
         let url = format!("{}/api/v2/users/me", base);
 
-        let authed = match gloo_net::http::Request::get(&url).send().await {
+        let authed = match crate::api::http::get(&url).send().await {
             Ok(resp) => resp.ok(),
             Err(_) => false,
         };

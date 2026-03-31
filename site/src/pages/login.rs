@@ -23,8 +23,7 @@ async fn login(email: &str, password: &str) -> Result<(), String> {
         password: password.to_string(),
     };
 
-    let resp = gloo_net::http::Request::post(&url)
-        .header("Content-Type", "application/json")
+    let resp = crate::api::http::post(&url)
         .body(serde_json::to_string(&body).unwrap())
         .map_err(|e| format!("Request build error: {e}"))?
         .send()
