@@ -11,8 +11,8 @@ import {
 	HelpPopoverLinksGroup,
 	HelpPopoverText,
 	HelpPopoverTitle,
+	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
-import { TooltipTrigger } from "#/components/Tooltip/Tooltip";
 
 type SubAgentOutdatedTooltipProps = {
 	devcontainer: WorkspaceAgentDevcontainer;
@@ -34,11 +34,11 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 
 	return (
 		<HelpPopover>
-			<TooltipTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
+			<HelpPopoverTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
 				<span role="status" className="cursor-pointer">
 					Outdated
 				</span>
-			</TooltipTrigger>
+			</HelpPopoverTrigger>{" "}
 			<HelpPopoverContent>
 				<div className="flex flex-col gap-2">
 					<div>
