@@ -18,6 +18,7 @@ import {
 	isUsageLimitData,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
+import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import type { ModelSelectorOption } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
@@ -95,6 +96,7 @@ interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
+	canCreateChat: boolean;
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
 	isModelCatalogLoading: boolean;
@@ -112,6 +114,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
+	canCreateChat,
 	modelCatalog,
 	modelOptions,
 	modelConfigs,
@@ -284,10 +287,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
+	const isForbidden = !canCreateChat;
+
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-				{createError ? (
+				{isForbidden ? (
+					<ChatAccessDeniedAlert />
+				) : createError ? (
 					isApiError(createError) &&
 					createError.response?.status === 409 &&
 					isUsageLimitData(createError.response.data) ? (
@@ -310,7 +317,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
-					isDisabled={isCreating}
+					isDisabled={isCreating || isForbidden}
 					isLoading={isCreating}
 					initialValue={initialInputValue}
 					onContentChange={handleContentChange}
