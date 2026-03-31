@@ -19,7 +19,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "#/components/HelpTooltip/HelpTooltip";
-import { docs } from "../../utils/docs";
+import { docs } from "#/utils/docs";
 
 type PublishTemplateVersionDialogProps = DialogProps & {
 	defaultName: string;
