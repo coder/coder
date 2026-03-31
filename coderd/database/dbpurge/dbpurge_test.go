@@ -125,6 +125,11 @@ func TestMetrics(t *testing.T) {
 			"record_type": "audit_logs",
 		})
 		require.GreaterOrEqual(t, auditLogs, 0)
+
+		chatFiles := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "chat_files",
+		})
+		require.GreaterOrEqual(t, chatFiles, 0)
 	})
 
 	t.Run("FailedIteration", func(t *testing.T) {
@@ -1652,7 +1657,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Backdate created_at since InsertChatFile uses NOW().
-		//nolint:gosec // This is a test, G115 doesn't matter.
 		_, err = rawDB.ExecContext(ctx, "UPDATE chat_files SET created_at = $1 WHERE id = $2", createdAt, row.ID)
 		require.NoError(t, err)
 		return row.ID
@@ -1673,7 +1677,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			require.NoError(t, err)
 		}
 		// Set updated_at to control the "archived since" time.
-		//nolint:gosec // This is a test, G115 doesn't matter.
 		_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
 		require.NoError(t, err)
 		return chat
@@ -1723,6 +1726,12 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File C: 10 days old, NOT in any chat → should be retained (too young).
 				fileC := createChatFile(t, db, rawDB, user.ID, org.ID, now.Add(-10*24*time.Hour))
 
+				// File at 29 days 23 hours — close to the 30-day
+				// threshold but within retention. awaitDoTick runs two
+				// purge cycles (the second 10 minutes after now), so
+				// this needs to survive both cutoffs.
+				fileBoundary := createChatFile(t, db, rawDB, user.ID, org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
+
 				// Run purge.
 				done := awaitDoTick(ctx, t, clk)
 				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
@@ -1740,6 +1749,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File C should still exist (too young to purge).
 				_, err = db.GetChatFileByID(ctx, fileC)
 				require.NoError(t, err, "young file C should be retained")
+
+				// Boundary file should still exist (exactly 30d is not < threshold).
+				_, err = db.GetChatFileByID(ctx, fileBoundary)
+				require.NoError(t, err, "file near 30d boundary should be retained")
 			},
 		},
 		{
@@ -1777,7 +1790,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 				// AppendChatFileIDs sets updated_at to NOW(), so backdate it
 				// again to keep the archived-since window correct.
-				//nolint:gosec // This is a test, G115 doesn't matter.
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
 					now.Add(-31*24*time.Hour), oldArchivedChat.ID)
 				require.NoError(t, err)
@@ -1791,7 +1803,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 				// Backdate updated_at again after AppendChatFileIDs.
-				//nolint:gosec // This is a test, G115 doesn't matter.
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
 					now.Add(-10*24*time.Hour), recentArchivedChat.ID)
 				require.NoError(t, err)
@@ -1804,7 +1815,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					FileIDs: []uuid.UUID{fileF},
 				})
 				require.NoError(t, err)
-				//nolint:gosec // This is a test, G115 doesn't matter.
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
 					now.Add(-31*24*time.Hour), anotherOldArchivedChat.ID)
 				require.NoError(t, err)
