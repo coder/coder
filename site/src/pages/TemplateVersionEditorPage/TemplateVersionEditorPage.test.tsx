@@ -24,7 +24,6 @@ import {
 import { server } from "#/testHelpers/server";
 import type { FileTree } from "#/utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
-
 import TemplateVersionEditorPage, {
 	findEntrypointFile,
 	getActivePath,
