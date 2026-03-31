@@ -314,17 +314,22 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// This functionality has been moved to the AppsAPI in the agentapi. We keep this HTTP handler around for back
 	// compatibility with older agents. We'll translate the request into the protobuf so there is only one primary
 	// implementation.
+	cachedWs := &agentapi.CachedWorkspaceFields{}
+	cachedWs.UpdateValues(workspace)
+
 	appAPI := &agentapi.AppsAPI{
-		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-			return workspaceAgent, nil
+		AgentID:   workspaceAgent.ID,
+		Database:  api.Database,
+		Log:       api.Logger,
+		Workspace: cachedWs,
+		AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+			return api.Database.GetWorkspaceAgentByID(ctx, workspaceAgent.ID)
 		},
-		Database: api.Database,
-		Log:      api.Logger,
-		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 			api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 				Kind:        kind,
 				WorkspaceID: workspace.ID,
-				AgentID:     &agent.ID,
+				AgentID:     &agentID,
 			})
 			return nil
 		},
@@ -1835,18 +1840,6 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		Branch:       strings.TrimSpace(query.Get("git_branch")),
 		RemoteOrigin: strings.TrimSpace(query.Get("git_remote_origin")),
 	}
-	var chatID uuid.NullUUID
-	if rawChatID := query.Get("chat_id"); rawChatID != "" {
-		parsed, err := uuid.Parse(rawChatID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat_id.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		chatID = uuid.NullUUID{UUID: parsed, Valid: true}
-	}
 	// Either match or configID must be provided!
 	match := query.Get("match")
 	if match == "" {
@@ -1940,11 +1933,12 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Persist git refs as soon as the agent requests external auth so branch
+	// MarkStale will trigger a refresh by coderd/gitsync. This allows us to
+	// persist git refs as soon as the agent requests external auth so branch
 	// context is retained even if the flow requires an out-of-band login.
-	if gitRef.Branch != "" || gitRef.RemoteOrigin != "" {
-		//nolint:gocritic // System context required to persist chat git refs.
-		api.storeChatGitRef(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, chatID, gitRef)
+	if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
+		//nolint:gocritic // Chat processor context required for cross-user chat lookup
+		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
 	}
 
 	var previousToken *database.ExternalAuthLink
@@ -1960,7 +1954,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		api.workspaceAgentsExternalAuthListen(ctx, rw, previousToken, externalAuthConfig, workspace, chatID, gitRef)
+		api.workspaceAgentsExternalAuthListen(ctx, rw, previousToken, externalAuthConfig, workspace, gitRef)
 	}
 
 	// This is the URL that will redirect the user with a state token.
@@ -2018,11 +2012,10 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	api.triggerWorkspaceChatDiffStatusRefresh(workspace, chatID, gitRef)
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, chatID uuid.NullUUID, gitRef chatGitRef) {
+func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, gitRef chatGitRef) {
 	// Since we're ticking frequently and this sign-in operation is rare,
 	// we are OK with polling to avoid the complexity of pubsub.
 	ticker, done := api.NewTicker(time.Second)
@@ -2092,7 +2085,9 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			})
 			return
 		}
-		api.triggerWorkspaceChatDiffStatusRefresh(workspace, chatID, gitRef)
+		// MarkStale will trigger a refresh by coderd/gitsync.
+		//nolint:gocritic // Chat processor context required for cross-user chat lookup
+		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}
@@ -2170,7 +2165,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	userID := apiKey.UserID.String()
 
 	// Store connection telemetry event
-	now := time.Now()
+	now := dbtime.Now()
 	connectionTelemetryEvent := telemetry.UserTailnetConnection{
 		ConnectedAt:         now,
 		DisconnectedAt:      nil,
@@ -2187,7 +2182,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer func() {
 		// Update telemetry event with disconnection time
-		disconnectTime := time.Now()
+		disconnectTime := dbtime.Now()
 		connectionTelemetryEvent.DisconnectedAt = &disconnectTime
 		api.Telemetry.Report(&telemetry.Snapshot{
 			UserTailnetConnections: []telemetry.UserTailnetConnection{connectionTelemetryEvent},

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -145,7 +146,7 @@ func TestPostLicense(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureAuditLog: 1,
 			},
-			NotBefore: time.Now().Add(time.Hour),
+			NotBefore: dbtime.Now().Add(time.Hour),
 			GraceAt:   time.Now().Add(2 * time.Hour),
 			ExpiresAt: time.Now().Add(3 * time.Hour),
 		})
@@ -168,7 +169,7 @@ func TestPostLicense(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureAuditLog: 1,
 			},
-			NotBefore: time.Now().Add(time.Hour),
+			NotBefore: dbtime.Now().Add(time.Hour),
 			GraceAt:   time.Now().Add(2 * time.Hour),
 			ExpiresAt: time.Now().Add(-time.Hour),
 		})

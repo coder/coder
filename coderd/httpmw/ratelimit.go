@@ -32,35 +32,56 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 		count,
 		window,
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
-			// Prioritize by user, but fallback to IP.
-			apiKey, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey)
-			if !ok {
+			// Identify the caller. We check two sources:
+			//
+			// 1. apiKeyPrecheckedContextKey — set by PrecheckAPIKey
+			//    at the root of the router. Only fully validated
+			//    keys are used.
+			// 2. apiKeyContextKey — set by ExtractAPIKeyMW if it
+			//    has already run (e.g. unit tests, workspace-app
+			//    routes that don't go through PrecheckAPIKey).
+			//
+			// If neither is present, fall back to IP.
+			var userID string
+			var subject *rbac.Subject
+
+			if pc, ok := r.Context().Value(apiKeyPrecheckedContextKey{}).(APIKeyPrechecked); ok && pc.Result != nil {
+				userID = pc.Result.Key.UserID.String()
+				subject = &pc.Result.Subject
+			} else if ak, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey); ok {
+				userID = ak.UserID.String()
+				if auth, ok := UserAuthorizationOptional(r.Context()); ok {
+					subject = &auth
+				}
+			} else {
 				return httprate.KeyByIP(r)
 			}
 
 			if ok, _ := strconv.ParseBool(r.Header.Get(codersdk.BypassRatelimitHeader)); !ok {
-				// No bypass attempt, just ratelimit.
-				return apiKey.UserID.String(), nil
+				// No bypass attempt, just rate limit by user.
+				return userID, nil
 			}
 
 			// Allow Owner to bypass rate limiting for load tests
-			// and automation.
-			auth := UserAuthorization(r.Context())
-
-			// We avoid using rbac.Authorizer since rego is CPU-intensive
-			// and undermines the DoS-prevention goal of the rate limiter.
-			for _, role := range auth.SafeRoleNames() {
+			// and automation. We avoid using rbac.Authorizer since
+			// rego is CPU-intensive and undermines the
+			// DoS-prevention goal of the rate limiter.
+			if subject == nil {
+				// Can't verify roles — rate limit normally.
+				return userID, nil
+			}
+			for _, role := range subject.SafeRoleNames() {
 				if role == rbac.RoleOwner() {
 					// HACK: use a random key each time to
 					// de facto disable rate limiting. The
-					// `httprate` package has no
-					// support for selectively changing the limit
-					// for particular keys.
+					// httprate package has no support for
+					// selectively changing the limit for
+					// particular keys.
 					return cryptorand.String(16)
 				}
 			}
 
-			return apiKey.UserID.String(), xerrors.Errorf(
+			return userID, xerrors.Errorf(
 				"%q provided but user is not %v",
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)

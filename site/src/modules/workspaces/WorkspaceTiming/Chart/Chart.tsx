@@ -1,11 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import {
-	SearchField,
-	type SearchFieldProps,
-} from "components/SearchField/SearchField";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC, HTMLProps } from "react";
 import React, { useEffect, useRef } from "react";
+import {
+	SearchField,
+	type SearchFieldProps,
+} from "#/components/SearchField/SearchField";
 import type { BarColors } from "./Bar";
 
 export const Chart = (props: HTMLProps<HTMLDivElement>) => {

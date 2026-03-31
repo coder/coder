@@ -3,39 +3,39 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
 import {
 	CORSBehaviors,
 	type Template,
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
-} from "api/typesGenerated";
-import { PremiumBadge } from "components/Badges/Badges";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { PremiumBadge } from "#/components/Badges/Badges";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	StackLabel,
 	StackLabelHelperText,
-} from "components/StackLabel/StackLabel";
-import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/StackLabel/StackLabel";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
 	iconValidator,
 	nameValidator,
 	onChangeTrimmed,
-} from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/utils/formUtils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;

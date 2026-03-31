@@ -1,13 +1,13 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { workspaceBuildParametersKey } from "#/api/queries/workspaceBuilds";
+import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
 import {
 	MockTask,
 	MockTaskWorkspace,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { workspaceBuildParametersKey } from "api/queries/workspaceBuilds";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+} from "#/testHelpers/entities";
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
 
 const mockTaskWorkspaceStarting: Workspace = {
@@ -129,6 +129,9 @@ export const Submitting: Story = {
 			const submitButton = body.getByRole("button", {
 				name: /update and restart build/i,
 			});
+			await waitFor(() => {
+				expect(submitButton).not.toBeDisabled();
+			});
 			await userEvent.click(submitButton);
 		});
 
@@ -248,7 +251,10 @@ export const Failure: Story = {
 		});
 
 		await step("Shows error message", async () => {
-			await body.findByText(/Failed to update task prompt/i);
+			const alert = await body.findByRole("alert");
+			await within(alert).findByRole("heading", {
+				name: /Failed to update task prompt/i,
+			});
 		});
 	},
 };

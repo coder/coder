@@ -1,29 +1,34 @@
+import type { QueryClient, UseQueryOptions } from "react-query";
 import {
 	API,
 	type GetProvisionerDaemonsParams,
 	type GetProvisionerJobsParams,
-} from "api/api";
+} from "#/api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
+	Organization,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
-} from "api/typesGenerated";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+	UpdateWorkspaceSharingSettingsRequest,
+	UsersRequest,
+} from "#/api/typesGenerated";
+import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
 	type OrganizationPermissionName,
 	type OrganizationPermissions,
 	organizationPermissionChecks,
-} from "modules/permissions/organizations";
+} from "#/modules/permissions/organizations";
 import {
 	type WorkspacePermissionName,
 	type WorkspacePermissions,
 	workspacePermissionChecks,
-} from "modules/permissions/workspaces";
-import type { QueryClient, UseQueryOptions } from "react-query";
+} from "#/modules/permissions/workspaces";
 import { meKey } from "./users";
+import { cachedQuery } from "./util";
 
 export const createOrganization = (queryClient: QueryClient) => {
 	return {
@@ -65,28 +70,25 @@ export const deleteOrganization = (queryClient: QueryClient) => {
 	};
 };
 
-export const organizationMembersKey = (id: string) => [
+export const organizationMembersKey = (id: string, req: UsersRequest) => [
 	"organization",
 	id,
 	"members",
+	req,
 ];
 
 /**
  * Creates a query configuration to fetch all members of an organization.
- *
- * Unlike the paginated version, this function sets the `limit` parameter to 0,
- * which instructs the API to return all organization members in a single request
- * without pagination.
  *
  * @param id - The unique identifier of the organization
  * @returns A query configuration object for use with React Query
  *
  * @see paginatedOrganizationMembers - For fetching members with pagination support
  */
-export const organizationMembers = (id: string) => {
+export const organizationMembers = (id: string, req: UsersRequest) => {
 	return {
-		queryFn: () => API.getOrganizationPaginatedMembers(id, { limit: 0 }),
-		queryKey: organizationMembersKey(id),
+		queryFn: () => API.getOrganizationPaginatedMembers(id, req),
+		queryKey: organizationMembersKey(id, req),
 	};
 };
 
@@ -105,7 +107,7 @@ export const paginatedOrganizationMembers = (
 				offset: offset,
 			};
 		},
-		queryKey: ({ payload }) => [...organizationMembersKey(id), payload],
+		queryKey: ({ payload }) => organizationMembersKey(id, payload),
 		queryFn: ({ payload }) => API.getOrganizationPaginatedMembers(id, payload),
 	};
 };
@@ -160,11 +162,14 @@ export const updateOrganizationMemberRoles = (
 
 export const organizationsKey = ["organizations"] as const;
 
-export const organizations = () => {
-	return {
+const notAvailable = { available: false, value: undefined } as const;
+
+export const organizations = (metadata?: MetadataState<Organization[]>) => {
+	return cachedQuery({
+		metadata: metadata ?? notAvailable,
 		queryKey: organizationsKey,
 		queryFn: () => API.getOrganizations(),
-	};
+	});
 };
 
 export const getProvisionerDaemonsKey = (
@@ -266,7 +271,7 @@ export const patchWorkspaceSharingSettings = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (request: { sharing_disabled: boolean }) =>
+		mutationFn: (request: UpdateWorkspaceSharingSettingsRequest) =>
 			API.patchWorkspaceSharingSettings(organization, request),
 		onSuccess: async () =>
 			await queryClient.invalidateQueries({

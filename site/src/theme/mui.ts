@@ -185,18 +185,6 @@ export const components = {
 			},
 		},
 	},
-	MuiSwitch: {
-		defaultProps: { color: "primary" },
-		styleOverrides: {
-			root: {
-				".Mui-focusVisible .MuiSwitch-thumb": {
-					// Had to thicken outline to make sure that the focus color didn't
-					// bleed into the thumb and was still easily-visible
-					boxShadow: `0 0 0 3px ${tw.blue[400]}`,
-				},
-			},
-		},
-	},
 	MuiAutocomplete: {
 		styleOverrides: {
 			root: {

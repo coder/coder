@@ -1,28 +1,28 @@
-import { AppProviders } from "App";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
+import WS from "jest-websocket-mock";
+import { HttpResponse, http } from "msw";
+import { QueryClient } from "react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { AppProviders } from "#/App";
+import * as apiModule from "#/api/api";
+import { templateVersionVariablesKey } from "#/api/queries/templates";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersionVariable1,
 	MockTemplateVersionVariable2,
 	MockWorkspaceBuildLogs,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent, { type UserEvent } from "@testing-library/user-event";
-import * as apiModule from "api/api";
-import { templateVersionVariablesKey } from "api/queries/templates";
-import type { TemplateVersion } from "api/typesGenerated";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import WS from "jest-websocket-mock";
-import { HttpResponse, http } from "msw";
-import { QueryClient } from "react-query";
-import { createMemoryRouter, RouterProvider } from "react-router";
-import type { FileTree } from "utils/filetree";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import type { FileTree } from "#/utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage, {
@@ -43,7 +43,7 @@ vi.mock(
 
 // Occasionally, Jest encounters HTML5 canvas errors. As the MonacoEditor is not
 // required for these tests, we can safely mock it.
-vi.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
+vi.mock("#/pages/TemplateVersionEditorPage/MonacoEditor", () => ({
 	MonacoEditor: (props: MonacoEditorProps) => (
 		<textarea
 			data-testid="monaco-editor"
@@ -414,7 +414,7 @@ test("display pending badge and update it to running when status changes", async
 
 	renderEditorPage(createTestQueryClient());
 
-	const status = await screen.findByRole("status");
+	const status = await screen.findByRole("status", { name: /pending/i });
 	expect(status).toHaveTextContent("Pending");
 
 	// Manually update the endpoint, as to not rely on the editor page

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +27,7 @@ func TestProvisionerJobs(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ProvisionerJobs", func(t *testing.T) {
-		db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			Database:                 db,
@@ -42,9 +41,16 @@ func TestProvisionerJobs(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		time.Sleep(1500 * time.Millisecond) // Ensure the workspace build job has a different timestamp for sorting.
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Ensure the workspace build job has a different timestamp from
+		// the template version job for sorting, without sleeping.
+		_, err := sqlDB.ExecContext(context.Background(),
+			"UPDATE provisioner_jobs SET created_at = created_at + INTERVAL '2 seconds' WHERE id = $1",
+			workspace.LatestBuild.Job.ID,
+		)
+		require.NoError(t, err)
 
 		// Create a pending job.
 		w := dbgen.Workspace(t, db, database.WorkspaceTable{

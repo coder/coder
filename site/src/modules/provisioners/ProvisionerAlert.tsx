@@ -1,12 +1,12 @@
+import type { FC } from "react";
 import {
 	Alert,
 	type AlertColor,
-	AlertDetail,
+	AlertDescription,
 	AlertTitle,
-} from "components/Alert/Alert";
-import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
-import type { FC } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Alert/Alert";
+import { ProvisionerTag } from "#/modules/provisioners/ProvisionerTag";
+import { cn } from "#/utils/cn";
 
 export enum AlertVariant {
 	// Alerts are usually styled with a full rounded border and meant to use as a visually distinct element of the page.
@@ -53,7 +53,7 @@ export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 	return (
 		<Alert severity={severity} className={getAlertClassName(variant, severity)}>
 			<AlertTitle>{title}</AlertTitle>
-			<AlertDetail>
+			<AlertDescription>
 				<div>{detail}</div>
 				<div className="flex items-center gap-2 flex-wrap mt-2">
 					{Object.entries(tags ?? {})
@@ -62,7 +62,7 @@ export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 							<ProvisionerTag key={key} tagName={key} tagValue={value} />
 						))}
 				</div>
-			</AlertDetail>
+			</AlertDescription>
 		</Alert>
 	);
 };

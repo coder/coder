@@ -1,31 +1,31 @@
 import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
-import type { CreateOrganizationRequest } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Badges, PremiumBadge } from "components/Badges/Badges";
-import { Button } from "components/Button/Button";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { IconField } from "components/IconField/IconField";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router";
-import { docs } from "utils/docs";
+import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import type { CreateOrganizationRequest } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badges, PremiumBadge } from "#/components/Badges/Badges";
+import { Button } from "#/components/Button/Button";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { IconField } from "#/components/IconField/IconField";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/utils/formUtils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;

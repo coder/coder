@@ -1,40 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import {
-	Combobox,
-	ComboboxButton,
-	ComboboxContent,
-	ComboboxItem,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { WorkspaceUserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
-import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
-import {
-	Diagnostics,
-	DynamicParameter,
-	getInitialParameterValues,
-	useValidationSchemaForDynamicParameters,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
 	useCallback,
@@ -44,10 +9,48 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
-import { nameValidator } from "utils/formUtils";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import type * as TypesGen from "#/api/typesGenerated";
+import type {
+	FriendlyDiagnostic,
+	PreviewParameter,
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxItem,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { WorkspaceUserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
+import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
+import {
+	Diagnostics,
+	DynamicParameter,
+	getInitialParameterValues,
+	useValidationSchemaForDynamicParameters,
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { docs } from "#/utils/docs";
+import { nameValidator } from "#/utils/formUtils";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
@@ -127,6 +130,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const initialTouched = Object.fromEntries(
 		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
 	);
+	if (defaultName) {
+		initialTouched.name = true;
+	}
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
@@ -509,7 +515,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											onChange={(user) => {
 												handleOwnerChange(user ?? defaultOwner);
 											}}
-											size="medium"
 										/>
 									</div>
 								)}

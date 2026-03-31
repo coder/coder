@@ -1,3 +1,4 @@
+import type { FC } from "react";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -6,9 +7,8 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/HelpTooltip/HelpTooltip";
+import { docs } from "#/utils/docs";
 
 export const AIBridgeHelpTooltip: FC = () => {
 	return (

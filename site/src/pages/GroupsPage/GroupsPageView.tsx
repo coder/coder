@@ -1,14 +1,17 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { Group } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router";
+import type { Group } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	Table,
 	TableBody,
@@ -16,16 +19,13 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
+} from "#/components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
-import { useClickableTableRow } from "hooks";
-import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router";
-import { docs } from "utils/docs";
+} from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { docs } from "#/utils/docs";
 
 type GroupsPageViewProps = {
 	groups: Group[] | undefined;

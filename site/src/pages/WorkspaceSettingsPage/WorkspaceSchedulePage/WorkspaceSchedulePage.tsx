@@ -1,27 +1,30 @@
-import { API } from "api/api";
-import { getErrorDetail } from "api/errors";
-import { templateByName } from "api/queries/templates";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import dayjs from "dayjs";
-import {
-	scheduleChanged,
-	scheduleToAutostart,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
-import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { templateByName } from "#/api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import {
+	scheduleChanged,
+	scheduleToAutostart,
+} from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { ttlMsToAutostop } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
+import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
@@ -63,9 +66,8 @@ const WorkspaceSchedulePage: FC = () => {
 	const isLoading = !template;
 
 	const [isConfirmingApply, setIsConfirmingApply] = useState(false);
-	const { mutate: updateWorkspace } = useMutation({
-		mutationFn: () =>
-			API.startWorkspace(workspace.id, workspace.template_active_version_id),
+	const { mutate: restartWorkspace } = useMutation({
+		mutationFn: () => API.restartWorkspace({ workspace }),
 	});
 
 	return (
@@ -136,7 +138,8 @@ const WorkspaceSchedulePage: FC = () => {
 
 							if (
 								data.autostopChanged &&
-								getAutostop(workspace).autostopEnabled
+								getAutostop(workspace).autostopEnabled &&
+								workspace.latest_build.status === "running"
 							) {
 								setIsConfirmingApply(true);
 							}
@@ -152,7 +155,7 @@ const WorkspaceSchedulePage: FC = () => {
 				cancelText="Apply later"
 				hideCancel={false}
 				onConfirm={() => {
-					updateWorkspace();
+					restartWorkspace();
 					navigate(`/@${username}/${workspaceName}`);
 				}}
 				onClose={() => {

@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
@@ -118,6 +119,17 @@ func (s *Server) Close() error {
 	s.logger.Info(s.ctx, "agent socket server stopped")
 
 	return nil
+}
+
+// SetAgentAPI sets the agent API client used to forward requests
+// to coderd.
+func (s *Server) SetAgentAPI(api agentproto.DRPCAgentClient28) {
+	s.service.SetAgentAPI(api)
+}
+
+// ClearAgentAPI clears the agent API client.
+func (s *Server) ClearAgentAPI() {
+	s.service.ClearAgentAPI()
 }
 
 func (s *Server) acceptConnections() {

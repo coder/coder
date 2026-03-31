@@ -3,6 +3,7 @@ package taskstatus
 import (
 	"context"
 	"io"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,8 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/quartz"
@@ -30,7 +31,7 @@ type createExternalWorkspaceResult struct {
 
 type Runner struct {
 	client  client
-	patcher appStatusPatcher
+	updater appStatusUpdater
 	cfg     Config
 
 	logger slog.Logger
@@ -43,7 +44,8 @@ type Runner struct {
 	doneReporting bool
 
 	// testing only
-	clock quartz.Clock
+	clock       quartz.Clock
+	randFloat64 func() float64
 }
 
 var (
@@ -55,9 +57,10 @@ var (
 func NewRunner(coderClient *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client:      newClient(coderClient),
-		patcher:     newAppStatusPatcher(coderClient),
+		updater:     newAppStatusUpdater(coderClient),
 		cfg:         cfg,
 		clock:       quartz.NewReal(),
+		randFloat64: rand.Float64,
 		reportTimes: make(map[int]time.Time),
 	}
 }
@@ -96,9 +99,17 @@ func (r *Runner) Run(ctx context.Context, name string, logs io.Writer) error {
 	r.workspaceID = result.workspaceID
 	r.logger.Info(ctx, "created external workspace", slog.F("workspace_id", r.workspaceID))
 
-	// Initialize the patcher with the agent token
-	r.patcher.initialize(r.logger, result.agentToken)
-	r.logger.Info(ctx, "initialized app status patcher with agent token")
+	// Establish the dRPC connection using the agent token.
+	if err := r.updater.initialize(ctx, r.logger, result.agentToken); err != nil {
+		r.cfg.Metrics.ReportTaskStatusErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+		return xerrors.Errorf("initialize app status updater: %w", err)
+	}
+	defer func() {
+		if err := r.updater.close(); err != nil {
+			r.logger.Error(ctx, "failed to close app status updater", slog.Error(err))
+		}
+	}()
+	r.logger.Info(ctx, "initialized app status updater with agent token")
 
 	workspaceUpdatesCtx, cancelWorkspaceUpdates := context.WithCancel(ctx)
 	defer cancelWorkspaceUpdates()
@@ -213,13 +224,25 @@ func (r *Runner) reportTaskStatus(ctx context.Context) error {
 	startedReporting := r.clock.Now("reportTaskStatus", "startedReporting")
 	msgNo := 0
 
-	done := xerrors.New("done reporting task status") // sentinel error
-	waiter := r.clock.TickerFunc(ctx, r.cfg.ReportStatusPeriod, func() error {
+	getRandPeriod := func() time.Duration {
+		// vary the period by +-50% so that updates are not synchronized across runners, which would create
+		// artificially large instantaneous stress on Coder and the database.
+		p := (r.randFloat64() + 0.5) * r.cfg.ReportStatusPeriod.Seconds()
+		return time.Duration(p * float64(time.Second))
+	}
+	tmr := r.clock.NewTimer(getRandPeriod(), "reportTaskStatus")
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tmr.C:
+			tmr.Reset(getRandPeriod(), "reportTaskStatus", "tick")
+		}
 		r.mu.Lock()
 		now := r.clock.Now("reportTaskStatus", "tick")
 		r.reportTimes[msgNo] = now
 		// It's important that we set doneReporting along with a final report, since the watchWorkspaceUpdates goroutine
-		// needs a update to wake up and check if we're done. We could introduce a secondary signaling channel, but
+		// needs an update to wake up and check if we're done. We could introduce a secondary signaling channel, but
 		// it adds a lot of complexity and will be hard to test. We expect the tick period to be much smaller than the
 		// report status duration, so one extra tick is not a big deal.
 		if now.After(startedReporting.Add(r.cfg.ReportStatusDuration)) {
@@ -227,11 +250,11 @@ func (r *Runner) reportTaskStatus(ctx context.Context) error {
 		}
 		r.mu.Unlock()
 
-		err := r.patcher.patchAppStatus(ctx, agentsdk.PatchAppStatus{
-			AppSlug: r.cfg.AppSlug,
+		err := r.updater.updateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    r.cfg.AppSlug,
 			Message: statusUpdatePrefix + strconv.Itoa(msgNo),
-			State:   codersdk.WorkspaceAppStatusStateWorking,
-			URI:     "https://example.com/example-status/",
+			State:   agentproto.UpdateAppStatusRequest_WORKING,
+			Uri:     "https://example.com/example-status/",
 		})
 		if err != nil {
 			r.logger.Error(ctx, "failed to report task status", slog.Error(err))
@@ -241,15 +264,9 @@ func (r *Runner) reportTaskStatus(ctx context.Context) error {
 		// note that it's safe to read r.doneReporting here without a lock because we're the only goroutine that sets
 		// it.
 		if r.doneReporting {
-			return done // causes the ticker to exit due to the sentinel error
+			return nil
 		}
-		return nil
-	}, "reportTaskStatus")
-	err := waiter.Wait()
-	if xerrors.Is(err, done) {
-		return nil
 	}
-	return err
 }
 
 func parseStatusMessage(message string) (int, bool) {

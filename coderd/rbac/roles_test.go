@@ -51,54 +51,68 @@ func TestBuiltInRoles(t *testing.T) {
 	}
 }
 
-func TestSystemRolesAreReservedRoleNames(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, rbac.ReservedRoleName(rbac.RoleOrgMember()))
+// permissionGranted checks whether a permission list contains a
+// matching entry for the target, accounting for wildcard actions.
+// It does not evaluate negations that may override a positive grant.
+func permissionGranted(perms []rbac.Permission, target rbac.Permission) bool {
+	return slices.ContainsFunc(perms, func(p rbac.Permission) bool {
+		return p.Negate == target.Negate &&
+			p.ResourceType == target.ResourceType &&
+			(p.Action == target.Action || p.Action == policy.WildcardSymbol)
+	})
 }
 
-func TestOrgMemberPermissions(t *testing.T) {
+func TestOrgSharingPermissions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WorkspaceSharingEnabled", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name              string
+		permsFunc         func(rbac.OrgSettings) rbac.OrgRolePermissions
+		mode              rbac.ShareableWorkspaceOwners
+		orgReadMembers    bool
+		orgReadGroups     bool
+		orgNegateShare    bool
+		memberNegateShare bool
+	}{
+		{"Member/Everyone", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, false},
+		{"Member/None", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, true},
+		{"Member/ServiceAccounts", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, false, false, true},
+		{"ServiceAccount/Everyone", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, false},
+		{"ServiceAccount/None", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, false},
+		{"ServiceAccount/ServiceAccounts", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, true, false, false},
+	}
 
-		orgPerms, _ := rbac.OrgMemberPermissions(false)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		require.True(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceOrganizationMember.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.True(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceGroup.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.False(t, slices.Contains(orgPerms, rbac.Permission{
-			Negate:       true,
-			ResourceType: rbac.ResourceWorkspace.Type,
-			Action:       policy.ActionShare,
-		}))
-	})
+			perms := tt.permsFunc(rbac.OrgSettings{
+				ShareableWorkspaceOwners: tt.mode,
+			})
 
-	t.Run("WorkspaceSharingDisabled", func(t *testing.T) {
-		t.Parallel()
+			assert.Equal(t, tt.orgReadMembers, permissionGranted(perms.Org, rbac.Permission{
+				ResourceType: rbac.ResourceOrganizationMember.Type,
+				Action:       policy.ActionRead,
+			}), "org read members")
 
-		orgPerms, _ := rbac.OrgMemberPermissions(true)
+			assert.Equal(t, tt.orgReadGroups, permissionGranted(perms.Org, rbac.Permission{
+				ResourceType: rbac.ResourceGroup.Type,
+				Action:       policy.ActionRead,
+			}), "org read groups")
 
-		require.False(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceOrganizationMember.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.False(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceGroup.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.True(t, slices.Contains(orgPerms, rbac.Permission{
-			Negate:       true,
-			ResourceType: rbac.ResourceWorkspace.Type,
-			Action:       policy.ActionShare,
-		}))
-	})
+			assert.Equal(t, tt.orgNegateShare, permissionGranted(perms.Org, rbac.Permission{
+				Negate:       true,
+				ResourceType: rbac.ResourceWorkspace.Type,
+				Action:       policy.ActionShare,
+			}), "org negate share")
+
+			assert.Equal(t, tt.memberNegateShare, permissionGranted(perms.Member, rbac.Permission{
+				Negate:       true,
+				ResourceType: rbac.ResourceWorkspace.Type,
+				Action:       policy.ActionShare,
+			}), "member negate share")
+		})
+	}
 }
 
 //nolint:tparallel,paralleltest
@@ -156,7 +170,7 @@ func TestRolePermissions(t *testing.T) {
 
 	crud := []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 
-	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()
@@ -173,24 +187,24 @@ func TestRolePermissions(t *testing.T) {
 	apiKeyID := uuid.New()
 
 	// Subjects to user
-	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember()}}}
+	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 
-	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()}}}
-	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
-	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
-	auditor := authSubject{Name: "auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAuditor()}}}
+	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	auditor := authSubject{Name: "auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAuditor()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 
-	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)}}}
-	orgAuditor := authSubject{Name: "org_auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAuditor(orgID)}}}
-	orgUserAdmin := authSubject{Name: "org_user_admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(orgID)}}}
-	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(orgID)}}}
-	orgAdminBanWorkspace := authSubject{Name: "org_admin_workspace_ban", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}}}
+	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	orgAuditor := authSubject{Name: "org_auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAuditor(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	orgUserAdmin := authSubject{Name: "org_user_admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	orgAdminBanWorkspace := authSubject{Name: "org_admin_workspace_ban", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID), rbac.ScopedRoleOrgWorkspaceCreationBan(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	setOrgNotMe := authSubjectSet{orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin}
 
-	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(otherOrg)}}}
-	otherOrgAuditor := authSubject{Name: "org_auditor_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAuditor(otherOrg)}}}
-	otherOrgUserAdmin := authSubject{Name: "org_user_admin_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(otherOrg)}}}
-	otherOrgTemplateAdmin := authSubject{Name: "org_template_admin_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(otherOrg)}}}
+	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(otherOrg)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	otherOrgAuditor := authSubject{Name: "org_auditor_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAuditor(otherOrg)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	otherOrgUserAdmin := authSubject{Name: "org_user_admin_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(otherOrg)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	otherOrgTemplateAdmin := authSubject{Name: "org_template_admin_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgTemplateAdmin(otherOrg)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	setOtherOrg := authSubjectSet{otherOrgAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin}
 
 	// requiredSubjects are required to be asserted in each test case. This is
@@ -1009,12 +1023,29 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "AIBridgeInterceptions",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			// Members can create/update records but can't read them afterwards.
+			Name:     "AIBridgeInterceptionsCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
 			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, memberMe},
 				false: {
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			// Only owners and site-wide auditors can view interceptions and their sub-resources.
+			Name:     "AIBridgeInterceptionsRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, auditor},
+				false: {
+					memberMe,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -1046,20 +1077,35 @@ func TestRolePermissions(t *testing.T) {
 		},
 	}
 
-	// We expect every permission to be tested above.
-	remainingPermissions := make(map[string]map[policy.Action]bool)
-	for rtype, perms := range policy.RBACPermissions {
-		remainingPermissions[rtype] = make(map[policy.Action]bool)
-		for action := range perms.Actions {
-			remainingPermissions[rtype][action] = true
+	// Build coverage set from test case definitions statically,
+	// so we don't need shared mutable state during execution.
+	// This allows subtests to run in parallel.
+	coveredPermissions := make(map[string]map[policy.Action]bool)
+	for _, c := range testCases {
+		for _, action := range c.Actions {
+			if coveredPermissions[c.Resource.Type] == nil {
+				coveredPermissions[c.Resource.Type] = make(map[policy.Action]bool)
+			}
+			coveredPermissions[c.Resource.Type][action] = true
 		}
 	}
 
-	passed := true
-	// nolint:tparallel,paralleltest
+	// Check coverage: every permission in policy.RBACPermissions must
+	// be covered by at least one test case.
+	for rtype, perms := range policy.RBACPermissions {
+		t.Run(fmt.Sprintf("%s-AllActions", rtype), func(t *testing.T) {
+			t.Parallel()
+			for action := range perms.Actions {
+				assert.True(t, coveredPermissions[rtype][action],
+					"action %q on type %q is not tested", action, rtype)
+			}
+		})
+	}
+
 	for _, c := range testCases {
-		// nolint:tparallel,paralleltest // These share the same remainingPermissions map
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
 			remainingSubjs := make(map[string]struct{})
 			for _, subj := range requiredSubjects {
 				remainingSubjs[subj.Name] = struct{}{}
@@ -1067,9 +1113,7 @@ func TestRolePermissions(t *testing.T) {
 
 			for _, action := range c.Actions {
 				err := c.Resource.ValidAction(action)
-				ok := assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type)
-				if !ok {
-					passed = passed && assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type)
+				if !assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type) {
 					continue
 				}
 
@@ -1095,30 +1139,17 @@ func TestRolePermissions(t *testing.T) {
 							actor.Scope = rbac.ScopeAll
 						}
 
-						delete(remainingPermissions[c.Resource.Type], action)
 						err := auth.Authorize(context.Background(), actor, action, c.Resource)
 						if result {
-							passed = passed && assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
+							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {
-							passed = passed && assert.ErrorContains(t, err, "forbidden", fmt.Sprintf("Should fail: %s", msg))
+							assert.ErrorContains(t, err, "forbidden", fmt.Sprintf("Should fail: %s", msg))
 						}
 					}
 				}
 			}
 			require.Empty(t, remainingSubjs, "test should cover all subjects")
 		})
-	}
-
-	// Only run these if the tests on top passed. Otherwise, the error output is too noisy.
-	if passed {
-		for rtype, v := range remainingPermissions {
-			// nolint:tparallel,paralleltest // Making a subtest for easier diagnosing failures.
-			t.Run(fmt.Sprintf("%s-AllActions", rtype), func(t *testing.T) {
-				if len(v) > 0 {
-					assert.Equal(t, map[policy.Action]bool{}, v, "remaining permissions should be empty for type %q", rtype)
-				}
-			})
-		}
 	}
 }
 

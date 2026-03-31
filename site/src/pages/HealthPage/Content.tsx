@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
+	CircleHelpIcon,
 	CircleMinusIcon,
 } from "lucide-react";
 import {
@@ -13,7 +13,8 @@ import {
 	type HTMLAttributes,
 	type ReactElement,
 } from "react";
-import { docs } from "utils/docs";
+import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
+import { docs } from "#/utils/docs";
 import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;
@@ -83,7 +84,7 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 
 export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
-		<main
+		<div
 			css={{
 				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
 				display: "flex",
@@ -180,6 +181,21 @@ export const Pill: React.FC<PillProps> = ({ icon, children, ...divProps }) => {
 			{cloneElement(icon, { className: "size-[14px]" })}
 			{children}
 		</div>
+	);
+};
+
+interface StatusIconProps {
+	value: boolean | null;
+}
+
+export const StatusIcon: FC<StatusIconProps> = ({ value }) => {
+	if (value === null) {
+		return <CircleHelpIcon className="size-icon-sm text-content-disabled" />;
+	}
+	return value ? (
+		<CircleCheckIcon className="size-icon-sm text-content-success" />
+	) : (
+		<CircleMinusIcon className="size-icon-sm text-content-destructive" />
 	);
 };
 

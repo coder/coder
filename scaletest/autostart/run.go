@@ -24,10 +24,6 @@ type Runner struct {
 
 	createUserRunner     *createusers.Runner
 	workspacebuildRunner *workspacebuild.Runner
-
-	autostartTotalLatency       time.Duration
-	autostartJobCreationLatency time.Duration
-	autostartJobAcquiredLatency time.Duration
 }
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
@@ -38,14 +34,20 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 }
 
 var (
-	_ harness.Runnable    = &Runner{}
-	_ harness.Cleanable   = &Runner{}
-	_ harness.Collectable = &Runner{}
+	_ harness.Runnable  = &Runner{}
+	_ harness.Cleanable = &Runner{}
 )
 
 func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
+	_, err := r.RunReturningResult(ctx, id, logs)
+	return err
+}
+
+func (r *Runner) RunReturningResult(ctx context.Context, id string, logs io.Writer) (RunResult, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	result := RunResult{}
 
 	reachedBarrier := false
 	defer func() {
@@ -62,8 +64,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
 	newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
 	if err != nil {
-		r.cfg.Metrics.AddError("", "create_user")
-		return xerrors.Errorf("create user: %w", err)
+		return result, xerrors.Errorf("create user: %w", err)
 	}
 	newUser := newUserAndToken.User
 
@@ -78,36 +79,31 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	workspaceBuildConfig := r.cfg.Workspace
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
 	workspaceBuildConfig.UserID = newUser.ID.String()
-	// We'll wait for the build ourselves to avoid multiple API requests
+	// We'll wait for the build ourselves to avoid multiple API requests.
 	workspaceBuildConfig.NoWaitForBuild = true
 	workspaceBuildConfig.NoWaitForAgents = true
 
 	r.workspacebuildRunner = workspacebuild.NewRunner(newUserClient, workspaceBuildConfig)
 	workspace, err := r.workspacebuildRunner.RunReturningWorkspace(ctx, id, logs)
 	if err != nil {
-		r.cfg.Metrics.AddError(newUser.Username, "create_workspace")
-		return xerrors.Errorf("create workspace: %w", err)
+		return result, xerrors.Errorf("create workspace: %w", err)
 	}
 
-	watchCtx, cancel := context.WithCancel(ctx)
+	result.WorkspaceID = workspace.ID
+	result.WorkspaceName = workspace.Name
+
+	buildUpdates := r.cfg.BuildUpdates
+
+	createWorkspaceCtx, cancel := context.WithTimeout(ctx, r.cfg.WorkspaceJobTimeout)
 	defer cancel()
-	workspaceUpdates, err := newUserClient.WatchWorkspace(watchCtx, workspace.ID)
+
+	logger.Info(ctx, "waiting for initial workspace build", slog.F("workspace_name", workspace.Name), slog.F("workspace_id", workspace.ID.String()))
+	err = waitForBuild(createWorkspaceCtx, logger, buildUpdates, codersdk.WorkspaceTransitionStart)
 	if err != nil {
-		r.cfg.Metrics.AddError(newUser.Username, "watch_workspace")
-		return xerrors.Errorf("watch workspace: %w", err)
+		return result, xerrors.Errorf("wait for initial workspace build (workspace=%s, id=%s): %w", workspace.Name, workspace.ID, err)
 	}
 
-	createWorkspaceCtx, cancel2 := context.WithTimeout(ctx, r.cfg.WorkspaceJobTimeout)
-	defer cancel2()
-
-	err = waitForWorkspaceUpdate(createWorkspaceCtx, logger, workspaceUpdates, func(ws codersdk.Workspace) bool {
-		return ws.LatestBuild.Transition == codersdk.WorkspaceTransitionStart &&
-			ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded
-	})
-	if err != nil {
-		r.cfg.Metrics.AddError(newUser.Username, "wait_for_initial_build")
-		return xerrors.Errorf("timeout waiting for initial workspace build to complete: %w", err)
-	}
+	logger.Info(ctx, "workspace started successfully", slog.F("workspace_name", workspace.Name))
 
 	logger.Info(ctx, "stopping workspace", slog.F("workspace_name", workspace.Name))
 
@@ -115,20 +111,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		Transition: codersdk.WorkspaceTransitionStop,
 	})
 	if err != nil {
-		r.cfg.Metrics.AddError(newUser.Username, "create_stop_build")
-		return xerrors.Errorf("create stop build: %w", err)
+		return result, xerrors.Errorf("create stop build: %w", err)
 	}
 
-	stopBuildCtx, cancel3 := context.WithTimeout(ctx, r.cfg.WorkspaceJobTimeout)
-	defer cancel3()
+	stopBuildCtx, cancel := context.WithTimeout(ctx, r.cfg.WorkspaceJobTimeout)
+	defer cancel()
 
-	err = waitForWorkspaceUpdate(stopBuildCtx, logger, workspaceUpdates, func(ws codersdk.Workspace) bool {
-		return ws.LatestBuild.Transition == codersdk.WorkspaceTransitionStop &&
-			ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded
-	})
+	err = waitForBuild(stopBuildCtx, logger, buildUpdates, codersdk.WorkspaceTransitionStop)
 	if err != nil {
-		r.cfg.Metrics.AddError(newUser.Username, "wait_for_stop_build")
-		return xerrors.Errorf("timeout waiting for stop build to complete: %w", err)
+		return result, xerrors.Errorf("wait for stop build: %w", err)
 	}
 
 	logger.Info(ctx, "workspace stopped successfully", slog.F("workspace_name", workspace.Name))
@@ -139,75 +130,101 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.SetupBarrier.Wait()
 	logger.Info(ctx, "all runners reached barrier, proceeding with autostart schedule")
 
+	// Schedule the workspace to autostart.
 	testStartTime := time.Now().UTC()
 	autostartTime := testStartTime.Add(r.cfg.AutostartDelay).Round(time.Minute)
 	schedule := fmt.Sprintf("CRON_TZ=UTC %d %d * * *", autostartTime.Minute(), autostartTime.Hour())
 
 	logger.Info(ctx, "setting autostart schedule for workspace", slog.F("workspace_name", workspace.Name), slog.F("schedule", schedule))
 
+	// Record the time we set the autostart configuration.
+	result.ConfigTime = time.Now().UTC()
+	result.ScheduledTime = autostartTime
+
 	err = newUserClient.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 		Schedule: &schedule,
 	})
 	if err != nil {
-		r.cfg.Metrics.AddError(newUser.Username, "update_workspace_autostart")
-		return xerrors.Errorf("update workspace autostart: %w", err)
+		return result, xerrors.Errorf("update workspace autostart: %w", err)
 	}
 
-	logger.Info(ctx, "waiting for workspace to autostart", slog.F("workspace_name", workspace.Name))
+	logger.Info(ctx, "autostart schedule configured successfully",
+		slog.F("workspace_name", workspace.Name),
+		slog.F("schedule", schedule),
+		slog.F("autostart_time", autostartTime),
+		slog.F("time_until_autostart", time.Until(autostartTime).Round(time.Second)))
 
-	autostartInitiateCtx, cancel4 := context.WithDeadline(ctx, autostartTime.Add(r.cfg.AutostartDelay))
-	defer cancel4()
+	// Wait for the autostart build to complete. The build won't start until
+	// the scheduled time, so we use AutostartBuildTimeout which should account
+	// for: time until scheduled start + queueing time + build execution time.
+	autostartBuildCtx, cancel := context.WithTimeout(ctx, r.cfg.AutostartBuildTimeout)
+	defer cancel()
 
-	logger.Info(ctx, "listening for workspace updates to detect autostart build")
+	logger.Info(ctx, "waiting for autostart build to trigger and complete",
+		slog.F("workspace_name", workspace.Name),
+		slog.F("timeout", r.cfg.AutostartBuildTimeout))
 
-	err = waitForWorkspaceUpdate(autostartInitiateCtx, logger, workspaceUpdates, func(ws codersdk.Workspace) bool {
-		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-			return false
-		}
-
-		// The job has been created, but it might be pending
-		if r.autostartJobCreationLatency == 0 {
-			r.autostartJobCreationLatency = time.Since(autostartTime)
-			r.cfg.Metrics.RecordJobCreation(r.autostartJobCreationLatency, newUser.Username, workspace.Name)
-		}
-
-		if ws.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning ||
-			ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded {
-			// Job is no longer pending, but it might not have finished
-			if r.autostartJobAcquiredLatency == 0 {
-				r.autostartJobAcquiredLatency = time.Since(autostartTime)
-				r.cfg.Metrics.RecordJobAcquired(r.autostartJobAcquiredLatency, newUser.Username, workspace.Name)
-			}
-			return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded
-		}
-
-		return false
-	})
+	err = waitForBuild(autostartBuildCtx, logger, buildUpdates, codersdk.WorkspaceTransitionStart)
 	if err != nil {
-		r.cfg.Metrics.AddError(newUser.Username, "wait_for_autostart_build")
-		return xerrors.Errorf("timeout waiting for autostart build to be created: %w", err)
+		result.Success = false
+		result.Error = err.Error()
+		if r.cfg.ResultSink != nil {
+			select {
+			case r.cfg.ResultSink <- result:
+			default:
+			}
+		}
+		return result, xerrors.Errorf("wait for autostart build: %w", err)
 	}
 
-	r.autostartTotalLatency = time.Since(autostartTime)
+	// Record the completion time.
+	result.CompletionTime = time.Now().UTC()
+	result.Success = true
 
-	logger.Info(ctx, "autostart workspace build complete", slog.F("duration", r.autostartTotalLatency))
-	r.cfg.Metrics.RecordCompletion(r.autostartTotalLatency, newUser.Username, workspace.Name)
+	logger.Info(ctx, "autostart build completed successfully", slog.F("workspace_name", workspace.Name))
 
-	return nil
+	if r.cfg.ResultSink != nil {
+		select {
+		case r.cfg.ResultSink <- result:
+		default:
+			// Non-blocking send - if the channel is full, skip it.
+		}
+	}
+
+	return result, nil
 }
 
-func waitForWorkspaceUpdate(ctx context.Context, logger slog.Logger, updates <-chan codersdk.Workspace, shouldBreak func(codersdk.Workspace) bool) error {
+// waitForBuild waits for a build with the given transition to reach a
+// terminal state. It returns nil on success, or an error if the build
+// fails, is canceled, or the context expires. If an unexpected transition
+// is received, it returns an error immediately.
+func waitForBuild(ctx context.Context, logger slog.Logger, updates <-chan codersdk.WorkspaceBuildUpdate, transition codersdk.WorkspaceTransition) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case updatedWorkspace, ok := <-updates:
+		case update, ok := <-updates:
 			if !ok {
-				return xerrors.New("workspace updates channel closed")
+				return xerrors.New("build updates channel closed")
 			}
-			logger.Debug(ctx, "received workspace update", slog.F("update", updatedWorkspace))
-			if shouldBreak(updatedWorkspace) {
+			logger.Debug(ctx, "received build update",
+				slog.F("transition", update.Transition),
+				slog.F("job_status", update.JobStatus),
+				slog.F("build_number", update.BuildNumber))
+
+			if update.Transition != string(transition) {
+				return xerrors.Errorf("unexpected transition: expected %s, got %s (build_number=%d)", transition, update.Transition, update.BuildNumber)
+			}
+			switch codersdk.ProvisionerJobStatus(update.JobStatus) {
+			case codersdk.ProvisionerJobSucceeded:
 				return nil
+			case codersdk.ProvisionerJobFailed:
+				return xerrors.Errorf("workspace build failed (transition=%s, build_number=%d)", update.Transition, update.BuildNumber)
+			case codersdk.ProvisionerJobCanceled:
+				return xerrors.Errorf("workspace build canceled (transition=%s, build_number=%d)", update.Transition, update.BuildNumber)
+			default:
+				// Intermediate states (pending, running, canceling)
+				// are expected; keep waiting.
 			}
 		}
 	}
@@ -229,18 +246,4 @@ func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	}
 
 	return nil
-}
-
-const (
-	AutostartTotalLatencyMetric       = "autostart_total_latency_seconds"
-	AutostartJobCreationLatencyMetric = "autostart_job_creation_latency_seconds"
-	AutostartJobAcquiredLatencyMetric = "autostart_job_acquired_latency_seconds"
-)
-
-func (r *Runner) GetMetrics() map[string]any {
-	return map[string]any{
-		AutostartTotalLatencyMetric:       r.autostartTotalLatency.Seconds(),
-		AutostartJobCreationLatencyMetric: r.autostartJobCreationLatency.Seconds(),
-		AutostartJobAcquiredLatencyMetric: r.autostartJobAcquiredLatency.Seconds(),
-	}
 }

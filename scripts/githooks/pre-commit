@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook that runs CI-equivalent checks locally.
+# Classifies staged files by type and only runs relevant make
+# targets. Falls back to the full `make pre-commit` when the
+# Makefile changed or CODER_HOOK_RUN_ALL=1 is set.
+#
+# Installation (worktree-compatible):
+#
+#   git config core.hooksPath scripts/githooks
+#
+# Bypass: git commit --no-verify
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+unset GIT_DIR
+
+# In linked worktrees, set worktree-scoped hooksPath to override shared config.
+if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
+	git config --worktree core.hooksPath scripts/githooks
+fi
+
+if [[ ${CODER_HOOK_RUN_ALL:-} == 1 ]]; then
+	exec make pre-commit
+fi
+
+staged=$(git diff --cached --name-only --diff-filter=d)
+if [[ -z $staged ]]; then
+	echo "pre-commit: no staged changes, skipping"
+	exit 0
+fi
+
+# If Go, TS, or build-system files changed, run the full
+# pre-commit. Otherwise run the lightweight target that
+# covers everything except gen, Go/TS fmt+lint, and binary build.
+if echo "$staged" | grep -qE '\.(go|ts|tsx|sql|proto)$|^go\.(mod|sum)$|^site/|^Makefile$'; then
+	exec make pre-commit
+fi
+exec make pre-commit-light

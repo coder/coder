@@ -48,8 +48,8 @@ func TestTokenCRUD(t *testing.T) {
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
 	// expires_at should default to 30 days
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
+	require.Greater(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*6))
+	require.Less(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*8))
 	require.Equal(t, codersdk.APIKeyScopeAll, keys[0].Scope)
 	require.Len(t, keys[0].AllowList, 1)
 	require.Equal(t, "*:*", keys[0].AllowList[0].String())
@@ -194,8 +194,8 @@ func TestUserSetTokenDuration(t *testing.T) {
 	require.NoError(t, err)
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*6*24))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*8*24))
+	require.Greater(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*6*24))
+	require.Less(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*8*24))
 }
 
 func TestDefaultTokenDuration(t *testing.T) {
@@ -210,8 +210,8 @@ func TestDefaultTokenDuration(t *testing.T) {
 	require.NoError(t, err)
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
+	require.Greater(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*6))
+	require.Less(t, keys[0].ExpiresAt, dbtime.Now().Add(time.Hour*24*8))
 }
 
 func TestTokenUserSetMaxLifetime(t *testing.T) {
@@ -518,7 +518,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is not expired.
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.After(time.Now()))
+		require.True(t, key.ExpiresAt.After(dbtime.Now()))
 
 		auditor.ResetLogs()
 
@@ -529,7 +529,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err = adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(time.Now()))
+		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
 
 		// Verify audit log.
 		als := auditor.AuditLogs()
@@ -556,7 +556,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err := memberClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(time.Now()))
+		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
 	})
 
 	t.Run("MemberCannotExpireOtherUsersToken", func(t *testing.T) {
@@ -607,7 +607,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Invariant: make sure it's actually expired
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.LessOrEqual(t, key.ExpiresAt, time.Now(), "key should be expired")
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 
 		// Expire it again - should succeed (idempotent).
 		err = adminClient.ExpireAPIKey(ctx, codersdk.Me, keyID)
@@ -636,7 +636,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify it's expired.
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(time.Now()))
+		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
 
 		// Delete the expired token - should succeed.
 		err = adminClient.DeleteAPIKey(ctx, codersdk.Me, keyID)

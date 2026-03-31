@@ -23,7 +23,7 @@ func HandleChatEvent(cb func(ctx context.Context, payload ChatEvent, err error))
 		}
 		var payload ChatEvent
 		if err := json.Unmarshal(message, &payload); err != nil {
-			cb(ctx, ChatEvent{}, xerrors.Errorf("unmarshal chat event"))
+			cb(ctx, ChatEvent{}, xerrors.Errorf("unmarshal chat event: %w", err))
 			return
 		}
 

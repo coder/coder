@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"flag"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -89,6 +91,16 @@ func (s *MethodTestSuite) SetupSuite() {
 // TearDownSuite asserts that all methods were called at least once.
 func (s *MethodTestSuite) TearDownSuite() {
 	s.Run("Accounting", func() {
+		// testify/suite's -testify.m flag filters which suite methods
+		// run, but TearDownSuite still executes. Skip the Accounting
+		// check when filtering to avoid misleading "method never
+		// called" errors for every method that was filtered out.
+		if f := flag.Lookup("testify.m"); f != nil {
+			if f.Value.String() != "" {
+				s.T().Skip("Skipping Accounting check: -testify.m flag is set")
+			}
+		}
+
 		t := s.T()
 		notCalled := []string{}
 		for m, c := range s.methodAccounting {
@@ -96,7 +108,7 @@ func (s *MethodTestSuite) TearDownSuite() {
 				notCalled = append(notCalled, m)
 			}
 		}
-		sort.Strings(notCalled)
+		slices.Sort(notCalled)
 		for _, m := range notCalled {
 			t.Errorf("Method never called: %q", m)
 		}
@@ -143,7 +155,7 @@ func (s *MethodTestSuite) Mocked(testCaseF func(dmb *dbmock.MockStore, faker *go
 					UUID:  pair.OrganizationID,
 					Valid: pair.OrganizationID != uuid.Nil,
 				},
-				IsSystem: rbac.SystemRoleName(pair.Name),
+				IsSystem: rolestore.IsSystemRoleName(pair.Name),
 				ID:       uuid.New(),
 			})
 		}

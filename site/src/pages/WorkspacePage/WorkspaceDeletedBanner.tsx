@@ -1,6 +1,6 @@
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
 import type { FC } from "react";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 
 interface WorkspaceDeletedBannerProps {
 	handleClick: () => void;

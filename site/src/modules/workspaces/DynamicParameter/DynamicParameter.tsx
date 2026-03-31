@@ -1,40 +1,3 @@
-import type {
-	NullHCLString,
-	PreviewParameter,
-	PreviewParameterOption,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import {
-	Combobox,
-	ComboboxButton,
-	ComboboxContent,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
-import {
-	MultiSelectCombobox,
-	type Option,
-} from "components/MultiSelectCombobox/MultiSelectCombobox";
-import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import { Slider } from "components/Slider/Slider";
-import { Stack } from "components/Stack/Stack";
-import { Switch } from "components/Switch/Switch";
-import { TagInput } from "components/TagInput/TagInput";
-import { Textarea } from "components/Textarea/Textarea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	CircleAlert,
 	Eye,
@@ -46,9 +9,45 @@ import {
 	TriangleAlert,
 } from "lucide-react";
 import { type FC, useId, useRef, useState } from "react";
-import { cn } from "utils/cn";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import type {
+	NullHCLString,
+	PreviewParameter,
+	PreviewParameterOption,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import {
+	MultiSelectCombobox,
+	type Option,
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Slider } from "#/components/Slider/Slider";
+import { Stack } from "#/components/Stack/Stack";
+import { Switch } from "#/components/Switch/Switch";
+import { TagInput } from "#/components/TagInput/TagInput";
+import { Textarea } from "#/components/Textarea/Textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;
@@ -335,41 +334,25 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "dropdown": {
-			const selectedOption = parameter.options.find(
-				(opt) => opt.value.value === value,
-			);
 			return (
-				<Combobox
+				<Select
 					value={value}
 					onValueChange={(newValue) => onChange(newValue ?? "")}
+					disabled={disabled}
 				>
-					<ComboboxTrigger asChild>
-						<ComboboxButton
-							selectedOption={
-								selectedOption
-									? {
-											label: selectedOption.name,
-											value: selectedOption.value.value,
-										}
-									: undefined
-							}
+					<SelectTrigger>
+						<SelectValue
 							placeholder={parameter.styling?.placeholder || "Select option"}
-							disabled={disabled}
 						/>
-					</ComboboxTrigger>
-					<ComboboxContent>
-						<ComboboxList>
-							{parameter.options.map((option) => (
-								<ComboboxItem
-									key={option.value.value}
-									value={option.value.value}
-								>
-									{option.name}
-								</ComboboxItem>
-							))}
-						</ComboboxList>
-					</ComboboxContent>
-				</Combobox>
+					</SelectTrigger>
+					<SelectContent>
+						{parameter.options.map((option) => (
+							<SelectItem key={option.value.value} value={option.value.value}>
+								{option.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			);
 		}
 
@@ -540,9 +523,9 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					type="button"
 					variant="subtle"
 					size="icon"
-					onMouseDown={() => setShowMaskedInput(true)}
-					onMouseOut={() => setShowMaskedInput(false)}
-					onMouseUp={() => setShowMaskedInput(false)}
+					aria-label={showMaskedInput ? "Hide value" : "Show value"}
+					aria-pressed={showMaskedInput}
+					onClick={() => setShowMaskedInput((value) => !value)}
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
@@ -594,9 +577,9 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					type="button"
 					variant="subtle"
 					size="icon"
-					onMouseDown={() => setShowMaskedInput(true)}
-					onMouseOut={() => setShowMaskedInput(false)}
-					onMouseUp={() => setShowMaskedInput(false)}
+					aria-label={showMaskedInput ? "Hide value" : "Show value"}
+					aria-pressed={showMaskedInput}
+					onClick={() => setShowMaskedInput((value) => !value)}
 					disabled={disabled}
 				>
 					{showMaskedInput ? (

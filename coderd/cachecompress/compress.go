@@ -240,9 +240,7 @@ func (c *Compressor) serveRef(w http.ResponseWriter, r *http.Request, headers ht
 		}
 
 		for key, values := range headers {
-			for _, value := range values {
-				w.Header().Add(key, value)
-			}
+			w.Header()[key] = values
 		}
 		w.Header().Set("Content-Encoding", cref.key.encoding)
 		w.Header().Add("Vary", "Accept-Encoding")

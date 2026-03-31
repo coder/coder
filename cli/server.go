@@ -24,7 +24,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -305,7 +305,6 @@ func enablePrometheus(
 	}
 	options.ProvisionerdServerMetrics = provisionerdserverMetrics
 
-	//nolint:revive
 	return ServeHandler(
 		ctx, logger, promhttp.InstrumentMetricHandler(
 			options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
@@ -1637,8 +1636,6 @@ var defaultCipherSuites = func() []uint16 {
 // configureServerTLS returns the TLS config used for the Coderd server
 // connections to clients. A logger is passed in to allow printing warning
 // messages that do not block startup.
-//
-//nolint:revive
 func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string, ciphers []string, allowInsecureCiphers bool) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -2055,7 +2052,6 @@ func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *c
 	return &params, nil
 }
 
-//nolint:revive // Ignore flag-parameter: parameter 'allowEveryone' seems to be a control flag, avoid control coupling (revive)
 func configureGithubOAuth2(instrument *promoauth.Factory, params *githubOAuth2ConfigParams) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := params.accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
@@ -2331,7 +2327,8 @@ func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 			return ctx, nil, err
 		}
 
-		tlsClientConfig := &tls.Config{ //nolint:gosec
+		tlsClientConfig := &tls.Config{
+			MinVersion:   tls.VersionTLS12,
 			Certificates: certificates,
 			NextProtos:   []string{"h2", "http/1.1"},
 		}
@@ -2376,6 +2373,19 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 			return
 		}
 
+		// Exception: inter-replica relay.
+		// Enterprise chat streaming relays message_part events
+		// between replicas by dialing the worker replica's
+		// DERP relay address directly. Redirecting these
+		// requests to the access URL breaks the WebSocket
+		// handshake because the redirect strips the Upgrade
+		// headers, causing the load-balanced access URL to
+		// return HTTP 200 (SPA catch-all) instead of 101.
+		if isReplicaRelayRequest(r) {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		// Only do this if we aren't tunneling.
 		// If we are tunneling, we want to allow the request to go through
 		// because the tunnel doesn't proxy with TLS.
@@ -2409,6 +2419,14 @@ func isDERPPath(p string) bool {
 		return false
 	}
 	return segments[1] == "derp"
+}
+
+// isReplicaRelayRequest returns true when the request was sent by
+// another coderd replica as part of cross-replica streaming. The
+// enterprise chat relay sets X-Coder-Relay-Source-Replica on every
+// request to identify itself.
+func isReplicaRelayRequest(r *http.Request) bool {
+	return r.Header.Get("X-Coder-Relay-Source-Replica") != ""
 }
 
 // IsLocalhost returns true if the host points to the local machine. Intended to
@@ -2804,7 +2822,7 @@ func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuth
 // parsing of `GITAUTH` environment variables.
 func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
 	// The index numbers must be in-order.
-	sort.Strings(environ)
+	slices.Sort(environ)
 
 	var providers []codersdk.ExternalAuthConfig
 	for _, v := range serpent.ParseEnviron(environ, prefix) {
@@ -2888,6 +2906,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.MCPToolDenyRegex = v.Value
 		case "PKCE_METHODS":
 			provider.CodeChallengeMethodsSupported = strings.Split(v.Value, " ")
+		case "API_BASE_URL":
+			provider.APIBaseURL = v.Value
 		}
 		providers[providerNum] = provider
 	}

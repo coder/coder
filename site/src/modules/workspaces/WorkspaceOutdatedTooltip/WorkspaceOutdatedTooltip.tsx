@@ -1,9 +1,13 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { templateVersion } from "api/queries/templates";
-import type { Workspace } from "api/typesGenerated";
+import { InfoIcon, RotateCcwIcon } from "lucide-react";
+import { type FC, type ReactNode, useState } from "react";
+import { useQuery } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { templateVersion } from "#/api/queries/templates";
+import type { Workspace } from "#/api/typesGenerated";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -13,12 +17,8 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { InfoIcon, RotateCcwIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import { type FC, type ReactNode, useState } from "react";
-import { useQuery } from "react-query";
-import { toast } from "sonner";
+} from "#/components/HelpTooltip/HelpTooltip";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,

@@ -5,8 +5,8 @@ import type {
 	Organization,
 	SerpentOption,
 	User,
-} from "api/typesGenerated";
-import type { Permissions } from "modules/permissions";
+} from "#/api/typesGenerated";
+import type { Permissions } from "#/modules/permissions";
 import type { QueryKey } from "react-query";
 import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-react-router";
 
@@ -20,7 +20,7 @@ declare module "@storybook/react-vite" {
 		showOrganizations?: boolean;
 		organizations?: Organization[];
 		queries?: { key: QueryKey; data: unknown; isError?: boolean }[];
-		webSocket?: WebSocketEvent[];
+		webSocket?: WebSocketEvent[] | Record<string, WebSocketEvent[]>;
 		user?: User;
 		permissions?: Partial<Permissions>;
 		deploymentValues?: DeploymentValues;

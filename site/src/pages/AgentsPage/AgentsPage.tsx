@@ -1,75 +1,77 @@
-import { API, watchChats } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { type FC, useEffect, useRef, useState } from "react";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
+import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
+import { API, watchChats } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
+	cancelChatListQueries,
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
-	chats,
-	chatsKey,
-	createChat,
-} from "api/queries/chats";
-import { workspaces } from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
+	infiniteChats,
+	invalidateChatListQueries,
+	pinChat,
+	prependToInfiniteChatsCache,
+	readInfiniteChatsCache,
+	regenerateChatTitle,
+	reorderPinnedChat,
+	unarchiveChat,
+	unpinChat,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
+import { workspaceById } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { AgentsPageView } from "./AgentsPageView";
+import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
+import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
-import { useAuthenticated } from "hooks";
-import { MonitorIcon, PanelLeftIcon } from "lucide-react";
-import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
-import { useDashboard } from "modules/dashboard/useDashboard";
+	resolveArchiveAndDeleteAction,
+	shouldNavigateAfterArchive,
+} from "./utils/agentWorkspaceUtils";
+import { maybePlayChime } from "./utils/chime";
+import { getModelOptionsFromConfigs } from "./utils/modelOptions";
 import {
-	type FC,
-	type FormEvent,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { NavLink, Outlet, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
-import { AgentChatInput } from "./AgentChatInput";
-import { AgentsSidebar } from "./AgentsSidebar";
-import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
-import {
-	getModelCatalogStatusMessage,
-	getModelOptionsFromCatalog,
-	getModelSelectorPlaceholder,
-	hasConfiguredModelsInCatalog,
-} from "./modelOptions";
-import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
-import { WebPushButton } from "./WebPushButton";
-
-const emptyInputStorageKey = "agents.empty-input";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-const systemPromptStorageKey = "agents.system-prompt";
-const nilUUID = "00000000-0000-0000-0000-000000000000";
-
-type ChatModelOption = ModelSelectorOption;
-
-type CreateChatOptions = {
-	message: string;
-	workspaceId?: string;
-	model?: string;
-};
+	type ChatDetailError,
+	chatDetailErrorsEqual,
+} from "./utils/usageLimitMessage";
 
 // Type guard for SSE events from the chat list watch endpoint.
+// Shallow-compare two ChatDiffStatus objects by their meaningful
+// fields, ignoring refreshed_at/stale_at which change on every poll.
+function diffStatusEqual(
+	a: TypesGen.ChatDiffStatus | undefined,
+	b: TypesGen.ChatDiffStatus | undefined,
+): boolean {
+	if (a === b) return true;
+	if (!a || !b) return false;
+	return (
+		a.url === b.url &&
+		a.pull_request_state === b.pull_request_state &&
+		a.pull_request_title === b.pull_request_title &&
+		a.pull_request_draft === b.pull_request_draft &&
+		a.changes_requested === b.changes_requested &&
+		a.additions === b.additions &&
+		a.deletions === b.deletions &&
+		a.changed_files === b.changed_files &&
+		a.pr_number === b.pr_number &&
+		a.approved === b.approved &&
+		a.commits === b.commits
+	);
+}
+
 function isChatListSSEEvent(
 	data: unknown,
 ): data is { kind: string; chat: TypesGen.Chat } {
@@ -83,29 +85,20 @@ function isChatListSSEEvent(
 	);
 }
 
-export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
-	clearChatErrorReason: (chatId: string) => void;
-	requestArchiveAgent: (chatId: string) => void;
-	requestArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-}
+export type { AgentsOutletContext } from "./AgentsPageView";
 
 const AgentsPage: FC = () => {
+	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
-	const { permissions, user, signOut } = useAuthenticated();
-	const { appearance, buildInfo } = useDashboard();
-	const isAgentsAdmin =
-		permissions.editDeploymentConfig ||
-		user.roles.some((role) => role.name === "owner" || role.name === "admin");
-	const canSetSystemPrompt = isAgentsAdmin;
+	const { permissions } = useAuthenticated();
+	const { appearance } = useDashboard();
+	const isAgentsAdmin = permissions.editDeploymentConfig;
+
+	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
+		"active",
+	);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -150,18 +143,23 @@ const AgentsPage: FC = () => {
 		};
 	}, []);
 
-	const chatsQuery = useQuery(chats());
+	const chatsQuery = useInfiniteQuery(
+		infiniteChats({ archived: archivedFilter === "archived" }),
+	);
+	// Model queries are kept here for the sidebar, which displays
+	// model info alongside each chat. Child routes that need models
+	// subscribe to the same queries independently — react-query
+	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const createMutation = useMutation(createChat(queryClient));
+	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
-		...archiveChat(queryClient),
-		onSuccess: async (_data, chatId) => {
+		...archiveChatBase,
+		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-			toast.success("Agent archived.");
 		},
-		onError: (error) => {
+		onError: (error, chatId, context) => {
+			archiveChatBase.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
@@ -173,71 +171,95 @@ const AgentsPage: FC = () => {
 			chatId: string;
 			workspaceId: string;
 		}) => {
-			await API.archiveChat(chatId);
+			await API.experimental.updateChat(chatId, { archived: true });
 			await API.deleteWorkspace(workspaceId);
 			return { chatId, workspaceId };
 		},
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
-			await queryClient.invalidateQueries({ queryKey: chatsKey });
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-			toast.success("Agent archived.");
-			toast.success("Workspace deletion initiated.");
+			await invalidateChatListQueries(queryClient);
+			await queryClient.invalidateQueries({
+				queryKey: chatKey(chatId),
+				exact: true,
+			});
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
-
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
-		useState(false);
+	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
+		chatId: string;
+		workspaceId: string;
+	} | null>(null);
+	const unarchiveChatBase = unarchiveChat(queryClient);
+	const unarchiveAgentMutation = useMutation({
+		...unarchiveChatBase,
+		onError: (error, chatId, context) => {
+			unarchiveChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
+	const pinChatBase = pinChat(queryClient);
+	const pinAgentMutation = useMutation({
+		...pinChatBase,
+		onError: (error, chatId, context) => {
+			pinChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinChatBase = unpinChat(queryClient);
+	const unpinAgentMutation = useMutation({
+		...unpinChatBase,
+		onError: (error, chatId, context) => {
+			unpinChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+	const reorderPinnedChatMutation = useMutation({
+		...reorderPinnedChat(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
+		},
+	});
+	const regenerateTitleMutation = useMutation({
+		...regenerateChatTitle(queryClient),
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to generate new title."));
+		},
+	});
+	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
+	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
+		readonly string[]
+	>([]);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, string>
+		Record<string, ChatDetailError>
 	>({});
-	const catalogModelOptions = useMemo(
-		() =>
-			getModelOptionsFromCatalog(
-				chatModelsQuery.data,
-				chatModelConfigsQuery.data,
-			),
-		[chatModelsQuery.data, chatModelConfigsQuery.data],
+	const catalogModelOptions = getModelOptionsFromConfigs(
+		chatModelConfigsQuery.data,
+		chatModelsQuery.data,
 	);
-	const modelConfigIDByModelID = useMemo(() => {
-		const byModelID = new Map<string, string>();
-		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
-			if (!provider || !model) {
-				continue;
-			}
-			const colonRef = `${provider}:${model}`;
-			if (!byModelID.has(colonRef)) {
-				byModelID.set(colonRef, config.id);
-			}
-			const slashRef = `${provider}/${model}`;
-			if (!byModelID.has(slashRef)) {
-				byModelID.set(slashRef, config.id);
-			}
-		}
-		return byModelID;
-	}, [chatModelConfigsQuery.data]);
-	const setChatErrorReason = useCallback((chatId: string, reason: string) => {
-		const trimmedReason = reason.trim();
-		if (!chatId || !trimmedReason) {
+	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
+		const trimmedMessage = reason.message.trim();
+		if (!chatId || !trimmedMessage) {
 			return;
 		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
 		setChatErrorReasons((current) => {
-			if (current[chatId] === trimmedReason) {
+			const existing = current[chatId];
+			if (chatDetailErrorsEqual(existing, nextReason)) {
 				return current;
 			}
 			return {
 				...current,
-				[chatId]: trimmedReason,
+				[chatId]: nextReason,
 			};
 		});
-	}, []);
-	const clearChatErrorReason = useCallback((chatId: string) => {
+	};
+	const clearChatErrorReason = (chatId: string) => {
 		if (!chatId) {
 			return;
 		}
@@ -249,8 +271,8 @@ const AgentsPage: FC = () => {
 			delete next[chatId];
 			return next;
 		});
-	}, []);
-	const chatList = chatsQuery.data ?? [];
+	};
+	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -260,597 +282,436 @@ const AgentsPage: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
-	const requestArchiveAgent = useCallback(
-		(chatId: string) => {
-			if (!isArchiving) {
-				archiveAgentMutation.mutate(chatId);
-			}
-		},
-		[isArchiving, archiveAgentMutation],
-	);
-	const requestArchiveAndDeleteWorkspace = useCallback(
-		(chatId: string, workspaceId: string) => {
-			if (!isArchiving) {
-				archiveAndDeleteMutation.mutate({ chatId, workspaceId });
-			}
-		},
-		[isArchiving, archiveAndDeleteMutation],
-	);
-	const handleToggleSidebarCollapsed = useCallback(
-		() => setIsSidebarCollapsed((prev) => !prev),
-		[],
-	);
-	const outletContext: AgentsOutletContext = useMemo(
-		() => ({
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
-		}),
-		[
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			handleToggleSidebarCollapsed,
-		],
-	);
-	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, workspaceId, model } = options;
-		const modelConfigID =
-			(model && modelConfigIDByModelID.get(model)) || nilUUID;
-		const createdChat = await createMutation.mutateAsync({
-			content: [{ type: "text", text: message }],
-			workspace_id: workspaceId,
-			model_config_id: modelConfigID,
-		});
-
-		if (typeof window !== "undefined") {
-			localStorage.removeItem(emptyInputStorageKey);
-			if (modelConfigID !== nilUUID) {
-				localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
-			}
+	const requestArchiveAgent = (chatId: string) => {
+		if (!isArchiving) {
+			archiveAgentMutation.mutate(chatId);
 		}
-
-		navigate(`/agents/${createdChat.id}`);
 	};
+	const requestArchiveAndDeleteWorkspace = async (
+		chatId: string,
+		workspaceId: string,
+	) => {
+		if (isArchiving) {
+			return;
+		}
+		try {
+			const action = await resolveArchiveAndDeleteAction(
+				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				() =>
+					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
+						?.created_at,
+			);
+			if (action === "proceed") {
+				archiveAndDeleteMutation.mutate(
+					{ chatId, workspaceId },
+					{
+						onSettled: () => {
+							const activeChatId = activeChatIDRef.current;
+							if (
+								shouldNavigateAfterArchive(
+									activeChatId,
+									chatId,
+									// Read root_chat_id from the per-chat
+									// cache, which survives WebSocket eviction
+									// of sub-agents (only the parent's chatKey
+									// is removed). Must be read at settle time
+									// so it reflects the user's current location.
+									activeChatId
+										? queryClient.getQueryData<TypesGen.Chat>(
+												chatKey(activeChatId),
+											)?.root_chat_id
+										: undefined,
+								)
+							) {
+								navigate("/agents");
+							}
+						},
+					},
+				);
+			} else {
+				setPendingArchiveAndDelete({ chatId, workspaceId });
+			}
+		} catch {
+			toast.error("Failed to look up workspace for deletion.");
+		}
+	};
+	const handleConfirmArchiveAndDelete = () => {
+		if (pendingArchiveAndDelete && !isArchiving) {
+			const { chatId: archivedChatId } = pendingArchiveAndDelete;
+			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
+				onSettled: () => {
+					setPendingArchiveAndDelete(null);
+					const activeChatId = activeChatIDRef.current;
+					if (
+						shouldNavigateAfterArchive(
+							activeChatId,
+							archivedChatId,
+							activeChatId
+								? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+										?.root_chat_id
+								: undefined,
+						)
+					) {
+						navigate("/agents");
+					}
+				},
+			});
+		}
+	};
+	const requestUnarchiveAgent = (chatId: string) => {
+		unarchiveAgentMutation.mutate(chatId);
+	};
+	const requestPinAgent = (chatId: string) => {
+		pinAgentMutation.mutate(chatId);
+	};
+	const requestUnpinAgent = (chatId: string) => {
+		unpinAgentMutation.mutate(chatId);
+	};
+	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
+		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
+	};
+	const addRegeneratingTitleChatId = (chatId: string) => {
+		if (!chatId || regeneratingTitleChatIdsRef.current.has(chatId)) {
+			return false;
+		}
+		const next = new Set(regeneratingTitleChatIdsRef.current);
+		next.add(chatId);
+		regeneratingTitleChatIdsRef.current = next;
+		setRegeneratingTitleChatIds(Array.from(next));
+		return true;
+	};
+	const removeRegeneratingTitleChatId = (chatId: string) => {
+		if (!regeneratingTitleChatIdsRef.current.has(chatId)) {
+			return;
+		}
+		const next = new Set(regeneratingTitleChatIdsRef.current);
+		next.delete(chatId);
+		regeneratingTitleChatIdsRef.current = next;
+		setRegeneratingTitleChatIds(Array.from(next));
+	};
+	const requestRegenerateTitle = (chatId: string) => {
+		if (!addRegeneratingTitleChatId(chatId)) {
+			return;
+		}
+		void regenerateTitleMutation
+			.mutateAsync(chatId)
+			.catch(() => {
+				// The shared mutation onError already reports the failure.
+			})
+			.finally(() => {
+				removeRegeneratingTitleChatId(chatId);
+			});
+	};
+	const handleToggleSidebarCollapsed = () =>
+		setIsSidebarCollapsed((prev) => !prev);
 
 	const handleNewAgent = () => {
-		if (typeof window !== "undefined") {
-			localStorage.setItem(emptyInputStorageKey, "");
+		// Only clear the draft when the user is already on the empty
+		// state and explicitly requests a blank slate.  When navigating
+		// back from a conversation the existing draft is preserved.
+		if (!agentId) {
+			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate("/agents");
 	};
 
+	// Track the active chat ID in a ref so the watchChats
+	// WebSocket handler can read it without re-subscribing on
+	// every navigation.
+	const activeChatIDRef = useRef(agentId);
 	useEffect(() => {
-		const ws = watchChats();
-		ws.addEventListener("open", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("close", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("error", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("message", (event) => {
-			const sse = event.parsedMessage;
-			if (sse?.type !== "data" || !sse.data) {
-				return;
-			}
-			if (!isChatListSSEEvent(sse.data)) {
-				return;
-			}
-			const chatEvent = sse.data;
-			const updatedChat = chatEvent.chat;
+		activeChatIDRef.current = agentId;
+	});
 
-			if (chatEvent.kind === "deleted") {
-				queryClient.setQueryData(
-					chatsKey,
-					(prev: TypesGen.Chat[] | undefined) =>
-						prev?.filter(
-							(c) =>
-								c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-						),
-				);
-				queryClient.removeQueries({
-					queryKey: chatKey(updatedChat.id),
-					exact: true,
-				});
-				return;
-			}
+	// Optimistically clear the unread indicator for the active
+	// chat. The server marks chats as read on stream connect
+	// and disconnect, but the list cache is not refetched until
+	// window focus. Without this, navigating away from a chat
+	// causes its cached has_unread to reappear as a stale dot.
+	useEffect(() => {
+		if (!agentId) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) => {
+			let changed = false;
+			const next = chats.map((c) => {
+				if (c.id !== agentId || !c.has_unread) return c;
+				changed = true;
+				return { ...c, has_unread: false };
+			});
+			return changed ? next : chats;
+		});
+	}, [agentId, queryClient]);
+	useEffect(() => {
+		return createReconnectingWebSocket({
+			connect() {
+				const ws = watchChats();
 
-			if (chatEvent.kind === "diff_status_change") {
-				void Promise.all([
-					queryClient.invalidateQueries({
-						queryKey: chatsKey,
-					}),
-					queryClient.invalidateQueries({
-						queryKey: chatDiffStatusKey(updatedChat.id),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: chatDiffContentsKey(updatedChat.id),
-					}),
-				]);
-				return;
-			}
-
-			queryClient.setQueryData(
-				chatsKey,
-				(prev: TypesGen.Chat[] | undefined) => {
-					if (!prev) return prev;
-					const exists = prev.some((c) => c.id === updatedChat.id);
-					if (exists) {
-						return prev.map((c) =>
-							c.id === updatedChat.id
-								? {
-										...c,
-										status: updatedChat.status,
-										title: updatedChat.title,
-										updated_at: updatedChat.updated_at,
-									}
-								: c,
+				ws.addEventListener("message", (event) => {
+					if (event.parseError) {
+						console.warn("Failed to parse chat watch event:", event.parseError);
+						return;
+					}
+					const sse = event.parsedMessage;
+					if (sse?.type !== "data" || !sse.data) {
+						return;
+					}
+					if (!isChatListSSEEvent(sse.data)) {
+						return;
+					}
+					const chatEvent = sse.data;
+					const updatedChat = chatEvent.chat;
+					// Read the previous status from the infinite chat list
+					// cache before we write the update below. The per-chat
+					// query cache (chatKey) only exists for chats the user
+					// has opened, so reading from the list cache ensures
+					// prevStatus is available for background agents too.
+					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
+						(c) => c.id === updatedChat.id,
+					)?.status;
+					// Only play the chime for top-level chats, not sub-agents.
+					if (!updatedChat.parent_chat_id) {
+						maybePlayChime(
+							prevStatus,
+							updatedChat.status,
+							updatedChat.id,
+							activeChatIDRef.current,
 						);
 					}
-					if (chatEvent.kind === "created") {
-						return [updatedChat, ...prev];
-					}
-					return prev;
-				},
-			);
-			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-				chatKey(updatedChat.id),
-				(previousChat) => {
-					if (!previousChat) {
-						return previousChat;
-					}
-					return {
-						...previousChat,
-						chat: {
-							...previousChat.chat,
-							status: updatedChat.status,
-							title: updatedChat.title,
-							updated_at: updatedChat.updated_at,
-						},
-					};
-				},
-			);
-		});
-		return () => ws.close();
-	}, [queryClient]);
 
-	useEffect(() => {
-		document.title = pageTitle("Agents");
-	}, []);
+					if (chatEvent.kind === "deleted") {
+						updateInfiniteChatsCache(queryClient, (chats) =>
+							chats.filter(
+								(c) =>
+									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
+							),
+						);
+						queryClient.removeQueries({
+							queryKey: chatKey(updatedChat.id),
+							exact: true,
+						});
+						return;
+					}
+
+					if (chatEvent.kind === "diff_status_change") {
+						// Only refetch the diff file contents — the chat's
+						// diff_status field is already written into the
+						// chatKey and infinite-list caches below.
+						void queryClient.invalidateQueries({
+							queryKey: chatDiffContentsKey(updatedChat.id),
+							exact: true,
+						});
+					}
+					// Scope field updates by event kind so that
+					// status_change events (which may carry a stale title
+					// snapshot from before async title generation
+					// finished) don't clobber a title_change that already
+					// landed.
+					const isTitleEvent = chatEvent.kind === "title_change";
+					const isStatusEvent = chatEvent.kind === "status_change";
+					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
+
+					// Cancel in-flight list and per-chat refetches so
+					// they cannot overwrite the cache update below with
+					// stale server data. This matters when a title_change
+					// event races with a refetch triggered by
+					// createChat.onSuccess or the onOpen invalidation:
+					// the refetch may have been issued before the async
+					// title generation finished, so its response carries
+					// the fallback title.
+					void cancelChatListQueries(queryClient);
+					// Only cancel a per-chat refetch when the cache
+					// already has data. Cancelling a first-time fetch
+					// reverts the query to pending/idle with no data
+					// and no retry, which AgentChatPage shows as
+					// "Chat not found".
+					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
+						void queryClient.cancelQueries({
+							queryKey: chatKey(updatedChat.id),
+							exact: true,
+						});
+					}
+
+					// For "created" events, use a cross-page existence
+					// check and prepend only to the first page.
+					// updateInfiniteChatsCache runs the updater per
+					// page, so a naive prepend would duplicate the
+					// chat into every loaded page.
+					if (chatEvent.kind === "created") {
+						prependToInfiniteChatsCache(queryClient, updatedChat);
+					} else {
+						updateInfiniteChatsCache(queryClient, (chats) => {
+							let didUpdate = false;
+							const nextChats = chats.map((c) => {
+								if (c.id !== updatedChat.id) return c;
+								const nextStatus = isStatusEvent
+									? updatedChat.status
+									: c.status;
+								const nextTitle = isTitleEvent ? updatedChat.title : c.title;
+								const nextDiffStatus = isDiffStatusEvent
+									? updatedChat.diff_status
+									: c.diff_status;
+								const nextWorkspaceId =
+									updatedChat.workspace_id ?? c.workspace_id;
+								const nextUpdatedAt =
+									c.updated_at > updatedChat.updated_at
+										? c.updated_at
+										: updatedChat.updated_at;
+								// The server's pubsub path does not compute
+								// has_unread (it always sends false). For
+								// status_change events on non-active chats,
+								// optimistically mark as unread since the
+								// assistant produced new output.
+								const nextHasUnread =
+									isStatusEvent && updatedChat.id !== activeChatIDRef.current
+										? true
+										: c.has_unread;
+								if (
+									nextStatus === c.status &&
+									nextTitle === c.title &&
+									diffStatusEqual(nextDiffStatus, c.diff_status) &&
+									nextWorkspaceId === c.workspace_id &&
+									nextHasUnread === c.has_unread
+								) {
+									return c;
+								}
+								didUpdate = true;
+								return {
+									...c,
+									status: nextStatus,
+									title: nextTitle,
+									diff_status: nextDiffStatus,
+									workspace_id: nextWorkspaceId,
+									updated_at: nextUpdatedAt,
+									has_unread: nextHasUnread,
+								};
+							});
+							return didUpdate ? nextChats : chats;
+						});
+					}
+					queryClient.setQueryData<TypesGen.Chat | undefined>(
+						chatKey(updatedChat.id),
+						(previousChat) => {
+							if (!previousChat) {
+								return previousChat;
+							}
+							// Only create a new object if a field actually
+							// changed. Returning the same reference prevents
+							// react-query from notifying subscribers, avoiding
+							// unnecessary re-renders of AgentChatPage during
+							// streaming when repeated status_change events
+							// carry the same "running" status.
+							const nextStatus = isStatusEvent
+								? updatedChat.status
+								: previousChat.status;
+							const nextTitle = isTitleEvent
+								? updatedChat.title
+								: previousChat.title;
+							const nextDiffStatus = isDiffStatusEvent
+								? updatedChat.diff_status
+								: previousChat.diff_status;
+							const nextWorkspaceId =
+								updatedChat.workspace_id ?? previousChat.workspace_id;
+							const nextUpdatedAt =
+								previousChat.updated_at > updatedChat.updated_at
+									? previousChat.updated_at
+									: updatedChat.updated_at;
+
+							if (
+								nextStatus === previousChat.status &&
+								nextTitle === previousChat.title &&
+								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
+								nextWorkspaceId === previousChat.workspace_id
+							) {
+								return previousChat;
+							}
+							return {
+								...previousChat,
+								status: nextStatus,
+								title: nextTitle,
+								diff_status: nextDiffStatus,
+								workspace_id: nextWorkspaceId,
+								updated_at: nextUpdatedAt,
+							};
+						},
+					);
+				});
+				return ws;
+			},
+			onOpen() {
+				void invalidateChatListQueries(queryClient);
+			},
+		});
+	}, [queryClient]);
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 	});
 
-	return (
-		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
-			<div
-				className={cn(
-					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
-					agentId
-						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-						: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
-					isSidebarCollapsed && "md:hidden",
-				)}
-			>
-				<AgentsSidebar
-					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
-					modelOptions={catalogModelOptions}
-					modelConfigs={chatModelConfigsQuery.data ?? []}
-					logoUrl={appearance.logo_url}
-					onArchiveAgent={requestArchiveAgent}
-					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-					onNewAgent={handleNewAgent}
-					isCreating={createMutation.isPending}
-					isArchiving={isArchiving}
-					archivingChatId={archivingChatId}
-					isLoading={chatsQuery.isLoading}
-					loadError={chatsQuery.isError ? chatsQuery.error : undefined}
-					onRetryLoad={() => void chatsQuery.refetch()}
-					onCollapse={() => setIsSidebarCollapsed(true)}
-				/>
-			</div>
-
-			<div
-				className={cn(
-					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					!agentId && "order-1 md:order-none flex-none md:flex-1",
-				)}
-			>
-				{agentId ? (
-					<Outlet key={agentId} context={outletContext} />
-				) : (
-					<>
-						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-							<NavLink
-								to="/workspaces"
-								className="inline-flex shrink-0 md:hidden"
-							>
-								{appearance.logo_url ? (
-									<ExternalImage
-										className="h-6"
-										src={appearance.logo_url}
-										alt="Logo"
-									/>
-								) : (
-									<CoderIcon className="h-6 w-6 fill-content-primary" />
-								)}
-							</NavLink>
-							{isSidebarCollapsed && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={() => setIsSidebarCollapsed(false)}
-									aria-label="Expand sidebar"
-									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
-								>
-									<PanelLeftIcon />
-								</Button>
-							)}
-							<div className="flex min-w-0 flex-1 items-center" />
-							<div className="flex items-center gap-2">
-								<WebPushButton />
-								{isAgentsAdmin && (
-									<Button
-										variant="subtle"
-										disabled={createMutation.isPending}
-										className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-										onClick={() => setConfigureAgentsDialogOpen(true)}
-									>
-										Admin
-									</Button>
-								)}
-							</div>
-							<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
-								<UserDropdown
-									user={user}
-									buildInfo={buildInfo}
-									supportLinks={
-										appearance.support_links?.filter(
-											(link) => link.location !== "navbar",
-										) ?? []
-									}
-									onSignOut={signOut}
-								/>
-							</div>
-						</div>
-						<AgentsEmptyState
-							onCreateChat={handleCreateChat}
-							isCreating={createMutation.isPending}
-							createError={createMutation.error}
-							modelCatalog={chatModelsQuery.data}
-							modelOptions={catalogModelOptions}
-							modelConfigs={chatModelConfigsQuery.data ?? []}
-							isModelCatalogLoading={chatModelsQuery.isLoading}
-							isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-							modelCatalogError={chatModelsQuery.error}
-							canSetSystemPrompt={canSetSystemPrompt}
-							canManageChatModelConfigs={isAgentsAdmin}
-							isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
-							onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
-						/>
-					</>
-				)}
-			</div>
-		</div>
-	);
-};
-
-interface AgentsEmptyStateProps {
-	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	isCreating: boolean;
-	createError: unknown;
-	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
-	modelOptions: readonly ChatModelOption[];
-	isModelCatalogLoading: boolean;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	isModelConfigsLoading: boolean;
-	modelCatalogError: unknown;
-	canSetSystemPrompt: boolean;
-	canManageChatModelConfigs: boolean;
-	isConfigureAgentsDialogOpen: boolean;
-	onConfigureAgentsDialogOpenChange: (open: boolean) => void;
-}
-
-export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
-	onCreateChat,
-	isCreating,
-	createError,
-	modelCatalog,
-	modelOptions,
-	modelConfigs,
-	isModelCatalogLoading,
-	isModelConfigsLoading,
-	modelCatalogError,
-	canSetSystemPrompt,
-	canManageChatModelConfigs,
-	isConfigureAgentsDialogOpen,
-	onConfigureAgentsDialogOpenChange,
-}) => {
-	const [initialInputValue] = useState(() => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(emptyInputStorageKey) ?? "";
+	// Fetch workspace name for the confirmation dialog. Only
+	// enabled when pendingArchiveAndDelete is set (i.e. the
+	// resolve step determined confirmation is needed). The
+	// workspace data is usually already cached from the
+	// fetchQuery in requestArchiveAndDeleteWorkspace.
+	const pendingWorkspaceQuery = useQuery({
+		...workspaceById(pendingArchiveAndDelete?.workspaceId ?? ""),
+		enabled: Boolean(pendingArchiveAndDelete?.workspaceId),
 	});
-	const inputValueRef = useRef(initialInputValue);
-	const initialSystemPrompt = () => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(systemPromptStorageKey) ?? "";
-	};
-	const [initialLastModelConfigID] = useState(() => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
-	});
-	const modelIDByConfigID = useMemo(() => {
-		const optionIDByRef = new Map<string, string>();
-		for (const option of modelOptions) {
-			const provider = option.provider.trim().toLowerCase();
-			const model = option.model.trim();
-			if (!provider || !model) {
-				continue;
-			}
-			const key = `${provider}:${model}`;
-			if (!optionIDByRef.has(key)) {
-				optionIDByRef.set(key, option.id);
-			}
-		}
+	const pendingWorkspaceName = pendingWorkspaceQuery.data?.name ?? "";
 
-		const byConfigID = new Map<string, string>();
-		for (const config of modelConfigs) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
-			if (!provider || !model) {
-				continue;
-			}
-			const modelID = optionIDByRef.get(`${provider}:${model}`);
-			if (!modelID || byConfigID.has(config.id)) {
-				continue;
-			}
-			byConfigID.set(config.id, modelID);
-		}
-		return byConfigID;
-	}, [modelConfigs, modelOptions]);
-	const lastUsedModelID = useMemo(() => {
-		if (!initialLastModelConfigID) {
-			return "";
-		}
-		return modelIDByConfigID.get(initialLastModelConfigID) ?? "";
-	}, [initialLastModelConfigID, modelIDByConfigID]);
-	const defaultModelID = useMemo(() => {
-		const defaultModelConfig = modelConfigs.find((config) => config.is_default);
-		if (!defaultModelConfig) {
-			return "";
-		}
-		return modelIDByConfigID.get(defaultModelConfig.id) ?? "";
-	}, [modelConfigs, modelIDByConfigID]);
-	const preferredModelID =
-		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
-	const [userSelectedModel, setUserSelectedModel] = useState("");
-	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
-	// Derive the effective model every render so we never reference
-	// a stale model id and can honor fallback precedence.
-	const selectedModel =
-		hasUserSelectedModel &&
-		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
-			? userSelectedModel
-			: preferredModelID;
-	const [savedSystemPrompt, setSavedSystemPrompt] =
-		useState(initialSystemPrompt);
-	const [systemPromptDraft, setSystemPromptDraft] =
-		useState(initialSystemPrompt);
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 50 }));
-	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => {
-			if (typeof window === "undefined") return null;
-			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
-		},
-	);
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
-	const autoCreateWorkspaceValue = "__auto_create_workspace__";
-	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
-	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
-	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
-		modelOptions,
-		isModelCatalogLoading,
-		hasConfiguredModels,
-	);
-	const modelCatalogStatusMessage = getModelCatalogStatusMessage(
-		modelCatalog,
-		modelOptions,
-		isModelCatalogLoading,
-		Boolean(modelCatalogError),
-	);
-	const inputStatusText = hasModelOptions
-		? null
-		: hasConfiguredModels
-			? "Models are configured but unavailable. Ask an admin."
-			: "No models configured. Ask an admin.";
-
-	useEffect(() => {
-		if (typeof window === "undefined") {
-			return;
-		}
-		if (!initialLastModelConfigID) {
-			return;
-		}
-		if (isModelCatalogLoading || isModelConfigsLoading) {
-			return;
-		}
-		if (lastUsedModelID) {
-			return;
-		}
-		localStorage.removeItem(lastModelConfigIDStorageKey);
-	}, [
-		initialLastModelConfigID,
-		isModelCatalogLoading,
-		isModelConfigsLoading,
-		lastUsedModelID,
-	]);
-
-	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
-	// that the onSend callback always sees the latest values without
-	// the shared input component re-rendering on every change.
-	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	selectedWorkspaceIdRef.current = selectedWorkspaceId;
-	const selectedModelRef = useRef(selectedModel);
-	selectedModelRef.current = selectedModel;
-	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
-
-	const handleWorkspaceChange = (value: string) => {
-		if (value === autoCreateWorkspaceValue) {
-			setSelectedWorkspaceId(null);
-			if (typeof window !== "undefined") {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-			}
-			return;
-		}
-		setSelectedWorkspaceId(value);
-		if (typeof window !== "undefined") {
-			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
-		}
-	};
-
-	const handleContentChange = useCallback((content: string) => {
-		inputValueRef.current = content;
-		if (typeof window !== "undefined") {
-			localStorage.setItem(emptyInputStorageKey, content);
-		}
-	}, []);
-	const handleModelChange = useCallback((value: string) => {
-		setHasUserSelectedModel(true);
-		setUserSelectedModel(value);
-	}, []);
-
-	const handleSaveSystemPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isSystemPromptDirty) {
-				return;
-			}
-
-			setSavedSystemPrompt(systemPromptDraft);
-			if (typeof window !== "undefined") {
-				if (systemPromptDraft) {
-					localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
-				} else {
-					localStorage.removeItem(systemPromptStorageKey);
-				}
-			}
-		},
-		[isSystemPromptDirty, systemPromptDraft],
-	);
-
-	const handleSend = useCallback(
-		(message: string) => {
-			void onCreateChat({
-				message,
-				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-				model: selectedModelRef.current || undefined,
-			});
-		},
-		[onCreateChat],
-	);
-
-	const selectedWorkspace = selectedWorkspaceId
-		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)
-		: undefined;
-	const selectedWorkspaceLabel = selectedWorkspace
-		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
-		: undefined;
+	const deleteDialogOpen =
+		pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName);
 
 	return (
-		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-				{createError ? <ErrorAlert error={createError} /> : null}
-				{workspacesQuery.isError && (
-					<ErrorAlert error={workspacesQuery.error} />
-				)}
-
-				<AgentChatInput
-					onSend={handleSend}
-					placeholder="Ask Coder to build, fix bugs, or explore your project..."
-					isDisabled={isCreating}
-					isLoading={isCreating}
-					initialValue={initialInputValue}
-					onContentChange={handleContentChange}
-					selectedModel={selectedModel}
-					onModelChange={handleModelChange}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					inputStatusText={inputStatusText}
-					modelCatalogStatusMessage={modelCatalogStatusMessage}
-					leftActions={
-						<Select
-							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
-							onValueChange={handleWorkspaceChange}
-							disabled={isCreating || workspacesQuery.isLoading}
-						>
-							<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary focus:ring-0 focus-visible:ring-0">
-								<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
-								<SelectValue>
-									{selectedWorkspaceLabel ?? "Workspace"}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent
-								side="top"
-								align="center"
-								className="[&_[role=option]]:text-xs"
-							>
-								<SelectItem value={autoCreateWorkspaceValue}>
-									Auto-create Workspace
-								</SelectItem>
-								{workspaceOptions.map((workspace) => (
-									<SelectItem key={workspace.id} value={workspace.id}>
-										{workspace.owner_name}/{workspace.name}
-									</SelectItem>
-								))}
-								{workspaceOptions.length === 0 &&
-									!workspacesQuery.isLoading && (
-										<SelectItem value="no-workspaces" disabled>
-											No workspaces found
-										</SelectItem>
-									)}
-							</SelectContent>
-						</Select>
-					}
-				/>
-			</div>
-
-			{hasAdminControls && (
-				<ConfigureAgentsDialog
-					open={isConfigureAgentsDialogOpen}
-					onOpenChange={onConfigureAgentsDialogOpenChange}
-					canManageChatModelConfigs={canManageChatModelConfigs}
-					canSetSystemPrompt={canSetSystemPrompt}
-					systemPromptDraft={systemPromptDraft}
-					onSystemPromptDraftChange={setSystemPromptDraft}
-					onSaveSystemPrompt={handleSaveSystemPrompt}
-					isSystemPromptDirty={isSystemPromptDirty}
-					isDisabled={isCreating}
-				/>
-			)}
-		</div>
+		<>
+			<AgentsPageView
+				agentId={agentId}
+				chatList={chatList}
+				catalogModelOptions={catalogModelOptions}
+				modelConfigs={chatModelConfigsQuery.data ?? []}
+				logoUrl={appearance.logo_url}
+				handleNewAgent={handleNewAgent}
+				isCreating={false}
+				isArchiving={isArchiving}
+				archivingChatId={archivingChatId}
+				isChatsLoading={chatsQuery.isLoading}
+				chatsLoadError={chatsQuery.error}
+				onRetryChatsLoad={() => void chatsQuery.refetch()}
+				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onExpandSidebar={() => setIsSidebarCollapsed(false)}
+				chatErrorReasons={chatErrorReasons}
+				setChatErrorReason={setChatErrorReason}
+				clearChatErrorReason={clearChatErrorReason}
+				requestArchiveAgent={requestArchiveAgent}
+				requestUnarchiveAgent={requestUnarchiveAgent}
+				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+				requestPinAgent={requestPinAgent}
+				requestUnpinAgent={requestUnpinAgent}
+				requestReorderPinnedAgent={requestReorderPinnedAgent}
+				onRegenerateTitle={requestRegenerateTitle}
+				regeneratingTitleChatIds={regeneratingTitleChatIds}
+				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				isAgentsAdmin={isAgentsAdmin}
+				hasNextPage={chatsQuery.hasNextPage}
+				onLoadMore={() => void chatsQuery.fetchNextPage()}
+				isFetchingNextPage={chatsQuery.isFetchingNextPage}
+				archivedFilter={archivedFilter}
+				onArchivedFilterChange={setArchivedFilter}
+			/>
+			<DeleteDialog
+				key={pendingWorkspaceName}
+				isOpen={deleteDialogOpen}
+				onConfirm={handleConfirmArchiveAndDelete}
+				onCancel={() => setPendingArchiveAndDelete(null)}
+				entity="workspace"
+				name={pendingWorkspaceName}
+				confirmLoading={archiveAndDeleteMutation.isPending}
+				title="Archive agent & delete workspace"
+				verb="Archiving and deleting"
+				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+		</>
 	);
 };
-
 export default AgentsPage;

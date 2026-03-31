@@ -16,11 +16,17 @@ import (
 func main() {
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 
+	outputDir := "./coderd/apidoc"
+	if d := os.Getenv("SWAG_OUTPUT_DIR"); d != "" {
+		outputDir = d
+	}
+
 	err := gen.New().Build(&gen.Config{
 		SearchDir:          "./coderd,./codersdk,./enterprise/coderd,./enterprise/wsproxy/wsproxysdk",
 		MainAPIFile:        "coderd.go",
-		OutputDir:          "./coderd/apidoc",
+		OutputDir:          outputDir,
 		OutputTypes:        []string{"go", "json"},
+		PackageName:        "apidoc",
 		ParseDependency:    1,
 		Strict:             true,
 		OverridesFile:      gen.DefaultOverridesFile,

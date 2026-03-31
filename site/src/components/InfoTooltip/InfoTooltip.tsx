@@ -1,3 +1,4 @@
+import type { FC, ReactNode } from "react";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -5,10 +6,9 @@ import {
 	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/roles";
-import { cn } from "utils/cn";
+} from "#/components/HelpTooltip/HelpTooltip";
+import type { ThemeRole } from "#/theme/roles";
+import { cn } from "#/utils/cn";
 
 interface InfoTooltipProps {
 	type?: ThemeRole;
@@ -24,7 +24,7 @@ const tooltipColorClasses: Record<ThemeRole, string> = {
 	success: "text-content-success",
 	danger: "text-content-destructive",
 	active: "text-content-link",
-	inactive: "text-highlight-grey",
+	inactive: "text-content-secondary",
 	preview: "text-highlight-purple",
 };
 

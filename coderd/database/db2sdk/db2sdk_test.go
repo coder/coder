@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -438,87 +438,67 @@ func TestAIBridgeInterception(t *testing.T) {
 	}
 }
 
-func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
+func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	t.Parallel()
 
-	assistantContent, err := json.Marshal([]fantasy.Content{
-		fantasy.ReasoningContent{
-			Text: "Plan migration",
-			ProviderMetadata: fantasy.ProviderMetadata{
-				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-					ItemID:  "reasoning-1",
-					Summary: []string{"Plan migration"},
-				},
-			},
-		},
-	})
+	toolCallID := uuid.New().String()
+	toolName := "web_search"
+
+	// Build assistant content blocks with ProviderExecuted set.
+	toolCall := fantasy.ToolCallContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Input:            `{"query":"test"}`,
+		ProviderExecuted: true,
+	}
+	toolResult := fantasy.ToolResultContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Result:           fantasy.ToolResultOutputContentText{Text: `{"results":[]}`},
+		ProviderExecuted: true,
+	}
+
+	tcJSON, err := json.Marshal(toolCall)
+	require.NoError(t, err)
+	trJSON, err := json.Marshal(toolResult)
 	require.NoError(t, err)
 
-	message := db2sdk.ChatMessage(database.ChatMessage{
-		ID:        1,
-		ChatID:    uuid.New(),
-		CreatedAt: time.Now(),
-		Role:      string(fantasy.MessageRoleAssistant),
+	rawContent := json.RawMessage("[" + string(tcJSON) + "," + string(trJSON) + "]")
+
+	dbMsg := database.ChatMessage{
+		ID:     1,
+		ChatID: uuid.New(),
+		Role:   database.ChatMessageRoleAssistant,
 		Content: pqtype.NullRawMessage{
-			RawMessage: assistantContent,
+			RawMessage: rawContent,
 			Valid:      true,
 		},
-	})
-
-	require.Len(t, message.Content, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
-	require.Equal(t, "Plan migration", message.Content[0].Text)
-	require.Empty(t, message.Content[0].Title)
-}
-
-func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
-	t.Parallel()
-
-	reasoningContent, err := json.Marshal(fantasy.ReasoningContent{
-		Text: "Verify schema updates, then apply changes in order.",
-		ProviderMetadata: fantasy.ProviderMetadata{
-			fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-				ItemID: "reasoning-1",
-				Summary: []string{
-					"**Metadata-derived title**\n\nLonger explanation.",
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	var envelope map[string]any
-	require.NoError(t, json.Unmarshal(reasoningContent, &envelope))
-	dataValue, ok := envelope["data"].(map[string]any)
-	require.True(t, ok)
-	dataValue["title"] = "Persisted stream title"
-
-	encodedReasoning, err := json.Marshal(envelope)
-	require.NoError(t, err)
-	assistantContent, err := json.Marshal([]json.RawMessage{encodedReasoning})
-	require.NoError(t, err)
-
-	message := db2sdk.ChatMessage(database.ChatMessage{
-		ID:        1,
-		ChatID:    uuid.New(),
 		CreatedAt: time.Now(),
-		Role:      string(fantasy.MessageRoleAssistant),
-		Content: pqtype.NullRawMessage{
-			RawMessage: assistantContent,
-			Valid:      true,
-		},
-	})
+	}
 
-	require.Len(t, message.Content, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
-	require.Equal(t, "Persisted stream title", message.Content[0].Title)
+	result := db2sdk.ChatMessage(dbMsg)
+
+	require.Len(t, result.Content, 2)
+
+	// First part: tool call.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, result.Content[0].Type)
+	require.Equal(t, toolCallID, result.Content[0].ToolCallID)
+	require.Equal(t, toolName, result.Content[0].ToolName)
+	require.True(t, result.Content[0].ProviderExecuted, "tool call should preserve ProviderExecuted")
+
+	// Second part: tool result.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, result.Content[1].Type)
+	require.Equal(t, toolCallID, result.Content[1].ToolCallID)
+	require.Equal(t, toolName, result.Content[1].ToolName)
+	require.True(t, result.Content[1].ProviderExecuted, "tool result should preserve ProviderExecuted")
 }
 
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	t.Parallel()
 
-	rawContent, err := json.Marshal([]fantasy.Content{
-		fantasy.TextContent{Text: "queued text"},
+	// Queued messages are always written via MarshalParts (SDK format).
+	rawContent, err := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued text"),
 	})
 	require.NoError(t, err)
 
@@ -534,35 +514,78 @@ func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	require.Equal(t, "queued text", queued.Content[0].Text)
 }
 
-func TestChatQueuedMessage_FallsBackToTextForLegacyContent(t *testing.T) {
+func TestChat_AllFieldsPopulated(t *testing.T) {
 	t.Parallel()
 
-	t.Run("legacy_string", func(t *testing.T) {
-		t.Parallel()
+	// Every field of database.Chat is set to a non-zero value so
+	// that the reflection check below catches any field that
+	// db2sdk.Chat forgets to populate. When someone adds a new
+	// field to codersdk.Chat, this test will fail until the
+	// converter is updated.
+	now := dbtime.Now()
+	input := database.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		LastModelConfigID: uuid.New(),
+		Title:             "all-fields-test",
+		Status:            database.ChatStatusRunning,
+		LastError:         sql.NullString{String: "boom", Valid: true},
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		Archived:          true,
+		PinOrder:          1,
+		MCPServerIDs:      []uuid.UUID{uuid.New()},
+		Labels:            database.StringMap{"env": "prod"},
+		LastInjectedContext: pqtype.NullRawMessage{
+			// Use a context-file part to verify internal
+			// fields are not present (they are stripped at
+			// write time by chatd, not at read time).
+			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
+			Valid:      true,
+		},
+	}
+	// Only ChatID is needed here. This test checks that
+	// Chat.DiffStatus is non-nil, not that every DiffStatus
+	// field is populated — that would be a separate test for
+	// the ChatDiffStatus converter.
+	diffStatus := &database.ChatDiffStatus{
+		ChatID: input.ID,
+	}
 
-		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-			ID:        1,
-			ChatID:    uuid.New(),
-			Content:   json.RawMessage(`"legacy queued text"`),
-			CreatedAt: time.Now(),
-		})
+	got := db2sdk.Chat(input, diffStatus)
 
-		require.Len(t, queued.Content, 1)
-		require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
-		require.Equal(t, "legacy queued text", queued.Content[0].Text)
+	v := reflect.ValueOf(got)
+	typ := v.Type()
+	// HasUnread is populated by ChatRows (which joins the
+	// read-cursor query), not by Chat, so it is expected
+	// to remain zero here.
+	skip := map[string]bool{"HasUnread": true}
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if skip[field.Name] {
+			continue
+		}
+		require.False(t, v.Field(i).IsZero(),
+			"codersdk.Chat field %q is zero-valued — db2sdk.Chat may not be populating it",
+			field.Name,
+		)
+	}
+}
+
+func TestChatQueuedMessage_MalformedContent(t *testing.T) {
+	t.Parallel()
+
+	queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		Content:   json.RawMessage(`{"unexpected":"shape"}`),
+		CreatedAt: time.Now(),
 	})
 
-	t.Run("malformed_payload", func(t *testing.T) {
-		t.Parallel()
-
-		raw := json.RawMessage(`{"unexpected":"shape"}`)
-		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-			ID:        1,
-			ChatID:    uuid.New(),
-			Content:   raw,
-			CreatedAt: time.Now(),
-		})
-
-		require.Empty(t, queued.Content)
-	})
+	require.Empty(t, queued.Content)
 }

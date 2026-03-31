@@ -1,3 +1,8 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { templateVersionPresetsKey } from "#/api/queries/templates";
+import type { Task } from "#/api/typesGenerated";
 import {
 	MockPresets,
 	MockTask,
@@ -9,12 +14,8 @@ import {
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 	mockApiError,
-} from "testHelpers/entities";
-import { withAuthProvider, withToaster } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type { Task } from "api/typesGenerated";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+} from "#/testHelpers/entities";
+import { withAuthProvider, withToaster } from "#/testHelpers/storybook";
 import type TasksPage from "../../../pages/TasksPage/TasksPage";
 import { TaskPrompt } from "./TaskPrompt";
 
@@ -409,7 +410,10 @@ export const ExternalAuthError: Story = {
 		});
 
 		await step("Renders error", async () => {
-			await canvas.findByText(/failed to load external auth/i);
+			const alert = await canvas.findByRole("alert");
+			await within(alert).findByRole("heading", {
+				name: /failed to load external auth/i,
+			});
 		});
 	},
 };
@@ -492,6 +496,50 @@ export const PresetSelectorFocused: Story = {
 		const canvas = within(canvasElement);
 		const presetSelect = await canvas.findByLabelText(/preset/i);
 		presetSelect.focus();
+	},
+};
+
+// Regression test for https://github.com/coder/coder/issues/22245
+// Dark monochrome icons (like GitHub or Tasks) were invisible on dark
+// backgrounds because icons used a plain <img> instead of
+// ExternalImage, which applies theme-aware CSS filters.
+export const IconContrast: Story = {
+	args: {
+		templates: [
+			{
+				...MockTemplate,
+				id: "github-template",
+				name: "github-template",
+				display_name: "GitHub",
+				icon: "/icon/github.svg",
+				active_version_id: MockTemplateVersion.id,
+			},
+			{
+				...MockTemplate,
+				id: "tasks-template",
+				name: "tasks-template",
+				display_name: "Tasks",
+				icon: "/icon/tasks.svg",
+				active_version_id: MockTemplateVersion.id,
+			},
+		],
+	},
+	parameters: {
+		queries: [
+			{
+				key: templateVersionPresetsKey(MockTemplateVersion.id),
+				data: [
+					{
+						...MockPresets[0],
+						Icon: "/icon/github.svg",
+					},
+					{
+						...MockPresets[1],
+						Icon: "/icon/tasks.svg",
+					},
+				],
+			},
+		],
 	},
 };
 

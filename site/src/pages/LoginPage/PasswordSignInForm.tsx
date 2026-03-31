@@ -1,13 +1,13 @@
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 import { Language } from "./Language";
 
 type PasswordSignInFormProps = {
@@ -41,6 +41,8 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 	const emailField = getFieldHelpers("email");
 	const passwordField = getFieldHelpers("password");
+	const emailErrorId = "signin-email-error";
+	const passwordErrorId = "signin-password-error";
 
 	return (
 		<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
@@ -59,9 +61,13 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					autoComplete="email"
 					type="email"
 					aria-invalid={Boolean(emailField.error)}
+					aria-describedby={emailField.error ? emailErrorId : undefined}
 				/>
 				{emailField.error && (
-					<span className="text-xs text-content-destructive text-left">
+					<span
+						id={emailErrorId}
+						className="text-xs text-content-destructive text-left"
+					>
 						{emailField.helperText}
 					</span>
 				)}
@@ -80,10 +86,14 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					onBlur={passwordField.onBlur}
 					autoComplete="current-password"
 					type="password"
-					aria-invalid={passwordField.error}
+					aria-invalid={Boolean(passwordField.error)}
+					aria-describedby={passwordField.error ? passwordErrorId : undefined}
 				/>
 				{passwordField.error && (
-					<span className="text-xs text-content-destructive text-left">
+					<span
+						id={passwordErrorId}
+						className="text-xs text-content-destructive text-left"
+					>
 						{passwordField.helperText}
 					</span>
 				)}

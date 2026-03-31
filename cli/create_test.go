@@ -603,6 +603,81 @@ func TestCreate(t *testing.T) {
 			assert.Nil(t, ws.AutostartSchedule, "expected workspace autostart schedule to be nil")
 		}
 	})
+
+	t.Run("NoWait", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv, root := clitest.New(t, "create", "my-workspace",
+			"--template", template.Name,
+			"-y",
+			"--no-wait",
+		)
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatchContext(ctx, "building in the background")
+		_ = testutil.TryReceive(ctx, t, doneChan)
+
+		// Verify workspace was actually created.
+		ws, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		assert.Equal(t, ws.TemplateName, template.Name)
+	})
+
+	t.Run("NoWaitWithParameterDefaults", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses([]*proto.RichParameter{
+			{Name: "region", Type: "string", DefaultValue: "us-east-1"},
+			{Name: "instance_type", Type: "string", DefaultValue: "t3.micro"},
+		}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv, root := clitest.New(t, "create", "my-workspace",
+			"--template", template.Name,
+			"-y",
+			"--use-parameter-defaults",
+			"--no-wait",
+		)
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatchContext(ctx, "building in the background")
+		_ = testutil.TryReceive(ctx, t, doneChan)
+
+		// Verify workspace was created and parameters were applied.
+		ws, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		assert.Equal(t, ws.TemplateName, template.Name)
+
+		buildParams, err := member.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
+		require.NoError(t, err)
+		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "region", Value: "us-east-1"})
+		assert.Contains(t, buildParams, codersdk.WorkspaceBuildParameter{Name: "instance_type", Value: "t3.micro"})
+	})
 }
 
 func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.Preset) *echo.Responses {

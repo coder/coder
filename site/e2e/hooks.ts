@@ -39,6 +39,18 @@ export const beforeCoderTest = (page: Page) => {
 			`[response] url=${response.url()} status=${response.status()} body=${responseText}`,
 		);
 	});
+
+	page.on("popup", async (popup) => {
+		console.info(`[popup] url=${popup.url()}`);
+	});
+
+	page.on("pageerror", async (error) => {
+		console.error("[pageerror]", error);
+	});
+
+	page.on("crash", async (page) => {
+		console.error("[crash]", page.url());
+	});
 };
 
 export const resetExternalAuthKey = async (context: BrowserContext) => {

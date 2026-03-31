@@ -29,7 +29,12 @@ EDE = "EDE"
 HELO = "HELO"
 LKE = "LKE"
 byt = "byt"
+cpy = "cpy"
+Cpy = "Cpy"
 typ = "typ"
+# file extensions used in seti icon theme
+styl = "styl"
+edn = "edn"
 Inferrable = "Inferrable"
 
 [files]

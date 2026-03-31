@@ -1,8 +1,8 @@
-import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
 import { useState } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorMessage } from "#/api/errors";
 
 export const useDeletionDialogState = (
 	templateId: string,

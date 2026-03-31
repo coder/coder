@@ -1,13 +1,14 @@
-import { paginatedInterceptions } from "api/queries/aiBridge";
-import { useFilter } from "components/Filter/Filter";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
+import { paginatedInterceptions } from "#/api/queries/aiBridge";
+import { useFilter } from "#/components/Filter/Filter";
+import { useUserFilterMenu } from "#/components/Filter/UserFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
+import { useClientFilterMenu } from "./RequestLogsFilter/ClientFilter";
 import { useModelFilterMenu } from "./RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "./RequestLogsFilter/ProviderFilter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
@@ -23,6 +24,7 @@ const RequestLogsPage: FC = () => {
 	const isEntitled =
 		entitlements.features.aibridge.entitlement === "entitled" ||
 		entitlements.features.aibridge.entitlement === "grace_period";
+	const isEnabled = entitlements.features.aibridge.enabled;
 	const hasPermission = permissions.viewAnyAIBridgeInterception;
 	const canViewRequestLogs = isEntitled && hasPermission;
 
@@ -64,6 +66,15 @@ const RequestLogsPage: FC = () => {
 			}),
 	});
 
+	const clientMenu = useClientFilterMenu({
+		value: filter.values.client,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				client: option?.value,
+			}),
+	});
+
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
@@ -71,6 +82,7 @@ const RequestLogsPage: FC = () => {
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}
 				isRequestLogsEntitled={isEntitled}
+				isRequestLogsEnabled={isEnabled}
 				interceptions={interceptionsQuery.data?.results}
 				interceptionsQuery={interceptionsQuery}
 				filterProps={{
@@ -80,6 +92,7 @@ const RequestLogsPage: FC = () => {
 						user: userMenu,
 						provider: providerMenu,
 						model: modelMenu,
+						client: clientMenu,
 					},
 				}}
 			/>

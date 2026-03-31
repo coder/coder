@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"sort"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -47,7 +47,7 @@ func TestTemplateList(t *testing.T) {
 
 		// expect that templates are listed alphabetically
 		templatesList := []string{firstTemplate.Name, secondTemplate.Name}
-		sort.Strings(templatesList)
+		slices.Sort(templatesList)
 
 		require.NoError(t, <-errC)
 

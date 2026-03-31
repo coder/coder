@@ -25,15 +25,17 @@ type recorderTranslation struct {
 
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
-		Id:          req.ID,
-		ApiKeyId:    t.apiKeyID,
-		Client:      req.Client,
-		InitiatorId: req.InitiatorID,
-		Provider:    req.Provider,
-		Model:       req.Model,
-		UserAgent:   req.UserAgent,
-		Metadata:    marshalForProto(req.Metadata),
-		StartedAt:   timestamppb.New(req.StartedAt),
+		Id:                    req.ID,
+		ApiKeyId:              t.apiKeyID,
+		InitiatorId:           req.InitiatorID,
+		Provider:              req.Provider,
+		Model:                 req.Model,
+		UserAgent:             req.UserAgent,
+		Client:                req.Client,
+		ClientSessionId:       req.ClientSessionID,
+		Metadata:              marshalForProto(req.Metadata),
+		StartedAt:             timestamppb.New(req.StartedAt),
+		CorrelatingToolCallId: req.CorrelatingToolCallID,
 	})
 	return err
 }
@@ -93,6 +95,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 		InterceptionId:  req.InterceptionID,
 		MsgId:           req.MsgID,
+		ToolCallId:      req.ToolCallID,
 		ServerUrl:       req.ServerURL,
 		Tool:            req.Tool,
 		Input:           string(serialized),
@@ -100,6 +103,16 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		InvocationError: invErr,
 		Metadata:        marshalForProto(req.Metadata),
 		CreatedAt:       timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
+func (t *recorderTranslation) RecordModelThought(ctx context.Context, req *aibridge.ModelThoughtRecord) error {
+	_, err := t.client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+		InterceptionId: req.InterceptionID,
+		Content:        req.Content,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err
 }

@@ -1,5 +1,8 @@
 # MCP
 
+> [!WARNING]
+> Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 
 AI Bridge can connect to MCP servers and inject tools automatically, enabling you to centrally manage the list of tools you wish to grant your users.
@@ -55,7 +58,7 @@ If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Bridge ha
 
 In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Bridge, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 
-If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have [`CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS=true`](../../reference/cli/server#--aibridge-inject-coder-mcp-tools) set, Coder's MCP tools will be injected into intercepted requests.
+If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS=true` set, Coder's MCP tools will be injected into intercepted requests.
 
 ### Troubleshooting
 

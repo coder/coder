@@ -5,12 +5,25 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentsocket"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// fakeAgentAPI implements just the UpdateAppStatus method of
+// DRPCAgentClient28 for testing. Calling any other method will panic.
+type fakeAgentAPI struct {
+	agentproto.DRPCAgentClient28
+	updateAppStatus func(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error)
+}
+
+func (m *fakeAgentAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+	return m.updateAppStatus(ctx, req)
+}
 
 // newSocketClient creates a DRPC client connected to the Unix socket at the given path.
 func newSocketClient(ctx context.Context, t *testing.T, socketPath string) *agentsocket.Client {
@@ -349,6 +362,130 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ready, err = client.SyncReady(ctx, "dependent-unit")
 			require.NoError(t, err)
 			require.True(t, ready)
+		})
+	})
+
+	t.Run("UpdateAppStatus", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("NotConnected", func(t *testing.T) {
+			t.Parallel()
+
+			socketPath := testutil.AgentSocketPath(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			server, err := agentsocket.NewServer(
+				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
+			)
+			require.NoError(t, err)
+			defer server.Close()
+
+			client := newSocketClient(ctx, t, socketPath)
+
+			_, err = client.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+				Slug:    "test-app",
+				State:   agentproto.UpdateAppStatusRequest_WORKING,
+				Message: "doing stuff",
+			})
+			require.ErrorContains(t, err, "not connected")
+		})
+
+		t.Run("ForwardsToAgentAPI", func(t *testing.T) {
+			t.Parallel()
+
+			socketPath := testutil.AgentSocketPath(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			server, err := agentsocket.NewServer(
+				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
+			)
+			require.NoError(t, err)
+			defer server.Close()
+
+			var gotReq *agentproto.UpdateAppStatusRequest
+			mock := &fakeAgentAPI{
+				updateAppStatus: func(_ context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+					gotReq = req
+					return &agentproto.UpdateAppStatusResponse{}, nil
+				},
+			}
+			server.SetAgentAPI(mock)
+
+			client := newSocketClient(ctx, t, socketPath)
+
+			resp, err := client.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+				Slug:    "test-app",
+				State:   agentproto.UpdateAppStatusRequest_IDLE,
+				Message: "all done",
+				Uri:     "https://example.com",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			require.NotNil(t, gotReq)
+			require.Equal(t, "test-app", gotReq.Slug)
+			require.Equal(t, agentproto.UpdateAppStatusRequest_IDLE, gotReq.State)
+			require.Equal(t, "all done", gotReq.Message)
+			require.Equal(t, "https://example.com", gotReq.Uri)
+		})
+
+		t.Run("ForwardsError", func(t *testing.T) {
+			t.Parallel()
+
+			socketPath := testutil.AgentSocketPath(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			server, err := agentsocket.NewServer(
+				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
+			)
+			require.NoError(t, err)
+			defer server.Close()
+
+			mock := &fakeAgentAPI{
+				updateAppStatus: func(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+					return nil, xerrors.New("app not found")
+				},
+			}
+			server.SetAgentAPI(mock)
+
+			client := newSocketClient(ctx, t, socketPath)
+
+			_, err = client.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+				Slug:    "nonexistent",
+				State:   agentproto.UpdateAppStatusRequest_WORKING,
+				Message: "testing",
+			})
+			require.ErrorContains(t, err, "app not found")
+		})
+
+		t.Run("ClearAgentAPI", func(t *testing.T) {
+			t.Parallel()
+
+			socketPath := testutil.AgentSocketPath(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			server, err := agentsocket.NewServer(
+				slog.Make().Leveled(slog.LevelDebug),
+				agentsocket.WithPath(socketPath),
+			)
+			require.NoError(t, err)
+			defer server.Close()
+
+			mock := &fakeAgentAPI{
+				updateAppStatus: func(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+					return &agentproto.UpdateAppStatusResponse{}, nil
+				},
+			}
+			server.SetAgentAPI(mock)
+			server.ClearAgentAPI()
+
+			client := newSocketClient(ctx, t, socketPath)
+
+			_, err = client.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+				Slug:    "test-app",
+				State:   agentproto.UpdateAppStatusRequest_WORKING,
+				Message: "should fail",
+			})
+			require.ErrorContains(t, err, "not connected")
 		})
 	})
 }

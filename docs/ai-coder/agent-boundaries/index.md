@@ -55,6 +55,7 @@ allowlist:
   - "domain=statsig.anthropic.com" # Required - Feature flags and analytics
   - "domain=claude.ai" # Recommended - WebFetch/WebSearch features
   - "domain=*.sentry.io" # Recommended - Error tracking (helps Anthropic fix bugs)
+jail_type: nsjail
 log_dir: /tmp/boundary_logs
 proxy_port: 8087
 log_level: warn
@@ -92,13 +93,6 @@ version control.
 
 ### Configuration Parameters
 
-- `log_dir` defines where boundary writes log files
-- `log_level` defines the verbosity at which requests are logged. Agent
-  Boundaries uses the following verbosity levels:
-  - `WARN`: logs only requests that have been blocked by Agent Boundaries
-  - `INFO`: logs all requests at a high level
-  - `DEBUG`: logs all requests in detail
-- `proxy_port` defines the port used by the HTTP proxy.
 - `allowlist` defines the URLs that the agent can access, in addition to the
   default URLs required for the agent to work. Rules use the format
   `"key=value [key=value ...]"`:
@@ -110,6 +104,22 @@ version control.
   - `method=POST domain=api.example.com path=/users,/posts` - allows specific
     methods, domain, and paths
   - `path=/api/v1/*,/api/v2/*` - allows specific URL paths
+- `jail_type` selects the isolation backend. Valid values: `nsjail` (default),
+  `landjail`. See [Jail Types](#jail-types) for a detailed comparison.
+- `log_dir` defines where boundary writes log files.
+- `log_level` defines the verbosity at which requests are logged. Agent
+  Boundaries uses the following verbosity levels:
+  - `WARN`: logs only requests that have been blocked by Agent Boundaries
+  - `INFO`: logs all requests at a high level
+  - `DEBUG`: logs all requests in detail
+- `no_user_namespace` disables creation of a user namespace inside the jail.
+  Enable this in restricted environments that disallow user namespaces, such
+  as Bottlerocket nodes in EKS auto-mode. Only applies to the `nsjail` jail
+  type.
+- `proxy_port` defines the port used by the HTTP proxy. Default: `8080`.
+- `use_real_dns` uses the host's real DNS resolver inside the jail instead of
+  the built-in dummy DNS server. This allows DNS resolution for non-proxied
+  traffic but permits DNS-based data exfiltration. Default: `false`.
 
 For detailed information about the rules engine and how to construct allowlist
 rules, see the [rules engine documentation](./rules-engine.md).

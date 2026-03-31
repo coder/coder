@@ -584,6 +584,8 @@ type PatchAppStatus struct {
 	NeedsUserAttention bool `json:"needs_user_attention"`
 }
 
+// PatchAppStatus updates the status of a workspace app.
+// Deprecated: use the DRPCAgentClient.UpdateAppStatus instead
 func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/app-status", req)
 	if err != nil {

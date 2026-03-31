@@ -1,26 +1,26 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link, { type LinkProps } from "@mui/material/Link";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	updateDeadline,
-	workspaceByOwnerAndNameKey,
-} from "api/queries/workspaces";
-import type { Template, Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs, { type Dayjs } from "dayjs";
-import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
-import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	updateDeadline,
+	workspaceByOwnerAndNameKey,
+} from "#/api/queries/workspaces";
+import type { Template, Workspace } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { TopbarData, TopbarIcon } from "#/components/FullPageLayout/Topbar";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useTime } from "#/hooks/useTime";
+import { getWorkspaceActivityStatus } from "#/modules/workspaces/activity";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -28,8 +28,8 @@ import {
 	getMaxDeadline,
 	getMaxDeadlineChange,
 	getMinDeadline,
-} from "utils/schedule";
-import { isWorkspaceOn } from "utils/workspace";
+} from "#/utils/schedule";
+import { isWorkspaceOn } from "#/utils/workspace";
 
 interface WorkspaceScheduleContainerProps {
 	children?: ReactNode;

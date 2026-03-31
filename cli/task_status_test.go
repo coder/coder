@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func Test_TaskStatus(t *testing.T) {
@@ -28,12 +29,12 @@ func Test_TaskStatus(t *testing.T) {
 		args         []string
 		expectOutput string
 		expectError  string
-		hf           func(context.Context, time.Time) func(http.ResponseWriter, *http.Request)
+		hf           func(context.Context, quartz.Clock) func(http.ResponseWriter, *http.Request)
 	}{
 		{
 			args:        []string{"doesnotexist"},
 			expectError: httpapi.ResourceNotFoundResponse.Message,
-			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
+			hf: func(ctx context.Context, _ quartz.Clock) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/v2/tasks/me/doesnotexist":
@@ -49,7 +50,8 @@ func Test_TaskStatus(t *testing.T) {
 			args: []string{"exists"},
 			expectOutput: `STATE CHANGED  STATUS  HEALTHY  STATE    MESSAGE
 0s ago         active  true     working  Thinking furiously...`,
-			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
+			hf: func(ctx context.Context, clk quartz.Clock) func(w http.ResponseWriter, r *http.Request) {
+				now := clk.Now()
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/v2/tasks/me/exists":
@@ -84,7 +86,8 @@ func Test_TaskStatus(t *testing.T) {
 4s ago         active  true
 3s ago         active  true     working  Reticulating splines...
 2s ago         active  true     complete  Splines reticulated successfully!`,
-			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
+			hf: func(ctx context.Context, clk quartz.Clock) func(http.ResponseWriter, *http.Request) {
+				now := clk.Now()
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
@@ -215,7 +218,7 @@ func Test_TaskStatus(t *testing.T) {
   "created_at": "2025-08-26T12:34:56Z",
   "updated_at": "2025-08-26T12:34:56Z"
 }`,
-			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
+			hf: func(ctx context.Context, _ quartz.Clock) func(http.ResponseWriter, *http.Request) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
@@ -252,8 +255,8 @@ func Test_TaskStatus(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				now    = time.Now().UTC() // TODO: replace with quartz
-				srv    = httptest.NewServer(http.HandlerFunc(tc.hf(ctx, now)))
+				mClock = quartz.NewMock(t)
+				srv    = httptest.NewServer(http.HandlerFunc(tc.hf(ctx, mClock)))
 				client = codersdk.New(testutil.MustURL(t, srv.URL))
 				sb     = strings.Builder{}
 				args   = []string{"task", "status", "--watch-interval", testutil.IntervalFast.String()}
@@ -261,10 +264,10 @@ func Test_TaskStatus(t *testing.T) {
 
 			t.Cleanup(srv.Close)
 			args = append(args, tc.args...)
-			inv, root := clitest.New(t, args...)
+			inv, cfgDir := clitest.NewWithClock(t, mClock, args...)
 			inv.Stdout = &sb
 			inv.Stderr = &sb
-			clitest.SetupConfig(t, client, root)
+			clitest.SetupConfig(t, client, cfgDir)
 			err := inv.WithContext(ctx).Run()
 			if tc.expectError == "" {
 				assert.NoError(t, err)

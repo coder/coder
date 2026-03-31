@@ -45,6 +45,7 @@ import (
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
@@ -54,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
+	entchatd "github.com/coder/coder/v2/enterprise/coderd/x/chatd"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
@@ -191,8 +193,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// This must happen before coderd initialization!
 	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
 
-	// Wire up enterprise chat relay for cross-replica message_part streaming.
-	// Must be set before coderd.New so the chat processor gets it.
+	// Wire up enterprise chat subscription with cross-replica relay
+	// and pubsub coordination. Must be set before coderd.New so the
+	// chat processor receives it.
 	replicaHTTPClient := replicaRelayHTTPClient(options.HTTPClient, meshTLSConfig)
 	if replicaHTTPClient == nil {
 		replicaHTTPClient = options.Options.HTTPClient
@@ -200,35 +203,24 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if replicaHTTPClient == nil {
 		replicaHTTPClient = http.DefaultClient
 	}
-	// Use a closure that captures api by reference so it can access api.AGPL.ID
-	// after coderd.New is called. The provider is only invoked when Subscribe
-	// is called, which happens after initialization, so api.AGPL will be set.
-	options.Options.ChatRemotePartsProvider = func(
-		ctx context.Context,
-		chatID uuid.UUID,
-		workerID uuid.UUID,
-		requestHeader http.Header,
-	) (
-		[]codersdk.ChatStreamEvent,
-		<-chan codersdk.ChatStreamEvent,
-		func(),
-		error,
-	) {
-		// Get the replica ID from the API (will be set after coderd.New)
-		replicaID := api.AGPL.ID
-		if replicaID == uuid.Nil {
-			// Fallback if somehow called before initialization
-			replicaID = uuid.New()
-		}
-		provider := newRemotePartsProvider(
-			resolveReplicaAddress,
-			replicaHTTPClient,
-			replicaID,
-		)
-		return provider(ctx, chatID, workerID, requestHeader)
-	}
+	// Use a closure that captures api by reference so it can access
+	// api.AGPL.ID after coderd.New is called. The SubscribeFn is
+	// only invoked from Subscribe, which happens after init.
+	options.Options.ChatSubscribeFn = entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{
+		ResolveReplicaAddress: resolveReplicaAddress,
+		ReplicaHTTPClient:     replicaHTTPClient,
+		ReplicaIDFn: func() uuid.UUID {
+			id := api.AGPL.ID
+			if id == uuid.Nil {
+				return uuid.New()
+			}
+			return id
+		},
+	})
 
 	api.AGPL = coderd.New(options.Options)
+	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
+	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {
 			_ = api.Close()
@@ -469,6 +461,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 
 				r.Get("/", api.groupByOrganization)
+				r.Get("/members", api.groupMembersByOrganization)
 			})
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
@@ -553,6 +546,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.group)
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
+				r.Get("/members", api.groupMembers)
 			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
@@ -796,6 +790,7 @@ type API struct {
 
 	aibridgedHandler      http.Handler
 	aibridgeproxydHandler http.Handler
+	aiSeatTracker         *aiseats.SeatTracker
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header

@@ -530,5 +530,5 @@ service Agent {
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
-  rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
+	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
 }

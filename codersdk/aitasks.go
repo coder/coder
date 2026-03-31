@@ -335,9 +335,8 @@ type PauseTaskResponse struct {
 }
 
 // PauseTask pauses a task by stopping its workspace.
-// Experimental: uses the /api/experimental endpoint.
 func (c *Client) PauseTask(ctx context.Context, user string, id uuid.UUID) (PauseTaskResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/pause", user, id.String()), nil)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/tasks/%s/%s/pause", user, id.String()), nil)
 	if err != nil {
 		return PauseTaskResponse{}, err
 	}
@@ -360,7 +359,7 @@ type ResumeTaskResponse struct {
 }
 
 func (c *Client) ResumeTask(ctx context.Context, user string, id uuid.UUID) (ResumeTaskResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/resume", user, id.String()), nil)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/tasks/%s/%s/resume", user, id.String()), nil)
 	if err != nil {
 		return ResumeTaskResponse{}, err
 	}

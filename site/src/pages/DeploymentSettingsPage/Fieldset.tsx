@@ -1,5 +1,5 @@
-import { Button } from "components/Button/Button";
 import type { FC, FormEventHandler, JSX, ReactNode } from "react";
+import { Button } from "#/components/Button/Button";
 
 interface FieldsetProps {
 	children: ReactNode;

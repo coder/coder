@@ -31,7 +31,7 @@ func (*dnsManager) SupportsSplitDNS() bool {
 
 // Close implements dns.OSConfigurator.
 func (*dnsManager) Close() error {
-	// There's no cleanup that we need to initiate from within the dylib.
+	// There's no cleanup that we need to initiate from within the tunnel.
 	return nil
 }
 
