@@ -10,23 +10,21 @@ import {
 } from "#/components/HelpTooltip/HelpTooltip";
 import { docs } from "#/utils/docs";
 
-const Language = {
-	title: "What is an audit log?",
-	body: "An audit log is a record of events and changes made throughout a system.",
-	docs: "Events we track",
-};
-
 export const AuditHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
 			<HelpTooltipIconTrigger />
 
 			<HelpTooltipContent>
-				<HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
-				<HelpTooltipText>{Language.body}</HelpTooltipText>
+				<HelpTooltipTitle>{"What is an audit log?"}</HelpTooltipTitle>
+				<HelpTooltipText>
+					{
+						"An audit log is a record of events and changes made throughout a system."
+					}
+				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
 					<HelpTooltipLink href={docs("/admin/security/audit-logs")}>
-						{Language.docs}
+						{"Events we track"}
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
 			</HelpTooltipContent>

@@ -27,11 +27,6 @@ import { AuditFilter } from "./AuditFilter";
 import { AuditHelpTooltip } from "./AuditHelpTooltip";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
 
-const Language = {
-	title: "Audit",
-	subtitle: "View events in your audit log.",
-};
-
 interface AuditPageViewProps {
 	auditLogs?: readonly AuditLog[];
 	isNonInitialPage: boolean;
@@ -62,11 +57,13 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.title}</span>
+						<span>{"Audit"}</span>
 						<AuditHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					{"View events in your audit log."}
+				</PageHeaderSubtitle>
 			</PageHeader>
 
 			<ChooseOne>

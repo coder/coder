@@ -52,32 +52,19 @@ import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";
 
-const Language = {
-	developerCount: (activeCount: number): string => {
-		return `${formatTemplateActiveDevelopers(activeCount)} developer${
-			activeCount !== 1 ? "s" : ""
-		}`;
-	},
-	nameLabel: "Name",
-	buildTimeLabel: "Build time",
-	usedByLabel: "Used by",
-	lastUpdatedLabel: "Last updated",
-	templateTooltipTitle: "What is template?",
-	templateTooltipText:
-		"With templates you can create a common configuration for your workspaces using Terraform.",
-	templateTooltipLink: "Manage templates",
-};
-
 const TemplateHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
 			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
-				<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
-				<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
+				<HelpTooltipTitle>What is template?</HelpTooltipTitle>
+				<HelpTooltipText>
+					With templates you can create a common configuration for your
+					workspaces using Terraform.
+				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
 					<HelpTooltipLink href={docs("/admin/templates")}>
-						{Language.templateTooltipLink}
+						Manage templates
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
 			</HelpTooltipContent>
@@ -175,11 +162,11 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{showOrganizations ? (
 					<AvatarData
 						title={template.organization_display_name}
-						subtitle={`Used by ${Language.developerCount(template.active_user_count)}`}
+						subtitle={`Used by ${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`}
 						avatar={<Avatar variant="icon" src={template.organization_icon} />}
 					/>
 				) : (
-					Language.developerCount(template.active_user_count)
+					`${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`
 				)}
 			</TableCell>
 
@@ -262,14 +249,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[35%]">{Language.nameLabel}</TableHead>
+						<TableHead className="w-[35%]">{"Name"}</TableHead>
 						<TableHead className="w-[15%]">
-							{showOrganizations ? "Organization" : Language.usedByLabel}
+							{showOrganizations ? "Organization" : "Used by"}
 						</TableHead>
-						<TableHead className="w-[10%]">{Language.buildTimeLabel}</TableHead>
-						<TableHead className="w-[15%]">
-							{Language.lastUpdatedLabel}
-						</TableHead>
+						<TableHead className="w-[10%]">{"Build time"}</TableHead>
+						<TableHead className="w-[15%]">{"Last updated"}</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>

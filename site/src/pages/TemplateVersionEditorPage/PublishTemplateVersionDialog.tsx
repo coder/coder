@@ -21,16 +21,6 @@ import {
 } from "../../components/HelpTooltip/HelpTooltip";
 import { docs } from "../../utils/docs";
 
-export const Language = {
-	versionNameLabel: "Version name",
-	messagePlaceholder: "Write a short message about the changes you made...",
-	defaultCheckboxLabel: "Promote to active version",
-	activeVersionHelpTitle: "Active versions",
-	activeVersionHelpText:
-		"Templates can enforce that the active version be used for all workspaces (enterprise-only)",
-	activeVersionHelpBody: "Review the documentation",
-};
-
 type PublishTemplateVersionDialogProps = DialogProps & {
 	defaultName: string;
 	isPublishing: boolean;
@@ -88,7 +78,7 @@ export const PublishTemplateVersionDialog: FC<
 						<FormFields>
 							<TextField
 								{...getFieldHelpers("name")}
-								label={Language.versionNameLabel}
+								label="Version name"
 								autoFocus
 								disabled={isPublishing}
 							/>
@@ -96,7 +86,7 @@ export const PublishTemplateVersionDialog: FC<
 							<TextField
 								{...getFieldHelpers("message")}
 								label="Message"
-								placeholder={Language.messagePlaceholder}
+								placeholder="Write a short message about the changes you made..."
 								disabled={isPublishing}
 								multiline
 								rows={5}
@@ -104,7 +94,7 @@ export const PublishTemplateVersionDialog: FC<
 
 							<Stack direction="row">
 								<FormControlLabel
-									label={Language.defaultCheckboxLabel}
+									label="Promote to active version"
 									control={
 										<Checkbox
 											size="small"
@@ -128,11 +118,10 @@ export const PublishTemplateVersionDialog: FC<
 									 * this prop may not need to be set when we switch away from MuiDialog
 									 */}
 									<HelpTooltipContent disablePortal>
-										<HelpTooltipTitle>
-											{Language.activeVersionHelpTitle}
-										</HelpTooltipTitle>
+										<HelpTooltipTitle>Active versions</HelpTooltipTitle>
 										<HelpTooltipText>
-											{Language.activeVersionHelpText}
+											Templates can enforce that the active version be used for
+											all workspaces (enterprise-only)
 										</HelpTooltipText>
 										<HelpTooltipLinksGroup>
 											<HelpTooltipLink
@@ -140,7 +129,7 @@ export const PublishTemplateVersionDialog: FC<
 													"/admin/templates/managing-templates#template-update-policies",
 												)}
 											>
-												{Language.activeVersionHelpBody}
+												Review the documentation
 											</HelpTooltipLink>
 										</HelpTooltipLinksGroup>
 									</HelpTooltipContent>

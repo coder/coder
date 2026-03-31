@@ -54,15 +54,6 @@ export const extractTimezone = (
 	return defaultTZ;
 };
 
-/** Language used in the schedule components */
-const Language = {
-	manual: "Manual",
-	workspaceShuttingDownLabel: "Workspace is shutting down",
-	afterStart: "after start",
-	autostartLabel: "Starts at",
-	autostopLabel: "Stops at",
-};
-
 export const autostartDisplay = (schedule: string | undefined): string => {
 	if (schedule) {
 		return (
@@ -74,7 +65,7 @@ export const autostartDisplay = (schedule: string | undefined): string => {
 				.replace("At", "")
 		);
 	}
-	return Language.manual;
+	return "Manual";
 };
 
 const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
@@ -135,7 +126,7 @@ export const autostopDisplay = (
 
 		if (isShuttingDown(workspace, deadline)) {
 			return {
-				message: Language.workspaceShuttingDownLabel,
+				message: "Workspace is shutting down",
 			};
 		}
 		let title = (
@@ -173,14 +164,14 @@ export const autostopDisplay = (
 		// If the workspace is not on, and the ttl is 0 or undefined, then the
 		// workspace is set to manually shutdown.
 		return {
-			message: Language.manual,
+			message: "Manual",
 		};
 	}
 	// The workspace has a ttl set, but is either in an unknown state or is
 	// not running. Therefore, we derive from workspace.ttl.
 	const duration = dayjs.duration(ttl, "milliseconds");
 	return {
-		message: `Stop ${duration.humanize()} ${Language.afterStart}`,
+		message: `Stop ${duration.humanize()} after start`,
 	};
 };
 

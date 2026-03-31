@@ -33,15 +33,6 @@ import {
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesButton } from "./WorkspacesButton";
 
-const Language = {
-	pageTitle: "Workspaces",
-	yourWorkspacesButton: "Your workspaces",
-	allWorkspacesButton: "All workspaces",
-	runningWorkspacesButton: "Running workspaces",
-	seeAllTemplates: "See all templates",
-	template: "Template",
-};
-
 type TemplateQuery = UseQueryResult<Template[]>;
 interface WorkspacesPageViewProps {
 	error: unknown;
@@ -109,7 +100,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 			>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.pageTitle}</span>
+						<span>Workspaces</span>
 						<WorkspaceHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
