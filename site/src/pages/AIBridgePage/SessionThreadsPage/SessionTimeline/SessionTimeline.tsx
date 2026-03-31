@@ -136,11 +136,11 @@ const BracketConnector: FC<BracketConnectorProps> = ({
 				: "grid-rows-[2rem_auto]",
 		)}
 	>
-		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid border-surface-secondary rounded-bl-lg">
+		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid rounded-bl-lg">
 			{/* top rounded line */}
 		</div>
 		{!hideBottomLine && (
-			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-surface-secondary rounded-tl-lg -mt-px">
+			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid rounded-tl-lg -mt-px">
 				{/* bottom rounded line */}
 			</div>
 		)}
@@ -188,7 +188,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	const [isOpen, setIsOpen] = useState(expandedByDefault);
 
 	return (
-		<BracketConnector contentClassName="mt-2 mr-4 border border-solid border-surface-secondary rounded-md overflow-x-auto">
+		<BracketConnector contentClassName="mt-2 mr-4 border border-solid rounded-md overflow-x-auto">
 			<div className="flex items-center">
 				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
 					<span>Tool call</span>
@@ -231,7 +231,7 @@ const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
 
 	return (
 		<BracketConnector
-			contentClassName="mt-3 border border-solid border-surface-secondary rounded-md mb-4 mr-4"
+			contentClassName="mt-3 border border-solid rounded-md mb-4 mr-4"
 			hideBottomLine
 		>
 			<div className="flex items-center">
@@ -302,7 +302,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 	return (
 		<>
-			<div className="border border-surface-secondary border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
+			<div className="border border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
 				{/* left column: avatar and username */}
 				<div className="flex flex-row items-items-start gap-1">
 					<Avatar
@@ -343,7 +343,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 			<BracketConnector
 				firstRowHeight="60px"
-				contentClassName="border border-surface-secondary border-dashed rounded-md my-4"
+				contentClassName="border border-dashed rounded-md my-4"
 			>
 				{/* Agentic loop */}
 				<div className="flex flex-col lg:flex-row lg:items-center justify-between">
@@ -368,7 +368,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				{agenticLoopOpen && (
 					<>
 						{/* the little top rounded line above the thinking block */}
-						<div className="border-0 border-t border-r border-solid border-surface-secondary rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+						<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
 							{/* we need the 1px extra to line up with the left border on the other lines */}
 						</div>
 
@@ -446,12 +446,12 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 2: vertical line */}
-				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
+				<div className="row-start-2 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3: sized intentionally to create the visual space above the timeline border */}
-				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-6">
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid h-6">
 					{/* vertical line */}
 				</div>
 
@@ -493,10 +493,10 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
-				<div className="row-start-4 col-start-3 border-0 border-l border-solid border-surface-secondary">
+				<div className="row-start-4 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
-				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
+				<div className="row-start-4 col-start-4 border-0 border-t border-dashed">
 					{/* horizontal border */}
 				</div>
 				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg size-4">
@@ -531,7 +531,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
 					{/* horizontal line */}
 				</div>
-				<div className="row-start-6 col-start-3 border-0 border-l border-solid border-surface-secondary">
+				<div className="row-start-6 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
@@ -542,7 +542,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 7: sized intentionally to create the visual space below the timeline border */}
-				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-4">
+				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
 					{/* vertical line */}
 				</div>
 
