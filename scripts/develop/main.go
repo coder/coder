@@ -861,11 +861,14 @@ func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *coders
 }
 
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
-	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host")
-	cmd.Env = append(cmd.Env,
-		fmt.Sprintf("PORT=%d", cfg.webPort),
-		fmt.Sprintf("CODER_HOST=http://127.0.0.1:%d", cfg.apiPort),
+	// Leptos/Trunk frontend — proxy API traffic to the Go backend.
+	cmd := cfg.cmd(ctx, "trunk", "serve",
+		"--address", "0.0.0.0",
+		"--port", fmt.Sprintf("%d", cfg.webPort),
+		"--proxy-backend", fmt.Sprintf("http://127.0.0.1:%d/api/", cfg.apiPort),
+		"--proxy-rewrite", "/api/",
 	)
+	cmd.Dir = filepath.Join(cfg.projectRoot, "site")
 	return cmd
 }
 

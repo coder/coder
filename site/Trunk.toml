@@ -1,0 +1,19 @@
+# Trunk configuration for the Coder Leptos frontend.
+#
+# The proxy entries forward API requests to the Go backend so the
+# WASM app can talk to a real Coder server during development.
+
+[serve]
+address = "0.0.0.0"
+
+[[proxy]]
+rewrite = "/api/"
+backend = "http://127.0.0.1:3000/api/"
+
+[[proxy]]
+rewrite = "/swagger/"
+backend = "http://127.0.0.1:3000/swagger/"
+
+[[proxy]]
+rewrite = "/healthz"
+backend = "http://127.0.0.1:3000/healthz"

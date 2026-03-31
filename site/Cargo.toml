@@ -1,0 +1,28 @@
+[package]
+name = "coder-ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+leptos = { version = "0.7", features = ["csr"] }
+leptos_router = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+gloo-net = { version = "0.6", features = ["json"] }
+gloo-timers = "0.3"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "HtmlInputElement",
+    "Event",
+    "SubmitEvent",
+    "Window",
+    "Document",
+] }
+console_error_panic_hook = "0.1"
+js-sys = "0.3"
+chrono = { version = "0.4", features = ["wasmbind"] }
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
