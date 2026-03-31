@@ -5286,19 +5286,12 @@ func validateChatProviderCentralAPIKey(
 }
 
 func chatProviderAPIKeysFromDeploymentValues(
-	deploymentValues *codersdk.DeploymentValues,
+	_ *codersdk.DeploymentValues,
 ) chatprovider.ProviderAPIKeys {
-	if deploymentValues == nil {
-		return chatprovider.ProviderAPIKeys{}
-	}
-	return chatprovider.ProviderAPIKeys{
-		OpenAI:    deploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
-		Anthropic: deploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
-		BaseURLByProvider: map[string]string{
-			"openai":    deploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
-			"anthropic": deploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
-		},
-	}
+	// AI bridge deployment config is intentionally not reused for chat
+	// provider credentials. Bridge keys serve the AI task subsystem and
+	// should not silently broaden into chat execution paths.
+	return chatprovider.ProviderAPIKeys{}
 }
 
 func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {

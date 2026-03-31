@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	_ "unsafe"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -34,12 +35,16 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
+
+//go:linkname chatProviderAPIKeysFromDeploymentValues github.com/coder/coder/v2/coderd.chatProviderAPIKeysFromDeploymentValues
+func chatProviderAPIKeysFromDeploymentValues(*codersdk.DeploymentValues) chatprovider.ProviderAPIKeys
 
 const chatProviderAPIKeySizeLimit = 10240
 
@@ -1540,7 +1545,7 @@ func TestCreateChatProvider(t *testing.T) {
 		require.False(t, provider.HasAPIKey)
 	})
 
-	t.Run("AllowsDeploymentBackedCentralKey", func(t *testing.T) {
+	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1549,12 +1554,11 @@ func TestCreateChatProvider(t *testing.T) {
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
 		})
-		require.NoError(t, err)
-		require.True(t, provider.CentralAPIKeyEnabled)
-		require.True(t, provider.HasAPIKey)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key is required when central API key is enabled.", sdkErr.Message)
 	})
 
 	t.Run("RejectsInvalidPolicyTuple", func(t *testing.T) {
@@ -1743,7 +1747,7 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.False(t, updated.HasAPIKey)
 	})
 
-	t.Run("AllowsDeploymentBackedCentralKey", func(t *testing.T) {
+	t.Run("RejectsDeploymentBackedCentralKey", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1759,12 +1763,11 @@ func TestUpdateChatProvider(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
 			CentralAPIKeyEnabled: ptr.Ref(true),
 		})
-		require.NoError(t, err)
-		require.True(t, updated.CentralAPIKeyEnabled)
-		require.True(t, updated.HasAPIKey)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key is required when central API key is enabled.", sdkErr.Message)
 	})
 
 	t.Run("RejectsClearingLastCentralKey", func(t *testing.T) {
@@ -1975,6 +1978,29 @@ func TestDeleteChatProvider(t *testing.T) {
 
 		err = memberClient.DeleteChatProvider(ctx, provider.ID)
 		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
+func TestChatProviderAPIKeysFromDeploymentValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DoesNotReuseBridgeConfig", func(t *testing.T) {
+		t.Parallel()
+
+		values := chatDeploymentValues(t)
+		values.AI.BridgeConfig.OpenAI.Key = serpent.String("deployment-openai-key")
+		values.AI.BridgeConfig.Anthropic.Key = serpent.String("deployment-anthropic-key")
+		values.AI.BridgeConfig.OpenAI.BaseURL = serpent.String("https://custom-openai.example.com")
+
+		keys := chatProviderAPIKeysFromDeploymentValues(values)
+		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
+	})
+
+	t.Run("NilDeploymentValues", func(t *testing.T) {
+		t.Parallel()
+
+		keys := chatProviderAPIKeysFromDeploymentValues(nil)
+		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
 	})
 }
 
