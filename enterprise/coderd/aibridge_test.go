@@ -506,7 +506,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			},
 			{
 				name:   "Client/Unknown",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: "Unknown"},
+				filter: codersdk.AIBridgeListInterceptionsFilter{Client: string(aiblib.ClientUnknown)},
 				want:   []codersdk.AIBridgeInterception{i1SDK},
 			},
 			{
@@ -1320,7 +1320,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			Client:      sql.NullString{String: "claude-code", Valid: true},
 		}, &withClientEndedAt)
 
-		// Session with NULL client (should COALESCE to "Unknown").
+		// Session with NULL client (should COALESCE to ClientUnknown).
 		nullClientEndedAt := now.Add(-time.Hour + time.Minute)
 		nullClient := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
@@ -1328,11 +1328,11 @@ func TestAIBridgeListSessions(t *testing.T) {
 			// Client field deliberately omitted (NULL).
 		}, &nullClientEndedAt)
 
-		// Filtering by "Unknown" should return only the NULL-client
+		// Filtering by ClientUnknown should return only the NULL-client
 		// session.
 		//nolint:gocritic // Owner role is irrelevant; testing COALESCE.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
-			Client: "Unknown",
+			Client: string(aiblib.ClientUnknown),
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
@@ -1516,14 +1516,12 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		// Create 3 standalone sessions all starting at the same time.
 		// The tie-breaker is session_id DESC.
-		ids := make([]string, 3)
-		for i := range 3 {
+		for range 3 {
 			endedAt := now.Add(time.Minute)
-			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 				InitiatorID: firstUser.UserID,
 				StartedAt:   now,
 			}, &endedAt)
-			ids[i] = intc.ID.String()
 		}
 
 		// Fetch all to learn the sort order (started_at DESC,
