@@ -43,18 +43,7 @@ export const IconField: FC<IconFieldProps> = ({
 					endAdornment: hasIcon ? (
 						<InputAdornment
 							position="end"
-							css={{
-								width: 24,
-								height: 24,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-
-								"& img": {
-									maxWidth: "100%",
-									objectFit: "contain",
-								},
-							}}
+							className="w-6 h-6 flex items-center justify-center [&_img]:max-w-full [&_img]:object-contain"
 						>
 							<ExternalImage
 								alt=""

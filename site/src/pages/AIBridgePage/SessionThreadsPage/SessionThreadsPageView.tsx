@@ -25,7 +25,7 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 			<TooltipContent
 				side="top"
 				align="start"
-				className="max-w-xs flex flex-col gap-1 text-xs p-3"
+				className="max-w-xs flex flex-col gap-1 text-sm p-3"
 			>
 				<p className="m-0 leading-snug">
 					A session is a set of threads or interceptions logically grouped by a

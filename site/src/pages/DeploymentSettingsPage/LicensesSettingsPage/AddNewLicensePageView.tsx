@@ -82,7 +82,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 				description="Select a text file that contains your license key."
 			/>
 
-			<Stack css={{ paddingTop: 40 }}>
+			<Stack className="pt-10">
 				<DividerWithText>or</DividerWithText>
 
 				<Fieldset

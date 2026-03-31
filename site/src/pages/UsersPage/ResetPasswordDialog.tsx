@@ -36,12 +36,7 @@ export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
 			<CodeExample
 				secret={false}
 				code={newPassword ?? ""}
-				css={{
-					minHeight: "auto",
-					userSelect: "all",
-					width: "100%",
-					marginTop: 24,
-				}}
+				className="min-h-auto select-all w-full mt-6"
 			/>
 		</>
 	);
