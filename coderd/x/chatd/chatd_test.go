@@ -307,10 +307,11 @@ func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
 	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, _, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
 		Title:              "archive-pending",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -372,11 +373,12 @@ func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps)
-	user, _, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
 		Title:              "archive-interrupt",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
