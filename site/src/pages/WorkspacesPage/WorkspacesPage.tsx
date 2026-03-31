@@ -140,11 +140,13 @@ const WorkspacesPage: FC = () => {
 	});
 
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
+	const isOwner = me.roles.some((role) => role.name === "owner");
 	const batchActions = useBatchActions({
 		onSuccess: async () => {
 			await refetch();
 			resetChecked();
 		},
+		canCancelAllBuilds: isOwner,
 	});
 
 	const checkedWorkspaces =
@@ -157,7 +159,7 @@ const WorkspacesPage: FC = () => {
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
 				canChangeVersions={permissions.updateTemplates}
-				canCancelAllBuilds={me.roles.some((role) => role.name === "owner")}
+				canCancelAllBuilds={isOwner}
 				checkedWorkspaces={checkedWorkspaces}
 				chatsByWorkspace={chatsByWorkspaceQuery.data}
 				onCheckChange={(newWorkspaces) => {

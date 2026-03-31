@@ -7,6 +7,7 @@ import { CANCELLABLE_BUILD_STATUSES } from "#/modules/workspaces/status";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
+	canCancelAllBuilds: boolean;
 }
 
 type UpdateAllPayload = Readonly<{
@@ -30,7 +31,7 @@ type UseBatchActionsResult = Readonly<{
 export function useBatchActions(
 	options: UseBatchActionsOptions,
 ): UseBatchActionsResult {
-	const { onSuccess } = options;
+	const { onSuccess, canCancelAllBuilds } = options;
 
 	const startAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
@@ -64,8 +65,12 @@ export function useBatchActions(
 		mutationFn: (workspaces: readonly Workspace[]) => {
 			return Promise.all(
 				workspaces
-					.filter((w) =>
-						CANCELLABLE_BUILD_STATUSES.includes(w.latest_build.status),
+					.filter(
+						(w) =>
+							CANCELLABLE_BUILD_STATUSES.includes(w.latest_build.status) &&
+							(w.latest_build.status === "pending" ||
+								w.template_allow_user_cancel_workspace_jobs ||
+								canCancelAllBuilds),
 					)
 					.map((w) => {
 						const { status } = w.latest_build;

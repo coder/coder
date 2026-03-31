@@ -184,7 +184,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 												CANCELLABLE_BUILD_STATUSES.includes(
 													w.latest_build.status,
 												) &&
-												(w.template_allow_user_cancel_workspace_jobs ||
+												(w.latest_build.status === "pending" ||
+													w.template_allow_user_cancel_workspace_jobs ||
 													canCancelAllBuilds),
 										)
 									}
