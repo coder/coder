@@ -526,6 +526,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	input := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
+		OrganizationID:    uuid.New(),
 		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
