@@ -175,6 +175,53 @@ export const CancelChanges: Story = {
 	},
 };
 
+export const InvalidDraftShowsFooter: Story = {
+	name: "Invalid Draft Shows Footer",
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("spinbutton", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		// Type an invalid value
+		await userEvent.type(gpt4oInput, "abc");
+
+		// Input should be marked invalid
+		await waitFor(() => {
+			expect(gpt4oInput).toHaveAttribute("aria-invalid", "true");
+		});
+
+		// Cancel button should be visible so user can discard the edit
+		expect(canvas.getByRole("button", { name: /Cancel/i })).toBeInTheDocument();
+
+		// Save button should NOT be visible (nothing valid to save)
+		expect(
+			canvas.queryByRole("button", { name: /Save/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const DisableCompactionWarning: Story = {
+	name: "100% Disable Compaction Warning",
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("spinbutton", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "100");
+
+		// sr-only warning should be in the DOM for screen readers
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"Setting 100% will disable auto-compaction for this model.",
+				),
+			).toBeInTheDocument();
+		});
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		isThresholdsLoading: true,
@@ -213,8 +260,12 @@ export const PartialSaveFailure: Story = {
 		});
 
 		// model-2 should show an error, footer should still be visible
+		// with Save showing "Save 1 change" for the failed row
 		await waitFor(() => {
 			expect(canvas.getByText("Network error")).toBeInTheDocument();
+			expect(
+				canvas.getByRole("button", { name: /Save 1 change/i }),
+			).toBeInTheDocument();
 		});
 	},
 };

@@ -19,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 interface UserCompactionThresholdSettingsProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
@@ -94,12 +95,12 @@ export const UserCompactionThresholdSettings: FC<
 	};
 
 	const addPending = (id: string) => {
-		setPendingModels((s) => new Set(s).add(id));
+		setPendingModels((pending) => new Set(pending).add(id));
 	};
 
 	const removePending = (id: string) => {
-		setPendingModels((s) => {
-			const next = new Set(s);
+		setPendingModels((pending) => {
+			const next = new Set(pending);
 			next.delete(id);
 			return next;
 		});
@@ -141,10 +142,10 @@ export const UserCompactionThresholdSettings: FC<
 	}
 
 	const handleSaveAll = () => {
-		for (const { modelConfigId, value } of dirtyRows) {
+		const saves = dirtyRows.map(({ modelConfigId, value }) => {
 			clearRowError(modelConfigId);
 			addPending(modelConfigId);
-			onSaveThreshold(modelConfigId, value)
+			return onSaveThreshold(modelConfigId, value)
 				.then(() => {
 					clearDraft(modelConfigId);
 					clearRowError(modelConfigId);
@@ -161,7 +162,8 @@ export const UserCompactionThresholdSettings: FC<
 				.finally(() => {
 					removePending(modelConfigId);
 				});
-		}
+		});
+		void Promise.allSettled(saves);
 	};
 
 	const handleCancelAll = () => {
@@ -171,6 +173,7 @@ export const UserCompactionThresholdSettings: FC<
 
 	const hasAnyPending = pendingModels.size > 0;
 	const hasAnyErrors = Object.keys(rowErrors).length > 0;
+	const hasAnyDrafts = Object.keys(drafts).length > 0;
 
 	if (isThresholdsLoading) {
 		return (
@@ -258,7 +261,9 @@ export const UserCompactionThresholdSettings: FC<
 							const isThisModelMutating = pendingModels.has(modelConfig.id);
 							const isInvalid =
 								draftValue.length > 0 && parsedDraftValue === null;
-							const isWarning100 =
+							// Only warn when user-typed, not when loaded from
+							// the server.
+							const isDraftDisablingCompaction =
 								draftValue === "100" && drafts[modelConfig.id] !== undefined;
 							const rowError = rowErrors[modelConfig.id];
 							const modelName = modelConfig.display_name || modelConfig.model;
@@ -290,11 +295,11 @@ export const UserCompactionThresholdSettings: FC<
 														min={0}
 														max={100}
 														inputMode="numeric"
-														className={`h-7 w-16 px-2 text-xs tabular-nums ${
-															isInvalid
-																? "border-content-destructive focus:ring-content-destructive/30"
-																: ""
-														}`}
+														className={cn(
+															"h-7 w-16 px-2 text-xs tabular-nums",
+															isInvalid &&
+																"border-content-destructive focus:ring-content-destructive/30",
+														)}
 														value={draftValue}
 														placeholder={String(
 															modelConfig.compression_threshold,
@@ -309,7 +314,7 @@ export const UserCompactionThresholdSettings: FC<
 														disabled={isThisModelMutating}
 													/>
 												</TooltipTrigger>
-												{(isInvalid || isWarning100) && (
+												{(isInvalid || isDraftDisablingCompaction) && (
 													<TooltipContent>
 														{isInvalid
 															? "Enter a whole number between 0 and 100."
@@ -323,11 +328,12 @@ export const UserCompactionThresholdSettings: FC<
 													<Button
 														size="icon"
 														variant="subtle"
-														className={`size-7 ${
+														className={cn(
+															"size-7",
 															hasOverride
 																? "opacity-100"
-																: "pointer-events-none opacity-0"
-														}`}
+																: "pointer-events-none opacity-0",
+														)}
 														aria-label={`Reset ${modelName} to default`}
 														aria-hidden={!hasOverride}
 														tabIndex={hasOverride ? 0 : -1}
@@ -350,12 +356,18 @@ export const UserCompactionThresholdSettings: FC<
 												Enter a whole number between 0 and 100.
 											</span>
 										)}
+										{isDraftDisablingCompaction && (
+											<span className="sr-only" aria-live="polite">
+												Setting 100% will disable auto-compaction for this
+												model.
+											</span>
+										)}
 									</TableCell>
 								</TableRow>
 							);
 						})}
 					</TableBody>
-					{(dirtyRows.length > 0 || hasAnyErrors) && (
+					{(dirtyRows.length > 0 || hasAnyErrors || hasAnyDrafts) && (
 						<TableFooter className="bg-transparent">
 							<TableRow className="border-0">
 								<TableCell colSpan={3} className="border-0 p-0">
