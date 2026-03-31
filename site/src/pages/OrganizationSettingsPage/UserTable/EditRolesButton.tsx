@@ -5,12 +5,12 @@ import type { SlimRole } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { EditSquare } from "#/components/Icons/EditSquare";
 import {
 	Popover,
@@ -87,15 +87,15 @@ export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
 
 	if (!canSetRoles) {
 		return (
-			<HelpTooltip>
-				<HelpTooltipIconTrigger size="small" />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-					<HelpTooltipText>
+			<HelpPopover>
+				<HelpPopoverIconTrigger size="small" />
+				<HelpPopoverContent>
+					<HelpPopoverTitle>Externally controlled</HelpPopoverTitle>
+					<HelpPopoverText>
 						Roles for this user are controlled by the OIDC identity provider.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
+					</HelpPopoverText>
+				</HelpPopoverContent>
+			</HelpPopover>
 		);
 	}
 

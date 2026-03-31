@@ -7,18 +7,18 @@ import * as Yup from "yup";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields } from "#/components/Form/Form";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Stack } from "#/components/Stack/Stack";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
 import { getFormHelpers } from "#/utils/formUtils";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip";
 import { docs } from "../../utils/docs";
 
 export const Language = {
@@ -120,31 +120,31 @@ export const PublishTemplateVersionDialog: FC<
 									}
 								/>
 
-								<HelpTooltip>
-									<HelpTooltipIconTrigger />
+								<HelpPopover>
+									<HelpPopoverIconTrigger />
 
 									{/**
 									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
 									 * this prop may not need to be set when we switch away from MuiDialog
 									 */}
-									<HelpTooltipContent disablePortal>
-										<HelpTooltipTitle>
+									<HelpPopoverContent disablePortal>
+										<HelpPopoverTitle>
 											{Language.activeVersionHelpTitle}
-										</HelpTooltipTitle>
-										<HelpTooltipText>
+										</HelpPopoverTitle>
+										<HelpPopoverText>
 											{Language.activeVersionHelpText}
-										</HelpTooltipText>
-										<HelpTooltipLinksGroup>
-											<HelpTooltipLink
+										</HelpPopoverText>
+										<HelpPopoverLinksGroup>
+											<HelpPopoverLink
 												href={docs(
 													"/admin/templates/managing-templates#template-update-policies",
 												)}
 											>
 												{Language.activeVersionHelpBody}
-											</HelpTooltipLink>
-										</HelpTooltipLinksGroup>
-									</HelpTooltipContent>
-								</HelpTooltip>
+											</HelpPopoverLink>
+										</HelpPopoverLinksGroup>
+									</HelpPopoverContent>
+								</HelpPopover>
 							</Stack>
 						</FormFields>
 					</Stack>

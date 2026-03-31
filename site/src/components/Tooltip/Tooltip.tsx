@@ -7,15 +7,13 @@ import { cn } from "#/utils/cn";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 
-export type TooltipProps = TooltipPrimitive.TooltipProps;
-
 export const Tooltip = TooltipPrimitive.Root;
 
 export const TooltipTrigger = TooltipPrimitive.Trigger;
 
 export const TooltipArrow = TooltipPrimitive.Arrow;
 
-export type TooltipContentProps = React.ComponentPropsWithRef<
+type TooltipContentProps = React.ComponentPropsWithRef<
 	typeof TooltipPrimitive.Content
 > & {
 	disablePortal?: boolean;

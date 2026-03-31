@@ -24,7 +24,7 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
 import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
-import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
+import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
 
 const Language = {
@@ -62,7 +62,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
 						<span>{Language.title}</span>
-						<ConnectionLogHelpTooltip />
+						<ConnectionLogHelpPopover />
 					</Stack>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
