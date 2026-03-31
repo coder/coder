@@ -159,7 +159,7 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 			{hasInjectedContext && (
 				<div
 					className={cn(
-						"text-content-secondary",
+						"flex flex-col gap-2 text-content-secondary",
 						hasPercent && "mt-2 border-t border-border pt-2",
 					)}
 				>
@@ -167,7 +167,7 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">
 								Context files
-							</span>
+							</span>{" "}
 							{contextFiles.map((part) => {
 								if (part.type !== "context-file") return null;
 								return (
@@ -190,13 +190,8 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 						</div>
 					)}
 					{skills.length > 0 && (
-						<div
-							className={cn(
-								"flex flex-col gap-1",
-								contextFiles.length > 0 && "mt-2",
-							)}
-						>
-							<span className="font-medium text-content-primary">Skills</span>
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">Skills</span>{" "}
 							{skills.map((part) => {
 								if (part.type !== "skill") return null;
 								return (
