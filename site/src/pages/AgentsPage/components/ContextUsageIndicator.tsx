@@ -153,7 +153,8 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 				usage?.compressionThreshold !== undefined &&
 				usage.compressionThreshold > 0 && (
 					<div className="mt-1 text-content-secondary">
-							{`Compacts at ${usage.compressionThreshold}%`}					</div>
+						{`Compacts at ${usage.compressionThreshold}%`}{" "}
+					</div>
 				)}
 			{hasInjectedContext && (
 				<div
