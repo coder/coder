@@ -1,25 +1,4 @@
-import {
-	MockDropdownParameter,
-	MockPermissions,
-	MockPreviewParameter,
-	MockStoppedWorkspace,
-	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceBuildParameter1,
-	MockWorkspaceBuildParameter2,
-	MockWorkspaceBuildParameter3,
-} from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withWebSocket,
-} from "testHelpers/storybook";
 import type { Meta, StoryObj, WebSocketEvent } from "@storybook/react-vite";
-import { API } from "api/api";
-import { workspaceBuildParametersKey } from "api/queries/workspaceBuilds";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import {
 	expect,
 	screen,
@@ -32,6 +11,27 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import { workspaceBuildParametersKey } from "#/api/queries/workspaceBuilds";
+import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import type { Workspace } from "#/api/typesGenerated";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import {
+	MockDropdownParameter,
+	MockPermissions,
+	MockPreviewParameter,
+	MockStoppedWorkspace,
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceBuildParameter1,
+	MockWorkspaceBuildParameter2,
+	MockWorkspaceBuildParameter3,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withWebSocket,
+} from "#/testHelpers/storybook";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceParametersPageExperimental from "./WorkspaceParametersPageExperimental";
 
