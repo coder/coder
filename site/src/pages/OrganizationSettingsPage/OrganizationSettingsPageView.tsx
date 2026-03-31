@@ -13,7 +13,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -154,10 +153,7 @@ export const OrganizationSettingsPageView: FC<
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
 						title={
-							<div className="flex items-center gap-2">
-								Workspace Sharing
-								<FeatureStageBadge contentType="beta" size="sm" />
-							</div>
+							<div className="flex items-center gap-2">Workspace Sharing</div>
 						}
 						description="Control whether workspace owners can share their workspaces."
 					>
