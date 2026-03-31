@@ -2891,6 +2891,9 @@ type DeleteOldChatFilesParams struct {
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
 }
 
+// TODO(cian): Add indexes on chats(archived, updated_at) and
+// chat_files(created_at) when chats graduate from experimental.
+// See: https://github.com/coder/internal/issues/1438
 // Deletes chat files that are older than the given threshold and are
 // not referenced by any chat that is still active or was archived
 // within the same threshold window. This covers two cases:
