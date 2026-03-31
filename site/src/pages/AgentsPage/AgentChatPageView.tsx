@@ -294,6 +294,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						/>
 					</div>
 					<ChatScrollContainer
+						key={agentId}
 						scrollContainerRef={scrollContainerRef}
 						scrollToBottomRef={effectiveScrollToBottomRef}
 						isFetchingMoreMessages={isFetchingMoreMessages}
