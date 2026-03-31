@@ -851,13 +851,16 @@ func newQuerier(ctx context.Context,
 	}
 	q.subscribe()
 
-	q.wg.Add(2 + 2*numWorkers)
+	q.wg.Add(2 + numWorkers)
 	go func() {
 		<-firstHeartbeat
 		go q.handleIncoming()
 		for i := 0; i < numWorkers; i++ {
-			go q.peerUpdateWorker()
-			go q.mappingWorker()
+			if i%2 == 0 {
+				go q.mappingWorker()
+			} else {
+				go q.peerUpdateWorker()
+			}
 		}
 		go q.handleUpdates()
 	}()
