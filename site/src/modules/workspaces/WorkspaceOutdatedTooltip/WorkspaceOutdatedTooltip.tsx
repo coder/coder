@@ -93,7 +93,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 				</HelpPopoverText>
 
 				<div css={styles.container}>
-					<div css={{ lineHeight: "1.6" }}>
+					<div className="leading-[1.6]">
 						<div css={styles.bold}>New version</div>
 						<div>
 							{activeVersion ? (
@@ -110,7 +110,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 						</div>
 					</div>
 
-					<div css={{ lineHeight: "1.6" }}>
+					<div className="leading-[1.6]">
 						<div css={styles.bold}>Message</div>
 						<div>
 							{activeVersion ? (

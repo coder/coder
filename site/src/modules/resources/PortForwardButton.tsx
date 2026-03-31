@@ -251,18 +251,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 	return (
 		<>
-			<div
-				css={{
-					maxHeight: 320,
-					overflowY: "auto",
-				}}
-			>
-				<Stack
-					direction="column"
-					css={{
-						padding: 20,
-					}}
-				>
+			<div className="max-h-80 overflow-y-auto">
+				<Stack direction="column" className="p-5">
 					<Stack
 						direction="row"
 						justifyContent="space-between"
@@ -280,13 +270,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
 						</HelpPopoverText>
-						<Stack
-							direction="row"
-							gap={2}
-							css={{
-								paddingBottom: 8,
-							}}
-						>
+						<Stack direction="row" gap={2} className="pb-2">
 							<FormControl size="small" css={styles.protocolFormControl}>
 								<Select
 									css={styles.listeningPortProtocol}

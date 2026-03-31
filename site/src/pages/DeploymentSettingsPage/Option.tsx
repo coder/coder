@@ -58,7 +58,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (typeof value === "object" && !Array.isArray(value)) {
 		return (
-			<ul css={{ listStyle: "none" }} className="option-array">
+			<ul className="option-array list-none">
 				{Object.entries(value)
 					.sort((a, b) => a[0].localeCompare(b[0]))
 					.map(([option, isEnabled]) => (
@@ -75,12 +75,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 								isEnabled ? "option-enabled" : "option-disabled"
 							}`}
 						>
-							<div
-								css={{
-									display: "inline-flex",
-									alignItems: "center",
-								}}
-							>
+							<div className="inline-flex items-center">
 								{isEnabled && <WrenchIcon className="size-4 mx-2" />}
 								{option}
 							</div>
@@ -92,7 +87,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (Array.isArray(value)) {
 		return (
-			<ul css={{ listStylePosition: "inside" }} className="option-array">
+			<ul className="option-array list-inside">
 				{value.map((item) => (
 					<li key={item} css={styles.option}>
 						{item}

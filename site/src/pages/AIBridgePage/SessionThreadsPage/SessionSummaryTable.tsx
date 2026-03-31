@@ -8,9 +8,7 @@ import { formatDateTime } from "#/utils/time";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName, getProviderIconName } from "../utils";
 
-const Separator = () => (
-	<div className="border-0 border-t border-solid border-border-content-secondary my-1" />
-);
+const Separator = () => <div className="border-0 border-t border-solid my-1" />;
 
 interface SessionSummaryTableProps {
 	sessionId: string;

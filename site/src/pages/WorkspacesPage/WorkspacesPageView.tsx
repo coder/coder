@@ -240,7 +240,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				// Temporary styling stopgap before component is migrated to using
 				// PaginationContainer (which renders PaginationWidgetBase using CSS
 				// flexbox gaps)
-				<div css={{ paddingTop: "16px" }}>
+				<div className="pt-4">
 					<PaginationWidgetBase
 						totalRecords={count}
 						pageSize={limit}

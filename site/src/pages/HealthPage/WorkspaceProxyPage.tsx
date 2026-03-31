@@ -76,42 +76,24 @@ const WorkspaceProxyPage: FC = () => {
 								fontSize: 14,
 							}}
 						>
-							<header
-								css={{
-									padding: 24,
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "space-between",
-									gap: 24,
-								}}
-							>
-								<div css={{ display: "flex", alignItems: "center", gap: 24 }}>
-									<div
-										css={{
-											width: 36,
-											height: 36,
-											display: "flex",
-											alignItems: "center",
-											justifyContent: "center",
-										}}
-									>
+							<header className="p-6 flex items-center justify-between gap-6">
+								<div className="flex items-center gap-6">
+									<div className="w-9 h-9 flex items-center justify-center">
 										<img
 											src={region.icon_url}
-											css={{ objectFit: "fill", width: "100%", height: "100%" }}
+											className="object-fill w-full h-full"
 											alt=""
 										/>
 									</div>
-									<div css={{ lineHeight: "160%" }}>
-										<h4 css={{ fontWeight: 500, margin: 0 }}>
-											{region.display_name}
-										</h4>
+									<div className="leading-[160%]">
+										<h4 className="font-medium m-0">{region.display_name}</h4>
 										<span css={{ color: theme.palette.text.secondary }}>
 											{region.version}
 										</span>
 									</div>
 								</div>
 
-								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+								<div className="flex flex-wrap gap-3">
 									{region.wildcard_hostname && (
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -166,14 +148,9 @@ const WorkspaceProxyPage: FC = () => {
 								) : warnings.length === 0 && errors.length === 0 ? (
 									<span>OK</span>
 								) : (
-									<div css={{ display: "flex", flexDirection: "column" }}>
+									<div className="flex flex-col">
 										{[...errors, ...warnings].map((msg) => (
-											<span
-												key={msg}
-												css={{
-													":first-letter": { textTransform: "uppercase" },
-												}}
-											>
+											<span key={msg} className="[&::first-letter]:uppercase">
 												{msg}
 											</span>
 										))}
