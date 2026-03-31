@@ -1251,8 +1251,12 @@ func TestGetAuthorizedChats(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{
 		RBACRoles: []string{rbac.RoleOwner().String()},
 	})
-	member := dbgen.User(t, db, database.User{})
-	secondMember := dbgen.User(t, db, database.User{})
+	member := dbgen.User(t, db, database.User{
+		RBACRoles: pq.StringArray{rbac.RoleAgentsAccess().String()},
+	})
+	secondMember := dbgen.User(t, db, database.User{
+		RBACRoles: pq.StringArray{rbac.RoleAgentsAccess().String()},
+	})
 
 	// Create FK dependencies: a chat provider and model config.
 	ctx := testutil.Context(t, testutil.WaitMedium)
@@ -1407,7 +1411,9 @@ func TestGetAuthorizedChats(t *testing.T) {
 
 		// Use a dedicated user for pagination to avoid interference
 		// with the other parallel subtests.
-		paginationUser := dbgen.User(t, db, database.User{})
+		paginationUser := dbgen.User(t, db, database.User{
+			RBACRoles: pq.StringArray{rbac.RoleAgentsAccess().String()},
+		})
 		for i := range 7 {
 			_, err := db.InsertChat(ctx, database.InsertChatParams{
 				OwnerID:           paginationUser.ID,
