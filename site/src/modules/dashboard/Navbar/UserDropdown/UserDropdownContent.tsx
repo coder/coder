@@ -120,7 +120,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				</Tooltip>
 			)}
 			<DropdownMenuItem className="text-xs" disabled>
-				<span>{`© ${new Date().getFullYear()} Coder Technologies, Inc.`}</span>
+				<span>&copy; {new Date().getFullYear()} Coder Technologies, Inc.</span>
 			</DropdownMenuItem>
 		</>
 	);
