@@ -1177,3 +1177,117 @@ func TestMCPServerUserTokens(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
 	})
 }
+
+func TestUserChatProviderKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		//nolint:gosec // test credentials
+		initialAPIKey = "sk-initial-api-key-value"
+		//nolint:gosec // test credentials
+		updatedAPIKey = "sk-updated-api-key-value"
+	)
+
+	insertProviderAndKey := func(
+		t *testing.T,
+		crypt *dbCrypt,
+		ciphers []Cipher,
+	) (database.ChatProvider, database.UserChatProviderKey) {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		provider, err := crypt.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:        "openai",
+			DisplayName:     "OpenAI",
+			APIKey:          "",
+			Enabled:         true,
+			AllowUserApiKey: true,
+		})
+		require.NoError(t, err)
+
+		key, err := crypt.InsertUserChatProviderKey(ctx, database.InsertUserChatProviderKeyParams{
+			UserID:         user.ID,
+			ChatProviderID: provider.ID,
+			APIKey:         initialAPIKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialAPIKey, key.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), key.ApiKeyKeyID.String)
+		return provider, key
+	}
+
+	t.Run("InsertUserChatProviderKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		got, err := crypt.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
+			UserID:         key.UserID,
+			ChatProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, got.ID)
+		require.Equal(t, initialAPIKey, got.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), got.ApiKeyKeyID.String)
+
+		rawKey, err := db.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
+			UserID:         key.UserID,
+			ChatProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, initialAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, initialAPIKey)
+	})
+
+	t.Run("GetUserChatProviderKeys", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		_, key := insertProviderAndKey(t, crypt, ciphers)
+
+		keys, err := crypt.GetUserChatProviderKeys(ctx, key.UserID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, key.ID, keys[0].ID)
+		require.Equal(t, initialAPIKey, keys[0].APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].ApiKeyKeyID.String)
+	})
+
+	t.Run("UpsertUserChatProviderKeyUpdatesValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		updated, err := crypt.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
+			UserID:         key.UserID,
+			ChatProviderID: provider.ID,
+			APIKey:         updatedAPIKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, updated.ID)
+		require.Equal(t, key.CreatedAt, updated.CreatedAt)
+		require.False(t, updated.UpdatedAt.Before(key.UpdatedAt))
+		require.Equal(t, updatedAPIKey, updated.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
+
+		got, err := crypt.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
+			UserID:         key.UserID,
+			ChatProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updatedAPIKey, got.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), got.ApiKeyKeyID.String)
+
+		keys, err := crypt.GetUserChatProviderKeys(ctx, key.UserID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, updatedAPIKey, keys[0].APIKey)
+
+		rawKey, err := db.GetUserChatProviderKeyByProviderID(ctx, database.GetUserChatProviderKeyByProviderIDParams{
+			UserID:         key.UserID,
+			ChatProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, updatedAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, updatedAPIKey)
+	})
+}
