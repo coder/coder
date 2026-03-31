@@ -160,9 +160,10 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 				<div
 					className={cn(
 						"flex flex-col gap-2 text-content-secondary",
-						hasPercent && "mt-2 border-t border-border pt-2",
+						hasPercent && "mt-1 border-t border-border pt-1",
 					)}
 				>
+					{" "}
 					{contextFiles.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">
