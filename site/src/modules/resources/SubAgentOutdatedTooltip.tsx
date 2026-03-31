@@ -38,7 +38,7 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 				<span role="status" className="cursor-pointer">
 					Outdated
 				</span>
-			</HelpPopoverTrigger>{" "}
+			</HelpPopoverTrigger>
 			<HelpPopoverContent>
 				<div className="flex flex-col gap-2">
 					<div>
