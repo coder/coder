@@ -780,6 +780,8 @@ func defaultAIBridgeProvider(host string) string {
 		return agplaibridge.ProviderCopilotBusiness
 	case agplaibridge.HostCopilotEnterprise:
 		return agplaibridge.ProviderCopilotEnterprise
+	case agplaibridge.HostChatGPT:
+		return agplaibridge.ProviderChatGPT
 	default:
 		return ""
 	}
