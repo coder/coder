@@ -473,6 +473,11 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// CreateChat calls signalWake which triggers processOnce in
+	// the background. Wait for that processing to finish so it
+	// doesn't race with the manual status update below.
+	waitForChatProcessed(ctx, t, db, chat.ID, replica)
+
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
@@ -817,6 +822,11 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 
+	// CreateChat calls signalWake which triggers processOnce in
+	// the background. Wait for that processing to finish so it
+	// doesn't race with the manual status update below.
+	waitForChatProcessed(ctx, t, db, chat.ID, replica)
+
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
@@ -878,10 +888,6 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatMessageRoleUser, result.PromotedMessage.Role)
-
-	chat, err = db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, chat.Status)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -1709,13 +1715,9 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	// subscribing, so the snapshot captures the final state.
 	// The wake signal may trigger processOnce which will fail
 	// (no LLM configured) and set the chat to error status.
-	// Poll until the chat leaves pending status, then wait for
-	// the goroutine to finish.
-	require.Eventually(t, func() bool {
-		c, err := db.GetChatByID(ctx, chat.ID)
-		return err == nil && c.Status != database.ChatStatusPending
-	}, testutil.WaitShort, testutil.IntervalFast)
-	chatd.WaitUntilIdleForTest(replica)
+	// Poll until the chat reaches a terminal state (not pending
+	// and not running), then wait for the goroutine to finish.
+	waitForChatProcessed(ctx, t, db, chat.ID, replica)
 
 	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -2596,6 +2598,39 @@ func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
 	testutil.RequireSend(ctx, t, usageTickCh, time.Now())
 	count := testutil.RequireReceive(ctx, t, flushCh)
 	require.Equal(t, 0, count, "expected no workspaces to be flushed when chat has no workspace")
+}
+
+// waitForChatProcessed waits for a wake-triggered processOnce to
+// fully complete for the given chat. It polls until the chat leaves
+// both pending and running states (meaning processChat has finished
+// its cleanup and updated the DB), then calls WaitUntilIdleForTest.
+//
+// Waiting for a terminal state (not just "not pending") avoids a
+// WaitGroup Add/Wait race: AcquireChats changes the DB status to
+// running before processOnce calls inflight.Add(1). If we only
+// waited for status != pending, we could call Wait() while Add(1)
+// hasn't happened yet.
+func waitForChatProcessed(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	server *chatd.Server,
+) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		c, err := db.GetChatByID(ctx, chatID)
+		if err != nil {
+			return false
+		}
+		// Wait until the chat reaches a terminal state — neither
+		// pending (waiting to be acquired) nor running (being
+		// processed). This guarantees that inflight.Add(1) has
+		// already been called by processOnce.
+		return c.Status != database.ChatStatusPending &&
+			c.Status != database.ChatStatusRunning
+	}, testutil.WaitShort, testutil.IntervalFast)
+	chatd.WaitUntilIdleForTest(server)
 }
 
 func newTestServer(

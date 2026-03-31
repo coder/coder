@@ -574,3 +574,65 @@ func TestRouting(t *testing.T) {
 		})
 	}
 }
+
+// TestServeHTTP_StripInternalHeaders verifies that internal X-Coder-*
+// headers are never forwarded to upstream LLM providers.
+func TestServeHTTP_StripInternalHeaders(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		header string
+		value  string
+	}{
+		{
+			name:   "X-Coder-AI-Governance-Token",
+			header: agplaibridge.HeaderCoderToken,
+			value:  "coder-token",
+		},
+		{
+			name:   "X-Coder-AI-Governance-Request-Id",
+			header: agplaibridge.HeaderCoderRequestID,
+			value:  uuid.NewString(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockH := &mockHandler{}
+
+			srv, client, pool := newTestServer(t)
+			conn := &mockDRPCConn{}
+			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
+
+			httpSrv := httptest.NewServer(srv)
+			t.Cleanup(httpSrv.Close)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, httpSrv.URL+"/anthropic/v1/messages", nil)
+			require.NoError(t, err)
+
+			// Always set a valid auth token so the request reaches
+			// the upstream handler.
+			req.Header.Set("Authorization", "Bearer coder-token")
+			req.Header.Set(tc.header, tc.value)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.NotNil(t, mockH.headersReceived)
+
+			// Assert no X-Coder-* headers were forwarded upstream.
+			for name := range mockH.headersReceived {
+				require.NotContains(t, name, "X-Coder-",
+					"internal header %q must not be forwarded to upstream providers", name)
+			}
+		})
+	}
+}

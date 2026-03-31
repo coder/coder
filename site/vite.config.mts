@@ -228,7 +228,10 @@ export default defineConfig({
 				extends: true,
 				test: {
 					name: "unit",
-					include: ["src/**/*.test.?(m)ts?(x)"],
+					include: [
+						"src/**/*.test.?(m)ts?(x)",
+						"scripts/**/*.test.?(m)[jt]s?(x)",
+					],
 					globals: true,
 					environment: "jsdom",
 					setupFiles: [

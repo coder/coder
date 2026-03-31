@@ -6,10 +6,36 @@ execute builds.
 
 When a workspace is needed, the agent reads the available templates, selects
 the appropriate one based on its name and description, and provisions a
-workspace automatically.
+workspace automatically. Administrators can restrict which templates the agent
+can see using the [template allowlist](#restrict-available-templates).
 
 This guide covers best practices for creating templates that are discoverable
 and useful to Coder Agents.
+
+## Restrict available templates
+
+By default, the agent can see and provision any template in the deployment.
+Administrators can restrict this to a specific set of templates using the
+template allowlist.
+
+To configure the allowlist:
+
+1. Navigate to **Agents** > **Settings** > **Templates**.
+2. Select the templates you want agents to be able to use.
+3. Click **Save**.
+
+When the allowlist is configured, the agent's `list_templates`,
+`read_template`, and `create_workspace` tools are filtered to only include
+the selected templates. The agent cannot see or provision templates that are
+not on the list.
+
+When no templates are selected, the allowlist is inactive and all templates
+are available to agents.
+
+The allowlist only affects agent-created workspaces. Developers can still
+manually create workspaces from any template they have access to. This lets
+platform teams apply stricter policies to agent workloads without affecting
+the manual workspace experience.
 
 ## Write discoverable template descriptions
 
