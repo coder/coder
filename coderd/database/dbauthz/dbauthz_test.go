@@ -404,12 +404,13 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("AppendChatFileIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.AppendChatFileIDsParams{
-			ChatID:  chat.ID,
-			FileIDs: []uuid.UUID{uuid.New()},
+			ChatID:     chat.ID,
+			MaxFileIDs: int32(codersdk.MaxChatFileIDs),
+			FileIDs:    []uuid.UUID{uuid.New()},
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().AppendChatFileIDs(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+		dbm.EXPECT().AppendChatFileIDs(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("PinChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

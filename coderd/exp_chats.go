@@ -515,19 +515,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link any user-uploaded files referenced in the initial
-	// message to this newly created chat. The chat was just
-	// created, so existing count is zero.
-	if err := api.linkFilesToChat(ctx, chat.ID, 0, fileIDs); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Too many files associated with chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	// message to this newly created chat (best-effort; cap
+	// enforced in SQL).
+	unlinked := api.linkFilesToChat(ctx, chat.ID, fileIDs)
 
 	// Re-read the chat so the response reflects the authoritative
-	// database state (including SQL DISTINCT dedup of file_ids)
-	// rather than the request-local fileIDs.
+	// database state (including SQL DISTINCT dedup of file_ids).
 	chat, err = api.Database.GetChatByID(ctx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -548,7 +541,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			)
 		}
 	}
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Chat(chat, nil, chatFiles))
+	response := db2sdk.Chat(chat, nil, chatFiles)
+	if len(unlinked) > 0 {
+		response.Warnings = append(response.Warnings,
+			fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs))
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1799,18 +1797,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject early if the file cap would be exceeded. This must
-	// happen before SendMessage so a cap failure doesn't leave a
-	// committed or queued message.
-	if len(fileIDs) > 0 && len(chat.FileIDs)+len(fileIDs) > codersdk.MaxChatFileIDs {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Too many files associated with chat.",
-			Detail: fmt.Sprintf("chat already has %d file(s) and cannot add %d more (limit: %d)",
-				len(chat.FileIDs), len(fileIDs), codersdk.MaxChatFileIDs),
-		})
-		return
-	}
-
 	// Validate MCP server IDs exist.
 	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
 		//nolint:gocritic // Need to validate MCP server IDs exist.
@@ -1871,9 +1857,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link any user-uploaded files referenced in this message
-	// to the chat. The cap was already validated above, so this
-	// call only performs the DB append.
-	api.bestEffortLinkFilesToChat(ctx, chatID, fileIDs)
+	// to the chat (best-effort; cap enforced in SQL).
+	unlinked := api.linkFilesToChat(ctx, chatID, fileIDs)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -1882,6 +1867,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		message := convertChatMessage(sendResult.Message)
 		response.Message = &message
+	}
+	if len(unlinked) > 0 {
+		response.Warnings = append(response.Warnings,
+			fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -1925,18 +1914,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject early if the file cap would be exceeded. This must
-	// happen before EditMessage so a cap failure doesn't leave a
-	// committed edit.
-	if len(fileIDs) > 0 && len(chat.FileIDs)+len(fileIDs) > codersdk.MaxChatFileIDs {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Too many files associated with chat.",
-			Detail: fmt.Sprintf("chat already has %d file(s) and cannot add %d more (limit: %d)",
-				len(chat.FileIDs), len(fileIDs), codersdk.MaxChatFileIDs),
-		})
-		return
-	}
-
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
@@ -1968,10 +1945,19 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link any user-uploaded files referenced in the edited
-	// message to the chat. The cap was already validated above,
-	// so this call only performs the DB append.
-	api.bestEffortLinkFilesToChat(ctx, chat.ID, fileIDs)
+	// message to the chat (best-effort; cap enforced in SQL).
+	unlinked := api.linkFilesToChat(ctx, chat.ID, fileIDs)
 	message := convertChatMessage(editResult.Message)
+	// patchChatMessage returns a ChatMessage, not a
+	// CreateChatMessageResponse. Log unlinked files so the
+	// info is at least visible server-side.
+	if len(unlinked) > 0 {
+		api.Logger.Warn(ctx, "file cap reached during message edit",
+			slog.F("chat_id", chat.ID),
+			slog.F("unlinked_file_ids", unlinked),
+			slog.F("max_file_ids", codersdk.MaxChatFileIDs),
+		)
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, message)
 }
 
@@ -3940,42 +3926,36 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-// linkFilesToChat appends file IDs to a chat's file_ids array,
-// enforcing the MaxChatFileIDs cap. Returns an error if the cap
-// would be exceeded or if the database update fails.
-func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, existingFileCount int, fileIDs []uuid.UUID) error {
+// linkFilesToChat appends file IDs to a chat's file_ids array.
+// Cap enforcement and dedup are handled atomically in SQL. Returns
+// the subset of fileIDs that were NOT linked (empty on success).
+// Failures are logged but never block the caller.
+func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) []uuid.UUID {
 	if len(fileIDs) == 0 {
 		return nil
 	}
-	if existingFileCount+len(fileIDs) > codersdk.MaxChatFileIDs {
-		return xerrors.Errorf("chat already has %d file(s) and cannot add %d more (limit: %d)", existingFileCount, len(fileIDs), codersdk.MaxChatFileIDs)
-	}
-	if err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-		ChatID:  chatID,
-		FileIDs: fileIDs,
-	}); err != nil {
-		return xerrors.Errorf("append file IDs: %w", err)
-	}
-	return nil
-}
-
-// bestEffortLinkFilesToChat appends file IDs to a chat's file_ids
-// array. Failures are logged but do not block the request. Use
-// this after the cap has already been validated.
-func (api *API) bestEffortLinkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) {
-	if len(fileIDs) == 0 {
-		return
-	}
-	if err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-		ChatID:  chatID,
-		FileIDs: fileIDs,
-	}); err != nil {
+	rowsAffected, err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+		ChatID:     chatID,
+		MaxFileIDs: int32(codersdk.MaxChatFileIDs),
+		FileIDs:    fileIDs,
+	})
+	if err != nil {
 		api.Logger.Error(ctx, "failed to link files to chat",
 			slog.F("chat_id", chatID),
 			slog.F("file_ids", fileIDs),
 			slog.Error(err),
 		)
+		return fileIDs
 	}
+	if rowsAffected == 0 {
+		api.Logger.Warn(ctx, "file cap reached, files not linked",
+			slog.F("chat_id", chatID),
+			slog.F("file_ids", fileIDs),
+			slog.F("max_file_ids", codersdk.MaxChatFileIDs),
+		)
+		return fileIDs
+	}
+	return nil
 }
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {

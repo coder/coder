@@ -550,18 +550,30 @@ WHERE
 RETURNING
     *;
 
--- name: AppendChatFileIDs :exec
--- AppendChatFileIDs appends file IDs to the chat's file_ids array, ensuring no duplicate (DISTINCT).
--- updated_at is always set to NOW() when this is called, even if no new file IDs are added.
--- A null argument for file_ids is treated as an empty array.
+-- name: AppendChatFileIDs :execrows
+-- AppendChatFileIDs merges new file IDs into the chat's file_ids
+-- array with deduplication (DISTINCT). The update is conditional:
+-- it only proceeds when the resulting array length does not exceed
+-- max_file_ids. Returns 0 rows affected when the cap would be
+-- exceeded (all new IDs are silently rejected as a batch).
+-- updated_at is only bumped when file_ids actually changes.
+WITH new AS (
+    SELECT COALESCE(array_agg(DISTINCT fid ORDER BY fid), '{}') AS ids
+    FROM unnest(
+        (SELECT file_ids FROM chats WHERE id = @chat_id::uuid)
+        || COALESCE(@file_ids::uuid[], '{}'::uuid[])
+    ) AS fid
+)
 UPDATE chats
 SET
-	file_ids = (
-	    SELECT COALESCE(array_agg(DISTINCT fid), '{}')
-	    FROM unnest(file_ids || COALESCE(@file_ids::uuid[], '{}'::uuid[])) AS fid
-	),
-	updated_at = NOW()
-WHERE id = @chat_id::uuid;
+    file_ids = new.ids,
+    updated_at = CASE
+        WHEN file_ids IS DISTINCT FROM new.ids THEN NOW()
+        ELSE updated_at
+    END
+FROM new
+WHERE chats.id = @chat_id::uuid
+  AND COALESCE(array_length(new.ids, 1), 0) <= @max_file_ids::int;
 
 -- name: AcquireChats :many
 -- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED

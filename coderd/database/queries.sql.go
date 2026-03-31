@@ -4289,28 +4289,44 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 	return items, nil
 }
 
-const appendChatFileIDs = `-- name: AppendChatFileIDs :exec
+const appendChatFileIDs = `-- name: AppendChatFileIDs :execrows
+WITH new AS (
+    SELECT COALESCE(array_agg(DISTINCT fid ORDER BY fid), '{}') AS ids
+    FROM unnest(
+        (SELECT file_ids FROM chats WHERE id = $1::uuid)
+        || COALESCE($3::uuid[], '{}'::uuid[])
+    ) AS fid
+)
 UPDATE chats
 SET
-	file_ids = (
-	    SELECT COALESCE(array_agg(DISTINCT fid), '{}')
-	    FROM unnest(file_ids || COALESCE($1::uuid[], '{}'::uuid[])) AS fid
-	),
-	updated_at = NOW()
-WHERE id = $2::uuid
+    file_ids = new.ids,
+    updated_at = CASE
+        WHEN file_ids IS DISTINCT FROM new.ids THEN NOW()
+        ELSE updated_at
+    END
+FROM new
+WHERE chats.id = $1::uuid
+  AND COALESCE(array_length(new.ids, 1), 0) <= $2::int
 `
 
 type AppendChatFileIDsParams struct {
-	FileIDs []uuid.UUID `db:"file_ids" json:"file_ids"`
-	ChatID  uuid.UUID   `db:"chat_id" json:"chat_id"`
+	ChatID     uuid.UUID   `db:"chat_id" json:"chat_id"`
+	MaxFileIDs int32       `db:"max_file_ids" json:"max_file_ids"`
+	FileIDs    []uuid.UUID `db:"file_ids" json:"file_ids"`
 }
 
-// AppendChatFileIDs appends file IDs to the chat's file_ids array, ensuring no duplicate (DISTINCT).
-// updated_at is always set to NOW() when this is called, even if no new file IDs are added.
-// A null argument for file_ids is treated as an empty array.
-func (q *sqlQuerier) AppendChatFileIDs(ctx context.Context, arg AppendChatFileIDsParams) error {
-	_, err := q.db.ExecContext(ctx, appendChatFileIDs, pq.Array(arg.FileIDs), arg.ChatID)
-	return err
+// AppendChatFileIDs merges new file IDs into the chat's file_ids
+// array with deduplication (DISTINCT). The update is conditional:
+// it only proceeds when the resulting array length does not exceed
+// max_file_ids. Returns 0 rows affected when the cap would be
+// exceeded (all new IDs are silently rejected as a batch).
+// updated_at is only bumped when file_ids actually changes.
+func (q *sqlQuerier) AppendChatFileIDs(ctx context.Context, arg AppendChatFileIDsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, appendChatFileIDs, arg.ChatID, arg.MaxFileIDs, pq.Array(arg.FileIDs))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const archiveChatByID = `-- name: ArchiveChatByID :exec

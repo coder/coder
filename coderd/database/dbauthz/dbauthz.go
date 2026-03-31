@@ -1570,13 +1570,13 @@ func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UU
 	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
-func (q *querier) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) error {
+func (q *querier) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.AppendChatFileIDs(ctx, arg)
 }

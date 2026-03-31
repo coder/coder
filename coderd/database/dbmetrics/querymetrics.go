@@ -160,12 +160,12 @@ func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) error {
+func (m queryMetricsStore) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.AppendChatFileIDs(ctx, arg)
+	r0, r1 := m.s.AppendChatFileIDs(ctx, arg)
 	m.queryLatencies.WithLabelValues("AppendChatFileIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AppendChatFileIDs").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {

@@ -148,11 +148,12 @@ func (mr *MockStoreMockRecorder) AllUserIDs(ctx, includeSystem any) *gomock.Call
 }
 
 // AppendChatFileIDs mocks base method.
-func (m *MockStore) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) error {
+func (m *MockStore) AppendChatFileIDs(ctx context.Context, arg database.AppendChatFileIDsParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendChatFileIDs", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AppendChatFileIDs indicates an expected call of AppendChatFileIDs.

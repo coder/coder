@@ -576,7 +576,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// HasUnread is populated by ChatRows (which joins the
 	// read-cursor query), not by Chat, so it is expected
 	// to remain zero here.
-	skip := map[string]bool{"HasUnread": true}
+	skip := map[string]bool{"HasUnread": true, "Warnings": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {

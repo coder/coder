@@ -80,6 +80,7 @@ type Chat struct {
 	// is updated only when context changes — first workspace
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
+	Warnings            []string          `json:"warnings,omitempty"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -396,6 +397,7 @@ type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+	Warnings      []string           `json:"warnings,omitempty"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.

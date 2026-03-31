@@ -2088,11 +2088,13 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
-			ChatID:  chat.ID,
-			FileIDs: []uuid.UUID{fileRow.ID},
+		rowsAffected, err := store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
+			ChatID:     chat.ID,
+			MaxFileIDs: int32(codersdk.MaxChatFileIDs),
+			FileIDs:    []uuid.UUID{fileRow.ID},
 		})
 		require.NoError(t, err)
+		require.Equal(t, int64(1), rowsAffected)
 
 		// Verify via the API that the file appears in the chat.
 		chatResult, err := client.GetChat(ctx, chat.ID)
@@ -2116,14 +2118,47 @@ func TestGetChat(t *testing.T) {
 				Data:           []byte("data"),
 			})
 			require.NoError(t, err)
-			err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
-				ChatID:  chat.ID,
-				FileIDs: []uuid.UUID{extra.ID},
+			_, err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
+				ChatID:     chat.ID,
+				MaxFileIDs: int32(codersdk.MaxChatFileIDs),
+				FileIDs:    []uuid.UUID{extra.ID},
 			})
 			require.NoError(t, err)
 		}
 
 		// Chat should now have exactly MaxChatFileIDs files.
+		chatResult, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
+
+		// Attempt to add one more file — should be rejected (0 rows).
+		overflow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "overflow.md",
+			Mimetype:       "text/markdown",
+			Data:           []byte("too many"),
+		})
+		require.NoError(t, err)
+		rowsAffected, err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
+			ChatID:     chat.ID,
+			MaxFileIDs: int32(codersdk.MaxChatFileIDs),
+			FileIDs:    []uuid.UUID{overflow.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(0), rowsAffected, "cap should reject the 21st file")
+
+		// Re-appending an already-linked ID at cap should succeed
+		// (dedup means no array growth).
+		rowsAffected, err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
+			ChatID:     chat.ID,
+			MaxFileIDs: int32(codersdk.MaxChatFileIDs),
+			FileIDs:    []uuid.UUID{fileRow.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), rowsAffected, "dedup of existing ID should succeed at cap")
+
+		// Count should still be exactly MaxChatFileIDs.
 		chatResult, err = client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
@@ -3331,27 +3366,35 @@ func TestChatMessageWithFiles(t *testing.T) {
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
-		// Record message count before the rejected request.
-		msgsBefore, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-
-		// Sending a message with the extra file should fail.
-		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		// Sending a message with the extra file should succeed
+		// (message goes through) but the file should NOT be linked
+		// (cap enforced in SQL). The response includes a warning.
+		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: extraResp.ID},
 			},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Contains(t, sdkErr.Message, "Too many files")
-
-		// The rejected request must not have persisted a message.
-		msgsAfter, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
-		require.Equal(t, len(msgsBefore.Messages), len(msgsAfter.Messages),
-			"cap rejection should not leave a partially committed message")
-		require.Equal(t, len(msgsBefore.QueuedMessages), len(msgsAfter.QueuedMessages),
-			"cap rejection should not leave a queued message")
+		require.NotEmpty(t, msgResp.Warnings, "response should warn about unlinked files")
+		require.Contains(t, msgResp.Warnings[0], "file cap reached")
+
+		// The extra file should NOT appear in the chat's files.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
+			"file count should not exceed the cap")
+
+		// Sending a message referencing an already-linked file
+		// should succeed with no warnings (dedup, no array growth).
+		msgResp2, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[0]},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, msgResp2.Warnings, "re-referencing an existing file should not warn")
 	})
 }
 

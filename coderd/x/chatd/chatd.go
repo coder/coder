@@ -3145,7 +3145,7 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
-	sdkChat := db2sdk.Chat(chat, nil, nil) // we have diffStatus already converted
+	sdkChat := db2sdk.Chat(chat, nil, nil) // diffStatus applied below; file metadata intentionally omitted from pubsub events to avoid an extra DB query per publish.
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
@@ -4422,12 +4422,6 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
 				}
 
-				// Enforce the file cap before inserting so a
-				// rejected file doesn't leave an orphaned row.
-				if len(chatSnapshot.FileIDs)+1 > codersdk.MaxChatFileIDs {
-					return uuid.Nil, xerrors.Errorf("chat file limit reached (%d/%d)", len(chatSnapshot.FileIDs), codersdk.MaxChatFileIDs)
-				}
-
 				row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
 					OwnerID:        chatSnapshot.OwnerID,
 					OrganizationID: ws.OrganizationID,
@@ -4439,23 +4433,33 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
-				if err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:  chatSnapshot.ID,
-					FileIDs: []uuid.UUID{row.ID},
-				}); err != nil {
+				// Cap enforcement and dedup are handled atomically
+				// in SQL. 0 rows = cap exceeded.
+				rowsAffected, err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     chatSnapshot.ID,
+					MaxFileIDs: int32(codersdk.MaxChatFileIDs),
+					FileIDs:    []uuid.UUID{row.ID},
+				})
+				switch {
+				case err != nil:
 					p.logger.Error(ctx, "failed to append file ID to chat",
 						slog.F("chat_id", chatSnapshot.ID),
 						slog.F("file_id", row.ID),
 						slog.Error(err),
 					)
+				case rowsAffected > 0:
+					// Update the snapshot so subsequent StoreFile
+					// calls in the same turn see the new count.
+					workspaceCtx.chatStateMu.Lock()
+					workspaceCtx.currentChat.FileIDs = append(workspaceCtx.currentChat.FileIDs, row.ID)
+					workspaceCtx.chatStateMu.Unlock()
+				default:
+					p.logger.Warn(ctx, "file cap reached, file not linked to chat",
+						slog.F("chat_id", chatSnapshot.ID),
+						slog.F("file_id", row.ID),
+						slog.F("max_file_ids", codersdk.MaxChatFileIDs),
+					)
 				}
-
-				// Update the snapshot so subsequent StoreFile
-				// calls in the same turn see the new count.
-				workspaceCtx.chatStateMu.Lock()
-				workspaceCtx.currentChat.FileIDs = append(workspaceCtx.currentChat.FileIDs, row.ID)
-				workspaceCtx.chatStateMu.Unlock()
-
 				return row.ID, nil
 			},
 		}))
