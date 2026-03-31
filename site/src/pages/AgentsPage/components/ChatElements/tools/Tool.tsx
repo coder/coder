@@ -305,6 +305,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		? asNumber(rec.duration_ms, { parseString: true })
 		: undefined;
 	const report = rec ? asString(rec.report) : "";
+	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
 	const title =
@@ -366,6 +367,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 				showDesktopPreviews && computerUseSubagentIds?.has(chatId)
 			}
 			variant={variant}
+			recordingFileId={recordingFileId || undefined}
 		/>
 	);
 };
