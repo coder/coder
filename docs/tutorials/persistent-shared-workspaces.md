@@ -2,7 +2,7 @@
 
 <div>
   <a href="https://github.com/coder" style="text-decoration: none; color: inherit;">
-    <span style="vertical-align:middle;">Coder</span>
+    <span style="vertical-align:middle;">Sushant Patankar</span>
   </a>
 </div>
 March, 2026
@@ -93,9 +93,10 @@ Authenticate as the service account and create the workspace:
 ```shell
 export CODER_SESSION_TOKEN="<token-from-step-2>"
 
-coder create oncall-workspace \
+coder create oncall-sre/oncall-workspace \
   --template your-oncall-template \
-  --user oncall-sre
+  --use-parameter-defaults \
+  --yes
 ```
 
 > [!TIP]
