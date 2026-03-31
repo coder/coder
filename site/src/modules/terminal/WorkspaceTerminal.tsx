@@ -50,6 +50,11 @@ type WorkspaceTerminalProps = {
 	onOpenLink?: (uri: string) => void;
 	loading?: boolean;
 	errorMessage?: string;
+	/**
+	 * Sets `data-testid` on the terminal container and doubles as the
+	 * CSS scope selector for xterm viewport styles. When omitted, the
+	 * fallback class `.workspace-terminal` is used for scoping.
+	 */
 	testId?: string;
 };
 
@@ -86,6 +91,8 @@ export const WorkspaceTerminal = ({
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	const websocketRef = useRef<Websocket | undefined>(undefined);
+	const isVisibleRef = useRef(isVisible);
+	isVisibleRef.current = isVisible;
 	const handleOpenLink = useEffectEvent((uri: string) => {
 		onOpenLink ? onOpenLink(uri) : window.open(uri, "_blank", "noopener");
 	});
@@ -245,6 +252,9 @@ export const WorkspaceTerminal = ({
 		window.addEventListener("resize", refit);
 
 		const resizeObserver = new ResizeObserver(() => {
+			if (!isVisibleRef.current) {
+				return;
+			}
 			refit();
 		});
 		resizeObserver.observe(mountNode);
