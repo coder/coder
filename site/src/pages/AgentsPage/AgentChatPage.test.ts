@@ -202,6 +202,63 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("falls back to the persisted draft when history edit starts before hydration", () => {
+		localStorage.setItem(expectedKey, "persisted draft");
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("persisted draft");
+		expect(mockInput.currentValue.value).toBe("persisted draft");
+		unmount();
+	});
+
+	it("falls back to the persisted draft when queue edit starts before hydration", () => {
+		localStorage.setItem(expectedKey, "persisted draft");
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued message", []);
+		});
+
+		act(() => {
+			result.current.handleCancelQueueEdit();
+		});
+
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("persisted draft");
+		expect(mockInput.currentValue.value).toBe("persisted draft");
+		unmount();
+	});
+
+	it("prefers the live editor value over stale persisted draft state", () => {
+		localStorage.setItem(expectedKey, "stale persisted draft");
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("live draft");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("live draft");
+		expect(mockInput.currentValue.value).toBe("live draft");
+		unmount();
+	});
+
 	it("can load the same edit text again after send without relying on a remount", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle();

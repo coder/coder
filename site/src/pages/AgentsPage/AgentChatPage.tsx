@@ -106,7 +106,18 @@ export function useConversationEditingState(deps: {
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
-	const getCurrentInputValue = () => chatInputRef.current?.getValue() ?? "";
+	const getDraftBeforeEdit = () => {
+		const currentInputValue = chatInputRef.current?.getValue() ?? "";
+		if (currentInputValue) {
+			return currentInputValue;
+		}
+		// The editor seeds its initial value after paint, so the live editor can
+		// still be empty while the persisted draft already exists.
+		if (typeof window === "undefined" || !draftStorageKey) {
+			return "";
+		}
+		return localStorage.getItem(draftStorageKey) ?? "";
+	};
 	const replaceInputValue = (content: string) => {
 		chatInputRef.current?.setValue(content);
 	};
@@ -135,7 +146,7 @@ export function useConversationEditingState(deps: {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => {
 		setDraftBeforeHistoryEdit((prev) =>
-			editingMessageId !== null ? prev : getCurrentInputValue(),
+			editingMessageId !== null ? prev : getDraftBeforeEdit(),
 		);
 		setEditingMessageId(messageId);
 		replaceInputValueAndFocus(text);
@@ -164,7 +175,7 @@ export function useConversationEditingState(deps: {
 		fileBlocks: readonly ChatMessagePart[],
 	) => {
 		setDraftBeforeQueueEdit((prev) =>
-			editingQueuedMessageID === null ? getCurrentInputValue() : prev,
+			editingQueuedMessageID === null ? getDraftBeforeEdit() : prev,
 		);
 		setEditingQueuedMessageID(id);
 		replaceInputValueAndFocus(text);
