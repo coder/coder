@@ -5,6 +5,7 @@ use leptos_router::{
 };
 
 use crate::components::navbar::Navbar;
+use crate::pages::login::LoginPage;
 use crate::pages::setup::SetupPage;
 use crate::pages::workspaces::WorkspacesPage;
 
@@ -15,6 +16,7 @@ pub fn App() -> impl IntoView {
             <Routes fallback=|| view! { <p>"Page not found."</p> }>
                 <Route path=path!("/") view=|| view! { <Redirect path="/workspaces" /> } />
                 <Route path=path!("/setup") view=SetupPage />
+                <Route path=path!("/login") view=LoginPage />
                 <Route
                     path=path!("/workspaces")
                     view=|| view! {
