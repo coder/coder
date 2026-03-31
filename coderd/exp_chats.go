@@ -4058,6 +4058,14 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateChatProviderAPIKeySize(strings.TrimSpace(req.APIKey)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key too large.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -4207,7 +4215,17 @@ func (api *API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
 	apiKey := existing.APIKey
 	apiKeyKeyID := existing.ApiKeyKeyID
 	if req.APIKey != nil {
-		apiKey = strings.TrimSpace(*req.APIKey)
+		trimmedAPIKey := strings.TrimSpace(*req.APIKey)
+		if trimmedAPIKey != "" {
+			if err := validateChatProviderAPIKeySize(trimmedAPIKey); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "API key too large.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
+		apiKey = trimmedAPIKey
 		apiKeyKeyID = sql.NullString{}
 	}
 	baseURL := existing.BaseUrl
@@ -4442,6 +4460,13 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 	}
 
 	trimmedAPIKey := strings.TrimSpace(req.APIKey)
+	if err := validateChatProviderAPIKeySize(trimmedAPIKey); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key too large.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	if trimmedAPIKey == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "API key is required.",
@@ -5229,6 +5254,15 @@ func normalizeChatProviderBaseURL(raw string) (string, error) {
 
 func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
+}
+
+const maxChatProviderAPIKeySize = 10240 // 10 KB
+
+func validateChatProviderAPIKeySize(apiKey string) error {
+	if len(apiKey) > maxChatProviderAPIKeySize {
+		return xerrors.Errorf("API key exceeds maximum size of %d bytes", maxChatProviderAPIKeySize)
+	}
+	return nil
 }
 
 //nolint:revive // This helper validates the explicit credential policy tuple.

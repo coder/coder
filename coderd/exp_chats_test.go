@@ -41,6 +41,8 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
+const chatProviderAPIKeySizeLimit = 10240
+
 func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	t.Helper()
 
@@ -1600,6 +1602,37 @@ func TestCreateChatProvider(t *testing.T) {
 			require.Equalf(t, "Invalid credential policy.", sdkErr.Message, "case %s", testCase.name)
 		}
 	})
+
+	t.Run("RejectsTooLargeAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   strings.Repeat("a", chatProviderAPIKeySizeLimit+1),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key too large.", sdkErr.Message)
+		require.Equal(t, fmt.Sprintf("API key exceeds maximum size of %d bytes", chatProviderAPIKeySizeLimit), sdkErr.Detail)
+	})
+
+	t.Run("AllowsMaxSizedAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   strings.Repeat("a", chatProviderAPIKeySizeLimit),
+		})
+		require.NoError(t, err)
+		require.True(t, provider.HasAPIKey)
+	})
 }
 
 func TestUpdateChatProvider(t *testing.T) {
@@ -1823,6 +1856,47 @@ func TestUpdateChatProvider(t *testing.T) {
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equalf(t, "Invalid credential policy.", sdkErr.Message, "case %s", testCase.name)
 		}
+	})
+
+	t.Run("RejectsTooLargeAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			APIKey: ptr.Ref(strings.Repeat("a", chatProviderAPIKeySizeLimit+1)),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key too large.", sdkErr.Message)
+		require.Equal(t, fmt.Sprintf("API key exceeds maximum size of %d bytes", chatProviderAPIKeySizeLimit), sdkErr.Detail)
+	})
+
+	t.Run("AllowsMaxSizedAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			APIKey: ptr.Ref(strings.Repeat("a", chatProviderAPIKeySizeLimit)),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.HasAPIKey)
 	})
 }
 
@@ -2238,6 +2312,53 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		listed := requireUserProviderConfig(t, configs, "anthropic")
 		require.Equal(t, provider.ID, listed.ProviderID)
 		require.False(t, listed.HasUserAPIKey)
+	})
+}
+
+func TestUpsertUserChatProviderKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RejectsTooLargeAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "anthropic",
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpsertUserChatProviderKey(ctx, provider.ID, codersdk.CreateUserChatProviderKeyRequest{
+			APIKey: strings.Repeat("a", chatProviderAPIKeySizeLimit+1),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key too large.", sdkErr.Message)
+		require.Equal(t, fmt.Sprintf("API key exceeds maximum size of %d bytes", chatProviderAPIKeySizeLimit), sdkErr.Detail)
+	})
+
+	t.Run("AllowsMaxSizedAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:             "anthropic",
+			CentralAPIKeyEnabled: ptr.Ref(false),
+			AllowUserAPIKey:      ptr.Ref(true),
+		})
+		require.NoError(t, err)
+
+		config, err := client.UpsertUserChatProviderKey(ctx, provider.ID, codersdk.CreateUserChatProviderKeyRequest{
+			APIKey: strings.Repeat("a", chatProviderAPIKeySizeLimit),
+		})
+		require.NoError(t, err)
+		require.True(t, config.HasUserAPIKey)
 	})
 }
 
