@@ -265,7 +265,7 @@ const TerminalPage: FC = () => {
 		}
 
 		if (workspace.error instanceof Error) {
-			terminal.writeln("Unable to fetch workspace: " + workspace.error.message);
+			terminal.writeln(`Unable to fetch workspace: ${workspace.error.message}`);
 			setConnectionStatus("disconnected");
 			return;
 		}
