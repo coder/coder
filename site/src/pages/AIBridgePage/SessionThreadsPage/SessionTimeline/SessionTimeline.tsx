@@ -13,21 +13,15 @@ import type {
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
@@ -80,6 +74,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 					<Button
 						size="sm"
 						variant="outline"
+						className="bg-surface-primary shadow-sm"
 						onClick={() => setIsExpanded((v) => !v)}
 					>
 						{isExpanded ? "Collapse" : "Show more"}
@@ -188,7 +183,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	outputTokens,
 	timestamp,
 	tokenUsageMetadata,
-	expandedByDefault = true,
+	expandedByDefault = false,
 }) => {
 	const [isOpen, setIsOpen] = useState(expandedByDefault);
 
@@ -230,7 +225,7 @@ interface AgenticLoopCompletedBlockProps {
 const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
 	inputTokens,
 	outputTokens,
-	expandedByDefault = true,
+	expandedByDefault = false,
 }) => {
 	const [isOpen, setIsOpen] = useState(expandedByDefault);
 
@@ -294,11 +289,16 @@ interface ThreadItemProps {
 }
 
 const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
-	const [agenticLoopOpen, setAgenticLoopOpen] = useState(true);
+	const [agenticLoopOpen, setAgenticLoopOpen] = useState(false);
 
 	const durationInMs =
 		new Date(thread.ended_at ?? Date.now()).getTime() -
 		new Date(thread.started_at).getTime();
+
+	const toolCalls = thread.agentic_actions?.reduce(
+		(count, action) => count + action.tool_calls.length,
+		0,
+	);
 
 	return (
 		<>
@@ -359,7 +359,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 					<AgenticLoopTable
 						className="lg:max-w-64 flex-1 my-3 mx-2"
 						duration={durationInMs}
-						toolCalls={thread.agentic_actions?.length ?? 0}
+						toolCalls={toolCalls}
 						inputTokens={thread.token_usage.input_tokens}
 						outputTokens={thread.token_usage.output_tokens}
 					/>
@@ -405,7 +405,6 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	onFetchNextPage,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const [sort, setSort] = useState<"oldest" | "newest">("oldest");
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
@@ -432,28 +431,6 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 
 	return (
 		<div className="relative">
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button variant="outline" className="absolute top-0 right-0">
-						{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
-						<ChevronDownIcon />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuRadioGroup
-						value={sort}
-						onValueChange={(v) => setSort(v as "oldest" | "newest")}
-					>
-						<DropdownMenuRadioItem value="oldest">
-							Sort by oldest
-						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="newest">
-							Sort by newest
-						</DropdownMenuRadioItem>
-					</DropdownMenuRadioGroup>
-				</DropdownMenuContent>
-			</DropdownMenu>
-
 			<div className="grid grid-cols-[16px_1rem_1px_1fr_auto_16px]">
 				{/* row 1: session start */}
 				<div className="row-start-1 col-start-2 relative h-10 py-1">
@@ -468,7 +445,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					</span>
 				</div>
 
-				{/* row 2: vertical line and timeline sort dropdown */}
+				{/* row 2: vertical line */}
 				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
 					{/* vertical line */}
 				</div>
@@ -481,22 +458,32 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				{/* row 3/4: AI Governance tooltip */}
 				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2 pt-1">
 					AI Governance
-					<Popover>
-						<PopoverTrigger asChild>
-							<InfoIcon className="size-icon-sm p-0.5 ml-1" />
-						</PopoverTrigger>
-						<PopoverContent className="max-w-64" align="end" side="top">
-							<div className="text-sm text-content-primary font-medium mb-1">
-								Controls and logs AI tooling so AI use stays secure, compliant,
-								and visible.
-							</div>
-							<div className="text-sm text-content-secondary">
-								<Link href={docs("/ai-coder/ai-governance")} target="_blank">
-									More about AI Governance
-								</Link>
-							</div>
-						</PopoverContent>
-					</Popover>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
+							</TooltipTrigger>
+							<TooltipContent
+								className="max-w-64 text-xs"
+								align="end"
+								side="top"
+							>
+								<div className="text-content-secondary font-medium mb-1">
+									Controls and logs AI tooling so AI use stays secure,
+									compliant, and visible.
+								</div>
+								<div>
+									<Link
+										href={docs("/ai-coder/ai-governance")}
+										target="_blank"
+										className="text-xs"
+									>
+										More about AI Governance
+									</Link>
+								</div>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 
 				{/* row 4:  */}

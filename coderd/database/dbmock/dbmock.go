@@ -7790,6 +7790,21 @@ func (mr *MockStoreMockRecorder) UpdateChatLabelsByID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatLabelsByID", reflect.TypeOf((*MockStore)(nil).UpdateChatLabelsByID), ctx, arg)
 }
 
+// UpdateChatLastInjectedContext mocks base method.
+func (m *MockStore) UpdateChatLastInjectedContext(ctx context.Context, arg database.UpdateChatLastInjectedContextParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatLastInjectedContext", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatLastInjectedContext indicates an expected call of UpdateChatLastInjectedContext.
+func (mr *MockStoreMockRecorder) UpdateChatLastInjectedContext(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatLastInjectedContext", reflect.TypeOf((*MockStore)(nil).UpdateChatLastInjectedContext), ctx, arg)
+}
+
 // UpdateChatLastModelConfigByID mocks base method.
 func (m *MockStore) UpdateChatLastModelConfigByID(ctx context.Context, arg database.UpdateChatLastModelConfigByIDParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
