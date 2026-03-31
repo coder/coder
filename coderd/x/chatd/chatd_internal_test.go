@@ -832,7 +832,7 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 	require.Empty(t, instruction)
 }
 
-func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
+func TestPersistInstructionFilesSentinelIgnoresSkills(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -870,23 +870,9 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 			if !ok || arg.ID != chat.ID {
 				return false
 			}
-			if !arg.LastInjectedContext.Valid {
-				return false
-			}
-			var parts []codersdk.ChatMessagePart
-			if err := json.Unmarshal(arg.LastInjectedContext.RawMessage, &parts); err != nil {
-				return false
-			}
-			// The sentinel path should persist only skill parts
-			// with ContextFileAgentID set.
-			for _, p := range parts {
-				if p.Type == codersdk.ChatMessagePartTypeSkill &&
-					p.SkillName == "my-skill" &&
-					p.ContextFileAgentID == (uuid.NullUUID{UUID: agentID, Valid: true}) {
-					return true
-				}
-			}
-			return false
+			// The sentinel path clears the cache column when no
+			// instruction files were found.
+			return !arg.LastInjectedContext.Valid
 		}),
 	).Return(database.Chat{}, nil).Times(1)
 
@@ -978,11 +964,7 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 		workspaceCtx.getWorkspaceConn,
 	)
 	require.NoError(t, err)
-	// Sentinel path returns empty instruction string.
 	require.Empty(t, instruction)
-	// Skills are still discovered and returned.
-	require.Len(t, skills, 1)
-	require.Equal(t, "my-skill", skills[0].Name)
 }
 
 func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
@@ -1082,9 +1064,7 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 		workspaceCtx.getWorkspaceConn,
 	)
 	require.NoError(t, err)
-	// Sentinel path: empty instruction, no skills.
 	require.Empty(t, instruction)
-	require.Empty(t, skills)
 }
 
 func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
