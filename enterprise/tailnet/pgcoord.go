@@ -1033,7 +1033,7 @@ func (q *querier) peerUpdate(peers []uuid.UUID) error {
 	return nil
 }
 
-// mappingQuery queries bindings for the given peers and dispatches each
+// mappingQuery queries the database for all the mappings that the given peers should know about,
 // that is, all the peers that it shares a tunnel with and their current node mappings (if they
 // exist).  It then sends the mapping snapshot to the corresponding mapper, where it will get
 // transmitted to the peer.
@@ -1472,6 +1472,7 @@ func (q *workQ[K]) enqueue(key K) {
 // acquireBatch blocks until at least one pending key is available, then
 // returns up to limit keys, moving them to inProgress. Caller must call
 // done() for each returned key.
+// An error is returned if the workQ context is canceled to unblock waiting workers.
 func (q *workQ[K]) acquireBatch(limit int) ([]K, error) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
