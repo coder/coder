@@ -26,7 +26,7 @@ const STICK_TO_BOTTOM_OFFSET_PX = 70;
 interface InternalState {
 	scrollElement: HTMLElement | null;
 	contentElement: HTMLElement | null;
-	ignoreScrollToTop: number | undefined;
+	programmaticScrollCount: number;
 	resizeDifference: number;
 	lastScrollTop: number;
 	escapedFromLock: boolean;
@@ -62,15 +62,15 @@ function isNearBottom(s: InternalState): boolean {
 	return distance <= STICK_TO_BOTTOM_OFFSET_PX;
 }
 
-/** Assign scrollTop and record the value so the scroll handler can
- *  distinguish this programmatic write from a user-initiated scroll. */
+/** Assign scrollTop and bump the programmatic-scroll counter so
+ *  the next scroll event is not misread as a user-initiated scroll. */
 function scrollTo(s: InternalState, value: number) {
 	if (!s.scrollElement) {
 		return;
 	}
 
 	s.scrollElement.scrollTop = value;
-	s.ignoreScrollToTop = s.scrollElement.scrollTop;
+	s.programmaticScrollCount++;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ function useStickToBottom(): StickToBottomInstance {
 	const stateRef = useRef<InternalState>({
 		scrollElement: null,
 		contentElement: null,
-		ignoreScrollToTop: undefined,
+		programmaticScrollCount: 0,
 		resizeDifference: 0,
 		lastScrollTop: 0,
 		escapedFromLock: false,
@@ -137,12 +137,10 @@ function useStickToBottom(): StickToBottomInstance {
 				top,
 				behavior: behavior ?? "smooth",
 			});
-			// Don't set ignoreScrollToTop for smooth scroll.
+			// Don't bump programmaticScrollCount for smooth scroll.
 			// Each animation frame naturally reads as a downward
 			// scroll (currentScrollTop > lastScrollTop), which
-			// correctly clears escapedFromLock. Setting it to
-			// the target inflates lastST, making intermediate
-			// frames look like upward scrolls.
+			// correctly clears escapedFromLock.
 		}
 	});
 
@@ -160,21 +158,23 @@ function useStickToBottom(): StickToBottomInstance {
 		if (e.target !== scrollElement || !scrollElement) return;
 
 		const currentScrollTop = scrollElement.scrollTop;
-		let lastST = s.lastScrollTop;
 
-		if (
-			s.ignoreScrollToTop !== undefined &&
-			s.ignoreScrollToTop >= currentScrollTop
-		) {
-			lastST = s.ignoreScrollToTop;
+		// If this event was caused by a programmatic scrollTo,
+		// consume the counter and skip escape processing.
+		if (s.programmaticScrollCount > 0) {
+			s.programmaticScrollCount--;
+			s.lastScrollTop = currentScrollTop;
+			setNearBottom(isNearBottom(s));
+			return;
 		}
-		s.ignoreScrollToTop = undefined;
+
 		s.lastScrollTop = currentScrollTop;
 
 		setNearBottom(isNearBottom(s));
 
 		// Synchronous escape logic — must run before any resize
 		// handler so they see up-to-date internalIsAtBottom.
+		const lastST = s.lastScrollTop;
 		if (s.resizeDifference === 0) {
 			if (currentScrollTop < lastST) {
 				syncEscapedFromLock(true);
@@ -187,7 +187,6 @@ function useStickToBottom(): StickToBottomInstance {
 				syncIsAtBottom(true);
 			}
 		}
-
 		// Text-selection escape deferred — getSelection() needs
 		// post-layout DOM state to reflect the current drag.
 		setTimeout(() => {
