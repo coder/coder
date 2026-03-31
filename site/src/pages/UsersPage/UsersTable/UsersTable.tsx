@@ -12,16 +12,6 @@ import {
 import { TableColumnHelpPopover } from "../../OrganizationSettingsPage/UserTable/TableColumnHelpPopover";
 import { UsersTableBody } from "./UsersTableBody";
 
-const Language = {
-	usernameLabel: "User",
-	rolesLabel: "Roles",
-	groupsLabel: "Groups",
-	aiAddonLabel: "AI add-on",
-	statusLabel: "Status",
-	lastSeenLabel: "Last Seen",
-	loginTypeLabel: "Login Type",
-} as const;
-
 interface UsersTableProps {
 	users: readonly TypesGen.User[] | undefined;
 	roles: TypesGen.AssignableRoles[] | undefined;
@@ -72,29 +62,29 @@ export const UsersTable: FC<UsersTableProps> = ({
 		<Table data-testid="users-table">
 			<TableHeader>
 				<TableRow>
-					<TableHead className="w-2/6">{Language.usernameLabel}</TableHead>
+					<TableHead className="w-2/6">User</TableHead>
 					<TableHead className="w-2/6">
 						<Stack direction="row" spacing={1} alignItems="center">
-							<span>{Language.rolesLabel}</span>
+							<span>Roles</span>
 							<TableColumnHelpPopover variant="roles" />
 						</Stack>
 					</TableHead>
 					<TableHead className="w-1/6">
 						<Stack direction="row" spacing={1} alignItems="center">
-							<span>{Language.groupsLabel}</span>
+							<span>Groups</span>
 							<TableColumnHelpPopover variant="groups" />
 						</Stack>
 					</TableHead>
 					{showAISeatColumn && (
 						<TableHead className="w-1/6">
 							<Stack direction="row" spacing={1} alignItems="center">
-								<span>{Language.aiAddonLabel}</span>
+								<span>AI add-on</span>
 								<TableColumnHelpPopover variant="ai_addon" />
 							</Stack>
 						</TableHead>
 					)}
-					<TableHead className="w-1/6">{Language.loginTypeLabel}</TableHead>
-					<TableHead className="w-1/6">{Language.statusLabel}</TableHead>
+					<TableHead className="w-1/6">Login Type</TableHead>
+					<TableHead className="w-1/6">Status</TableHead>
 					{canEditUsers && <TableHead className="w-auto" />}
 				</TableRow>
 			</TableHeader>

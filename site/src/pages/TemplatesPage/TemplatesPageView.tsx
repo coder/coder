@@ -52,32 +52,19 @@ import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";
 
-const Language = {
-	developerCount: (activeCount: number): string => {
-		return `${formatTemplateActiveDevelopers(activeCount)} developer${
-			activeCount !== 1 ? "s" : ""
-		}`;
-	},
-	nameLabel: "Name",
-	buildTimeLabel: "Build time",
-	usedByLabel: "Used by",
-	lastUpdatedLabel: "Last updated",
-	templateTooltipTitle: "What is template?",
-	templateTooltipText:
-		"With templates you can create a common configuration for your workspaces using Terraform.",
-	templateTooltipLink: "Manage templates",
-};
-
 const TemplateHelpPopover: FC = () => {
 	return (
 		<HelpPopover>
 			<HelpPopoverIconTrigger />
 			<HelpPopoverContent>
-				<HelpPopoverTitle>{Language.templateTooltipTitle}</HelpPopoverTitle>
-				<HelpPopoverText>{Language.templateTooltipText}</HelpPopoverText>
+				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
+				<HelpPopoverText>
+					With templates you can create a common configuration for your
+					workspaces using Terraform.
+				</HelpPopoverText>
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink href={docs("/admin/templates")}>
-						{Language.templateTooltipLink}
+						Manage templates
 					</HelpPopoverLink>
 				</HelpPopoverLinksGroup>
 			</HelpPopoverContent>
@@ -145,6 +132,8 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
+	const developerCount = `${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`;
+
 	const clickableRow = useClickableTableRow({
 		onClick: () => navigate(templatePageLink),
 	});
@@ -175,11 +164,11 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{showOrganizations ? (
 					<AvatarData
 						title={template.organization_display_name}
-						subtitle={`Used by ${Language.developerCount(template.active_user_count)}`}
+						subtitle={`Used by ${developerCount}`}
 						avatar={<Avatar variant="icon" src={template.organization_icon} />}
 					/>
 				) : (
-					Language.developerCount(template.active_user_count)
+					developerCount
 				)}
 			</TableCell>
 
@@ -262,14 +251,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[35%]">{Language.nameLabel}</TableHead>
+						<TableHead className="w-[35%]">Name</TableHead>
 						<TableHead className="w-[15%]">
-							{showOrganizations ? "Organization" : Language.usedByLabel}
+							{showOrganizations ? "Organization" : "Used by"}
 						</TableHead>
-						<TableHead className="w-[10%]">{Language.buildTimeLabel}</TableHead>
-						<TableHead className="w-[15%]">
-							{Language.lastUpdatedLabel}
-						</TableHead>
+						<TableHead className="w-[10%]">Build time</TableHead>
+						<TableHead className="w-[15%]">Last updated</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>

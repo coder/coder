@@ -11,7 +11,7 @@ import {
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import TerminalPage, { Language } from "./TerminalPage";
+import TerminalPage from "./TerminalPage";
 
 const renderTerminal = async (
 	route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
@@ -83,7 +83,7 @@ describe("TerminalPage", () => {
 
 		const { container } = await renderTerminal();
 
-		await expectTerminalText(container, Language.workspaceErrorMessagePrefix);
+		await expectTerminalText(container, "Unable to fetch workspace: ");
 	});
 
 	it("shows reconnect message when websocket fails", async () => {

@@ -10,28 +10,22 @@ import {
 } from "#/components/HelpPopover/HelpPopover";
 import { docs } from "#/utils/docs";
 
-const Language = {
-	workspaceTooltipTitle: "What is a workspace?",
-	workspaceTooltipText:
-		"A workspace is your development environment in the cloud. It includes the infrastructure and tools you need to work on your project.",
-	workspaceTooltipLink1: "Create Workspaces",
-	workspaceTooltipLink2: "Connect with SSH",
-	workspaceTooltipLink3: "Editors and IDEs",
-};
-
 export const WorkspaceHelpPopover: FC = () => {
 	return (
 		<HelpPopover>
 			<HelpPopoverIconTrigger />
 			<HelpPopoverContent>
-				<HelpPopoverTitle>{Language.workspaceTooltipTitle}</HelpPopoverTitle>
-				<HelpPopoverText>{Language.workspaceTooltipText}</HelpPopoverText>
+				<HelpPopoverTitle>What is a workspace?</HelpPopoverTitle>
+				<HelpPopoverText>
+					A workspace is your development environment in the cloud. It includes
+					the infrastructure and tools you need to work on your project.
+				</HelpPopoverText>
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink href={docs("/user-guides")}>
-						{Language.workspaceTooltipLink1}
+						Create Workspaces
 					</HelpPopoverLink>
 					<HelpPopoverLink href={docs("/user-guides/workspace-access")}>
-						{Language.workspaceTooltipLink2}
+						Connect with SSH
 					</HelpPopoverLink>
 				</HelpPopoverLinksGroup>
 			</HelpPopoverContent>
