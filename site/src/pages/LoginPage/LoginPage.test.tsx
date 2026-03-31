@@ -34,8 +34,8 @@ describe("LoginPage", () => {
 		// When
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
-		const email = screen.getByLabelText(new RegExp("Email"));
-		const password = screen.getByLabelText(new RegExp("Password"));
+		const email = screen.getByLabelText(/Email/);
+		const password = screen.getByLabelText(/Password/);
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
 		// Click sign-in
@@ -52,8 +52,8 @@ describe("LoginPage", () => {
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
 
-		const emailInput = screen.getByLabelText(new RegExp("Email"));
-		const passwordInput = screen.getByLabelText(new RegExp("Password"));
+		const emailInput = screen.getByLabelText(/Email/);
+		const passwordInput = screen.getByLabelText(/Password/);
 		expect(emailInput).not.toHaveAttribute("aria-invalid", "true");
 		expect(emailInput).not.toHaveAttribute(
 			"aria-describedby",
@@ -241,8 +241,8 @@ describe("LoginPage", () => {
 
 		await waitForLoaderToBeRemoved();
 
-		const email = screen.getByLabelText(new RegExp("Email"));
-		const password = screen.getByLabelText(new RegExp("Password"));
+		const email = screen.getByLabelText(/Email/);
+		const password = screen.getByLabelText(/Password/);
 
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
