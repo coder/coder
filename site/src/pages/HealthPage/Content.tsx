@@ -83,8 +83,10 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<div
-			className="leading-[1.4] grid gap-3 gap-x-12 w-min whitespace-nowrap"
-			style={{ gridTemplateColumns: "auto auto" }}
+			className={`
+				leading-[1.4] w-min whitespace-nowrap
+				grid grid-cols-[auto_auto] gap-3 gap-x-12
+			`}
 			{...props}
 		/>
 	);
