@@ -11,7 +11,7 @@ import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archiveChat,
-	cancelChatListQueries,
+	cancelChatListRefetches,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
@@ -519,7 +519,7 @@ const AgentsPage: FC = () => {
 					// the refetch may have been issued before the async
 					// title generation finished, so its response carries
 					// the fallback title.
-					void cancelChatListQueries(queryClient);
+					void cancelChatListRefetches(queryClient);
 					// Only cancel a per-chat refetch when the cache
 					// already has data. Cancelling a first-time fetch
 					// reverts the query to pending/idle with no data
