@@ -29,6 +29,7 @@ interface InternalState {
 	programmaticScrollCount: number;
 	resizeDifference: number;
 	lastScrollTop: number;
+	lastClientHeight: number;
 	escapedFromLock: boolean;
 	internalIsAtBottom: boolean;
 	resizeObserver: ResizeObserver | null;
@@ -103,6 +104,7 @@ function useStickToBottom(): StickToBottomInstance {
 		programmaticScrollCount: 0,
 		resizeDifference: 0,
 		lastScrollTop: 0,
+		lastClientHeight: 0,
 		escapedFromLock: false,
 		internalIsAtBottom: true,
 		resizeObserver: null,
@@ -164,6 +166,15 @@ function useStickToBottom(): StickToBottomInstance {
 
 		const currentScrollTop = scrollElement.scrollTop;
 
+		// Detect viewport-size changes (e.g. Safari PWA toolbar
+		// settling, virtual keyboard, safe-area inset shifts).
+		// The browser may clamp scrollTop before the
+		// ResizeObserver fires, so this scroll event would look
+		// like an upward user scroll without this guard.
+		const currentClientHeight = scrollElement.clientHeight;
+		const viewportChanged = currentClientHeight !== s.lastClientHeight;
+		s.lastClientHeight = currentClientHeight;
+
 		// If this event was caused by a programmatic scrollTo,
 		// consume the counter and skip escape processing.
 		if (s.programmaticScrollCount > 0) {
@@ -180,7 +191,10 @@ function useStickToBottom(): StickToBottomInstance {
 
 		// Synchronous escape logic — must run before any resize
 		// handler so they see up-to-date internalIsAtBottom.
-		if (s.resizeDifference === 0) {
+		// Skip when a content resize or viewport resize is in
+		// progress — the browser may fire scroll events during
+		// layout that aren’t user-initiated.
+		if (s.resizeDifference === 0 && !viewportChanged) {
 			if (currentScrollTop < lastST) {
 				syncEscapedFromLock(true);
 				syncIsAtBottom(false);
@@ -378,6 +392,7 @@ function useStickToBottom(): StickToBottomInstance {
 		s.scrollElement = el;
 
 		if (el) {
+			s.lastClientHeight = el.clientHeight;
 			el.addEventListener("scroll", handleScroll, { passive: true });
 			el.addEventListener("wheel", handleWheel, { passive: true });
 			el.addEventListener("touchstart", handleTouchStart, {
