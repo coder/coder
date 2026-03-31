@@ -9,7 +9,6 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-
 import LoginPage from "./LoginPage";
 
 describe("LoginPage", () => {
