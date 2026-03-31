@@ -12,14 +12,14 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -52,23 +52,23 @@ import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";
 
-const TemplateHelpTooltip: FC = () => {
+const TemplateHelpPopover: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipTitle>What is a template?</HelpTooltipTitle>
-				<HelpTooltipText>
+		<HelpPopover>
+			<HelpPopoverIconTrigger />
+			<HelpPopoverContent>
+				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
+				<HelpPopoverText>
 					With templates you can create a common configuration for your
 					workspaces using Terraform.
-				</HelpTooltipText>
-				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/admin/templates")}>
+				</HelpPopoverText>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink href={docs("/admin/templates")}>
 						Manage templates
-					</HelpTooltipLink>
-				</HelpTooltipLinksGroup>
-			</HelpTooltipContent>
-		</HelpTooltip>
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -230,7 +230,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				<PageHeaderTitle>
 					<Stack spacing={1} direction="row" alignItems="center">
 						Templates
-						<TemplateHelpTooltip />
+						<TemplateHelpPopover />
 					</Stack>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>

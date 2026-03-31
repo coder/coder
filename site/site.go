@@ -571,9 +571,16 @@ func init() {
 func (h *Handler) renderPermissions(ctx context.Context, actor rbac.Subject) string {
 	response := make(codersdk.AuthorizationResponse)
 	for k, v := range permissionChecks {
+		// Resolve the "me" sentinel so permission checks
+		// run against the actual actor, matching the
+		// API-side handling in coderd/authorize.go.
+		ownerID := v.Object.OwnerID
+		if ownerID == codersdk.Me {
+			ownerID = actor.ID
+		}
 		obj := rbac.Object{
 			ID:          v.Object.ResourceID,
-			Owner:       v.Object.OwnerID,
+			Owner:       ownerID,
 			OrgID:       v.Object.OrganizationID,
 			AnyOrgOwner: v.Object.AnyOrgOwner,
 			Type:        string(v.Object.ResourceType),

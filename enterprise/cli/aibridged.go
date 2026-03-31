@@ -65,6 +65,12 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 			BaseURL:        "https://" + agplaibridge.HostCopilotEnterprise,
 			CircuitBreaker: cbConfig,
 		}),
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+			Name:             agplaibridge.ProviderChatGPT,
+			BaseURL:          agplaibridge.BaseURLChatGPT,
+			CircuitBreaker:   cbConfig,
+			SendActorHeaders: cfg.SendActorHeaders.Value(),
+		}),
 	}
 
 	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)

@@ -36,6 +36,7 @@ export const InlineDesktopPreview: React.FC<{
 	// real hook skips its WebSocket connection logic entirely.
 	const realConnection = useDesktopConnection({
 		chatId: connectionOverride ? undefined : chatId,
+		activated: true,
 	});
 	const { status, attach } = connectionOverride ?? realConnection;
 	const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT);

@@ -28,6 +28,13 @@ const (
 	HostCopilotEnterprise     = "api.enterprise.githubcopilot.com"
 )
 
+// ChatGPT provider.
+const (
+	ProviderChatGPT = "chatgpt"
+	HostChatGPT     = "chatgpt.com"
+	BaseURLChatGPT  = "https://" + HostChatGPT + "/backend-api/codex"
+)
+
 // IsBYOK reports whether the request is using BYOK mode, determined
 // by the presence of the X-Coder-AI-Governance-Token header.
 func IsBYOK(header http.Header) bool {

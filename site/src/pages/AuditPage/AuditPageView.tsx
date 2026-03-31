@@ -24,7 +24,7 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
 import { docs } from "#/utils/docs";
 import { AuditFilter } from "./AuditFilter";
-import { AuditHelpTooltip } from "./AuditHelpTooltip";
+import { AuditHelpPopover } from "./AuditHelpPopover";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
 
 interface AuditPageViewProps {
@@ -58,7 +58,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
 						<span>Audit</span>
-						<AuditHelpTooltip />
+						<AuditHelpPopover />
 					</Stack>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>

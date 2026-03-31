@@ -30,7 +30,7 @@ import {
 	type WorkspaceFilterState,
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
-import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
+import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
 import { WorkspacesButton } from "./WorkspacesButton";
 
 type TemplateQuery = UseQueryResult<Template[]>;
@@ -101,7 +101,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
 						<span>Workspaces</span>
-						<WorkspaceHelpTooltip />
+						<WorkspaceHelpPopover />
 					</Stack>
 				</PageHeaderTitle>
 			</PageHeader>
