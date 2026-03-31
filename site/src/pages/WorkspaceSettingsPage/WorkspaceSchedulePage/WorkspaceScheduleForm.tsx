@@ -139,7 +139,7 @@ export const validationSchema = Yup.object({
 		.min(0)
 		.max(
 			24 * 30 /* 30 days */,
-			"Please enter a limit that is less than or equal to 720 hours (30 days).",
+			"Please enter a limit that is less than or equal to 30 days (720 hours).",
 		)
 		.test(
 			"positive-if-autostop",
