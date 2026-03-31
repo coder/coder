@@ -3487,7 +3487,25 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
-	controlCancel := p.subscribeChatControl(chatCtx, chat.ID, cancel, logger)
+	// Gate the control subscriber behind a channel that is closed
+	// after we publish "running" status. This prevents stale
+	// pubsub notifications (e.g. the "pending" notification from
+	// SendMessage that triggered this processing) from
+	// interrupting us before we start work. Due to async
+	// PostgreSQL NOTIFY delivery, a notification published before
+	// subscribeChatControl registers its queue can still arrive
+	// after registration.
+	controlArmed := make(chan struct{})
+	gatedCancel := func(cause error) {
+		select {
+		case <-controlArmed:
+			cancel(cause)
+		default:
+			logger.Debug(ctx, "ignoring control notification before armed")
+		}
+	}
+
+	controlCancel := p.subscribeChatControl(chatCtx, chat.ID, gatedCancel, logger)
 	defer func() {
 		if controlCancel != nil {
 			controlCancel()
@@ -3547,6 +3565,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		UUID:  p.workerID,
 		Valid: true,
 	})
+
+	// Arm the control subscriber. Closing the channel is a
+	// happens-before guarantee in the Go memory model — any
+	// notification dispatched after this point will correctly
+	// interrupt processing.
+	close(controlArmed)
 
 	// Determine the final status and last error to set when we're done.
 	status := database.ChatStatusWaiting
