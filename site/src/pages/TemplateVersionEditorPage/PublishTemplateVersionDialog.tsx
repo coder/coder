@@ -7,9 +7,6 @@ import * as Yup from "yup";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields } from "#/components/Form/Form";
-import { Stack } from "#/components/Stack/Stack";
-import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import { getFormHelpers } from "#/utils/formUtils";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -18,7 +15,10 @@ import {
 	HelpPopoverLinksGroup,
 	HelpPopoverText,
 	HelpPopoverTitle,
-} from "../../components/HelpPopover/HelpPopover";
+} from "#/components/HelpPopover/HelpPopover";
+import { Stack } from "#/components/Stack/Stack";
+import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
+import { getFormHelpers } from "#/utils/formUtils";
 import { docs } from "../../utils/docs";
 
 export const Language = {
