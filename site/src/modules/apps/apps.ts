@@ -136,8 +136,23 @@ export const getAppHref = (
 	}
 
 	if (host && app.subdomain && app.subdomain_name) {
-		const baseUrl = `${window.location.protocol}//${host.replace(/\*/g, app.subdomain_name)}`;
-		const url = new URL(baseUrl);
+		const replacedHost = host.replace(/\*/g, app.subdomain_name);
+		let protocol = window.location.protocol;
+		let port = "";
+		if (path) {
+			try {
+				const pathUrl = new URL(path);
+				protocol = pathUrl.protocol;
+				port = pathUrl.port;
+			} catch {
+				// Relative path proxies do not include protocol or port data.
+			}
+		}
+		const hostWithPort =
+			port && !replacedHost.includes(":")
+				? `${replacedHost}:${port}`
+				: replacedHost;
+		const url = new URL(`${protocol}//${hostWithPort}`);
 		url.pathname = "/";
 		return url.toString();
 	}

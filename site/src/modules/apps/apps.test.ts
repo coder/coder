@@ -164,6 +164,51 @@ describe("getAppHref", () => {
 		expect(href).toBe("http://hellocoder.apps-host.tld/");
 	});
 
+	it("uses the path URL protocol when app has a subdomain", () => {
+		const app = {
+			...MockWorkspaceApp,
+			subdomain: true,
+			subdomain_name: "hellocoder",
+		};
+		const href = getAppHref(app, {
+			host: "*.apps-host.tld",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			path: "https://proxy.example.com",
+		});
+		expect(href).toBe("https://hellocoder.apps-host.tld/");
+	});
+
+	it("uses the path URL port when app has a subdomain", () => {
+		const app = {
+			...MockWorkspaceApp,
+			subdomain: true,
+			subdomain_name: "hellocoder",
+		};
+		const href = getAppHref(app, {
+			host: "*.apps-host.tld",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			path: "https://proxy.example.com:8443",
+		});
+		expect(href).toBe("https://hellocoder.apps-host.tld:8443/");
+	});
+
+	it("falls back to the window protocol when the path is empty", () => {
+		const app = {
+			...MockWorkspaceApp,
+			subdomain: true,
+			subdomain_name: "hellocoder",
+		};
+		const href = getAppHref(app, {
+			host: "*.apps-host.tld",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			path: "",
+		});
+		expect(href).toBe("http://hellocoder.apps-host.tld/");
+	});
+
 	it("returns a path when app has a subdomain but no subdomain name", () => {
 		const app = {
 			...MockWorkspaceApp,
