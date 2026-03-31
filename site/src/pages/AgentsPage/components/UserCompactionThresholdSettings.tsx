@@ -317,11 +317,6 @@ export const UserCompactionThresholdSettings: FC<
 													</TooltipContent>
 												)}
 											</Tooltip>
-											{isInvalid && (
-												<span className="sr-only" aria-live="polite">
-													Enter a whole number between 0 and 100.
-												</span>
-											)}{" "}
 											<span className="text-xs text-content-secondary">%</span>
 											<Tooltip>
 												<TooltipTrigger asChild>
@@ -350,6 +345,11 @@ export const UserCompactionThresholdSettings: FC<
 												)}
 											</Tooltip>
 										</div>
+										{isInvalid && (
+											<span className="sr-only" aria-live="polite">
+												Enter a whole number between 0 and 100.
+											</span>
+										)}
 									</TableCell>
 								</TableRow>
 							);
@@ -359,7 +359,6 @@ export const UserCompactionThresholdSettings: FC<
 						<TableFooter className="bg-transparent">
 							<TableRow className="border-0">
 								<TableCell colSpan={3} className="border-0 p-0">
-									{" "}
 									<div className="flex items-center justify-end gap-2 px-3 py-1.5">
 										<Button
 											size="sm"
@@ -385,9 +384,10 @@ export const UserCompactionThresholdSettings: FC<
 									</div>
 								</TableCell>
 							</TableRow>
-</TableFooter>
+						</TableFooter>
 					)}
-					</Table>			)}
+				</Table>
+			)}
 		</div>
 	);
 };
