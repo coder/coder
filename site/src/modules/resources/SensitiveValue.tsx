@@ -8,11 +8,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-const Language = {
-	showLabel: "Show value",
-	hideLabel: "Hide value",
-};
-
 interface SensitiveValueProps {
 	value: string;
 }
@@ -20,7 +15,7 @@ interface SensitiveValueProps {
 export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 	const [shouldDisplay, setShouldDisplay] = useState(false);
 	const displayValue = shouldDisplay ? value : "••••••••";
-	const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel;
+	const buttonLabel = shouldDisplay ? "Hide value" : "Show value";
 	const icon = shouldDisplay ? (
 		<EyeOffIcon className="size-icon-xs" />
 	) : (

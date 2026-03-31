@@ -24,7 +24,6 @@ import {
 import { server } from "#/testHelpers/server";
 import type { FileTree } from "#/utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
-import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage, {
 	findEntrypointFile,
 	getActivePath,
@@ -188,7 +187,7 @@ test("Do not mark as active if promote is not checked", async () => {
 	await user.clear(nameField);
 	await user.type(nameField, "v1.0");
 	await user.click(
-		within(publishDialog).getByLabelText(Language.defaultCheckboxLabel),
+		within(publishDialog).getByLabelText("Promote to active version"),
 	);
 	await user.click(
 		within(publishDialog).getByRole("button", { name: "Publish" }),

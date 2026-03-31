@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
@@ -12,6 +13,8 @@ type DesktopConnectionStatus =
 
 interface DesktopPanelProps {
 	chatId: string;
+	/** When true the panel is the active sidebar tab. */
+	isVisible?: boolean;
 }
 
 export interface DesktopPanelViewProps {
@@ -20,8 +23,19 @@ export interface DesktopPanelViewProps {
 	attach: (container: HTMLElement) => void;
 }
 
-export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId }) => {
-	const { status, reconnect, attach } = useDesktopConnection({ chatId });
+export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
+	// Delay the VNC connection until the desktop tab is first selected.
+	// Once activated, the connection stays alive even when the tab is
+	// switched away — mirrors the terminal panel pattern from PR #23231.
+	const [activated, setActivated] = useState(false);
+	if (isVisible && !activated) {
+		setActivated(true);
+	}
+
+	const { status, reconnect, attach } = useDesktopConnection({
+		chatId,
+		activated,
+	});
 	return (
 		<DesktopPanelView status={status} reconnect={reconnect} attach={attach} />
 	);

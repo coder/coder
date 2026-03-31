@@ -2018,3 +2018,95 @@ func chatMessageWithParts(parts []codersdk.ChatMessagePart) database.ChatMessage
 		Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
 	}
 }
+
+// TestProcessChat_IgnoresStaleControlNotification verifies that
+// processChat is not interrupted by a "pending" notification
+// published before processing begins. This is the race that caused
+// TestOpenAIReasoningWithWebSearchRoundTripStoreFalse to flake:
+// SendMessage publishes "pending" via PostgreSQL NOTIFY, and due
+// to async delivery the notification can arrive at the control
+// subscriber after it registers but before the processor publishes
+// "running".
+func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := dbpubsub.NewInMemory()
+	clock := quartz.NewMock(t)
+
+	chatID := uuid.New()
+	workerID := uuid.New()
+
+	server := &Server{
+		db:                    db,
+		logger:                logger,
+		pubsub:                ps,
+		clock:                 clock,
+		workerID:              workerID,
+		chatHeartbeatInterval: time.Minute,
+		configCache:           newChatConfigCache(ctx, db, clock),
+	}
+
+	// Publish a stale "pending" notification on the control channel
+	// BEFORE processChat subscribes. In production this is the
+	// notification from SendMessage that triggered the processing.
+	staleNotify, err := json.Marshal(coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusPending),
+	})
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), staleNotify)
+	require.NoError(t, err)
+
+	// Track which status processChat writes during cleanup.
+	var finalStatus database.ChatStatus
+	cleanupDone := make(chan struct{})
+
+	// The deferred cleanup in processChat runs a transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	)
+	db.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(
+		database.Chat{ID: chatID, Status: database.ChatStatusRunning, WorkerID: uuid.NullUUID{UUID: workerID, Valid: true}}, nil,
+	)
+	db.EXPECT().UpdateChatStatus(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.UpdateChatStatusParams) (database.Chat, error) {
+			finalStatus = params.Status
+			close(cleanupDone)
+			return database.Chat{ID: chatID, Status: params.Status}, nil
+		},
+	)
+
+	// resolveChatModel fails immediately — that's fine, we only
+	// need processChat to get past initialization without being
+	// interrupted by the stale notification.
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), gomock.Any()).Return(
+		database.ChatModelConfig{}, xerrors.New("no model configured"),
+	).AnyTimes()
+	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(
+		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
+	).AnyTimes()
+	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
+
+	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
+	go server.processChat(ctx, chat)
+
+	select {
+	case <-cleanupDone:
+	case <-ctx.Done():
+		t.Fatal("processChat did not complete")
+	}
+
+	// If the stale notification interrupted us, status would be
+	// "waiting" (the ErrInterrupted path). Since the gate blocked
+	// it, processChat reached runChat, which failed on model
+	// resolution → status is "error".
+	require.Equal(t, database.ChatStatusError, finalStatus,
+		"processChat should have reached runChat (error), not been interrupted (waiting)")
+}
