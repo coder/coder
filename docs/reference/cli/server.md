@@ -2014,3 +2014,35 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+
+### --data-protection-enabled
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>bool</code>                           |
+| Environment | <code>$CODER_DATA_PROTECTION_ENABLED</code> |
+| YAML        | <code>dataProtection.enabled</code>         |
+| Default     | <code>false</code>                          |
+
+Enable Data Protection Mode. When enabled, individual user identifiers are obfuscated in reports and analytics. Designated auditors can still access unobfuscated data. Requires a server restart to change.
+
+### --data-protection-auditors
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string-array</code>                    |
+| Environment | <code>$CODER_DATA_PROTECTION_AUDITORS</code> |
+| YAML        | <code>dataProtection.auditors</code>         |
+
+Comma-separated list of email addresses of users designated as data protection auditors. Auditors can view unobfuscated user data in reports when Data Protection Mode is enabled. Changes require a server restart.
+
+### --data-protection-min-group-size
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>int</code>                                   |
+| Environment | <code>$CODER_DATA_PROTECTION_MIN_GROUP_SIZE</code> |
+| YAML        | <code>dataProtection.minGroupSize</code>           |
+| Default     | <code>5</code>                                     |
+
+Minimum number of users in a report group before individual (obfuscated) data is shown. Groups smaller than this threshold are suppressed entirely to prevent indirect identification.

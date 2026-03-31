@@ -2927,6 +2927,13 @@ export interface DangerousConfig {
 	readonly allow_all_cors: boolean;
 }
 
+// From codersdk/deployment.go
+export interface DataProtectionConfig {
+	readonly enabled?: boolean;
+	readonly auditors?: string;
+	readonly min_group_size?: number;
+}
+
 // From codersdk/database.go
 export const DatabaseNotReachable = "database not reachable";
 
@@ -3095,6 +3102,7 @@ export interface DeploymentValues {
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
+	readonly data_protection?: DataProtectionConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**

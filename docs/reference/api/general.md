@@ -229,6 +229,13 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
     },
+    "data_protection": {
+      "auditors": [
+        "string"
+      ],
+      "enabled": true,
+      "min_group_size": 0
+    },
     "derp": {
       "config": {
         "block_direct": true,

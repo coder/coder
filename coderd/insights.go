@@ -15,8 +15,10 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -180,6 +182,11 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Apply Data Protection Mode obfuscation if enabled.
+	if api.shouldObfuscateInsights(r) {
+		userActivities = api.DataProtection.ObfuscateUserActivities(userActivities)
+	}
+
 	// TemplateIDs that contributed to the data.
 	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
 	for templateID := range templateIDSet {
@@ -271,6 +278,11 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 				P95: row.WorkspaceConnectionLatency95,
 			},
 		})
+	}
+
+	// Apply Data Protection Mode obfuscation if enabled.
+	if api.shouldObfuscateInsights(r) {
+		userLatencies = api.DataProtection.ObfuscateUserLatencies(userLatencies)
 	}
 
 	// TemplateIDs that contributed to the data.
@@ -821,4 +833,24 @@ func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, 
 		}
 	}
 	return t, true
+}
+
+// shouldObfuscateInsights checks whether the current request should
+// receive obfuscated user data under Data Protection Mode. It looks
+// up the requesting user's email and checks it against the configured
+// auditor list. Returns false when DPM is disabled or the user is an
+// auditor.
+func (api *API) shouldObfuscateInsights(r *http.Request) bool {
+	if api.DataProtection == nil || !api.DataProtection.Enabled {
+		return false
+	}
+	key := httpmw.APIKey(r)
+	//nolint:gocritic // System lookup to resolve email for DPM check.
+	user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(r.Context()), key.UserID)
+	if err != nil {
+		// If we cannot resolve the user, obfuscate by default for
+		// safety.
+		return true
+	}
+	return api.DataProtection.ShouldObfuscate(user.Email)
 }

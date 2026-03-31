@@ -15366,6 +15366,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DataProtectionConfig": {
+            "type": "object",
+            "properties": {
+                "auditors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "min_group_size": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.DeleteExternalAuthByIDResponse": {
             "type": "object",
             "properties": {
@@ -15489,6 +15506,9 @@ const docTemplate = `{
                 },
                 "dangerous": {
                     "$ref": "#/definitions/codersdk.DangerousConfig"
+                },
+                "data_protection": {
+                    "$ref": "#/definitions/codersdk.DataProtectionConfig"
                 },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"

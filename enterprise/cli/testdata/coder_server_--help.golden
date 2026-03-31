@@ -249,6 +249,27 @@ Use a YAML configuration file when your server launch become unwieldy.
           
           Write out the current server config as YAML to stdout.
 
+DATA PROTECTION OPTIONS: 
+Configure Data Protection Mode for compliance with employee data protection
+regulations (e.g., German labor law). When enabled, individual user identifiers
+are obfuscated in all reporting surfaces.
+
+      --data-protection-auditors string-array, $CODER_DATA_PROTECTION_AUDITORS
+          Comma-separated list of email addresses of users designated as data
+          protection auditors. Auditors can view unobfuscated user data in
+          reports when Data Protection Mode is enabled. Changes require a server
+          restart.
+
+      --data-protection-min-group-size int, $CODER_DATA_PROTECTION_MIN_GROUP_SIZE (default: 5)
+          Minimum number of users in a report group before individual
+          (obfuscated) data is shown. Groups smaller than this threshold are
+          suppressed entirely to prevent indirect identification.
+
+      --data-protection-enabled bool, $CODER_DATA_PROTECTION_ENABLED (default: false)
+          Enable Data Protection Mode. When enabled, individual user identifiers
+          are obfuscated in reports and analytics. Designated auditors can still
+          access unobfuscated data. Requires a server restart to change.
+
 EMAIL OPTIONS: 
 Configure how emails are sent.
 

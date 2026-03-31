@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
@@ -294,6 +295,8 @@ type Options struct {
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
+
+	DataProtection *dataprotection.Config
 }
 
 // @title Coder API
@@ -374,6 +377,10 @@ func New(options *Options) *API {
 
 	if options.IDPSync == nil {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
+	}
+
+	if options.DataProtection == nil {
+		options.DataProtection = dataprotection.NewConfig(false, nil, 5)
 	}
 
 	experiments := ReadExperiments(
