@@ -25,7 +25,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]batchEntry),
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -38,7 +38,7 @@ func Test_addToBatch(t *testing.T) {
 		b.addToBatch(disconnect)
 
 		require.Equal(t, 1, b.batchLen())
-		key := conflictKey{ConnectionID: connID, WorkspaceID: wsID, AgentName: "agent1"}
+		key := connID
 		got := b.dedupedBatch[key]
 		require.Equal(t, disconnect.ID, got.ID)
 		require.Equal(t, database.ConnectionStatusDisconnected, got.ConnectionStatus)
@@ -54,7 +54,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]batchEntry),
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -68,7 +68,7 @@ func Test_addToBatch(t *testing.T) {
 		b.addToBatch(connect)
 
 		require.Equal(t, 1, b.batchLen())
-		key := conflictKey{ConnectionID: connID, WorkspaceID: wsID, AgentName: "agent1"}
+		key := connID
 		// The later event wins when the incoming item is not a
 		// disconnect. In practice, this case doesn't occur because
 		// connection IDs are never reused.
@@ -80,7 +80,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]batchEntry),
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -94,7 +94,7 @@ func Test_addToBatch(t *testing.T) {
 		b.addToBatch(connect)
 
 		require.Equal(t, 1, b.batchLen())
-		key := conflictKey{ConnectionID: connID, WorkspaceID: wsID, AgentName: "agent1"}
+		key := connID
 		require.Equal(t, disconnect.ID, b.dedupedBatch[key].ID)
 	})
 
@@ -103,7 +103,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]batchEntry),
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
 		}
 
 		wsID := uuid.New()
@@ -118,7 +118,7 @@ func Test_addToBatch(t *testing.T) {
 		b.addToBatch(late)
 
 		require.Equal(t, 1, b.batchLen())
-		key := conflictKey{ConnectionID: connID, WorkspaceID: wsID, AgentName: "agent1"}
+		key := connID
 		require.Equal(t, late.ID, b.dedupedBatch[key].ID)
 	})
 
@@ -127,7 +127,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]batchEntry),
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
 		}
 
 		evt1 := fakeNullConnIDEvent()
@@ -148,7 +148,7 @@ func Test_addToBatch(t *testing.T) {
 
 		b := &DBBatcher{
 			maxBatchSize: 100,
-			dedupedBatch: make(map[conflictKey]batchEntry),
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
 		}
 
 		wsID := uuid.New()

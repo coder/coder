@@ -3,6 +3,7 @@ package connectionlog
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +30,14 @@ const (
 	// finalFlushTimeout is the timeout for the final flush when the
 	// batcher is shutting down.
 	finalFlushTimeout = 15 * time.Second
+
+	// maxRetryDuration is the maximum total time to spend retrying a
+	// failed batch write before dropping it.
+	maxRetryDuration = 30 * time.Minute
+
+	// initialRetryInterval is the starting backoff interval for
+	// retrying failed batch writes.
+	initialRetryInterval = time.Second
 )
 
 // Backend is a destination for connection log events. Backends that
@@ -110,12 +119,13 @@ type DBBatcher struct {
 
 	itemCh chan database.UpsertConnectionLogParams
 
-	// dedupedBatch holds entries keyed by their conflict columns so
-	// that PostgreSQL never sees the same row twice in one INSERT …
-	// ON CONFLICT DO UPDATE. Entries with a NULL connection_id (web
-	// events) go into nullConnIDBatch instead because NULL != NULL
-	// in SQL unique constraints.
-	dedupedBatch    map[conflictKey]batchEntry
+	// dedupedBatch holds entries keyed by connection ID so that
+	// PostgreSQL never sees the same row twice in one INSERT …
+	// ON CONFLICT DO UPDATE. Connection IDs are globally unique
+	// (each new session gets a fresh UUID). Entries with a NULL
+	// connection_id (web events) go into nullConnIDBatch instead
+	// because NULL != NULL in SQL unique constraints.
+	dedupedBatch map[uuid.UUID]batchEntry
 	nullConnIDBatch []batchEntry
 	maxBatchSize    int
 
@@ -126,6 +136,7 @@ type DBBatcher struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	done   chan struct{}
+	wg     sync.WaitGroup
 }
 
 // NewDBBatcher creates a DBBatcher that batches writes to the database
@@ -152,7 +163,7 @@ func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, op
 
 	b.timer = b.clock.NewTimer(b.interval)
 	b.itemCh = make(chan database.UpsertConnectionLogParams, b.maxBatchSize)
-	b.dedupedBatch = make(map[conflictKey]batchEntry, b.maxBatchSize)
+	b.dedupedBatch = make(map[uuid.UUID]batchEntry, b.maxBatchSize)
 
 	b.ctx, b.cancel = context.WithCancel(ctx)
 	go func() {
@@ -183,14 +194,15 @@ func (b *DBBatcher) Upsert(ctx context.Context, clog database.UpsertConnectionLo
 	}
 }
 
-// Close cancels the batcher context and waits for the final flush to
-// complete.
+// Close cancels the batcher context, waits for the run loop to exit,
+// and waits for any in-flight retry goroutines to finish.
 func (b *DBBatcher) Close() error {
 	b.cancel()
 	if b.timer != nil {
 		b.timer.Stop()
 	}
 	<-b.done
+	b.wg.Wait()
 	return nil
 }
 
@@ -206,24 +218,24 @@ func (b *DBBatcher) Close() error {
 func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 	entry := batchEntry{
 		UpsertConnectionLogParams: item,
-		connectTime:               item.Time,
 	}
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected {
+		// Pure disconnect: we don't know the real connect_time,
+		// so leave it as zero. The SQL will ignore the zero
+		// sentinel and keep the existing connect_time.
 		entry.disconnectTime = item.Time
+	} else {
+		entry.connectTime = item.Time
 	}
 
 	if !item.ConnectionID.Valid {
 		b.nullConnIDBatch = append(b.nullConnIDBatch, entry)
 		return
 	}
-	key := conflictKey{
-		ConnectionID: item.ConnectionID.UUID,
-		WorkspaceID:  item.WorkspaceID,
-		AgentName:    item.AgentName,
-	}
-	existing, ok := b.dedupedBatch[key]
+	connID := item.ConnectionID.UUID
+	existing, ok := b.dedupedBatch[connID]
 	if !ok {
-		b.dedupedBatch[key] = entry
+		b.dedupedBatch[connID] = entry
 		return
 	}
 	// Prefer disconnect over connect (superset of info).
@@ -233,9 +245,9 @@ func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected &&
 		existing.ConnectionStatus != database.ConnectionStatusDisconnected {
 		entry.connectTime = existing.connectTime
-		b.dedupedBatch[key] = entry
+		b.dedupedBatch[connID] = entry
 	} else if item.Time.After(existing.Time) {
-		b.dedupedBatch[key] = entry
+		b.dedupedBatch[connID] = entry
 	}
 }
 
@@ -283,15 +295,6 @@ func (b *DBBatcher) run(ctx context.Context) {
 	}
 }
 
-// conflictKey represents the unique constraint columns used by the
-// upsert query. Entries sharing the same key cannot appear in a single
-// INSERT … ON CONFLICT DO UPDATE statement.
-type conflictKey struct {
-	ConnectionID uuid.UUID
-	WorkspaceID  uuid.UUID
-	AgentName    string
-}
-
 // batchEntry wraps a connection log event with explicit connect and
 // disconnect times. When a connect and disconnect for the same session
 // are merged into one entry, connectTime preserves the original
@@ -302,6 +305,11 @@ type batchEntry struct {
 	disconnectTime time.Time
 }
 
+// flush builds the batch params, clears the in-memory batch, and
+// writes to the database. On failure, it spawns a background retry
+// goroutine with exponential backoff (capped at maxRetryDuration
+// total). The caller's batch is always cleared immediately so the
+// run loop can continue accumulating new entries.
 func (b *DBBatcher) flush(ctx context.Context) {
 	count := b.batchLen()
 	if count == 0 {
@@ -310,6 +318,32 @@ func (b *DBBatcher) flush(ctx context.Context) {
 
 	b.log.Debug(ctx, "flushing connection log batch", slog.F("count", count))
 
+	params := b.buildParams()
+
+	// Clear the batch immediately so the run loop can continue
+	// accumulating new entries while the write (and any retries)
+	// proceed asynchronously.
+	clear(b.dedupedBatch)
+	b.nullConnIDBatch = b.nullConnIDBatch[:0]
+
+	err := b.store.BatchUpsertConnectionLogs(ctx, params)
+	if err == nil {
+		b.log.Debug(ctx, "connection log batch flush complete", slog.F("count", count))
+		return
+	}
+
+	b.log.Warn(ctx, "batch upsert failed, starting background retry",
+		slog.Error(err), slog.F("count", count))
+
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		b.writeWithRetry(params, count)
+	}()
+}
+
+func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
+	count := b.batchLen()
 	var (
 		ids              = make([]uuid.UUID, 0, count)
 		connectTime      = make([]time.Time, 0, count)
@@ -357,7 +391,7 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		appendEntry(entry)
 	}
 
-	err := b.store.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+	return database.BatchUpsertConnectionLogsParams{
 		ID:               ids,
 		ConnectTime:      connectTime,
 		OrganizationID:   organizationID,
@@ -375,21 +409,54 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		ConnectionID:     connectionID,
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,
-	})
-	// Always clear the batch regardless of success or failure.
-	// Retaining on failure would block all new entries (the
-	// channel-to-batch path has no backpressure) and silently
-	// drop them instead.
-	clear(b.dedupedBatch)
-	b.nullConnIDBatch = b.nullConnIDBatch[:0]
+	}
+}
 
-	if err != nil {
-		b.log.Error(ctx, "failed to batch upsert connection logs",
-			slog.Error(err), slog.F("dropped", count))
-		return
+// writeWithRetry retries writing a batch with exponential backoff up
+// to maxRetryDuration total. Each retry goroutine owns its own copy
+// of the params so the run loop is never blocked.
+func (b *DBBatcher) writeWithRetry(params database.BatchUpsertConnectionLogsParams, count int) {
+	deadline := b.clock.Now().Add(maxRetryDuration)
+	backoff := initialRetryInterval
+
+	for b.clock.Now().Before(deadline) {
+		timer := b.clock.NewTimer(backoff, "connectionLogBatcher", "retryBackoff")
+		select {
+		case <-timer.C:
+		case <-b.ctx.Done():
+			timer.Stop()
+			// Shutting down — try one last time.
+			ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
+			//nolint:gocritic // System-level batch operation for connection logs.
+			err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
+			cancel()
+			if err != nil {
+				b.log.Error(b.ctx, "retry failed during shutdown, dropping batch",
+					slog.Error(err), slog.F("dropped", count))
+			} else {
+				b.log.Info(b.ctx, "retry succeeded during shutdown", slog.F("count", count))
+			}
+			return
+		}
+
+		//nolint:gocritic // System-level batch operation for connection logs.
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
+		err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
+		cancel()
+		if err == nil {
+			b.log.Info(b.ctx, "batch retry succeeded", slog.F("count", count))
+			return
+		}
+
+		b.log.Warn(b.ctx, "batch retry failed",
+			slog.Error(err), slog.F("count", count), slog.F("next_backoff", backoff*2))
+
+		// Double the backoff for next iteration.
+		backoff *= 2
 	}
 
-	b.log.Debug(ctx, "connection log batch flush complete", slog.F("count", count))
+	b.log.Error(b.ctx, "batch retries exhausted, dropping batch",
+		slog.F("dropped", count), slog.F("retry_duration", maxRetryDuration))
 }
 
 type connectionSlogBackend struct {
