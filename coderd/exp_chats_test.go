@@ -2009,7 +2009,7 @@ func TestGetChat(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, store := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
+		_ = createChatModelConfig(t, client)
 
 		// Create a chat via the API so all metadata is set up.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2018,7 +2018,6 @@ func TestGetChat(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		_ = modelConfig
 
 		// Mimic what chatd's StoreFile closure does:
 		// 1. InsertChatFile
