@@ -43,11 +43,13 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 			<TooltipTrigger asChild>
 				<div className="flex-shrink-0 flex items-center">{children}</div>
 			</TooltipTrigger>
-			<TooltipContent side="top" align="end" className="max-w-xs">
-				<p className="text-sm">
-					A thread is a multi-part interaction between human and agent involving
-					an initial human prompt and a subsequent agentic loop.
-				</p>
+			<TooltipContent
+				side="top"
+				align="end"
+				className="max-w-xs text-sm font-normal"
+			>
+				A thread is a multi-part interaction between human and agent involving
+				an initial human prompt and a subsequent agentic loop.
 			</TooltipContent>
 		</Tooltip>
 	</TooltipProvider>
@@ -78,9 +80,9 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 			<ListSessionsFilter {...filterProps} />
 
 			<PaginationContainer query={sessionsQuery} paginationUnitLabel="sessions">
-				<Table className="text-sm">
+				<Table className="text-sm font-normal">
 					<TableHeader>
-						<TableRow className="text-xs">
+						<TableRow>
 							<TableHead>Last Prompt</TableHead>
 							<TableHead>User</TableHead>
 							<TableHead>Provider</TableHead>
