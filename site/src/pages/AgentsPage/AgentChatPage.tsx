@@ -1379,6 +1379,9 @@ const AgentChatPage: FC = () => {
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
+			hasWorkspace={Boolean(workspaceId)}
+			workspaceStatus={workspace?.latest_build.status}
+			chatStatus={liveChatStatus}
 			store={store}
 			editing={editing}
 			effectiveSelectedModel={effectiveSelectedModel}

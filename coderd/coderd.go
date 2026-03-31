@@ -1256,6 +1256,7 @@ func New(options *Options) *API {
 				})
 				r.Post("/interrupt", api.interruptChat)
 				r.Post("/tool-results", api.postChatToolResults)
+				r.Post("/resume", api.resumeChat)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
