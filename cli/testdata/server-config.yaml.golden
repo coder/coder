@@ -859,12 +859,15 @@ aibridgeproxy:
   # tunneled directly without decryption. Supported domains: api.anthropic.com,
   # api.openai.com, api.individual.githubcopilot.com,
   # api.business.githubcopilot.com, api.enterprise.githubcopilot.com.
-  # (default: api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,
+  # (default:
+  # api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,
   # type: string-array)
   domain_allowlist:
     - api.anthropic.com
     - api.openai.com
     - api.individual.githubcopilot.com
+    - api.business.githubcopilot.com
+    - api.enterprise.githubcopilot.com
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
   # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
   # (default: <unset>, type: string)
