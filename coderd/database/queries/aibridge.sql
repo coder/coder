@@ -454,95 +454,91 @@ WHERE
 -- Returns paginated sessions with aggregated metadata, token counts, and
 -- the most recent user prompt. A "session" is a logical grouping of
 -- interceptions that share the same session_id (set by the client).
-WITH filtered_interceptions AS (
+--
+-- Pagination-first strategy: identify the page of sessions cheaply via a
+-- single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
+-- first-interception metadata) only for the ~page-size result set.
+WITH cursor_pos AS (
+	-- Resolve the cursor's started_at once, outside the HAVING clause,
+	-- so the planner cannot accidentally re-evaluate it per group.
+	SELECT MIN(aibridge_interceptions.started_at) AS started_at
+	FROM aibridge_interceptions
+	WHERE aibridge_interceptions.session_id = @after_session_id AND aibridge_interceptions.ended_at IS NOT NULL
+),
+session_page AS (
+	-- Paginate at the session level first; only cheap aggregates here.
 	SELECT
-		aibridge_interceptions.*
+		ai.session_id,
+		ai.initiator_id,
+		MIN(ai.started_at) AS started_at,
+		MAX(ai.ended_at) AS ended_at,
+		COUNT(*) FILTER (WHERE ai.thread_root_id IS NULL) AS threads
 	FROM
-		aibridge_interceptions
+		aibridge_interceptions ai
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
-		aibridge_interceptions.ended_at IS NOT NULL
+		ai.ended_at IS NOT NULL
 		-- Filter by time frame
 		AND CASE
-			WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
+			WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at >= @started_after::timestamptz
 			ELSE true
 		END
 		AND CASE
-			WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= @started_before::timestamptz
+			WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at <= @started_before::timestamptz
 			ELSE true
 		END
 		-- Filter initiator_id
 		AND CASE
-			WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
+			WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = @initiator_id::uuid
 			ELSE true
 		END
 		-- Filter provider
 		AND CASE
-			WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
+			WHEN @provider::text != '' THEN ai.provider = @provider::text
 			ELSE true
 		END
 		-- Filter model
 		AND CASE
-			WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
+			WHEN @model::text != '' THEN ai.model = @model::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+			WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN @session_id::text != '' THEN aibridge_interceptions.session_id = @session_id::text
+			WHEN @session_id::text != '' THEN ai.session_id = @session_id::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
-),
-session_tokens AS (
-	-- Aggregate token usage across all interceptions in each session.
-	-- Group by (session_id, initiator_id) to avoid merging sessions from
-	-- different users who happen to share the same client_session_id.
-	SELECT
-		fi.session_id,
-		fi.initiator_id,
-		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
-		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
-		-- TODO: add extra token types once https://github.com/coder/aibridge/issues/150 lands.
-	FROM
-		filtered_interceptions fi
-	LEFT JOIN
-		aibridge_token_usages tu ON fi.id = tu.interception_id
 	GROUP BY
-		fi.session_id, fi.initiator_id
-),
-session_root AS (
-	-- Build one summary row per session. Group by (session_id, initiator_id)
-	-- to avoid merging sessions from different users who happen to share the
-	-- same client_session_id. The ARRAY_AGG with ORDER BY picks values from
-	-- the chronologically first interception for fields that should represent
-	-- the session as a whole (client, metadata). Threads are counted as
-	-- distinct root interception IDs: an interception with a NULL
-	-- thread_root_id is itself a thread root.
-	SELECT
-		fi.session_id,
-		fi.initiator_id,
-		(ARRAY_AGG(fi.client ORDER BY fi.started_at, fi.id))[1] AS client,
-		(ARRAY_AGG(fi.metadata ORDER BY fi.started_at, fi.id))[1] AS metadata,
-		ARRAY_AGG(DISTINCT fi.provider ORDER BY fi.provider) AS providers,
-		ARRAY_AGG(DISTINCT fi.model ORDER BY fi.model) AS models,
-		MIN(fi.started_at) AS started_at,
-		MAX(fi.ended_at) AS ended_at,
-		COUNT(DISTINCT COALESCE(fi.thread_root_id, fi.id)) AS threads,
-		-- Collect IDs for lateral prompt lookup.
-		ARRAY_AGG(fi.id) AS interception_ids
-	FROM
-		filtered_interceptions fi
-	GROUP BY
-		fi.session_id, fi.initiator_id
+		ai.session_id, ai.initiator_id
+	HAVING
+		-- Cursor pagination: uses a composite (started_at, session_id)
+		-- cursor to support keyset pagination. The less-than comparison
+		-- matches the DESC sort order so rows after the cursor come
+		-- later in results. The cursor value comes from cursor_pos to
+		-- guarantee single evaluation.
+		CASE
+			WHEN @after_session_id::text != '' THEN (
+				(MIN(ai.started_at), ai.session_id) < (
+					(SELECT started_at FROM cursor_pos),
+					@after_session_id::text
+				)
+			)
+			ELSE true
+		END
+	ORDER BY
+		MIN(ai.started_at) DESC,
+		ai.session_id DESC
+	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+	OFFSET @offset_
 )
 SELECT
-	sr.session_id,
+	sp.session_id,
 	visible_users.id AS user_id,
 	visible_users.username AS user_username,
 	visible_users.name AS user_name,
@@ -551,45 +547,48 @@ SELECT
 	sr.models::text[] AS models,
 	COALESCE(sr.client, '')::varchar(64) AS client,
 	sr.metadata::jsonb AS metadata,
-	sr.started_at::timestamptz AS started_at,
-	sr.ended_at::timestamptz AS ended_at,
-	sr.threads,
+	sp.started_at::timestamptz AS started_at,
+	sp.ended_at::timestamptz AS ended_at,
+	sp.threads,
 	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(slp.prompt, '') AS last_prompt
 FROM
-	session_root sr
+	session_page sp
 JOIN
-	visible_users ON visible_users.id = sr.initiator_id
-LEFT JOIN
-	session_tokens st ON st.session_id = sr.session_id AND st.initiator_id = sr.initiator_id
+	visible_users ON visible_users.id = sp.initiator_id
 LEFT JOIN LATERAL (
-	-- Lateral join to efficiently fetch only the most recent user prompt
-	-- across all interceptions in the session, avoiding a full aggregation.
+	SELECT
+		(ARRAY_AGG(ai.client ORDER BY ai.started_at, ai.id))[1] AS client,
+		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
+		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
+		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
+		ARRAY_AGG(ai.id) AS interception_ids
+	FROM aibridge_interceptions ai
+	WHERE ai.session_id = sp.session_id
+		AND ai.initiator_id = sp.initiator_id
+		AND ai.ended_at IS NOT NULL
+) sr ON true
+LEFT JOIN LATERAL (
+	-- Aggregate tokens only for this session's interceptions.
+	SELECT
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
+	FROM aibridge_token_usages tu
+	WHERE tu.interception_id = ANY(sr.interception_ids)
+) st ON true
+LEFT JOIN LATERAL (
+	-- Fetch only the most recent user prompt across all interceptions
+	-- in the session.
 	SELECT up.prompt
 	FROM aibridge_user_prompts up
 	WHERE up.interception_id = ANY(sr.interception_ids)
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
-WHERE
-	-- Cursor pagination: uses a composite (started_at, session_id) cursor
-	-- to support keyset pagination. The less-than comparison matches the
-	-- DESC sort order so that rows after the cursor come later in results.
-	CASE
-		WHEN @after_session_id::text != '' THEN (
-			(sr.started_at, sr.session_id) < (
-				(SELECT started_at FROM session_root WHERE session_id = @after_session_id),
-				@after_session_id::text
-			)
-		)
-		ELSE true
-	END
 ORDER BY
-	sr.started_at DESC,
-	sr.session_id DESC
-LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
-OFFSET @offset_
+	sp.started_at DESC,
+	sp.session_id DESC
 ;
 
 -- name: ListAIBridgeSessionThreads :many

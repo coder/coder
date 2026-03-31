@@ -788,6 +788,10 @@ type sqlcQuerier interface {
 	// Returns paginated sessions with aggregated metadata, token counts, and
 	// the most recent user prompt. A "session" is a logical grouping of
 	// interceptions that share the same session_id (set by the client).
+	//
+	// Pagination-first strategy: identify the page of sessions cheaply via a
+	// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
+	// first-interception metadata) only for the ~page-size result set.
 	ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
