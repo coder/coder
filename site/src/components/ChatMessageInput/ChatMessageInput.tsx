@@ -509,7 +509,15 @@ const ChatMessageInput = memo(
 					});
 				},
 				getValue: () => {
-					return lastKnownValueRef.current;
+					const editor = editorRef.current;
+					if (!editor) {
+						return lastKnownValueRef.current;
+					}
+					let content = "";
+					editor.getEditorState().read(() => {
+						content = $getRoot().getTextContent();
+					});
+					return content;
 				},
 				addFileReference: (ref: FileReferenceData) => {
 					const editor = editorRef.current;

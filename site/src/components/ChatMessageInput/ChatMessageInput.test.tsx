@@ -80,4 +80,19 @@ describe("ChatMessageInput", () => {
 			);
 		});
 	});
+
+	it("returns updated content even without an external onChange prop", async () => {
+		const inputRef = { current: null as ChatMessageInputRef | null };
+		render(<ChatMessageInput ref={inputRef} aria-label="Chat message input" />);
+
+		await waitFor(() => {
+			expect(inputRef.current).not.toBeNull();
+		});
+
+		inputRef.current?.insertText("typed content");
+
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toBe("typed content");
+		});
+	});
 });
