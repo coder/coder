@@ -14,13 +14,13 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-	_ "unsafe"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -42,9 +42,6 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
-
-//go:linkname chatProviderAPIKeysFromDeploymentValues github.com/coder/coder/v2/coderd.chatProviderAPIKeysFromDeploymentValues
-func chatProviderAPIKeysFromDeploymentValues(*codersdk.DeploymentValues) chatprovider.ProviderAPIKeys
 
 const chatProviderAPIKeySizeLimit = 10240
 
@@ -1992,14 +1989,14 @@ func TestChatProviderAPIKeysFromDeploymentValues(t *testing.T) {
 		values.AI.BridgeConfig.Anthropic.Key = serpent.String("deployment-anthropic-key")
 		values.AI.BridgeConfig.OpenAI.BaseURL = serpent.String("https://custom-openai.example.com")
 
-		keys := chatProviderAPIKeysFromDeploymentValues(values)
+		keys := coderd.ChatProviderAPIKeysFromDeploymentValues(values)
 		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
 	})
 
 	t.Run("NilDeploymentValues", func(t *testing.T) {
 		t.Parallel()
 
-		keys := chatProviderAPIKeysFromDeploymentValues(nil)
+		keys := coderd.ChatProviderAPIKeysFromDeploymentValues(nil)
 		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
 	})
 }
