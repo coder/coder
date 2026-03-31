@@ -302,9 +302,9 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 	return (
 		<>
-			<div className="border border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
+			<div className="border border-solid rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
 				{/* left column: avatar and username */}
-				<div className="flex flex-row items-items-start gap-1">
+				<div className="flex flex-row items-center gap-1">
 					<Avatar
 						src={initiator.avatar_url}
 						fallback={initiator.name ?? initiator.username}
@@ -332,7 +332,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 				{/* right column: details */}
 				<PromptTable
-					className="lg:max-w-64 flex-shrink-0"
+					className="lg:max-w-64 flex-shrink-0 w-full lg:w-auto"
 					timestamp={new Date(thread.started_at)}
 					model={thread.model}
 					inputTokens={thread.token_usage.input_tokens}
