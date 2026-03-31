@@ -1149,10 +1149,6 @@ export const StreamedReasoning: Story = {
 			],
 		},
 	},
-	// NOTE: play function removed — the Storybook WebSocket mock fires
-	// via setTimeout(0) which resolves before the chat store subscribes,
-	// so the streamed reasoning text never appears in the DOM. See the
-	// similar note below about QueuedSendWithActiveStream.
 };
 
 // NOTE: QueuedSendWithActiveStream and FailedSendWithActiveStream
