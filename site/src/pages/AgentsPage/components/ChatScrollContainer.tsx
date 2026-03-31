@@ -63,14 +63,19 @@ function isNearBottom(s: InternalState): boolean {
 }
 
 /** Assign scrollTop and bump the programmatic-scroll counter so
- *  the next scroll event is not misread as a user-initiated scroll. */
+ *  the next scroll event is not misread as a user-initiated scroll.
+ *  Only bumps the counter when scrollTop actually changes, so no-op
+ *  writes don't orphan a counter increment without a matching event. */
 function scrollTo(s: InternalState, value: number) {
 	if (!s.scrollElement) {
 		return;
 	}
 
+	const prev = s.scrollElement.scrollTop;
 	s.scrollElement.scrollTop = value;
-	s.programmaticScrollCount++;
+	if (s.scrollElement.scrollTop !== prev) {
+		s.programmaticScrollCount++;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -168,13 +173,13 @@ function useStickToBottom(): StickToBottomInstance {
 			return;
 		}
 
+		const lastST = s.lastScrollTop;
 		s.lastScrollTop = currentScrollTop;
 
 		setNearBottom(isNearBottom(s));
 
 		// Synchronous escape logic — must run before any resize
 		// handler so they see up-to-date internalIsAtBottom.
-		const lastST = s.lastScrollTop;
 		if (s.resizeDifference === 0) {
 			if (currentScrollTop < lastST) {
 				syncEscapedFromLock(true);
