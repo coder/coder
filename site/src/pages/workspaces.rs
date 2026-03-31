@@ -269,7 +269,7 @@ pub fn WorkspacesPage() -> impl IntoView {
             // ── Page header ──────────────────────────────────────────────
             <header class="flex items-center justify-between pt-8 pb-6 max-md:flex-col max-md:items-start max-md:gap-4">
                 <h1 class="text-2xl font-semibold flex items-center gap-2">"Workspaces"</h1>
-                <a href="/templates" class="inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium cursor-pointer transition-all border border-transparent px-4 py-2.5 bg-[var(--content-primary)] text-[var(--content-invert)] hover:bg-gray-300 no-underline whitespace-nowrap leading-none">"+ New workspace"</a>
+                <a href="/templates" class="inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium cursor-pointer transition-all border border-transparent px-4 py-2.5 bg-[var(--content-primary)] text-[var(--content-invert)] hover:bg-gray-300 no-underline whitespace-nowrap leading-none">"New workspace"</a>
             </header>
 
             // ── Filter bar ───────────────────────────────────────────────
@@ -284,8 +284,8 @@ pub fn WorkspacesPage() -> impl IntoView {
                     }
                     on:keydown=on_search
                 />
-                <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--content-secondary)]">"Status"</button>
-                <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--content-secondary)]">"Template"</button>
+                <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)] bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--content-secondary)] cursor-pointer">"Status"</button>
+                <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-[family-name:var(--font-sans)] bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--content-secondary)] cursor-pointer">"Template"</button>
             </div>
 
             // ── Table ────────────────────────────────────────────────────
@@ -314,13 +314,13 @@ pub fn WorkspacesPage() -> impl IntoView {
                                 {format!("1\u{2013}{len} of {count} workspaces")}
                             </span>
                         </div>
-                        <table>
+                        <table class="w-full">
                             <thead>
                                 <tr>
-                                    <th>"Name"</th>
-                                    <th>"Template"</th>
-                                    <th>"Status"</th>
-                                    <th style="width:6rem"></th>
+                                    <th class="w-1/3">"Name"</th>
+                                    <th class="w-1/3">"Template"</th>
+                                    <th class="w-1/3">"Status"</th>
+                                    <th class="w-0"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -344,13 +344,13 @@ fn LoadingTable() -> impl IntoView {
         <div class="flex items-center justify-between px-4 py-3 text-[13px] text-[var(--content-secondary)] border border-[var(--border-default)] border-b-0 rounded-t-lg">
             <span class="bg-[var(--surface-tertiary)] rounded-lg animate-pulse" style="width:12rem;height:1rem"></span>
         </div>
-        <table>
+        <table class="w-full">
             <thead>
                 <tr>
-                    <th>"Name"</th>
-                    <th>"Template"</th>
-                    <th>"Status"</th>
-                    <th style="width:6rem"></th>
+                    <th class="w-1/3">"Name"</th>
+                    <th class="w-1/3">"Template"</th>
+                    <th class="w-1/3">"Status"</th>
+                    <th class="w-0"></th>
                 </tr>
             </thead>
             <tbody>
