@@ -18,7 +18,7 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-} from "../../components/HelpTooltip/HelpTooltip";
+} from "#/components/HelpTooltip/HelpTooltip";
 import { docs } from "../../utils/docs";
 
 type PublishTemplateVersionDialogProps = DialogProps & {
