@@ -132,6 +132,8 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
+	const developerCount = `${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`;
+
 	const clickableRow = useClickableTableRow({
 		onClick: () => navigate(templatePageLink),
 	});
@@ -162,11 +164,11 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{showOrganizations ? (
 					<AvatarData
 						title={template.organization_display_name}
-						subtitle={`Used by ${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`}
+						subtitle={`Used by ${developerCount}`}
 						avatar={<Avatar variant="icon" src={template.organization_icon} />}
 					/>
 				) : (
-					`${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`
+					developerCount
 				)}
 			</TableCell>
 

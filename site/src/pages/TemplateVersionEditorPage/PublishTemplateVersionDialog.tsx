@@ -10,6 +10,7 @@ import { FormFields } from "#/components/Form/Form";
 import { Stack } from "#/components/Stack/Stack";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
 import { getFormHelpers } from "#/utils/formUtils";
+import { EnterpriseBadge } from "../../components/Badges/Badges";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -121,7 +122,7 @@ export const PublishTemplateVersionDialog: FC<
 										<HelpTooltipTitle>Active versions</HelpTooltipTitle>
 										<HelpTooltipText>
 											Templates can enforce that the active version be used for
-											all workspaces (enterprise-only)
+											all workspaces <EnterpriseBadge />
 										</HelpTooltipText>
 										<HelpTooltipLinksGroup>
 											<HelpTooltipLink
