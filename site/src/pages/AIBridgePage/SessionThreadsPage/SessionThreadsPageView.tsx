@@ -7,12 +7,14 @@ import type {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 
@@ -43,6 +45,8 @@ interface SessionThreadsPageViewProps {
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
+	isAISessionsEnabled: boolean;
+	isAISessionsEntitled: boolean;
 }
 
 export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
@@ -52,7 +56,17 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	hasNextPage,
 	isFetchingNextPage,
 	onFetchNextPage,
+	isAISessionsEnabled,
+	isAISessionsEntitled,
 }) => {
+	if (!isAISessionsEntitled) {
+		return <PaywallAIGovernance />;
+	}
+
+	if (!isAISessionsEnabled) {
+		return <AIBridgeSetupAlert />;
+	}
+
 	// calculate the total number of tool calls across all loaded threads
 	const toolCallCount = threads.reduce(
 		(acc, thread) => acc + (thread.agentic_actions?.length ?? 0),
