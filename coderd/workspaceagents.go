@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -1839,6 +1840,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	gitRef := chatGitRef{
 		Branch:       strings.TrimSpace(query.Get("git_branch")),
 		RemoteOrigin: strings.TrimSpace(query.Get("git_remote_origin")),
+		ChatID:       strings.TrimSpace(query.Get("chat_id")),
 	}
 	// Either match or configID must be provided!
 	match := query.Get("match")
@@ -1938,7 +1940,13 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// context is retained even if the flow requires an out-of-band login.
 	if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
 		//nolint:gocritic // Chat processor context required for cross-user chat lookup
-		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
+		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
+			WorkspaceID: workspace.ID,
+			OwnerID:     workspace.OwnerID,
+			Branch:      gitRef.Branch,
+			Origin:      gitRef.RemoteOrigin,
+			ChatID:      gitRef.ChatID,
+		})
 	}
 
 	var previousToken *database.ExternalAuthLink
@@ -2087,7 +2095,13 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		}
 		// MarkStale will trigger a refresh by coderd/gitsync.
 		//nolint:gocritic // Chat processor context required for cross-user chat lookup
-		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
+		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
+			WorkspaceID: workspace.ID,
+			OwnerID:     workspace.OwnerID,
+			Branch:      gitRef.Branch,
+			Origin:      gitRef.RemoteOrigin,
+			ChatID:      gitRef.ChatID,
+		})
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}
