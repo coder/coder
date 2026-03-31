@@ -1641,9 +1641,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		// Use chatDaemon when available so it can notify active
-		// subscribers. Fall back to direct DB for the simple
-		// archive flag — no streaming state is involved.
+		// Use chatDaemon when available so it can interrupt active
+		// processing before broadcasting archive state. Fall back to
+		// direct DB when no daemon is running.
 		if archived {
 			if api.chatDaemon != nil {
 				err = api.chatDaemon.ArchiveChat(ctx, chat)
