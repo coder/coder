@@ -317,14 +317,24 @@ function useStickToBottom(): StickToBottomInstance {
 
 	// When the scroll container's viewport dimensions change (e.g.
 	// the top bar gains elements after async data loads), maxScrollTop
-	// shifts and we may no longer be at the bottom. Re-pin if locked.
+	// shifts and we may no longer be at the bottom. Re-pin if locked
+	// or physically near the bottom. The near-bottom fallback handles
+	// the case where the browser clamped scrollTop before this
+	// observer fired, causing the synchronous escape logic in
+	// handleScroll to disengage the lock.
 	const handleViewportResize = useEffectEvent(() => {
 		const s = stateRef.current;
-		if (!s.scrollElement || !s.internalIsAtBottom || s.activeTouchCount > 0) {
+		if (
+			!s.scrollElement ||
+			s.activeTouchCount > 0 ||
+			(!s.internalIsAtBottom && !isNearBottom(s))
+		) {
 			return;
 		}
 
 		scrollTo(s, maxScrollTop(s));
+		syncIsAtBottom(true);
+		syncEscapedFromLock(false);
 	});
 
 	const handleTouchStart = useEffectEvent((e: TouchEvent) => {
