@@ -57,7 +57,7 @@ const TemplateHelpTooltip: FC = () => {
 		<HelpTooltip>
 			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
-				<HelpTooltipTitle>What is template?</HelpTooltipTitle>
+				<HelpTooltipTitle>What is a template?</HelpTooltipTitle>
 				<HelpTooltipText>
 					With templates you can create a common configuration for your
 					workspaces using Terraform.
