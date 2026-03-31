@@ -353,7 +353,7 @@ export const UserCompactionThresholdSettings: FC<
 								<td colSpan={3} className="p-0">
 									<div className="flex items-center justify-end gap-2 px-3 py-1.5">
 										<Button
-											size="xs"
+											size="sm"
 											variant="outline"
 											type="button"
 											onClick={handleCancelAll}
@@ -362,7 +362,7 @@ export const UserCompactionThresholdSettings: FC<
 											Cancel
 										</Button>
 										<Button
-											size="xs"
+											size="sm"
 											type="button"
 											disabled={dirtyRows.length === 0 || hasAnyPending}
 											onClick={handleSaveAll}
