@@ -53,7 +53,7 @@ const validationSchema = Yup.object({
 		then: (schema) =>
 			schema.shape({
 				first_name: Yup.string().required("Please enter your first name."),
-				last_name: Yup.string().required("Please enter your first name."),
+				last_name: Yup.string().required("Please enter your last name."),
 				phone_number: Yup.string().required("Please enter your phone number."),
 				job_title: Yup.string().required("Please enter your job title."),
 				company_name: Yup.string().required("Please enter your company name."),
