@@ -487,6 +487,22 @@ function useStickToBottom(): StickToBottomInstance {
 		};
 	}, [handleScroll, handleWheel, handleTouchStart, handleTouchEnd]);
 
+	// Post-render consistency check. If we believe we're pinned
+	// to the bottom but the physical scroll position disagrees,
+	// correct it before the browser paints. This catches any
+	// race between ResizeObserver callbacks, browser scroll
+	// clamping, and React re-renders (e.g. Safari PWA viewport
+	// settling after navigation).
+	useLayoutEffect(() => {
+		const s = stateRef.current;
+		if (!s.scrollElement || !s.internalIsAtBottom) return;
+		const target = maxScrollTop(s);
+		// 1px tolerance for sub-pixel rounding.
+		if (target - s.scrollElement.scrollTop > 1) {
+			scrollTo(s, target);
+		}
+	});
+
 	return {
 		scrollRef,
 		contentRef,
