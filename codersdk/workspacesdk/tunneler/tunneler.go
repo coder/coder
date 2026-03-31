@@ -31,17 +31,35 @@ type WorkspaceStarter interface {
 	StartWorkspace() error
 }
 
+type Client interface {
+	DialAgent(dialCtx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (workspacesdk.AgentConn, error)
+}
+
 const (
+	// stateInit is the initial state of the FSM.
 	stateInit state = iota
+	// exit is the final state of the FSM, and implies that everything is closed or closing.
 	exit
+	// waitToStart means the workspace is in a state where we have to wait before we can create a new start build
 	waitToStart
+	// waitForWorkspaceStarted means the workspace is starting, or we have kicked off a goroutine to start it
 	waitForWorkspaceStarted
+	// waitForAgent means the workspace has started and we are waiting for the agent to connect or be ready
 	waitForAgent
+	// establishTailnet means we have kicked off a goroutine to dial the agent and are waiting for its results
 	establishTailnet
+	// tailnetUp means the tailnet connection came up and we kicked off a goroutine to start the NetworkedApplication.
 	tailnetUp
+	// applicationUp means the NetworkedApplication is up.
 	applicationUp
+	// shutdownApplication means we are in graceful shut down and waiting for the NetworkedApplication. It could be
+	// starting or closing, and we expect to get a networkedApplicationUpdate event when it does.
 	shutdownApplication
+	// shutdownTailnet means that we are in graceful shut down and waiting for the tailnet. This implies the
+	// NetworkedApplication is status is down. E.g. closed or was never started.
 	shutdownTailnet
+	// maxState is not a valid state for the FSM, and must be last in this list. It allows tests to iterate over all
+	// valid states using `range maxState`.
 	maxState // used for testing
 )
 
@@ -49,7 +67,7 @@ type Tunneler struct {
 	config    Config
 	ctx       context.Context
 	cancel    context.CancelFunc
-	client    *workspacesdk.Client
+	client    Client
 	state     state
 	agentConn workspacesdk.AgentConn
 	events    chan tunnelerEvent
@@ -98,22 +116,24 @@ type buildUpdate struct {
 }
 
 type agentUpdate struct {
-	// TODO: commented out to appease linter
-	// transition codersdk.WorkspaceTransition
-	// id         uuid.UUID
+	lifecycle codersdk.WorkspaceAgentLifecycle
+	id        uuid.UUID
 }
 
 type networkedApplicationUpdate struct {
 	// up is true if the application is up. False if it is down.
-	up bool
+	up  bool
+	err error
 }
 
 type tailnetUpdate struct {
 	// up is true if the tailnet is up. False if it is down.
-	up bool
+	up   bool
+	conn workspacesdk.AgentConn
+	err  error
 }
 
-func NewTunneler(client *workspacesdk.Client, config Config) *Tunneler {
+func NewTunneler(client Client, config Config) *Tunneler {
 	t := &Tunneler{
 		config: config,
 		client: client,
@@ -166,13 +186,17 @@ func (t *Tunneler) handleSignal() {
 	switch t.state {
 	case exit, shutdownTailnet, shutdownApplication:
 		return
-	case tailnetUp, applicationUp:
+	case applicationUp:
 		t.wg.Add(1)
 		go t.closeApp()
 		t.state = shutdownApplication
+	case tailnetUp:
+		// waiting for app to start; setting state here will cause us to tear it down when the app start goroutine
+		// event comes in.
+		t.state = shutdownApplication
 	case establishTailnet:
-		t.wg.Add(1)
-		go t.shutdownTailnet()
+		// waiting for tailnet to start; setting state here will cause us to tear it down when the tailnet dial
+		// goroutine event comes in.
 		t.state = shutdownTailnet
 	case stateInit, waitToStart, waitForWorkspaceStarted, waitForAgent:
 		t.cancel() // stops the watch
@@ -212,13 +236,12 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 	if update.transition == codersdk.WorkspaceTransitionStart && canMakeProgress {
 		t.config.DebugLogger.Debug(t.ctx, "workspace is starting", slog.F("job_status", update.jobStatus))
 		switch t.state {
-		case establishTailnet:
-			// new build after we're already connecting
-			t.wg.Add(1)
-			go t.shutdownTailnet()
+		// new build after we have already connected
+		case establishTailnet: // we are starting the tailnet
 			t.state = shutdownTailnet
-		case applicationUp, tailnetUp:
-			// new build after we have already connected
+		case tailnetUp: // we are starting the application
+			t.state = shutdownApplication
+		case applicationUp:
 			t.wg.Add(1)
 			go t.closeApp()
 			t.state = shutdownApplication
@@ -241,14 +264,14 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 	if update.transition == codersdk.WorkspaceTransitionStop {
 		// these cases take effect regardless of whether the transition is complete or not
 		switch t.state {
-		case establishTailnet:
-			// new build after we're already connecting
-			t.wg.Add(1)
-			go t.shutdownTailnet()
+		// all 3 of these mean a new build after we have already started connecting
+		case establishTailnet: // waiting for tailnet to start
 			t.state = shutdownTailnet
 			return
-		case applicationUp, tailnetUp:
-			// new build after we have already connected
+		case tailnetUp: // waiting for application to start
+			t.state = shutdownApplication
+			return
+		case applicationUp:
 			t.wg.Add(1)
 			go t.closeApp()
 			t.state = shutdownApplication
@@ -289,7 +312,39 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 func (*Tunneler) handleProvisionerJobLog(*codersdk.ProvisionerJobLog) {
 }
 
-func (*Tunneler) handleAgentUpdate(*agentUpdate) {
+func (t *Tunneler) handleAgentUpdate(update *agentUpdate) {
+	if t.state != waitForAgent {
+		return
+	}
+	doConnect := func() {
+		t.wg.Add(1)
+		t.state = establishTailnet
+		go t.connectTailnet(update.id)
+	}
+	// consequence of ignoring updates if we are not waiting for the agent is that we MUST receive
+	// the start build succeeded update BEFORE we get the Agent connected / ready update.  We should keep this
+	// in mind when implementing the watch in Coderd.
+	switch update.lifecycle {
+	case codersdk.WorkspaceAgentLifecycleReady:
+		doConnect()
+		return
+	case codersdk.WorkspaceAgentLifecycleStarting,
+		codersdk.WorkspaceAgentLifecycleStartError,
+		codersdk.WorkspaceAgentLifecycleStartTimeout:
+		if t.config.NoWaitForScripts {
+			doConnect()
+			return
+		}
+	case codersdk.WorkspaceAgentLifecycleShuttingDown:
+	case codersdk.WorkspaceAgentLifecycleShutdownError:
+	case codersdk.WorkspaceAgentLifecycleShutdownTimeout:
+	case codersdk.WorkspaceAgentLifecycleOff:
+	case codersdk.WorkspaceAgentLifecycleCreated: // initial state, so it hasn't connected yet
+	default:
+		// unhittable, unless new states are added. We structure this with the switch and all cases covered to ensure
+		// we cover all cases.
+		t.config.DebugLogger.Critical(t.ctx, "unhandled agent update", slog.F("lifecycle", update.lifecycle))
+	}
 }
 
 func (*Tunneler) handleAgentLog(*codersdk.WorkspaceAgentLog) {
@@ -310,7 +365,7 @@ func (t *Tunneler) closeApp() {
 	select {
 	case <-t.ctx.Done():
 		t.config.DebugLogger.Info(t.ctx, "context expired before sending app down")
-	case t.events <- tunnelerEvent{appUpdate: &networkedApplicationUpdate{up: false}}:
+	case t.events <- tunnelerEvent{appUpdate: &networkedApplicationUpdate{up: false, err: err}}:
 	}
 }
 
@@ -325,20 +380,44 @@ func (t *Tunneler) startWorkspace() {
 		select {
 		case <-t.ctx.Done():
 			t.config.DebugLogger.Info(t.ctx, "context expired before sending signal after failed workspace start")
-		case t.events <- tunnelerEvent{shutdownSignal: &shutdownSignal{}}:
+		case t.events <- tunnelerEvent{appUpdate: &networkedApplicationUpdate{up: false}}:
 		}
 	}
 }
 
-func (t *Tunneler) shutdownTailnet() {
+func (t *Tunneler) connectTailnet(id uuid.UUID) {
 	defer t.wg.Done()
-	err := t.agentConn.Close()
+	conn, err := t.client.DialAgent(t.ctx, id, &workspacesdk.DialAgentOptions{
+		Logger: t.config.DebugLogger.Named("dialer"),
+	})
 	if err != nil {
-		t.config.DebugLogger.Error(t.ctx, "failed to close agent connection", slog.Error(err))
+		t.config.DebugLogger.Error(t.ctx, "failed to connect agent", slog.Error(err))
+		if t.config.LogWriter != nil {
+			_, _ = fmt.Fprintf(t.config.LogWriter, "failed to dial workspace agent: %s", err.Error())
+		}
+		select {
+		case <-t.ctx.Done():
+			t.config.DebugLogger.Info(t.ctx, "context expired before sending event after failed agent dial")
+		case t.events <- tunnelerEvent{tailnetUpdate: &tailnetUpdate{up: false, err: err}}:
+		}
 	}
 	select {
 	case <-t.ctx.Done():
-		t.config.DebugLogger.Debug(t.ctx, "context expired before sending event after shutting down tailnet")
-	case t.events <- tunnelerEvent{tailnetUpdate: &tailnetUpdate{up: false}}:
+		t.config.DebugLogger.Info(t.ctx, "context expired before sending tailnet conn")
+	case t.events <- tunnelerEvent{tailnetUpdate: &tailnetUpdate{up: true, conn: conn}}:
 	}
 }
+
+// TODO: Restore this func when we implement tearing down the tailnet
+// func (t *Tunneler) shutdownTailnet() {
+//	defer t.wg.Done()
+//	err := t.agentConn.Close()
+//	if err != nil {
+//		t.config.DebugLogger.Error(t.ctx, "failed to close agent connection", slog.Error(err))
+//	}
+//	select {
+//	case <-t.ctx.Done():
+//		t.config.DebugLogger.Debug(t.ctx, "context expired before sending event after shutting down tailnet")
+//	case t.events <- tunnelerEvent{tailnetUpdate: &tailnetUpdate{up: false, err: err}}:
+//	}
+//}

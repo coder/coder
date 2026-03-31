@@ -524,6 +524,14 @@ const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 };
 
 const scrollAwayFromBottom = (scrollContainer: HTMLElement) => {
+	// Dispatch a wheel event first so the scroll handler treats
+	// this as user-initiated scrolling and disables follow mode.
+	// A bare scrollTop assignment fires a scroll event but the
+	// handler only re-pins (never disables autoScroll) unless
+	// a user-interaction event (wheel/touch/pointer) is active.
+	scrollContainer.dispatchEvent(
+		new WheelEvent("wheel", { bubbles: true, deltaY: -100 }),
+	);
 	scrollContainer.scrollTop = 0;
 	scrollContainer.dispatchEvent(new Event("scroll"));
 };
