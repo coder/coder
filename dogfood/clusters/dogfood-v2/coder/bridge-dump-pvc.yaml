@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bridge-dump
+  labels:
+    app.kubernetes.io/name: coder
+    app.kubernetes.io/component: bridge-dump
+spec:
+  accessModes:
+    - ReadWriteMany
+  # standard-rwx is backed by Google Cloud Filestore and supports
+  # ReadWriteMany. The minimum size for the basic-rwx tier is 1Ti;
+  # use premium-rwx for a 2.5Ti minimum with higher throughput.
+  storageClassName: standard-rwx
+  resources:
+    requests:
+      storage: 1Ti

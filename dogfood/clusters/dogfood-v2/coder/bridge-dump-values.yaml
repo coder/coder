@@ -1,0 +1,25 @@
+# Helm values overlay for mounting the bridge-dump volume into
+# all Coder coderd replicas.
+#
+# The PVC is created separately (bridge-dump-pvc.yaml) because its
+# lifecycle should outlive individual Helm releases; alternatively it
+# can be inlined via `extraTemplates`.
+#
+# Usage:
+#   helm upgrade coder coder-v2/coder \
+#     -f values.yaml \
+#     -f bridge-dump-values.yaml
+
+coder:
+  env:
+    - name: BRIDGE_DUMP_DIR
+      value: /var/run/bridge-dump
+
+  volumes:
+    - name: bridge-dump
+      persistentVolumeClaim:
+        claimName: bridge-dump
+
+  volumeMounts:
+    - name: bridge-dump
+      mountPath: /var/run/bridge-dump
