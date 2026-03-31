@@ -164,7 +164,7 @@ function useStickToBottom(): StickToBottomInstance {
 
 		if (
 			s.ignoreScrollToTop !== undefined &&
-			s.ignoreScrollToTop > currentScrollTop
+			s.ignoreScrollToTop >= currentScrollTop
 		) {
 			lastST = s.ignoreScrollToTop;
 		}
