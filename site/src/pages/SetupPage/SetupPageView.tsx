@@ -58,7 +58,8 @@ export const Language = {
 	orgSizeLabel: "Organization size",
 	newsletterSectionLabel: "Newsletter signup",
 	newsletterMarketingLabel: "Marketing updates",
-	newsletterMarketingDescription: "Latest articles, workshops, events, and announcements",
+	newsletterMarketingDescription:
+		"Latest articles, workshops, events, and announcements",
 	newsletterReleasesLabel: "Release & security updates",
 	newsletterReleasesDescription: "New releases, patches, security advisories",
 };
@@ -468,7 +469,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							</span>
 						</div>
 
-						<div className="grid grid-cols-2 gap-3">
+						<div className="w-1/2 pr-1.5">
 							<Field
 								label={Language.isBusinessLabel}
 								id="onboarding_info.is_business"
@@ -495,60 +496,63 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									</SelectContent>
 								</Select>
 							</Field>
-
-							<Field
-								label={Language.orgSizeLabel}
-								id="onboarding_info.org_size"
-							>
-								<Select
-									value={form.values.onboarding_info.org_size}
-									onValueChange={(value) =>
-										form.setFieldValue("onboarding_info.org_size", value)
-									}
-								>
-									<SelectTrigger
-										id="onboarding_info.org_size"
-										data-testid="onboarding_info.org_size"
-									>
-										<SelectValue placeholder="Select..." />
-									</SelectTrigger>
-									<SelectContent>
-										{orgSizeOptions.map((opt) => (
-											<SelectItem key={opt} value={opt}>
-												{opt}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</Field>
 						</div>
 
-						<Field
-							label={Language.industryTypeLabel}
-							id="onboarding_info.industry_type"
-						>
-							<Select
-								value={form.values.onboarding_info.industry_type}
-								onValueChange={(value) =>
-									form.setFieldValue("onboarding_info.industry_type", value)
-								}
-							>
-								<SelectTrigger
+						{isBusinessDisplay === "yes" && (
+							<div className="grid grid-cols-2 gap-3">
+								<Field
+									label={Language.industryTypeLabel}
 									id="onboarding_info.industry_type"
-									data-testid="onboarding_info.industry_type"
 								>
-									<SelectValue placeholder="Select..." />
-								</SelectTrigger>
-								<SelectContent>
-									{industryTypeOptions.map((opt) => (
-										<SelectItem key={opt} value={opt}>
-											{opt}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
+									<Select
+										value={form.values.onboarding_info.industry_type}
+										onValueChange={(value) =>
+											form.setFieldValue("onboarding_info.industry_type", value)
+										}
+									>
+										<SelectTrigger
+											id="onboarding_info.industry_type"
+											data-testid="onboarding_info.industry_type"
+										>
+											<SelectValue placeholder="Select..." />
+										</SelectTrigger>
+										<SelectContent>
+											{industryTypeOptions.map((opt) => (
+												<SelectItem key={opt} value={opt}>
+													{opt}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
 
+								<Field
+									label={Language.orgSizeLabel}
+									id="onboarding_info.org_size"
+								>
+									<Select
+										value={form.values.onboarding_info.org_size}
+										onValueChange={(value) =>
+											form.setFieldValue("onboarding_info.org_size", value)
+										}
+									>
+										<SelectTrigger
+											id="onboarding_info.org_size"
+											data-testid="onboarding_info.org_size"
+										>
+											<SelectValue placeholder="Select..." />
+										</SelectTrigger>
+										<SelectContent>
+											{orgSizeOptions.map((opt) => (
+												<SelectItem key={opt} value={opt}>
+													{opt}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							</div>
+						)}
 						{/* Newsletter signup */}
 						<div className="mt-2">
 							<span className="text-sm font-semibold block mb-2">
