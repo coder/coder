@@ -16,11 +16,7 @@ export const HelpPopoverTrigger = PopoverTrigger;
 
 export const HelpPopoverIcon = CircleHelpIcon;
 
-export const HelpPopover: FC<React.ComponentProps<typeof Popover>> = (
-	props,
-) => {
-	return <Popover {...props} />;
-};
+export const HelpPopover = Popover;
 
 export const HelpPopoverContent: FC<PopoverContentProps> = ({
 	className,
