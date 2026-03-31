@@ -6,7 +6,7 @@ import { docs } from "#/utils/docs";
 
 export const ChatAccessDeniedAlert: FC = () => {
 	const docsLink = docs(
-		"/ai-coder/agents/getting-started#step-3-grant-use-coder-agents",
+		"/ai-coder/agents/getting-started#step-3-grant-coder-agents-user",
 	);
 
 	return (
