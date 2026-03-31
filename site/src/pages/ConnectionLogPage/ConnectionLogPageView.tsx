@@ -27,11 +27,6 @@ import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
 
-const Language = {
-	title: "Connection Log",
-	subtitle: "View workspace connection events.",
-};
-
 interface ConnectionLogPageViewProps {
 	connectionLogs?: readonly ConnectionLog[];
 	isNonInitialPage: boolean;
@@ -61,11 +56,13 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.title}</span>
+						<span>Connection Log</span>
 						<ConnectionLogHelpPopover />
 					</Stack>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					View workspace connection events.
+				</PageHeaderSubtitle>
 			</PageHeader>
 
 			<ChooseOne>

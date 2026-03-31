@@ -18,7 +18,7 @@ type TooltipData = {
 	links: readonly { text: string; href: string }[];
 };
 
-const Language = {
+const tooltipData: Record<ColumnHeader, TooltipData> = {
 	roles: {
 		title: "What is a role?",
 		text:
@@ -26,7 +26,6 @@ const Language = {
 			"View our docs on how to use the available roles.",
 		links: [{ text: "User Roles", href: docs("/admin/users/groups-roles") }],
 	},
-
 	groups: {
 		title: "What is a group?",
 		text:
@@ -34,7 +33,6 @@ const Language = {
 			"to specific templates. View our docs on how to use groups.",
 		links: [{ text: "User Groups", href: docs("/admin/users/groups-roles") }],
 	},
-
 	ai_addon: {
 		title: "What is the AI add-on?",
 		text:
@@ -42,24 +40,24 @@ const Language = {
 			"who are actively consuming a seat.",
 		links: [],
 	},
-} as const satisfies Record<ColumnHeader, TooltipData>;
+};
 
 type Props = {
 	variant: ColumnHeader;
 };
 
 export const TableColumnHelpPopover: FC<Props> = ({ variant }) => {
-	const variantLang = Language[variant];
+	const data = tooltipData[variant];
 
 	return (
 		<HelpPopover>
 			<HelpPopoverIconTrigger size="small" />
 			<HelpPopoverContent>
-				<HelpPopoverTitle>{variantLang.title}</HelpPopoverTitle>
-				<HelpPopoverText>{variantLang.text}</HelpPopoverText>
-				{variantLang.links.length > 0 && (
+				<HelpPopoverTitle>{data.title}</HelpPopoverTitle>
+				<HelpPopoverText>{data.text}</HelpPopoverText>
+				{data.links.length > 0 && (
 					<HelpPopoverLinksGroup>
-						{variantLang.links.map((link) => (
+						{data.links.map((link) => (
 							<HelpPopoverLink key={link.text} href={link.href}>
 								{link.text}
 							</HelpPopoverLink>
