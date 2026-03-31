@@ -5,7 +5,6 @@ import { MockTemplate } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { timeZones } from "#/utils/timeZones";
 import {
-	Language,
 	ttlShutdownAt,
 	validationSchema,
 	WorkspaceScheduleForm,

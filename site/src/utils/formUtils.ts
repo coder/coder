@@ -103,7 +103,7 @@ const displayNameRE = /^[^\s](.*[^\s])?$/;
 // REMARK: see #1756 for name/username semantics
 export const nameValidator = (name: string): Yup.StringSchema =>
 	Yup.string()
-		.required(name ? `Please enter a ${name.toLowerCase()}.` : "Required")
+		.required(`Please enter a ${name.toLowerCase()}.`)
 		.matches(usernameRE, "Special characters (e.g.: !, @, #) are not supported")
 		.max(maxLenName, `${name} cannot be longer than ${maxLenName} characters`);
 
