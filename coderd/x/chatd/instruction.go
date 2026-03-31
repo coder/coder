@@ -19,40 +19,41 @@ import (
 )
 
 const (
-	coderHomeInstructionDir  = ".coder"
-	coderHomeInstructionFile = "AGENTS.md"
-	maxInstructionFileBytes  = 64 * 1024
+	maxInstructionFileBytes = 64 * 1024
 )
 
 var markdownCommentPattern = regexp.MustCompile(`<!--[\s\S]*?-->`)
 
-// readHomeInstructionFile reads the ~/.coder/AGENTS.md file from the
-// workspace agent's home directory.
-func readHomeInstructionFile(
+// readInstructionDirFile reads an instruction file from the given
+// absolute directory path. The directory is listed and scanned
+// for a file matching fileName (case-insensitive).
+func readInstructionDirFile(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
+	absDir string,
+	fileName string,
 ) (content string, sourcePath string, truncated bool, err error) {
 	if conn == nil {
 		return "", "", false, nil
 	}
 
-	coderDir, err := conn.LS(ctx, "", workspacesdk.LSRequest{
-		Path:       []string{coderHomeInstructionDir},
-		Relativity: workspacesdk.LSRelativityHome,
+	dirListing, err := conn.LS(ctx, "", workspacesdk.LSRequest{
+		Path:       []string{absDir},
+		Relativity: workspacesdk.LSRelativityRoot,
 	})
 	if err != nil {
 		if isCodersdkStatusCode(err, http.StatusNotFound) {
 			return "", "", false, nil
 		}
-		return "", "", false, xerrors.Errorf("list home instruction directory: %w", err)
+		return "", "", false, xerrors.Errorf("list instruction directory: %w", err)
 	}
 
 	var filePath string
-	for _, entry := range coderDir.Contents {
+	for _, entry := range dirListing.Contents {
 		if entry.IsDir {
 			continue
 		}
-		if strings.EqualFold(strings.TrimSpace(entry.Name), coderHomeInstructionFile) {
+		if strings.EqualFold(strings.TrimSpace(entry.Name), fileName) {
 			filePath = strings.TrimSpace(entry.AbsolutePathString)
 			break
 		}
@@ -234,13 +235,14 @@ func skillsFromParts(
 	return skills
 }
 
-// pwdInstructionFilePath returns the absolute path to the AGENTS.md
-// file in the given working directory, or empty if directory is empty.
-func pwdInstructionFilePath(directory string) string {
-	if directory == "" {
+// pwdInstructionFilePath returns the absolute path to the
+// instruction file in the given working directory, or empty if
+// directory is empty.
+func pwdInstructionFilePath(directory, fileName string) string {
+	if directory == "" || fileName == "" {
 		return ""
 	}
-	return path.Join(directory, coderHomeInstructionFile)
+	return path.Join(directory, fileName)
 }
 
 func isCodersdkStatusCode(err error, statusCode int) bool {

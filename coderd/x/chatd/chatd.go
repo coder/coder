@@ -4448,6 +4448,7 @@ func (p *Server) runChat(
 			GetSkills: func() []chattool.SkillMeta {
 				return skills
 			},
+			SkillMetaFile: "SKILL.md",
 		}
 		tools = append(tools,
 			chattool.ReadSkill(skillOpts),
@@ -4928,6 +4929,19 @@ func (p *Server) persistInstructionFiles(
 		sections        []instructionFileSection
 		workspaceConnOK bool
 	)
+
+	// Fetch context configuration from the agent. This tells
+	// us where instruction files, skills, and MCP configs live.
+	// Fall back to hardcoded defaults for older agents that
+	// don't support the endpoint.
+	var ctxCfg workspacesdk.ContextConfigResponse
+	ctxCfgDefaults := func() {
+		ctxCfg = workspacesdk.ContextConfigResponse{
+			InstructionsFile: "AGENTS.md",
+			SkillMetaFile:    "SKILL.md",
+		}
+	}
+
 	if getWorkspaceConn != nil {
 		instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
 		defer cancel()
@@ -4940,14 +4954,30 @@ func (p *Server) persistInstructionFiles(
 			)
 		} else {
 			workspaceConnOK = true
-			if content, source, truncated, readErr := readHomeInstructionFile(instructionCtx, conn); readErr != nil {
-				p.logger.Debug(ctx, "failed to load home instruction file",
-					slog.F("chat_id", chat.ID), slog.Error(readErr))
-			} else if content != "" {
-				sections = append(sections, instructionFileSection{content, source, truncated})
+
+			// Fetch resolved context config from agent.
+			var cfgErr error
+			ctxCfg, cfgErr = conn.ContextConfig(instructionCtx)
+			if cfgErr != nil {
+				p.logger.Debug(ctx, "agent does not support context-config endpoint, using defaults",
+					slog.F("chat_id", chat.ID), slog.Error(cfgErr))
+				ctxCfgDefaults()
 			}
 
-			if pwdPath := pwdInstructionFilePath(directory); pwdPath != "" {
+			// Read instruction files from each configured
+			// instruction directory.
+			for _, absDir := range ctxCfg.InstructionsDirs {
+				if content, source, truncated, readErr := readInstructionDirFile(instructionCtx, conn, absDir, ctxCfg.InstructionsFile); readErr != nil {
+					p.logger.Debug(ctx, "failed to load instruction file from dir",
+						slog.F("chat_id", chat.ID), slog.F("dir", absDir), slog.Error(readErr))
+				} else if content != "" {
+					sections = append(sections, instructionFileSection{content, source, truncated})
+				}
+			}
+
+			// Also check the working directory for the
+			// instruction file.
+			if pwdPath := pwdInstructionFilePath(directory, ctxCfg.InstructionsFile); pwdPath != "" {
 				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
 					p.logger.Debug(ctx, "failed to load working directory instruction file",
 						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
@@ -4956,17 +4986,19 @@ func (p *Server) persistInstructionFiles(
 				}
 			}
 		}
+	} else {
+		ctxCfgDefaults()
 	}
 
-	// Discover skills from the workspace while we have a
-	// connection. Errors are non-fatal — a chat without skills
-	// still works, it just won't list them in the prompt.
+	// Discover skills from each configured skills directory.
+	// Errors are non-fatal — a chat without skills still works,
+	// it just won't list them in the prompt.
 	var discoveredSkills []chattool.SkillMeta
-	if workspaceConnOK {
+	if workspaceConnOK && len(ctxCfg.SkillsDirs) > 0 {
 		conn, connErr := getWorkspaceConn(ctx)
 		if connErr == nil {
 			var discoverErr error
-			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, conn, directory)
+			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, conn, ctxCfg.SkillsDirs, ctxCfg.SkillMetaFile)
 			if discoverErr != nil {
 				p.logger.Debug(ctx, "failed to discover skills",
 					slog.F("chat_id", chat.ID),

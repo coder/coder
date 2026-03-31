@@ -15,8 +15,6 @@ import (
 )
 
 const (
-	agentsSkillsDir   = ".agents/skills"
-	skillMetaFile     = "SKILL.md"
 	maxSkillMetaBytes = 64 * 1024
 	maxSkillFileBytes = 512 * 1024
 )
@@ -56,80 +54,82 @@ type SkillContent struct {
 	Files []string
 }
 
-// DiscoverSkills walks the .agents/skills directory inside the
-// workspace and returns metadata for every valid skill it finds.
-// Missing directories or individual read errors are silently
-// skipped so that a partially broken skills tree never blocks the
-// conversation.
+// DiscoverSkills walks the given skills directories and returns
+// metadata for every valid skill it finds. Missing directories
+// or individual read errors are silently skipped so that a
+// partially broken skills tree never blocks the conversation.
+// Skill names must be unique across directories; first
+// occurrence wins.
 func DiscoverSkills(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
-	workingDir string,
+	skillsDirs []string,
+	metaFile string,
 ) ([]SkillMeta, error) {
-	skillsDirPath := path.Join(workingDir, agentsSkillsDir)
-
-	lsResp, err := conn.LS(ctx, "", workspacesdk.LSRequest{
-		Path:       []string{skillsDirPath},
-		Relativity: workspacesdk.LSRelativityRoot,
-	})
-	if err != nil {
-		// The skills directory is entirely optional. Return
-		// nil for any error so skill discovery never blocks
-		// the conversation.
-		return nil, nil
-	}
-
+	seen := make(map[string]struct{})
 	var skills []SkillMeta
-	for _, entry := range lsResp.Contents {
-		if !entry.IsDir {
-			continue
-		}
 
-		metaPath := path.Join(
-			entry.AbsolutePathString, skillMetaFile,
-		)
-		reader, _, err := conn.ReadFile(
-			ctx, metaPath, 0, maxSkillMetaBytes+1,
-		)
-		if err != nil {
-			// The directory may have been removed between the
-			// LS and this read, or it simply lacks a SKILL.md.
-			// Any error is non-fatal.
-			continue
-		}
-		raw, err := io.ReadAll(io.LimitReader(reader, maxSkillMetaBytes+1))
-		reader.Close()
-		if err != nil {
-			continue
-		}
-
-		// Silently truncate oversized metadata files so a
-		// single large file cannot exhaust memory.
-		if int64(len(raw)) > maxSkillMetaBytes {
-			raw = raw[:maxSkillMetaBytes]
-		}
-
-		name, description, _, err := parseSkillFrontmatter(
-			string(raw),
-		)
-		if err != nil {
-			continue
-		}
-
-		// The directory name must match the declared name so
-		// skill references are unambiguous.
-		if name != entry.Name {
-			continue
-		}
-		if !skillNamePattern.MatchString(name) {
-			continue
-		}
-
-		skills = append(skills, SkillMeta{
-			Name:        name,
-			Description: description,
-			Dir:         entry.AbsolutePathString,
+	for _, skillsDirPath := range skillsDirs {
+		lsResp, err := conn.LS(ctx, "", workspacesdk.LSRequest{
+			Path:       []string{skillsDirPath},
+			Relativity: workspacesdk.LSRelativityRoot,
 		})
+		if err != nil {
+			// The skills directory is entirely optional.
+			// Skip on any error.
+			continue
+		}
+
+		for _, entry := range lsResp.Contents {
+			if !entry.IsDir {
+				continue
+			}
+
+			metaPath := path.Join(
+				entry.AbsolutePathString, metaFile,
+			)
+			reader, _, err := conn.ReadFile(
+				ctx, metaPath, 0, maxSkillMetaBytes+1,
+			)
+			if err != nil {
+				continue
+			}
+			raw, err := io.ReadAll(io.LimitReader(reader, maxSkillMetaBytes+1))
+			reader.Close()
+			if err != nil {
+				continue
+			}
+
+			if int64(len(raw)) > maxSkillMetaBytes {
+				raw = raw[:maxSkillMetaBytes]
+			}
+
+			name, description, _, err := parseSkillFrontmatter(
+				string(raw),
+			)
+			if err != nil {
+				continue
+			}
+
+			if name != entry.Name {
+				continue
+			}
+			if !skillNamePattern.MatchString(name) {
+				continue
+			}
+
+			// First occurrence wins across directories.
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+
+			skills = append(skills, SkillMeta{
+				Name:        name,
+				Description: description,
+				Dir:         entry.AbsolutePathString,
+			})
+		}
 	}
 
 	return skills, nil
@@ -235,8 +235,9 @@ func LoadSkillBody(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	skill SkillMeta,
+	metaFile string,
 ) (SkillContent, error) {
-	metaPath := path.Join(skill.Dir, skillMetaFile)
+	metaPath := path.Join(skill.Dir, metaFile)
 
 	reader, _, err := conn.ReadFile(
 		ctx, metaPath, 0, maxSkillMetaBytes+1,
@@ -279,7 +280,7 @@ func LoadSkillBody(
 
 	var files []string
 	for _, entry := range lsResp.Contents {
-		if entry.Name == skillMetaFile {
+		if entry.Name == metaFile {
 			continue
 		}
 		name := entry.Name
@@ -366,6 +367,7 @@ func validateSkillFilePath(p string) error {
 type ReadSkillOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	GetSkills        func() []SkillMeta
+	SkillMetaFile    string
 }
 
 // ReadSkillArgs are the parameters accepted by read_skill.
@@ -409,7 +411,7 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			content, err := LoadSkillBody(ctx, conn, skill)
+			content, err := LoadSkillBody(ctx, conn, skill, options.SkillMetaFile)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(
 					err.Error(),
