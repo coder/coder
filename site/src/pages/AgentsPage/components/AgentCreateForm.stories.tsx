@@ -270,6 +270,44 @@ export const UsageLimitExceeded: Story = {
 	},
 };
 
+export const ForbiddenErrorWithRole: Story = {
+	args: {
+		...defaultArgs,
+		canCreateChat: true,
+		createError: Object.assign(
+			new Error("Request failed with status code 403"),
+			{
+				isAxiosError: true,
+				response: {
+					status: 403,
+					statusText: "Forbidden",
+					data: {
+						message: "Forbidden.",
+						detail: "Insufficient permissions to update chat.",
+					},
+					headers: {},
+					config: {},
+				},
+				config: {},
+				toJSON: () => ({}),
+			},
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The friendly "role required" alert must NOT appear because the
+		// user has the agents-access role.
+		await expect(
+			canvas.queryByText("Use Coder Agents role required"),
+		).not.toBeInTheDocument();
+		// The generic ErrorAlert should surface the real backend message.
+		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
+		// The textbox should remain enabled since the user has the role.
+		const textbox = canvas.getByRole("textbox");
+		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
 export const ForbiddenNoAgentsRole: Story = {
 	args: {
 		...defaultArgs,
@@ -281,7 +319,7 @@ export const ForbiddenNoAgentsRole: Story = {
 			canvas.getByText("Use Coder Agents role required"),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: "View Docs" }),
+			canvas.getByRole("link", { name: /View Docs/ }),
 		).toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("heading", { name: "Forbidden." }),

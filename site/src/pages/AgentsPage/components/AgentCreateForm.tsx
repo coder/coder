@@ -287,9 +287,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const isForbidden =
-		!canCreateChat ||
-		(isApiError(createError) && createError.response?.status === 403);
+	const isForbidden = !canCreateChat;
 
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
