@@ -10,9 +10,20 @@ FROM chats
 ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
 -- name: UnarchiveChatByID :many
+-- Unarchives a chat (and its children) and scrubs any stale
+-- file_ids that reference chat_files rows deleted by dbpurge
+-- while the chat was archived. This prevents purged files from
+-- counting toward MaxChatFileIDs.
 WITH chats AS (
-    UPDATE chats
-    SET archived = false, updated_at = NOW()
+    UPDATE chats SET
+        archived = false,
+        updated_at = NOW(),
+        file_ids = COALESCE(
+            (SELECT array_agg(fid)
+             FROM unnest(file_ids) AS fid
+             WHERE EXISTS (SELECT 1 FROM chat_files WHERE id = fid)),
+            '{}'
+        )
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
 )
@@ -1211,3 +1222,21 @@ LIMIT 1;
 UPDATE chats
 SET last_read_message_id = @last_read_message_id::bigint
 WHERE id = @id::uuid;
+
+-- name: DeleteOldChats :execrows
+-- Deletes chats that have been archived for longer than the given
+-- threshold. Active (non-archived) chats are never deleted.
+-- Related chat_messages, chat_diff_statuses, and
+-- chat_queued_messages are removed via ON DELETE CASCADE.
+-- Parent/root references on child chats are SET NULL.
+WITH deletable AS (
+    SELECT id
+    FROM chats
+    WHERE archived = true
+      AND updated_at < @before_time::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT @limit_count
+)
+DELETE FROM chats
+USING deletable
+WHERE chats.id = deletable.id;

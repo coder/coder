@@ -985,6 +985,21 @@ func (mr *MockStoreMockRecorder) DeleteOldChatFiles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatFiles", reflect.TypeOf((*MockStore)(nil).DeleteOldChatFiles), ctx, arg)
 }
 
+// DeleteOldChats mocks base method.
+func (m *MockStore) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldChats", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldChats indicates an expected call of DeleteOldChats.
+func (mr *MockStoreMockRecorder) DeleteOldChats(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChats", reflect.TypeOf((*MockStore)(nil).DeleteOldChats), ctx, arg)
+}
+
 // DeleteOldConnectionLogs mocks base method.
 func (m *MockStore) DeleteOldConnectionLogs(ctx context.Context, arg database.DeleteOldConnectionLogsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -2267,6 +2282,21 @@ func (m *MockStore) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID)
 func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessages), ctx, chatID)
+}
+
+// GetChatRetentionDays mocks base method.
+func (m *MockStore) GetChatRetentionDays(ctx context.Context) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatRetentionDays", ctx)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatRetentionDays indicates an expected call of GetChatRetentionDays.
+func (mr *MockStoreMockRecorder) GetChatRetentionDays(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatRetentionDays", reflect.TypeOf((*MockStore)(nil).GetChatRetentionDays), ctx)
 }
 
 // GetChatSystemPrompt mocks base method.
@@ -9354,6 +9384,20 @@ func (m *MockStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, in
 func (mr *MockStoreMockRecorder) UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).UpsertChatIncludeDefaultSystemPrompt), ctx, includeDefaultSystemPrompt)
+}
+
+// UpsertChatRetentionDays mocks base method.
+func (m *MockStore) UpsertChatRetentionDays(ctx context.Context, retentionDays string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatRetentionDays", ctx, retentionDays)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatRetentionDays indicates an expected call of UpsertChatRetentionDays.
+func (mr *MockStoreMockRecorder) UpsertChatRetentionDays(ctx, retentionDays any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatRetentionDays", reflect.TypeOf((*MockStore)(nil).UpsertChatRetentionDays), ctx, retentionDays)
 }
 
 // UpsertChatSystemPrompt mocks base method.
