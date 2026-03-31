@@ -68,7 +68,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const gpt4oInput = await canvas.findByRole("spinbutton", {
 			name: /GPT-4o compaction threshold/i,
@@ -78,23 +78,44 @@ export const Default: Story = {
 		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
-		await userEvent.type(gpt4oInput, "100");
+		// No footer visible when nothing is dirty
 		expect(
-			canvas.getByText(
-				"⚠ Setting 100% will disable auto-compaction for this model.",
-			),
-		).toBeInTheDocument();
-		await userEvent.clear(gpt4oInput);
-		await userEvent.type(gpt4oInput, "95");
+			canvas.queryByRole("button", { name: /Save/i }),
+		).not.toBeInTheDocument();
 
-		const saveButtons = canvas.getAllByRole("button", { name: "Save" });
+		// Type a value to make the footer appear
+		await userEvent.type(gpt4oInput, "95");
 		await waitFor(() => {
-			expect(saveButtons[0]).toBeEnabled();
+			expect(
+				canvas.getByRole("button", { name: /Save 1 change/i }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const SaveAll: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("spinbutton", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		const claudeInput = await canvas.findByRole("spinbutton", {
+			name: /Claude Sonnet compaction threshold/i,
 		});
 
-		await userEvent.click(saveButtons[0]);
+		// Edit both models
+		await userEvent.type(gpt4oInput, "95");
+		await userEvent.type(claudeInput, "50");
+
+		// Footer should show "Save 2 changes"
+		const saveButton = await canvas.findByRole("button", {
+			name: /Save 2 changes/i,
+		});
+		await userEvent.click(saveButton);
+
 		await waitFor(() => {
 			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 95);
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
 		});
 	},
 };
@@ -118,11 +139,39 @@ export const WithOverrides: Story = {
 		expect(gpt4oInput).toHaveValue(90);
 		expect(claudeInput).toHaveValue(50);
 
-		const resetButtons = canvas.getAllByRole("button", { name: "Reset" });
+		// Reset buttons should be visible for both overridden models
+		const resetButtons = canvas.getAllByRole("button", {
+			name: /Reset .+ to default/i,
+		});
+		expect(resetButtons).toHaveLength(2);
+
 		await userEvent.click(resetButtons[0]);
 		await waitFor(() => {
 			expect(args.onResetThreshold).toHaveBeenCalledWith("model-1");
 		});
+	},
+};
+
+export const CancelChanges: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("spinbutton", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "42");
+		const cancelButton = await canvas.findByRole("button", { name: /Cancel/i });
+		await userEvent.click(cancelButton);
+
+		// Footer should disappear after cancel
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: /Save/i }),
+			).not.toBeInTheDocument();
+		});
+
+		// Input should be cleared back to empty (no override)
+		expect(gpt4oInput).toHaveValue(null);
 	},
 };
 
