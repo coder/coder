@@ -177,6 +177,7 @@ const roleNamesByAccessLevel: readonly string[] = [
 	"organization-template-admin",
 	"auditor",
 	"organization-auditor",
+	"agents-access",
 ];
 
 function sortRolesByAccessLevel<T extends SlimRole>(
