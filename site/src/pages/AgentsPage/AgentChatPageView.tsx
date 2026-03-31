@@ -1,17 +1,9 @@
-import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { ArchiveIcon } from "lucide-react";
+import { type FC, type RefObject, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
+
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
@@ -26,11 +18,11 @@ import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
+import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
-import { useStickToBottom } from "./components/StickToBottom";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -534,182 +526,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found
-			</div>
-		</div>
-	);
-};
-
-/**
- * Scroll container that keeps the transcript pinned to the bottom using
- * spring-physics animation. Handles:
- * - Stick-to-bottom with automatic re-engagement when content grows.
- * - Loading older message pages via an IntersectionObserver sentinel.
- * - Scroll position restoration when older messages are prepended.
- * - A floating "Scroll to bottom" button when the user scrolls away.
- */
-const ChatScrollContainer: FC<{
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
-	scrollToBottomRef: RefObject<(() => void) | null>;
-	isFetchingMoreMessages: boolean;
-	hasMoreMessages: boolean;
-	onFetchMoreMessages: () => void;
-	children: React.ReactNode;
-}> = ({
-	scrollContainerRef,
-	scrollToBottomRef,
-	isFetchingMoreMessages,
-	hasMoreMessages,
-	onFetchMoreMessages,
-	children,
-}) => {
-	const { scrollRef, contentRef, scrollToBottom, isAtBottom } =
-		useStickToBottom();
-
-	// Merge our callback ref with the external RefObject so both
-	// point at the same DOM node, and expose scrollToBottom to the
-	// parent via its imperative ref.
-	const mergedScrollRef = useEffectEvent((el: HTMLDivElement | null) => {
-		scrollRef(el);
-		scrollContainerRef.current = el;
-		scrollToBottomRef.current = el ? () => scrollToBottom("instant") : null;
-	});
-
-	// -------------------------------------------------------------------
-	// Pagination sentinel (IntersectionObserver)
-	// -------------------------------------------------------------------
-
-	const sentinelRef = useRef<HTMLDivElement>(null);
-	const observerRef = useRef<IntersectionObserver | null>(null);
-	const isFetchingRef = useRef(isFetchingMoreMessages);
-	const hasFetchedRef = useRef(false);
-
-	useLayoutEffect(() => {
-		isFetchingRef.current = isFetchingMoreMessages;
-		if (isFetchingMoreMessages) {
-			hasFetchedRef.current = true;
-		}
-	}, [isFetchingMoreMessages]);
-
-	// Snapshot captured before a fetch so we can restore scroll
-	// position after older messages are prepended.
-	const pendingPrependRef = useRef<{
-		scrollHeight: number;
-	} | null>(null);
-
-	useEffect(() => {
-		const sentinel = sentinelRef.current;
-		const container = scrollContainerRef.current;
-		if (!sentinel || !container) return;
-
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting && !isFetchingRef.current) {
-					const container = scrollContainerRef.current;
-					if (container) {
-						pendingPrependRef.current = {
-							scrollHeight: container.scrollHeight,
-						};
-					}
-					onFetchMoreMessages();
-				}
-			},
-			{
-				root: container,
-				rootMargin: "600px 0px 0px 0px",
-				threshold: 0.01,
-			},
-		);
-		observerRef.current = observer;
-
-		// Defer observation via double-rAF so the initial bottom
-		// pin settles before the sentinel can trigger.
-		let deferInnerId: number | null = null;
-		const deferOuterId = requestAnimationFrame(() => {
-			deferInnerId = requestAnimationFrame(() => {
-				observer.observe(sentinel);
-			});
-		});
-		return () => {
-			cancelAnimationFrame(deferOuterId);
-			if (deferInnerId !== null) {
-				cancelAnimationFrame(deferInnerId);
-			}
-			observer.disconnect();
-			observerRef.current = null;
-		};
-	}, [scrollContainerRef, onFetchMoreMessages]);
-
-	// Re-observe the sentinel after a fetch completes so the
-	// IntersectionObserver fires again if it stayed visible.
-	useEffect(() => {
-		if (isFetchingMoreMessages) return;
-		if (!hasFetchedRef.current) return;
-
-		const sentinel = sentinelRef.current;
-		const observer = observerRef.current;
-		if (sentinel && observer) {
-			observer.unobserve(sentinel);
-			observer.observe(sentinel);
-		}
-	}, [isFetchingMoreMessages]);
-
-	// -------------------------------------------------------------------
-	// Prepend scroll restoration
-	// -------------------------------------------------------------------
-
-	// When older messages are prepended the browser keeps scrollTop
-	// constant while scrollHeight grows, shifting the viewport down.
-	// Compensate by adding the height delta to scrollTop.
-	useLayoutEffect(() => {
-		if (isFetchingMoreMessages) return;
-		const pending = pendingPrependRef.current;
-		const container = scrollContainerRef.current;
-		if (!pending || !container) return;
-
-		const delta = container.scrollHeight - pending.scrollHeight;
-		if (delta > 0) {
-			container.scrollTop += delta;
-		}
-		pendingPrependRef.current = null;
-	}, [isFetchingMoreMessages, scrollContainerRef]);
-
-	// -------------------------------------------------------------------
-	// Render
-	// -------------------------------------------------------------------
-
-	const showButton = !isAtBottom;
-
-	return (
-		<div className="relative flex min-h-0 flex-1 flex-col">
-			<div
-				ref={mergedScrollRef}
-				data-testid="scroll-container"
-				className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] [overscroll-behavior:contain] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-			>
-				<div ref={contentRef}>
-					{hasMoreMessages && (
-						<div ref={sentinelRef} className="h-px shrink-0" />
-					)}
-					{children}
-				</div>
-			</div>
-			<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-				<Button
-					variant="outline"
-					size="icon"
-					className={cn(
-						"rounded-full bg-surface-primary shadow-md transition-all duration-200",
-						showButton
-							? "pointer-events-auto translate-y-0 opacity-100"
-							: "translate-y-2 opacity-0",
-					)}
-					onClick={() => scrollToBottom()}
-					aria-label="Scroll to bottom"
-					aria-hidden={!showButton || undefined}
-					tabIndex={showButton ? undefined : -1}
-				>
-					<ArrowDownIcon />
-				</Button>
 			</div>
 		</div>
 	);
