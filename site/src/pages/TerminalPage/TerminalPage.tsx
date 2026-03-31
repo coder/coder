@@ -23,12 +23,6 @@ import { pageTitle } from "#/utils/page";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
 
-export const Language = {
-	workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
-	workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
-	websocketErrorMessagePrefix: "WebSocket failed: ",
-};
-
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
 	// is notably a pain because of assumptions certain programs might make about your
@@ -87,7 +81,7 @@ const TerminalPage: FC = () => {
 		[workspaceAgent, workspace.data, username, proxy.preferredWildcardHostname],
 	);
 	const handleTerminalError = useCallback((error: Error) => {
-		console.error(Language.websocketErrorMessagePrefix, error);
+		console.error("WebSocket failed:", error);
 	}, []);
 
 	const { metadata } = useEmbeddedMetadata();
@@ -101,9 +95,9 @@ const TerminalPage: FC = () => {
 	);
 	const terminalErrorMessage =
 		workspace.error instanceof Error
-			? Language.workspaceErrorMessagePrefix + workspace.error.message
+			? `Unable to fetch workspace: ${workspace.error.message}`
 			: !workspace.isLoading && !workspaceAgent
-				? `${Language.workspaceAgentErrorMessagePrefix}no agent found with ID, is the workspace started?`
+				? "Unable to fetch workspace agent: no agent found with ID, is the workspace started?"
 				: undefined;
 
 	// Updates the reconnection token into the URL if necessary.
