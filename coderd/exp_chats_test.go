@@ -1473,6 +1473,7 @@ func TestListChatModelConfigs(t *testing.T) {
 			ContextLimit:         4096,
 			CompressionThreshold: 80,
 			Options:              legacyOptions,
+			AllowedGroupIds:      []uuid.UUID{},
 		})
 		require.NoError(t, err)
 

@@ -705,7 +705,7 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetEnabledChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		configA := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		configB := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
-		dbm.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{configA, configB}, nil).AnyTimes()
+		dbm.EXPECT().GetEnabledChatModelConfigs(gomock.Any(), gomock.Any()).Return([]database.ChatModelConfig{configA, configB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatModelConfig{configA, configB})
 	}))
 	s.Run("GetEnabledChatProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1137,7 +1137,7 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetEnabledMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
 		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		dbm.EXPECT().GetEnabledMCPServerConfigs(gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		dbm.EXPECT().GetEnabledMCPServerConfigs(gomock.Any(), gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
 	}))
 	s.Run("GetForcedMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

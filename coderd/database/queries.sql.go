@@ -3445,7 +3445,7 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, allowed_group_ids
 FROM
     chat_model_configs
 WHERE
@@ -3472,13 +3472,14 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, allowed_group_ids
 FROM
     chat_model_configs
 WHERE
@@ -3515,6 +3516,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
+			pq.Array(&i.AllowedGroupIds),
 		); err != nil {
 			return nil, err
 		}
@@ -3531,7 +3533,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, allowed_group_ids
 FROM
     chat_model_configs
 WHERE
@@ -3558,13 +3560,14 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.allowed_group_ids
 FROM
     chat_model_configs cmc
 JOIN
@@ -3573,6 +3576,16 @@ WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND cp.enabled = TRUE
+    AND CASE
+        WHEN $1::uuid = '00000000-0000-0000-0000-000000000000'::uuid THEN TRUE
+        WHEN cmc.allowed_group_ids = '{}' THEN TRUE
+        ELSE EXISTS (
+            SELECT 1
+            FROM group_members_expanded gme
+            WHERE gme.user_id = $1::uuid
+              AND gme.group_id = ANY(cmc.allowed_group_ids)
+        )
+    END
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -3580,8 +3593,12 @@ ORDER BY
     cmc.id DESC
 `
 
-func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
+// Returns enabled model configs visible to the given user.
+// When allowed_group_ids is empty the config is visible to everyone.
+// Otherwise the user must be a member of at least one allowed group
+// (union semantics). Pass uuid.Nil to bypass group filtering.
+func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context, userID uuid.UUID) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -3605,6 +3622,7 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
+			pq.Array(&i.AllowedGroupIds),
 		); err != nil {
 			return nil, err
 		}
@@ -3630,7 +3648,8 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    allowed_group_ids
 ) VALUES (
     $1::text,
     $2::text,
@@ -3641,10 +3660,11 @@ INSERT INTO chat_model_configs (
     $7::boolean,
     $8::bigint,
     $9::integer,
-    $10::jsonb
+    $10::jsonb,
+    $11::uuid[]
 )
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, allowed_group_ids
 `
 
 type InsertChatModelConfigParams struct {
@@ -3658,6 +3678,7 @@ type InsertChatModelConfigParams struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
+	AllowedGroupIds      []uuid.UUID     `db:"allowed_group_ids" json:"allowed_group_ids"`
 }
 
 func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
@@ -3672,6 +3693,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		arg.ContextLimit,
 		arg.CompressionThreshold,
 		arg.Options,
+		pq.Array(arg.AllowedGroupIds),
 	)
 	var i ChatModelConfig
 	err := row.Scan(
@@ -3690,6 +3712,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }
@@ -3723,12 +3746,13 @@ SET
     context_limit = $7::bigint,
     compression_threshold = $8::integer,
     options = $9::jsonb,
+    allowed_group_ids = $10::uuid[],
     updated_at = NOW()
 WHERE
-    id = $10::uuid
+    id = $11::uuid
     AND deleted = FALSE
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, allowed_group_ids
 `
 
 type UpdateChatModelConfigParams struct {
@@ -3741,6 +3765,7 @@ type UpdateChatModelConfigParams struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
+	AllowedGroupIds      []uuid.UUID     `db:"allowed_group_ids" json:"allowed_group_ids"`
 	ID                   uuid.UUID       `db:"id" json:"id"`
 }
 
@@ -3755,6 +3780,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		arg.ContextLimit,
 		arg.CompressionThreshold,
 		arg.Options,
+		pq.Array(arg.AllowedGroupIds),
 		arg.ID,
 	)
 	var i ChatModelConfig
@@ -3774,6 +3800,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }
@@ -10947,17 +10974,31 @@ func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCP
 
 const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 FROM
     mcp_server_configs
 WHERE
     enabled = TRUE
+    AND CASE
+        WHEN $1::uuid = '00000000-0000-0000-0000-000000000000'::uuid THEN TRUE
+        WHEN allowed_group_ids = '{}' THEN TRUE
+        ELSE EXISTS (
+            SELECT 1
+            FROM group_members_expanded gme
+            WHERE gme.user_id = $1::uuid
+              AND gme.group_id = ANY(mcp_server_configs.allowed_group_ids)
+        )
+    END
 ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs)
+// Returns enabled MCP server configs visible to the given user.
+// When allowed_group_ids is empty the config is visible to everyone.
+// Otherwise the user must be a member of at least one allowed group
+// (union semantics). Pass uuid.Nil to bypass group filtering.
+func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -10994,6 +11035,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ModelIntent,
+			pq.Array(&i.AllowedGroupIds),
 		); err != nil {
 			return nil, err
 		}
@@ -11010,7 +11052,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 
 const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 FROM
     mcp_server_configs
 WHERE
@@ -11058,6 +11100,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ModelIntent,
+			pq.Array(&i.AllowedGroupIds),
 		); err != nil {
 			return nil, err
 		}
@@ -11074,7 +11117,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 
 const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 FROM
     mcp_server_configs
 WHERE
@@ -11113,13 +11156,14 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ModelIntent,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }
 
 const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 FROM
     mcp_server_configs
 WHERE
@@ -11158,13 +11202,14 @@ func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ModelIntent,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }
 
 const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 FROM
     mcp_server_configs
 ORDER BY
@@ -11209,6 +11254,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ModelIntent,
+			pq.Array(&i.AllowedGroupIds),
 		); err != nil {
 			return nil, err
 		}
@@ -11225,7 +11271,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 
 const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 FROM
     mcp_server_configs
 WHERE
@@ -11272,6 +11318,7 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ModelIntent,
+			pq.Array(&i.AllowedGroupIds),
 		); err != nil {
 			return nil, err
 		}
@@ -11390,7 +11437,8 @@ INSERT INTO mcp_server_configs (
     enabled,
     model_intent,
     created_by,
-    updated_by
+    updated_by,
+    allowed_group_ids
 ) VALUES (
     $1::text,
     $2::text,
@@ -11416,10 +11464,11 @@ INSERT INTO mcp_server_configs (
     $22::boolean,
     $23::boolean,
     $24::uuid,
-    $25::uuid
+    $25::uuid,
+    $26::uuid[]
 )
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 `
 
 type InsertMCPServerConfigParams struct {
@@ -11448,6 +11497,7 @@ type InsertMCPServerConfigParams struct {
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
 	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+	AllowedGroupIds         []uuid.UUID    `db:"allowed_group_ids" json:"allowed_group_ids"`
 }
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
@@ -11477,6 +11527,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.ModelIntent,
 		arg.CreatedBy,
 		arg.UpdatedBy,
+		pq.Array(arg.AllowedGroupIds),
 	)
 	var i MCPServerConfig
 	err := row.Scan(
@@ -11508,6 +11559,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ModelIntent,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }
@@ -11540,11 +11592,12 @@ SET
     enabled = $22::boolean,
     model_intent = $23::boolean,
     updated_by = $24::uuid,
+    allowed_group_ids = $25::uuid[],
     updated_at = NOW()
 WHERE
-    id = $25::uuid
+    id = $26::uuid
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allowed_group_ids
 `
 
 type UpdateMCPServerConfigParams struct {
@@ -11572,6 +11625,7 @@ type UpdateMCPServerConfigParams struct {
 	Enabled                 bool           `db:"enabled" json:"enabled"`
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+	AllowedGroupIds         []uuid.UUID    `db:"allowed_group_ids" json:"allowed_group_ids"`
 	ID                      uuid.UUID      `db:"id" json:"id"`
 }
 
@@ -11601,6 +11655,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		arg.Enabled,
 		arg.ModelIntent,
 		arg.UpdatedBy,
+		pq.Array(arg.AllowedGroupIds),
 		arg.ID,
 	)
 	var i MCPServerConfig
@@ -11633,6 +11688,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ModelIntent,
+		pq.Array(&i.AllowedGroupIds),
 	)
 	return i, err
 }

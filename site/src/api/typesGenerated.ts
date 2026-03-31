@@ -1641,6 +1641,7 @@ export interface ChatModelConfig {
 	readonly model_config?: ChatModelCallConfig;
 	readonly created_at: string;
 	readonly updated_at: string;
+	readonly allowed_group_ids: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -2349,6 +2350,7 @@ export interface CreateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+	readonly allowed_group_ids?: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -2438,6 +2440,7 @@ export interface CreateMCPServerConfigRequest {
 	readonly availability: string;
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
+	readonly allowed_group_ids?: readonly string[];
 }
 
 // From codersdk/organizations.go
@@ -4040,6 +4043,10 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+	/**
+	 * Group scoping (empty means available to all).
+	 */
+	readonly allowed_group_ids: readonly string[];
 }
 
 // From codersdk/provisionerdaemons.go
@@ -7138,6 +7145,7 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
+	readonly allowed_group_ids?: string[];
 }
 
 // From codersdk/chats.go
@@ -7272,6 +7280,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly availability?: string;
 	readonly enabled?: boolean;
 	readonly model_intent?: boolean;
+	readonly allowed_group_ids?: string[];
 }
 
 // From codersdk/notifications.go

@@ -484,6 +484,7 @@ const makeMCPServer = (
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
+	allowed_group_ids: overrides.allowed_group_ids ?? [],
 });
 
 const sentryMCP = makeMCPServer({

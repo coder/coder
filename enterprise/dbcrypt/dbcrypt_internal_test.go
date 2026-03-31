@@ -948,6 +948,7 @@ func TestMCPServerConfigs(t *testing.T) {
 			Enabled:            true,
 			CreatedBy:          user.ID,
 			UpdatedBy:          user.ID,
+			AllowedGroupIds:    []uuid.UUID{},
 		})
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -1012,7 +1013,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetEnabledMCPServerConfigs(ctx)
+		cfgs, err := crypt.GetEnabledMCPServerConfigs(ctx, uuid.Nil)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -1059,6 +1060,7 @@ func TestMCPServerConfigs(t *testing.T) {
 			Availability:       cfg.Availability,
 			Enabled:            cfg.Enabled,
 			UpdatedBy:          cfg.CreatedBy.UUID,
+			AllowedGroupIds:    []uuid.UUID{},
 		})
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders)
@@ -1085,17 +1087,18 @@ func TestMCPServerUserTokens(t *testing.T) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
 		cfg, err := crypt.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			DisplayName:   "Token Test MCP",
-			Slug:          "tok-mcp-" + uuid.New().String()[:8],
-			Url:           "https://mcp.example.com",
-			Transport:     "streamable_http",
-			AuthType:      "oauth2",
-			ToolAllowList: []string{},
-			ToolDenyList:  []string{},
-			Availability:  "default_off",
-			Enabled:       true,
-			CreatedBy:     user.ID,
-			UpdatedBy:     user.ID,
+			DisplayName:     "Token Test MCP",
+			Slug:            "tok-mcp-" + uuid.New().String()[:8],
+			Url:             "https://mcp.example.com",
+			Transport:       "streamable_http",
+			AuthType:        "oauth2",
+			ToolAllowList:   []string{},
+			ToolDenyList:    []string{},
+			Availability:    "default_off",
+			Enabled:         true,
+			CreatedBy:       user.ID,
+			UpdatedBy:       user.ID,
+			AllowedGroupIds: []uuid.UUID{},
 		})
 		require.NoError(t, err)
 

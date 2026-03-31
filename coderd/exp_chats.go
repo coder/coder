@@ -542,7 +542,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	enabledModels, err := api.Database.GetEnabledChatModelConfigs(
-		systemCtx,
+		systemCtx, httpmw.APIKey(r).UserID,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4272,7 +4272,7 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		configs, err = api.Database.GetChatModelConfigs(ctx)
 	} else {
 		//nolint:gocritic // All authenticated users need to read enabled model configs to use the chat feature.
-		configs, err = api.Database.GetEnabledChatModelConfigs(dbauthz.AsSystemRestricted(ctx))
+		configs, err = api.Database.GetEnabledChatModelConfigs(dbauthz.AsSystemRestricted(ctx), httpmw.APIKey(r).UserID)
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -4359,6 +4359,25 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate allowed group IDs if provided.
+	if len(req.AllowedGroupIDs) > 0 {
+		//nolint:gocritic // System context needed to validate group IDs.
+		result, err := api.Database.ValidateGroupIDs(dbauthz.AsSystemRestricted(ctx), req.AllowedGroupIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate group IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !result.Ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more group IDs are invalid.",
+			})
+			return
+		}
+	}
+
 	insertParams := database.InsertChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
@@ -4370,6 +4389,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		Options:              modelConfigRaw,
 		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		AllowedGroupIds:      coalesceUUIDSlice(req.AllowedGroupIDs),
 	}
 
 	var inserted database.ChatModelConfig
@@ -4537,6 +4557,29 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		modelConfigRaw = encodedModelConfig
 	}
 
+	allowedGroupIDs := existing.AllowedGroupIds
+	if req.AllowedGroupIDs != nil {
+		allowedGroupIDs = coalesceUUIDSlice(*req.AllowedGroupIDs)
+		// Validate the new group IDs.
+		if len(allowedGroupIDs) > 0 {
+			//nolint:gocritic // System context needed to validate group IDs.
+			result, valErr := api.Database.ValidateGroupIDs(dbauthz.AsSystemRestricted(ctx), allowedGroupIDs)
+			if valErr != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to validate group IDs.",
+					Detail:  valErr.Error(),
+				})
+				return
+			}
+			if !result.Ok {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "One or more group IDs are invalid.",
+				})
+				return
+			}
+		}
+	}
+
 	updateParams := database.UpdateChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
@@ -4548,6 +4591,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		Options:              modelConfigRaw,
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		ID:                   existing.ID,
+		AllowedGroupIds:      allowedGroupIDs,
 	}
 
 	var updated database.ChatModelConfig
@@ -4717,6 +4761,7 @@ func chatModelConfigToUpdateParams(
 		Options:              config.Options,
 		UpdatedBy:            uuid.NullUUID{},
 		ID:                   config.ID,
+		AllowedGroupIds:      config.AllowedGroupIds,
 	}
 }
 
@@ -4823,6 +4868,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 		ModelConfig:          unmarshalChatModelCallConfig(config.Options),
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
+		AllowedGroupIDs:      config.AllowedGroupIds,
 	}
 }
 

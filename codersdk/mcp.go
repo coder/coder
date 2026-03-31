@@ -71,6 +71,9 @@ type MCPServerConfig struct {
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
+
+	// Group scoping (empty means available to all).
+	AllowedGroupIDs []uuid.UUID `json:"allowed_group_ids"`
 }
 
 // CreateMCPServerConfigRequest is the request to create a new MCP server config.
@@ -99,6 +102,8 @@ type CreateMCPServerConfigRequest struct {
 	Availability string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
 	Enabled      bool   `json:"enabled"`
 	ModelIntent  bool   `json:"model_intent"`
+
+	AllowedGroupIDs []uuid.UUID `json:"allowed_group_ids,omitempty"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -127,6 +132,8 @@ type UpdateMCPServerConfigRequest struct {
 	Availability *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
 	Enabled      *bool   `json:"enabled,omitempty"`
 	ModelIntent  *bool   `json:"model_intent,omitempty"`
+
+	AllowedGroupIDs *[]uuid.UUID `json:"allowed_group_ids,omitempty"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {

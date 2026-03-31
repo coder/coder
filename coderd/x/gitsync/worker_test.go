@@ -829,6 +829,7 @@ func TestWorker(t *testing.T) {
 		ContextLimit:         100000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage("{}"),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 

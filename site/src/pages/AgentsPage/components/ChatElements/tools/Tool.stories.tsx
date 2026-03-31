@@ -493,6 +493,7 @@ const sampleMCPServers = [
 		enabled: true,
 		model_intent: false,
 		auth_connected: true,
+		allowed_group_ids: [],
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},

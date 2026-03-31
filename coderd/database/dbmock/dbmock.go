@@ -2584,18 +2584,18 @@ func (mr *MockStoreMockRecorder) GetEligibleProvisionerDaemonsByProvisionerJobID
 }
 
 // GetEnabledChatModelConfigs mocks base method.
-func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
+func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context, userID uuid.UUID) ([]database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigs", ctx)
+	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigs", ctx, userID)
 	ret0, _ := ret[0].([]database.ChatModelConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetEnabledChatModelConfigs indicates an expected call of GetEnabledChatModelConfigs.
-func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigs(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigs), ctx, userID)
 }
 
 // GetEnabledChatProviders mocks base method.
@@ -2614,18 +2614,18 @@ func (mr *MockStoreMockRecorder) GetEnabledChatProviders(ctx any) *gomock.Call {
 }
 
 // GetEnabledMCPServerConfigs mocks base method.
-func (m *MockStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m *MockStore) GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEnabledMCPServerConfigs", ctx)
+	ret := m.ctrl.Call(m, "GetEnabledMCPServerConfigs", ctx, userID)
 	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetEnabledMCPServerConfigs indicates an expected call of GetEnabledMCPServerConfigs.
-func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx, userID)
 }
 
 // GetExternalAuthLink mocks base method.

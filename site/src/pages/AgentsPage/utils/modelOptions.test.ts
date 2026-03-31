@@ -34,6 +34,7 @@ const createConfig = (
 		context_limit,
 		compression_threshold,
 		model_config,
+		allowed_group_ids: overrides.allowed_group_ids ?? [],
 		created_at,
 		updated_at,
 	};

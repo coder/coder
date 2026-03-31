@@ -127,6 +127,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		is_default: true,
 		context_limit: 200000,
 		compression_threshold: 70,
+		allowed_group_ids: [],
 		created_at: "2026-02-18T00:00:00.000Z",
 		updated_at: "2026-02-18T00:00:00.000Z",
 	},

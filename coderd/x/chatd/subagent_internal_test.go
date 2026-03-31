@@ -459,32 +459,34 @@ func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
 	// Insert two MCP server configs so we can verify both are
 	// inherited by the child chat.
 	mcpA, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "MCP A",
-		Slug:          "mcp-a",
-		Url:           "https://mcp-a.example.com",
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+		DisplayName:     "MCP A",
+		Slug:            "mcp-a",
+		Url:             "https://mcp-a.example.com",
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
 	mcpB, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "MCP B",
-		Slug:          "mcp-b",
-		Url:           "https://mcp-b.example.com",
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+		DisplayName:     "MCP B",
+		Slug:            "mcp-b",
+		Url:             "https://mcp-b.example.com",
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -536,17 +538,18 @@ func TestSpawnComputerUseAgent_InheritsMCPServerIDs(t *testing.T) {
 
 	// Insert an MCP server config.
 	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "MCP Test",
-		Slug:          "mcp-test",
-		Url:           "https://mcp.example.com",
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+		DisplayName:     "MCP Test",
+		Slug:            "mcp-test",
+		Url:             "https://mcp.example.com",
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 

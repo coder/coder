@@ -540,8 +540,8 @@ func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetEnabledMCPServerConfigs(ctx)
+func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetEnabledMCPServerConfigs(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

@@ -37,6 +37,7 @@ const baseModelConfig: TypesGen.ChatModelConfig = {
 	is_default: false,
 	context_limit: 128000,
 	compression_threshold: 80,
+	allowed_group_ids: [],
 	created_at: "2025-01-01T00:00:00Z",
 	updated_at: "2025-01-01T00:00:00Z",
 };

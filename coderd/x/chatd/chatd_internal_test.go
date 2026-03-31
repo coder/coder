@@ -133,7 +133,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	gomock.InOrder(
 		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
@@ -295,7 +295,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	gomock.InOrder(
 		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
