@@ -21,6 +21,7 @@ interface InternalState {
 	escapedFromLock: boolean;
 	internalIsAtBottom: boolean;
 	resizeObserver: ResizeObserver | null;
+	viewportObserver: ResizeObserver | null;
 	previousContentHeight: number | undefined;
 	mouseDown: boolean;
 }
@@ -85,6 +86,7 @@ function useStickToBottom(): StickToBottomInstance {
 		escapedFromLock: false,
 		internalIsAtBottom: true,
 		resizeObserver: null,
+		viewportObserver: null,
 		previousContentHeight: undefined,
 		mouseDown: false,
 	});
@@ -237,9 +239,28 @@ function useStickToBottom(): StickToBottomInstance {
 				if (s.internalIsAtBottom) {
 					scrollTo(s, target);
 				}
-			} else if (s.internalIsAtBottom) {
-				// Content grew while locked — follow instantly.
-				scrollTo(s, target);
+			} else {
+				// Check whether we were near the OLD bottom before
+				// this resize. We can't rely on internalIsAtBottom
+				// alone because scroll events fire during browser
+				// layout (before this ResizeObserver callback), and
+				// the handler may have disengaged the lock when it
+				// saw the scroll position was far from the new,
+				// taller bottom.
+				const prevMaxScroll = Math.max(
+					0,
+					previousHeight - s.scrollElement.clientHeight,
+				);
+				const wasAtBottom =
+					s.internalIsAtBottom ||
+					s.scrollElement.scrollTop >=
+						prevMaxScroll - STICK_TO_BOTTOM_OFFSET_PX;
+
+				if (wasAtBottom) {
+					scrollTo(s, target);
+					syncIsAtBottom(true);
+					syncEscapedFromLock(false);
+				}
 			}
 		} else if (isNearBottom(s)) {
 			// Content shrank and we ended up near bottom — re-engage.
@@ -261,6 +282,18 @@ function useStickToBottom(): StickToBottomInstance {
 		});
 	});
 
+	// When the scroll container's viewport dimensions change (e.g.
+	// the top bar gains elements after async data loads), maxScrollTop
+	// shifts and we may no longer be at the bottom. Re-pin if locked.
+	const handleViewportResize = useEffectEvent(() => {
+		const s = stateRef.current;
+		if (!s.scrollElement || !s.internalIsAtBottom) {
+			return;
+		}
+
+		scrollTo(s, maxScrollTop(s));
+	});
+
 	// -----------------------------------------------------------------------
 	// Ref callbacks
 	// -----------------------------------------------------------------------
@@ -274,11 +307,20 @@ function useStickToBottom(): StickToBottomInstance {
 			prev.removeEventListener("wheel", handleWheel);
 		}
 
+		if (s.viewportObserver) {
+			s.viewportObserver.disconnect();
+			s.viewportObserver = null;
+		}
+
 		s.scrollElement = el;
 
 		if (el) {
 			el.addEventListener("scroll", handleScroll, { passive: true });
 			el.addEventListener("wheel", handleWheel, { passive: true });
+
+			const vo = new ResizeObserver(handleViewportResize);
+			vo.observe(el);
+			s.viewportObserver = vo;
 		}
 	});
 
@@ -331,6 +373,9 @@ function useStickToBottom(): StickToBottomInstance {
 			}
 			if (s.resizeObserver) {
 				s.resizeObserver.disconnect();
+			}
+			if (s.viewportObserver) {
+				s.viewportObserver.disconnect();
 			}
 		};
 	}, [handleScroll, handleWheel]);
