@@ -19,7 +19,7 @@ const fillAndSubmitForm = async () => {
 	fireEvent.change(screen.getByLabelText("Name"), {
 		target: { value: newData.name },
 	});
-	fireEvent.click(screen.getByText(AccountForm.Language.updateSettings));
+	fireEvent.click(screen.getByText("Update account"));
 };
 
 describe("AccountPage", () => {
