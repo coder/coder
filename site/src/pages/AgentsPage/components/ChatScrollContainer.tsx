@@ -196,6 +196,13 @@ function useStickToBottom(): StickToBottomInstance {
 		// layout that aren’t user-initiated.
 		if (s.resizeDifference === 0 && !viewportChanged) {
 			if (currentScrollTop < lastST) {
+				// biome-ignore lint/suspicious/noConsole: temporary debug
+				console.debug("[STB] escape UP", {
+					from: lastST,
+					to: currentScrollTop,
+					clientH: scrollElement.clientHeight,
+					maxST: maxScrollTop(s),
+				});
 				syncEscapedFromLock(true);
 				syncIsAtBottom(false);
 			} else if (currentScrollTop > lastST) {
@@ -290,6 +297,13 @@ function useStickToBottom(): StickToBottomInstance {
 				// First observation — jump to bottom instantly.
 				if (s.internalIsAtBottom) {
 					scrollTo(s, target);
+					// biome-ignore lint/suspicious/noConsole: temporary debug
+					console.debug("[STB] firstPin", {
+						target,
+						scrollTop: s.scrollElement.scrollTop,
+						clientH: s.scrollElement.clientHeight,
+						scrollH: s.scrollElement.scrollHeight,
+					});
 				}
 			} else {
 				// Check whether we were near the OLD bottom before
@@ -313,6 +327,16 @@ function useStickToBottom(): StickToBottomInstance {
 					syncIsAtBottom(true);
 					syncEscapedFromLock(false);
 				}
+				// biome-ignore lint/suspicious/noConsole: temporary debug
+				console.debug("[STB] contentResize", {
+					diff: difference,
+					wasAtBottom,
+					internalIsAtBottom: s.internalIsAtBottom,
+					scrollTop: s.scrollElement.scrollTop,
+					maxST: target,
+					clientH: s.scrollElement.clientHeight,
+					scrollH: s.scrollElement.scrollHeight,
+				});
 			}
 		} else if (isNearBottom(s)) {
 			// Content shrank and we ended up near bottom — re-engage.
@@ -343,15 +367,25 @@ function useStickToBottom(): StickToBottomInstance {
 	// handleScroll to disengage the lock.
 	const handleViewportResize = useEffectEvent(() => {
 		const s = stateRef.current;
-		if (
-			!s.scrollElement ||
-			s.activeTouchCount > 0 ||
-			(!s.internalIsAtBottom && !isNearBottom(s))
-		) {
+		if (!s.scrollElement) return;
+		const maxST = maxScrollTop(s);
+		const near = isNearBottom(s);
+		// biome-ignore lint/suspicious/noConsole: temporary debug
+		console.debug("[STB] viewportResize", {
+			internalIsAtBottom: s.internalIsAtBottom,
+			escapedFromLock: s.escapedFromLock,
+			nearBottom: near,
+			scrollTop: s.scrollElement.scrollTop,
+			maxST,
+			clientH: s.scrollElement.clientHeight,
+			scrollH: s.scrollElement.scrollHeight,
+			skip: s.activeTouchCount > 0 || (!s.internalIsAtBottom && !near),
+		});
+		if (s.activeTouchCount > 0 || (!s.internalIsAtBottom && !near)) {
 			return;
 		}
 
-		scrollTo(s, maxScrollTop(s));
+		scrollTo(s, maxST);
 		syncIsAtBottom(true);
 		syncEscapedFromLock(false);
 	});
