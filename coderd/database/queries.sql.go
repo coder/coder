@@ -17636,43 +17636,44 @@ func (q *sqlQuerier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]Tailn
 	return items, nil
 }
 
-const getTailnetTunnelPeerBindings = `-- name: GetTailnetTunnelPeerBindings :many
-SELECT id AS peer_id, coordinator_id, updated_at, node, status
-FROM tailnet_peers
-WHERE id IN (
-  SELECT dst_id as peer_id
-  FROM tailnet_tunnels
-  WHERE tailnet_tunnels.src_id = $1
+const getTailnetTunnelPeerBindingsBatch = `-- name: GetTailnetTunnelPeerBindingsBatch :many
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status,
+       tunnels.lookup_id
+FROM (
+  SELECT dst_id AS peer_id, src_id AS lookup_id
+  FROM tailnet_tunnels WHERE src_id = ANY($1 :: uuid[])
   UNION
-  SELECT src_id as peer_id
-  FROM tailnet_tunnels
-  WHERE tailnet_tunnels.dst_id = $1
-)
+  SELECT src_id AS peer_id, dst_id AS lookup_id
+  FROM tailnet_tunnels WHERE dst_id = ANY($1 :: uuid[])
+) tunnels
+INNER JOIN tailnet_peers tp ON tp.id = tunnels.peer_id
 `
 
-type GetTailnetTunnelPeerBindingsRow struct {
+type GetTailnetTunnelPeerBindingsBatchRow struct {
 	PeerID        uuid.UUID     `db:"peer_id" json:"peer_id"`
 	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
 	UpdatedAt     time.Time     `db:"updated_at" json:"updated_at"`
 	Node          []byte        `db:"node" json:"node"`
 	Status        TailnetStatus `db:"status" json:"status"`
+	LookupID      uuid.UUID     `db:"lookup_id" json:"lookup_id"`
 }
 
-func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerBindings, srcID)
+func (q *sqlQuerier) GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerBindingsBatch, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetTailnetTunnelPeerBindingsRow
+	var items []GetTailnetTunnelPeerBindingsBatchRow
 	for rows.Next() {
-		var i GetTailnetTunnelPeerBindingsRow
+		var i GetTailnetTunnelPeerBindingsBatchRow
 		if err := rows.Scan(
 			&i.PeerID,
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
 			&i.Status,
+			&i.LookupID,
 		); err != nil {
 			return nil, err
 		}
@@ -17687,32 +17688,36 @@ func (q *sqlQuerier) GetTailnetTunnelPeerBindings(ctx context.Context, srcID uui
 	return items, nil
 }
 
-const getTailnetTunnelPeerIDs = `-- name: GetTailnetTunnelPeerIDs :many
-SELECT dst_id as peer_id, coordinator_id, updated_at
-FROM tailnet_tunnels
-WHERE tailnet_tunnels.src_id = $1
-UNION
-SELECT src_id as peer_id, coordinator_id, updated_at
-FROM tailnet_tunnels
-WHERE tailnet_tunnels.dst_id = $1
+const getTailnetTunnelPeerIDsBatch = `-- name: GetTailnetTunnelPeerIDsBatch :many
+SELECT src_id AS lookup_id, dst_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE src_id = ANY($1 :: uuid[])
+UNION ALL
+SELECT dst_id AS lookup_id, src_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE dst_id = ANY($1 :: uuid[])
 `
 
-type GetTailnetTunnelPeerIDsRow struct {
+type GetTailnetTunnelPeerIDsBatchRow struct {
+	LookupID      uuid.UUID `db:"lookup_id" json:"lookup_id"`
 	PeerID        uuid.UUID `db:"peer_id" json:"peer_id"`
 	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerIDs, srcID)
+func (q *sqlQuerier) GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerIDsBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetTunnelPeerIDsBatch, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetTailnetTunnelPeerIDsRow
+	var items []GetTailnetTunnelPeerIDsBatchRow
 	for rows.Next() {
-		var i GetTailnetTunnelPeerIDsRow
-		if err := rows.Scan(&i.PeerID, &i.CoordinatorID, &i.UpdatedAt); err != nil {
+		var i GetTailnetTunnelPeerIDsBatchRow
+		if err := rows.Scan(
+			&i.LookupID,
+			&i.PeerID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
