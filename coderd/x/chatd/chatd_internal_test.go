@@ -513,6 +513,12 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
+		InstructionsDirs: []string{"/home/coder/.coder"},
+		InstructionsFile: "AGENTS.md",
+		SkillsDirs:       []string{"/home/coder/project/.agents/skills"},
+		SkillMetaFile:    "SKILL.md",
+	}, nil).AnyTimes()
 	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 		workspacesdk.LSResponse{},
 		codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
@@ -520,8 +526,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	conn.EXPECT().ReadFile(gomock.Any(),
 		"/home/coder/project/AGENTS.md",
 		int64(0),
-		int64(maxInstructionFileBytes+1),
-	).Return(
+		int64(maxInstructionFileBytes+1)).Return(
 		io.NopCloser(strings.NewReader("# Project instructions")),
 		"",
 		nil,
@@ -546,7 +551,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction, _, err := server.persistInstructionFiles(
+	instruction, _, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -577,7 +582,7 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	}
 
-	instruction, _, err := server.persistInstructionFiles(
+	instruction, _, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -655,13 +660,20 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
+		InstructionsDirs: []string{"/home/coder/.coder"},
+		InstructionsFile: "AGENTS.md",
+		SkillsDirs:       []string{"/home/coder/project/.agents/skills"},
+		SkillMetaFile:    "SKILL.md",
+	}, nil).AnyTimes()
 
-	// Home LS (.coder directory): return 404 so no home
-	// instruction file is found.
+	// Instruction dir LS (.coder directory): return 404 so no
+	// instruction file is found from the configured dir.
 	conn.EXPECT().LS(gomock.Any(), "",
 		gomock.Cond(func(x any) bool {
 			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityHome
+			return ok && req.Relativity == workspacesdk.LSRelativityRoot &&
+				len(req.Path) == 1 && req.Path[0] == "/home/coder/.coder"
 		}),
 	).Return(
 		workspacesdk.LSResponse{},
@@ -684,7 +696,8 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 	conn.EXPECT().LS(gomock.Any(), "",
 		gomock.Cond(func(x any) bool {
 			req, ok := x.(workspacesdk.LSRequest)
-			return ok && req.Relativity == workspacesdk.LSRelativityRoot
+			return ok && req.Relativity == workspacesdk.LSRelativityRoot &&
+				len(req.Path) == 1 && req.Path[0] == "/home/coder/project/.agents/skills"
 		}),
 	).Return(workspacesdk.LSResponse{
 		Contents: []workspacesdk.LSFile{{
@@ -725,7 +738,7 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction, skills, err := server.persistInstructionFiles(
+	instruction, skills, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),
@@ -786,8 +799,14 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
+		InstructionsDirs: []string{"/home/coder/.coder"},
+		InstructionsFile: "AGENTS.md",
+		SkillsDirs:       []string{"/home/coder/project/.agents/skills"},
+		SkillMetaFile:    "SKILL.md",
+	}, nil).AnyTimes()
 
-	// All LS calls return 404: no home .coder directory and no
+	// All LS calls return 404: no .coder directory and no
 	// .agents/skills directory.
 	conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 		workspacesdk.LSResponse{},
@@ -823,7 +842,7 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	instruction, skills, err := server.persistInstructionFiles(
+	instruction, skills, _, err := server.persistInstructionFiles(
 		ctx,
 		chat,
 		uuid.New(),

@@ -16,10 +16,16 @@ func ResolvePath(raw, baseDir string) string {
 	}
 	switch {
 	case raw == "~":
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
 		return home
 	case strings.HasPrefix(raw, "~/"):
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
 		return filepath.Join(home, raw[2:])
 	case filepath.IsAbs(raw):
 		return raw

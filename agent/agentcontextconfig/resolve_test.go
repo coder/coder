@@ -55,6 +55,16 @@ func TestResolvePath(t *testing.T) {
 	})
 }
 
+func TestResolvePath_HomeUnset(t *testing.T) {
+	// Cannot be parallel — modifies HOME env var.
+	t.Setenv("HOME", "")
+	// Also clear USERPROFILE for Windows compatibility.
+	t.Setenv("USERPROFILE", "")
+
+	require.Equal(t, "", agentcontextconfig.ResolvePath("~", "/base"))
+	require.Equal(t, "", agentcontextconfig.ResolvePath("~/docs", "/base"))
+}
+
 func TestResolvePaths(t *testing.T) {
 
 	t.Run("EmptyString", func(t *testing.T) {

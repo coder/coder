@@ -24,6 +24,48 @@ const (
 
 var markdownCommentPattern = regexp.MustCompile(`<!--[\s\S]*?-->`)
 
+// readHomeInstructionFile reads an instruction file from the
+// agent's home directory using home-relative path resolution.
+// This is the fallback for older agents that don't support
+// the context-config endpoint.
+func readHomeInstructionFile(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	homeDir string,
+	fileName string,
+) (content string, sourcePath string, truncated bool, err error) {
+	if conn == nil {
+		return "", "", false, nil
+	}
+
+	dirListing, err := conn.LS(ctx, "", workspacesdk.LSRequest{
+		Path:       []string{homeDir},
+		Relativity: workspacesdk.LSRelativityHome,
+	})
+	if err != nil {
+		if isCodersdkStatusCode(err, http.StatusNotFound) {
+			return "", "", false, nil
+		}
+		return "", "", false, xerrors.Errorf("list home instruction directory: %w", err)
+	}
+
+	var filePath string
+	for _, entry := range dirListing.Contents {
+		if entry.IsDir {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(entry.Name), fileName) {
+			filePath = strings.TrimSpace(entry.AbsolutePathString)
+			break
+		}
+	}
+	if filePath == "" {
+		return "", "", false, nil
+	}
+
+	return readInstructionFile(ctx, conn, filePath)
+}
+
 // readInstructionDirFile reads an instruction file from the given
 // absolute directory path. The directory is listed and scanned
 // for a file matching fileName (case-insensitive).

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -3909,6 +3911,7 @@ func (p *Server) runChat(
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		skills             []chattool.SkillMeta
+		skillMetaFile      = agentcontextconfig.DefaultSkillMetaFile
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3931,7 +3934,7 @@ func (p *Server) runChat(
 	if needsInstructionPersist {
 		g2.Go(func() error {
 			var persistErr error
-			instruction, skills, persistErr = p.persistInstructionFiles(
+			instruction, skills, skillMetaFile, persistErr = p.persistInstructionFiles(
 				ctx,
 				chat,
 				modelConfig.ID,
@@ -4448,7 +4451,7 @@ func (p *Server) runChat(
 			GetSkills: func() []chattool.SkillMeta {
 				return skills
 			},
-			SkillMetaFile: "SKILL.md",
+			SkillMetaFile: skillMetaFile,
 		}
 		tools = append(tools,
 			chattool.ReadSkill(skillOpts),
@@ -4901,22 +4904,22 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 // skills from the workspace agent, persisting both as message
 // parts. This is called once when a workspace is first attached
 // to a chat (or when the agent changes). Returns the formatted
-// instruction string and skill index for injection into the
-// current turn's prompt.
+// instruction string, skill index, and the skill meta file name
+// for injection into the current turn's prompt.
 func (p *Server) persistInstructionFiles(
 	ctx context.Context,
 	chat database.Chat,
 	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (string, []chattool.SkillMeta, error) {
+) (string, []chattool.SkillMeta, string, error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return "", nil, nil
+		return "", nil, agentcontextconfig.DefaultSkillMetaFile, nil
 	}
 
 	agent, err := getWorkspaceAgent(ctx)
 	if err != nil {
-		return "", nil, nil
+		return "", nil, agentcontextconfig.DefaultSkillMetaFile, nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -4932,14 +4935,11 @@ func (p *Server) persistInstructionFiles(
 
 	// Fetch context configuration from the agent. This tells
 	// us where instruction files, skills, and MCP configs live.
-	// Fall back to hardcoded defaults for older agents that
-	// don't support the endpoint.
-	var ctxCfg workspacesdk.ContextConfigResponse
-	ctxCfgDefaults := func() {
-		ctxCfg = workspacesdk.ContextConfigResponse{
-			InstructionsFile: "AGENTS.md",
-			SkillMetaFile:    "SKILL.md",
-		}
+	// Fall back to the pre-context-config behavior for older
+	// agents that don't support the endpoint.
+	agentCfg := workspacesdk.ContextConfigResponse{
+		InstructionsFile: agentcontextconfig.DefaultInstructionsFile,
+		SkillMetaFile:    agentcontextconfig.DefaultSkillMetaFile,
 	}
 
 	if getWorkspaceConn != nil {
@@ -4957,17 +4957,35 @@ func (p *Server) persistInstructionFiles(
 
 			// Fetch resolved context config from agent.
 			var cfgErr error
-			ctxCfg, cfgErr = conn.ContextConfig(instructionCtx)
+			agentCfg, cfgErr = conn.ContextConfig(instructionCtx)
 			if cfgErr != nil {
 				p.logger.Debug(ctx, "agent does not support context-config endpoint, using defaults",
 					slog.F("chat_id", chat.ID), slog.Error(cfgErr))
-				ctxCfgDefaults()
+				// Fall back to the pre-context-config behavior:
+				// read instruction file from home dir using
+				// LSRelativityHome and discover skills from the
+				// working directory.
+				agentCfg = workspacesdk.ContextConfigResponse{
+					InstructionsFile: agentcontextconfig.DefaultInstructionsFile,
+					SkillMetaFile:    agentcontextconfig.DefaultSkillMetaFile,
+				}
+				if content, source, truncated, readErr := readHomeInstructionFile(
+					instructionCtx, conn, ".coder", agentCfg.InstructionsFile,
+				); readErr != nil {
+					p.logger.Debug(ctx, "failed to load home instruction file",
+						slog.F("chat_id", chat.ID), slog.Error(readErr))
+				} else if content != "" {
+					sections = append(sections, instructionFileSection{content, source, truncated})
+				}
+				if directory != "" {
+					agentCfg.SkillsDirs = []string{path.Join(directory, ".agents/skills")}
+				}
 			}
 
 			// Read instruction files from each configured
 			// instruction directory.
-			for _, absDir := range ctxCfg.InstructionsDirs {
-				if content, source, truncated, readErr := readInstructionDirFile(instructionCtx, conn, absDir, ctxCfg.InstructionsFile); readErr != nil {
+			for _, absDir := range agentCfg.InstructionsDirs {
+				if content, source, truncated, readErr := readInstructionDirFile(instructionCtx, conn, absDir, agentCfg.InstructionsFile); readErr != nil {
 					p.logger.Debug(ctx, "failed to load instruction file from dir",
 						slog.F("chat_id", chat.ID), slog.F("dir", absDir), slog.Error(readErr))
 				} else if content != "" {
@@ -4977,7 +4995,7 @@ func (p *Server) persistInstructionFiles(
 
 			// Also check the working directory for the
 			// instruction file.
-			if pwdPath := pwdInstructionFilePath(directory, ctxCfg.InstructionsFile); pwdPath != "" {
+			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" {
 				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
 					p.logger.Debug(ctx, "failed to load working directory instruction file",
 						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
@@ -4986,19 +5004,17 @@ func (p *Server) persistInstructionFiles(
 				}
 			}
 		}
-	} else {
-		ctxCfgDefaults()
 	}
 
 	// Discover skills from each configured skills directory.
 	// Errors are non-fatal — a chat without skills still works,
 	// it just won't list them in the prompt.
 	var discoveredSkills []chattool.SkillMeta
-	if workspaceConnOK && len(ctxCfg.SkillsDirs) > 0 {
+	if workspaceConnOK && len(agentCfg.SkillsDirs) > 0 {
 		conn, connErr := getWorkspaceConn(ctx)
 		if connErr == nil {
 			var discoverErr error
-			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, conn, ctxCfg.SkillsDirs, ctxCfg.SkillMetaFile)
+			discoveredSkills, discoverErr = chattool.DiscoverSkills(ctx, conn, agentCfg.SkillsDirs, agentCfg.SkillMetaFile)
 			if discoverErr != nil {
 				p.logger.Debug(ctx, "failed to discover skills",
 					slog.F("chat_id", chat.ID),
@@ -5010,7 +5026,7 @@ func (p *Server) persistInstructionFiles(
 
 	if len(sections) == 0 {
 		if !workspaceConnOK {
-			return "", nil, nil
+			return "", nil, agentCfg.SkillMetaFile, nil
 		}
 		// Persist a sentinel (plus any discovered skill parts)
 		// so subsequent turns skip the workspace agent dial.
@@ -5030,7 +5046,7 @@ func (p *Server) persistInstructionFiles(
 		}
 		content, err := chatprompt.MarshalParts(parts)
 		if err != nil {
-			return "", nil, nil
+			return "", nil, agentCfg.SkillMetaFile, nil
 		}
 		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: chat.ID,
@@ -5060,7 +5076,7 @@ func (p *Server) persistInstructionFiles(
 		} else {
 			p.updateLastInjectedContext(ctx, chat.ID, nil)
 		}
-		return "", discoveredSkills, nil
+		return "", discoveredSkills, agentCfg.SkillMetaFile, nil
 	}
 	// Build context-file parts (one per instruction file) and
 	// skill parts (one per discovered skill).
@@ -5088,7 +5104,7 @@ func (p *Server) persistInstructionFiles(
 
 	content, err := chatprompt.MarshalParts(parts)
 	if err != nil {
-		return "", nil, xerrors.Errorf("marshal context-file parts: %w", err)
+		return "", nil, agentCfg.SkillMetaFile, xerrors.Errorf("marshal context-file parts: %w", err)
 	}
 
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
@@ -5102,7 +5118,7 @@ func (p *Server) persistInstructionFiles(
 		chatprompt.CurrentContentVersion,
 	))
 	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
-		return "", nil, xerrors.Errorf("persist instruction files: %w", err)
+		return "", nil, agentCfg.SkillMetaFile, xerrors.Errorf("persist instruction files: %w", err)
 	}
 	// Build stripped copies for the cache column so internal
 	// fields (full file content, OS, directory, skill paths)
@@ -5117,7 +5133,7 @@ func (p *Server) persistInstructionFiles(
 	// Return the formatted instruction text and discovered skills
 	// so the caller can inject them into this turn's prompt (since
 	// the prompt was built before we persisted).
-	return formatSystemInstructions(agent.OperatingSystem, directory, sections), discoveredSkills, nil
+	return formatSystemInstructions(agent.OperatingSystem, directory, sections), discoveredSkills, agentCfg.SkillMetaFile, nil
 }
 
 // updateLastInjectedContext persists the injected context

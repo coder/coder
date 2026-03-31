@@ -1,6 +1,7 @@
 package agentcontextconfig
 
 import (
+	"cmp"
 	"net/http"
 	"os"
 	"strings"
@@ -50,30 +51,11 @@ func NewAPI(logger slog.Logger, workingDir string) *API {
 // BuildConfig reads env vars and resolves paths. Exported for
 // use by the MCP manager and tests.
 func BuildConfig(workingDir string) workspacesdk.ContextConfigResponse {
-	instructionsDir := os.Getenv(EnvInstructionsDir)
-	if instructionsDir == "" {
-		instructionsDir = DefaultInstructionsDir
-	}
-	instructionsFile := os.Getenv(EnvInstructionsFile)
-	if instructionsFile == "" {
-		instructionsFile = DefaultInstructionsFile
-	} else {
-		instructionsFile = strings.TrimSpace(instructionsFile)
-	}
-	skillsDir := os.Getenv(EnvSkillsDir)
-	if skillsDir == "" {
-		skillsDir = DefaultSkillsDir
-	}
-	skillMetaFile := os.Getenv(EnvSkillMetaFile)
-	if skillMetaFile == "" {
-		skillMetaFile = DefaultSkillMetaFile
-	} else {
-		skillMetaFile = strings.TrimSpace(skillMetaFile)
-	}
-	mcpConfigFile := os.Getenv(EnvMCPConfigFile)
-	if mcpConfigFile == "" {
-		mcpConfigFile = DefaultMCPConfigFile
-	}
+	instructionsDir := cmp.Or(os.Getenv(EnvInstructionsDir), DefaultInstructionsDir)
+	instructionsFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsFile)), DefaultInstructionsFile)
+	skillsDir := cmp.Or(os.Getenv(EnvSkillsDir), DefaultSkillsDir)
+	skillMetaFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillMetaFile)), DefaultSkillMetaFile)
+	mcpConfigFile := cmp.Or(os.Getenv(EnvMCPConfigFile), DefaultMCPConfigFile)
 
 	return workspacesdk.ContextConfigResponse{
 		InstructionsDirs: ResolvePaths(instructionsDir, workingDir),

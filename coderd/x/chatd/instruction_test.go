@@ -56,7 +56,7 @@ func TestReadHomeInstructionFileNotFound(t *testing.T) {
 		},
 	)
 
-	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn)
+	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn, ".coder", "AGENTS.md")
 	require.NoError(t, err)
 	require.Empty(t, content)
 	require.Empty(t, sourcePath)
@@ -90,7 +90,7 @@ func TestReadHomeInstructionFileSuccess(t *testing.T) {
 		nil,
 	)
 
-	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn)
+	content, sourcePath, truncated, err := readHomeInstructionFile(context.Background(), conn, ".coder", "AGENTS.md")
 	require.NoError(t, err)
 	require.Equal(t, "base\n\nlocal", content)
 	require.Equal(t, "/home/coder/.coder/AGENTS.md", sourcePath)
@@ -120,7 +120,7 @@ func TestReadHomeInstructionFileTruncates(t *testing.T) {
 		int64(maxInstructionFileBytes+1),
 	).Return(io.NopCloser(strings.NewReader(content)), "text/markdown", nil)
 
-	got, _, truncated, err := readHomeInstructionFile(context.Background(), conn)
+	got, _, truncated, err := readHomeInstructionFile(context.Background(), conn, ".coder", "AGENTS.md")
 	require.NoError(t, err)
 	require.True(t, truncated)
 	require.Len(t, got, maxInstructionFileBytes)
@@ -300,6 +300,6 @@ func TestFormatSystemInstructions(t *testing.T) {
 
 func TestPwdInstructionFilePath(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, "/home/coder/project/AGENTS.md", pwdInstructionFilePath("/home/coder/project"))
-	require.Empty(t, pwdInstructionFilePath(""))
+	require.Equal(t, "/home/coder/project/AGENTS.md", pwdInstructionFilePath("/home/coder/project", "AGENTS.md"))
+	require.Empty(t, pwdInstructionFilePath("", "AGENTS.md"))
 }

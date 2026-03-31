@@ -70,7 +70,7 @@ func TestDiscoverSkills(t *testing.T) {
 			nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Len(t, skills, 2)
 		assert.Equal(t, "my-skill", skills[0].Name)
@@ -89,7 +89,7 @@ func TestDiscoverSkills(t *testing.T) {
 			codersdk.NewTestError(404, "POST", "/api/v0/list-directory"),
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Empty(t, skills)
 	})
@@ -119,7 +119,7 @@ func TestDiscoverSkills(t *testing.T) {
 			codersdk.NewTestError(404, "GET", "/api/v0/read-file"),
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Empty(t, skills)
 	})
@@ -147,7 +147,7 @@ func TestDiscoverSkills(t *testing.T) {
 			nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Empty(t, skills)
 	})
@@ -175,7 +175,7 @@ func TestDiscoverSkills(t *testing.T) {
 			nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Empty(t, skills)
 	})
@@ -202,7 +202,7 @@ func TestDiscoverSkills(t *testing.T) {
 			nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Empty(t, skills)
 	})
@@ -221,7 +221,7 @@ func TestDiscoverSkills(t *testing.T) {
 			}, nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Empty(t, skills)
 	})
@@ -250,7 +250,7 @@ func TestDiscoverSkills(t *testing.T) {
 			nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Len(t, skills, 1)
 		assert.Equal(t, "A quoted description", skills[0].Description)
@@ -282,7 +282,7 @@ func TestDiscoverSkills(t *testing.T) {
 			nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		// The skill should still be discovered since the
 		// frontmatter fits within the truncation limit.
@@ -314,7 +314,7 @@ func TestDiscoverSkills(t *testing.T) {
 			nil,
 		)
 
-		skills, err := chattool.DiscoverSkills(context.Background(), conn, "/work")
+		skills, err := chattool.DiscoverSkills(context.Background(), conn, []string{"/work/.agents/skills"}, "SKILL.md")
 		require.NoError(t, err)
 		require.Len(t, skills, 1)
 		assert.Equal(t, "bom-skill", skills[0].Name)
@@ -383,7 +383,7 @@ func TestLoadSkillBody(t *testing.T) {
 			}, nil,
 		)
 
-		content, err := chattool.LoadSkillBody(context.Background(), conn, skill)
+		content, err := chattool.LoadSkillBody(context.Background(), conn, skill, "SKILL.md")
 		require.NoError(t, err)
 		assert.Contains(t, content.Body, "Do the thing.")
 		assert.Equal(t, []string{"helper.md", "roles/"}, content.Files)

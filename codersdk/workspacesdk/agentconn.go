@@ -948,8 +948,9 @@ type MCPToolInfo struct {
 }
 
 // ContextConfigResponse is the response from the agent's
-// context configuration endpoint. All directory and file paths
-// are fully resolved absolute paths.
+// context configuration endpoint. Directory fields contain
+// fully resolved absolute paths. File name fields contain
+// basenames.
 type ContextConfigResponse struct {
 	InstructionsDirs []string `json:"instructions_dirs"`
 	InstructionsFile string   `json:"instructions_file"`
