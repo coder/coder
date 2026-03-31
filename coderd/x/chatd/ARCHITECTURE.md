@@ -2,7 +2,7 @@
 
 > **Status**: Early Access (formerly experimental).
 > Moved from `coderd/chatd/` to `coderd/x/chatd/` in March 2025.
-> ~120 commits in the first month of development, ~31,900 lines of Go (including ~16,800 lines of tests).
+> ~120 commits in the first month of development, ~18,400 lines of Go (including ~23,100 lines of tests).
 
 ## What is chatd?
 
@@ -159,7 +159,12 @@ flowchart TB
 
 ```
 coderd/x/chatd/
-├── chatd.go              # Core Server: polling, acquire, processChat, runChat (~4,200 lines)
+├── chatd.go              # Core Server: polling, acquire, processChat, runChat (~5,400 lines)
+├── configcache.go        # Process-wide config cache (providers, model configs, user prompts)
+│                         # 10s/5s TTLs, negative caching, pubsub invalidation
+├── dialvalidation.go     # Dial-with-lazy-validation: dial cached agent, validate against
+│                         # latest build only if dial is still pending. Terminal fast-fail
+│                         # via errChatHasNoWorkspaceAgent for stopped workspaces.
 ├── prompt.go             # DefaultSystemPrompt constant
 ├── instruction.go        # AGENTS.md file reading from workspaces
 ├── sanitize.go           # Prompt/input sanitization for invisible Unicode + blank-line collapse
@@ -189,10 +194,20 @@ coderd/x/chatd/
 │   ├── readtemplate.go   # Get template details + parameters
 │   ├── createworkspace.go # Create workspace from template (idempotent, waits for build)
 │   ├── startworkspace.go # Start a stopped workspace
-│   └── proposeplan.go    # Present a markdown plan file for user review
+│   ├── proposeplan.go    # Present a markdown plan file for user review
+│   ├── mcpworkspace.go   # Workspace MCP tool discovery via .mcp.json (ListMCPTools/CallMCPTool)
+│   └── skill.go          # Skills: discover .agents/skills/<name>/SKILL.md, read_skill/read_skill_file tools
 │
 ├── chatcost/             # Token cost calculation (microdollar precision)
 │   └── chatcost.go       # CalculateTotalCostMicros
+│
+├── chaterror/            # Error classification and user-facing message generation
+│   ├── classify.go       # ClassifiedError: severity, retryability, provider Retry-After
+│   ├── kind.go           # ErrorKind enum (rate_limit, auth, config, startup_timeout, …)
+│   ├── message.go        # terminalMessage() + retryMessage() for frontend display
+│   ├── payload.go        # Projectors for ChatStreamError / ChatStreamRetry payloads
+│   ├── provider_error.go # Unwrap fantasy.ProviderError, parse Retry-After headers
+│   └── signals.go        # Extract structured signals from error text
 │
 ├── chatretry/            # Retry logic for transient LLM errors
 │   └── chatretry.go      # IsRetryable, Retry with exponential backoff
@@ -224,6 +239,13 @@ Key configuration:
 - `DefaultChatHeartbeatInterval = 30s` — heartbeat frequency
 - `maxChatSteps = 1200` — absolute upper bound on LLM round-trips per chat turn
 
+Decomposition has started: `configcache.go` (config caching),
+`dialvalidation.go` (agent dial validation) have been extracted.
+
+System prompt composition uses the `include_default_system_prompt` boolean
+toggle. `resolvedChatSystemPrompt()` composes `[default?, custom?]` joined
+by `\n\n`.
+
 ### 2. The Chat Loop (chatloop/)
 
 `chatloop.Run()` is the inner execution engine. For each user message it:
@@ -242,6 +264,11 @@ exponential backoff for transient errors (rate limits, 5xx, etc.).
 the summary, and reloads the message history. There is a
 `maxCompactionRetries = 3` safety valve to prevent infinite loops.
 
+The LLM stream is wrapped in `guardedStream`, which enforces a **60-second
+first-chunk timeout**. If the provider produces no output for 60s, the stream
+is canceled with a retryable `startup_timeout` error rather than hanging
+indefinitely.
+
 ### 3. Message Serialization (chatprompt/)
 
 This package handles the gnarly problem of converting between:
@@ -258,6 +285,11 @@ There are **two content versions**:
 The `ParseContent` function dispatches on `ContentVersion`. Legacy V0 parsing
 includes fallback logic for tool results, assistant blocks, and system messages
 that each had different serialization formats.
+
+V1 content now includes a `context-file` part type
+(`ChatMessagePartTypeContextFile`) used to persist workspace instruction files
+(AGENTS.md) and skill metadata. `partsToMessageParts()` expands these into
+`<workspace-context>` text blocks for the LLM prompt.
 
 ### 4. Provider Abstraction (chatprovider/)
 
@@ -281,6 +313,15 @@ Notable tool groupings:
 - **Planning tool**: `propose_plan` for presenting Markdown plans to the user
 - **Provider-native tools**: e.g. `web_search`, defined separately from `chattool/`
 
+- **Workspace MCP tools**: `mcpworkspace.go` — discovers `.mcp.json` from the
+  workspace agent via `ListMCPTools` and proxies calls via `CallMCPTool`. Tools
+  are prefixed with server name (`slug__toolName`), same convention as
+  admin-configured MCP tools.
+- **Skill tools**: `skill.go` — `read_skill` lists available skills from
+  `.agents/skills/` in the workspace, `read_skill_file` reads individual skill
+  files. Skills are auto-discovered directories containing `SKILL.md` with
+  optional frontmatter. Size limits: 64KB per SKILL.md, 512KB per skill file.
+
 The execute tool has notable complexity:
 - Detects shell-style backgrounding (trailing `&`) and promotes to background mode
 - Sets non-interactive env vars (`GIT_TERMINAL_PROMPT=0`, `TERM=dumb`, etc.)
@@ -299,6 +340,17 @@ Transport types: `sse`, `streamable_http` (default).
 
 Result conversion now handles text, images, audio, structured content,
 `EmbeddedResource`, and `ResourceLink` payloads from MCP servers.
+
+- `model_intent` support: new boolean on `mcp_server_configs`. When enabled,
+  wraps tool schemas with a `model_intent` string field. Strips it before
+  forwarding calls. Three input shapes handled: correct wrapper, flat,
+  malformed.
+- `RefreshOAuth2Token` utility: expired OAuth2 tokens refreshed before MCP
+  connections and when checking `auth_connected` status. Uses
+  `golang.org/x/oauth2` `TokenSource` with 10s expiry buffer.
+- Workspace MCP discovery: chatd calls `ListMCPTools` through `AgentConn` to
+  discover tools from workspace `.mcp.json` files, merged with
+  admin-configured MCP tools.
 
 ### 7. Subagents (subagent.go)
 
@@ -329,6 +381,14 @@ without pricing configuration.
 
 Output tokens include reasoning tokens per provider semantics — adding
 `ReasoningTokens` separately would double-count.
+
+### 10. Quick Generation (quickgen.go)
+
+`quickgen.go` handles lightweight background LLM tasks. Besides
+`GenerateChatTitle` (fire-and-forget after first assistant response), it
+exposes `RegenerateChatTitle` with
+`POST /api/experimental/chats/{chatID}/title/regenerate`. The regenerate
+endpoint uses richer context: first user turn + last 3 turns + gap markers.
 
 ---
 
@@ -376,6 +436,11 @@ There are two distinct realtime surfaces:
 `Subscribe()` merges these sources into one outgoing channel. It intentionally
 subscribes before querying so it is less likely to miss notifications between
 subscription setup and the initial snapshot.
+
+`status` events are now also forwarded from the local in-process channel
+(alongside `message_part`), not only via pubsub. `publishStatus()` is called
+before the first `message_part`, so channel FIFO ordering guarantees the
+frontend sees `status=running` before any content.
 
 ### Guarantees that exist
 
@@ -441,6 +506,17 @@ significant gap that needs addressing before scale becomes a concern.
 | `chat_files` | No | No | None |
 | `chat_queued_messages` | N/A (deleted on consume) | Yes (on consume) | N/A |
 | `chat_diff_statuses` | No | `ON DELETE CASCADE` from chats | None |
+
+New columns on `chats`:
+
+| Column | Type | Description |
+|---|---|---|
+| `last_read_message_id` | bigint | High-water mark for unread tracking. No FK. |
+| `pin_order` | integer | `0` = unpinned, `1+` = pinned display order. Cleared on archive. |
+| `build_id` | uuid | Persisted workspace build binding. Lazily set. |
+| `agent_id` | uuid | Persisted workspace agent binding. Lazily set, repaired on stale dial. |
+| `labels` | jsonb | General-purpose `map[string]string` with GIN index. Max 50. |
+| `last_injected_context` | jsonb | Most recently persisted injected context parts (AGENTS.md, skills). Internal fields stripped at write. |
 
 ### Concerns at scale
 
@@ -524,7 +600,7 @@ be resolved before GA.
 
 ### Principals
 
-There are five important principals in the current design:
+There are six important principals in the current design:
 
 1. **Request user / API key subject.** This is the normal principal for
    `/api/experimental/chats/*` requests.
@@ -533,12 +609,18 @@ There are five important principals in the current design:
    resolution run with this broad site-wide actor.
 3. **System-restricted actor** (`dbauthz.AsSystemRestricted(ctx)`). This is the
    escape hatch used for helper lookups that intentionally bypass normal user
-   RBAC.
+   RBAC. In non-chatd paths, `AsSystemRestricted` has been partially replaced
+   with narrower purpose-built actors: `AsSystemOAuth2`,
+   `AsSystemReadProvisionerDaemons`, `AsProvisionerd`.
 4. **Reconstructed owner actor.** Workspace create/start flows rebuild the chat
    owner's RBAC subject and then call workspace internals as that owner rather
    than as the daemon.
 5. **Subagent trust inheritance.** Child chats inherit trust from the parent
    chat rather than being independently re-authorized for every internal action.
+6. **`agents-access` role subject.** A new built-in site-wide role
+   (`agents-access`) gates chat creation. Members without this role cannot
+   create chats. The migration auto-assigns the role to users who have ever
+   created a chat.
 
 ### Where authorization is actually enforced
 
@@ -599,11 +681,10 @@ There are five important principals in the current design:
 
 ### What is durable
 
-A chat is durably bound only by **`chats.workspace_id`**.
-
-The original chat schema also had `workspace_agent_id`, but that column was
-removed. Today there is no durable agent binding. `chatd` resolves the live
-agent lazily from the workspace's **latest build** whenever a turn needs one.
+A chat is durably bound by `chats.workspace_id`, `chats.build_id`, and
+`chats.agent_id`. The `build_id` and `agent_id` columns were re-added after
+an earlier removal; they serve as an optimistic cache of the agent a chat
+should use.
 
 ### How chats gain a workspace
 
@@ -634,6 +715,9 @@ reload path to keep bumping workspace activity while a turn is active.
 
 - Agent choice is effectively **"first agent in latest build"**, not a stable
   agent ID. Multi-agent workspaces therefore have a fuzzy contract today.
+  This resolution only applies to the initial binding and the
+  repair/re-resolve path. On the hot path, the bound agent is loaded by ID
+  directly.
 - `create_workspace` is only idempotent in the loose sense: it reuses a live
   workspace, waits for an in-progress build, suggests `start_workspace` if the
   bound workspace is stopped, and may create a brand-new workspace if the old
@@ -653,6 +737,12 @@ reload path to keep bumping workspace activity while a turn is active.
   late binding.
 - Soft-deleted workspaces leave `chats.workspace_id` pointing at a logically
   dead row because the FK's `ON DELETE SET NULL` only helps for hard deletes.
+
+Instruction files (AGENTS.md) are now persisted as `context-file` message parts
+on first workspace attachment via `persistInstructionFiles()`, rather than being
+re-resolved per turn. The `last_injected_context` column on `chats` stores the
+most recently persisted context to avoid redundant writes. Per-turn
+`resolveInstructions()` + `InsertSystem()` has been removed.
 
 ### Questions to resolve
 
@@ -731,7 +821,7 @@ one response.
 
 ## Known Technical Debt
 
-1. **`chatd.go` needs decomposition.** At ~4,200 lines, this single file contains
+1. **`chatd.go` needs decomposition.** At ~5,400 lines, this single file contains
    the Server struct, all HTTP-facing methods (Create/Send/Edit/Archive/Delete/
    Promote/Interrupt/RefreshStatus/Subscribe), the background processing loop,
    the full `runChat` orchestration, stream management, push notifications,
@@ -739,7 +829,9 @@ one response.
    direct result of fast iterative shipping during the experimental phase. It
    must be broken up before the codebase can scale to more contributors.
    Likely candidates for extraction: stream management, model/instruction
-   resolution, push notifications, message queue handling.
+   resolution, push notifications, message queue handling. Decomposition has
+   started: `configcache.go` (config caching) and `dialvalidation.go` (agent
+   dial validation) have been extracted.
 
 2. **`charm.land/fantasy` fork must be reconciled with upstream.** The `go.mod`
    replaces the canonical `charm.land/fantasy` module with
@@ -756,6 +848,10 @@ one response.
    released during the V0 era, the only users with V0 data are those running
    `main`. Decision needed: drop V0 (simpler code, breaks `main` runners) or
    keep it (more code to maintain, but no data loss for anyone).
+
+4. **`chaterror/` package extracted from `chatretry/`.** Error classification
+   is now a standalone package with structured provider error extraction,
+   retry-after parsing, and user-facing message generation.
 
 ---
 
@@ -892,8 +988,9 @@ one response.
     deployment configuration option so admins can set their preferred
     lightweight model for background tasks.
 
-19. **Instruction caching (5 minutes) is undocumented but intentional.** If a
-    user edits `AGENTS.md`, the change won't take effect for up to 5 minutes.
+19. **Instruction caching (5 minutes) is undocumented but intentional.**
+    **Partially superseded** — instructions are now persisted as `context-file`
+    parts on first workspace attachment. If a user edits `AGENTS.md`, the change won't take effect for up to 5 minutes.
     The cache exists for good reason: without it, every LLM turn would re-read
     the file from the workspace agent, and uncached system prompt changes would
     invalidate the provider's prompt cache, significantly increasing cost. In
@@ -907,3 +1004,11 @@ one response.
     calculations. An int64 microdollar representation could also work but
     `shopspring/decimal` handles the intermediate fractional arithmetic cleanly
     before the final ceil-to-int64 step. Not a concern.
+
+21. **Workspace MCP tool discovery caching.** Tools from `.mcp.json` are cached
+    in the agent process. Cache refresh policy and interaction with
+    admin-configured MCP tools needs documentation.
+
+22. **Chat labels lifecycle.** Labels are general-purpose `map[string]string` on
+    chats, designed for Automations. No label-based retention or cleanup policy
+    exists yet.

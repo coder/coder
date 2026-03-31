@@ -1,7 +1,7 @@
 # Agents Frontend — Architecture & State of the Code
 
 > **Status**: Early Access (formerly experimental).
-> ~46,800 lines of TypeScript/TSX in `site/src/pages/AgentsPage/`,
+> ~31,300 lines of TypeScript/TSX in `site/src/pages/AgentsPage/`,
 > ~6,800 lines in shared `ai-elements` and `ChatMessageInput` components,
 > ~950 lines in the API query layer.
 
@@ -22,48 +22,67 @@ them "chats".
 ```
 /agents                          → AgentsPage (layout: sidebar + outlet)
   /agents/                       → AgentCreatePage (index — new chat form)
-  /agents/settings               → AgentSettingsPage
-  /agents/settings/:section      → AgentSettingsPage (section-specific)
+  /agents/settings               → AgentSettingsPage (layout: subnav + outlet)
+    /agents/settings/            → AgentSettingsBehaviorPage (index)
+    /agents/settings/behavior    → AgentSettingsBehaviorPage
+    /agents/settings/providers   → AgentSettingsProvidersPage
+    /agents/settings/models      → AgentSettingsModelsPage
+    /agents/settings/mcp-servers → AgentSettingsMCPServersPage
+    /agents/settings/limits      → AgentSettingsLimitsPage
+    /agents/settings/usage       → AgentSettingsUsagePage
+    /agents/settings/insights    → AgentSettingsInsightsPage
+    /agents/settings/templates   → AgentSettingsTemplatesPage
   /agents/analytics              → AgentAnalyticsPage
-  /agents/:agentId               → AgentDetail (conversation view)
+  /agents/:agentId               → AgentChatPage (conversation view)
 
-/agents/:agentId/embed           → AgentEmbedPage (VS Code iframe wrapper)
-  /agents/:agentId/embed/        → AgentDetail (embedded conversation)
+/agents/:agentId/embed           → AgentEmbedPage (iframe wrapper with theme sync)
+  /agents/:agentId/embed/        → AgentChatPage (embedded conversation)
 ```
 
 All pages are lazy-loaded via React Router. `AgentsPage` is the layout wrapper
 that provides `AgentsOutletContext` to child routes via React Router's outlet
-context.
+context. `AgentSettingsPage` is a nested layout that provides a settings subnav
+and renders its own `<Outlet>` for the individual settings pages.
 
 ---
 
 ## Component Hierarchy
 
 ```
-AgentsPage (state owner: chat list, models, archive mutations, watchChats WS)
-  └─ AgentsPageView (layout shell: sidebar + <Outlet>)
-       ├─ AgentsSidebar (chat list with infinite scroll, search, archive)
-       └─ <Outlet> (React Router child routes)
-            ├─ AgentCreatePage (model selection, create mutation, navigate on success)
-            ├─ AgentDetail (conversation: messages, streaming, tools, editing)
-            │    ├─ TopBar (model selector, interrupt, archive actions)
-            │    ├─ ConversationTimeline (message rendering, infinite scroll up)
-            │    │    ├─ Response (streamed markdown via Streamdown)
-            │    │    ├─ Tool (dispatches to per-tool renderers)
-            │    │    └─ SubagentTool / ChatSummarizedTool / etc.
-            │    ├─ QueuedMessagesList (pending messages while chat is busy)
-            │    ├─ AgentChatInput (Lexical-based rich text input)
-            │    └─ RightPanel (desktop VNC, git panel, diff viewer)
-            ├─ AgentSettingsPageView (multi-section admin settings)
-            │    ├─ UserCompactionThresholdSettings (per-model personal compaction thresholds)
-            │    ├─ ChatModelAdminPanel (provider + model CRUD)
-            │    ├─ MCPServerAdminPanel (MCP server config CRUD)
-            │    ├─ LimitsTab (usage limit configuration)
-            │    └─ TemplateAllowlistSection (deployment-wide template allowlist)
-            └─ AgentAnalyticsPage (cost summary, PR insights)
+AgentsPage (layout: sidebar + outlet)
+  └─ AgentsPageView (layout shell)
+       ├─ AgentsSidebar (Sidebar/AgentsSidebar.tsx)
+       │    ├─ Pinned chats section (drag-to-reorder via @dnd-kit)
+       │    ├─ Read/unread indicator (bold + blue dot)
+       │    └─ SidebarTabView (Sidebar/SidebarTabView.tsx)
+       └─ <Outlet>
+            ├─ AgentCreatePage (AgentCreateForm.tsx)
+            ├─ AgentChatPage (was AgentDetail)
+            │    ├─ ChatTopBar.tsx (model selector, interrupt, archive, title regen)
+            │    ├─ ChatConversation/ (was ConversationTimeline)
+            │    │    ├─ ConversationTimeline.tsx (message rendering, scroll)
+            │    │    ├─ LiveStreamTail.tsx (streaming output)
+            │    │    ├─ StreamingOutput.tsx
+            │    │    └─ ChatStatusCallout.tsx (structured live-status: startup/retry/failure)
+            │    ├─ ChatElements/ (message rendering primitives)
+            │    │    ├─ Conversation.tsx, Message.tsx, Response.tsx
+            │    │    ├─ ModelSelector.tsx, Shimmer.tsx, Thinking.tsx
+            │    │    └─ tools/ (per-tool renderers: Tool.tsx dispatches)
+            │    ├─ QueuedMessagesList.tsx
+            │    ├─ AgentChatInput.tsx (Lexical rich text + ArrowUp edit)
+            │    └─ RightPanel/ (desktop VNC, git panel, diff viewer)
+            ├─ AgentSettingsBehaviorPage (personal prompt, system prompt, desktop, TTL)
+            ├─ AgentSettingsProvidersPage (provider CRUD)
+            ├─ AgentSettingsModelsPage (model config CRUD with enabled toggle)
+            ├─ AgentSettingsMCPServersPage (MCP server config with model_intent toggle)
+            ├─ AgentSettingsLimitsPage (usage limits)
+            ├─ AgentSettingsUsagePage (cost summaries)
+            ├─ AgentSettingsInsightsPage (PR insights)
+            ├─ AgentSettingsTemplatesPage (template allowlist)
+            └─ AgentAnalyticsPage
 
-AgentEmbedPage (alternate root for VS Code iframe)
-  └─ <Outlet> → AgentDetail (reuses the same conversation component)
+AgentEmbedPage (iframe wrapper with theme sync + navigation blocking)
+  └─ <Outlet> → AgentChatPage
 ```
 
 ---
@@ -79,6 +98,17 @@ AgentEmbedPage (alternate root for VS Code iframe)
   send/edit/interrupt mutations.
 - State flows **down** via props and `AgentsOutletContext`.
 - Mutations flow **up** via callback props.
+
+### Additional state
+
+- **Read/unread tracking**: `has_unread` on `Chat`, `last_read_message_id`
+  updated on stream connect/disconnect.
+- **Pinned chats**: `pin_order`, optimistic cache reorder,
+  `reorderPinnedChat` mutation.
+- **`liveStatusModel`**: centralized live-status pipeline
+  (`liveStatusModel.ts`) replacing scattered error/stream booleans.
+  `ChatStatusCallout` renders structured startup/retry/failure status.
+- **Chat labels**: `labels` field on `Chat` (API only, not yet rendered).
 
 ### Real-time updates
 
@@ -153,6 +183,47 @@ useChatSelector(selector)  — Thin wrapper: only re-renders on selected slice c
 | socket reconnect schedule | `setReconnectState` | Surfaces reconnect/backoff state when appropriate |
 | `queue_update` | `setQueuedMessages` | Updates store + React Query cache |
 
+### Recent changes
+
+- `clearStreamState()` is now called after POST response, gated on
+  `!response.queued` so it doesn't clear state for queued messages.
+- `model_intent` is extracted from streaming JSON in `streamState.ts` and
+  surfaced by `GenericToolRenderer` as a primary label when available.
+- Stale per-chat refetches are cancelled before WebSocket cache writes to
+  prevent races where a slow REST response overwrites fresh WS data.
+- `chat-ready` signal waits for store message count to match fetched count
+  before considering the chat fully loaded.
+
+---
+
+## Performance
+
+- **Module-scope `createComponents`** in `Response.tsx` — Streamdown
+  component factories are created once at module scope, not per-render.
+- **`memo()` on hot components**: `StickyUserMessage`,
+  `ConversationTimeline`, `SmoothedResponse`, `ReasoningDisclosure` are all
+  wrapped in `memo()` to prevent unnecessary re-renders during streaming.
+- **React Compiler**: `buildStreamTools` narrowed, `AgentDetailInput`
+  dependency chain reordered, `useSpeechRecognition` moved to compiled
+  `hooks/` path.
+- **Streaming-mode Streamdown**: live output uses streaming-mode Streamdown
+  for incremental rendering; persisted messages use standard rendering.
+
+---
+
+## Scroll Architecture
+
+The conversation uses a top-to-bottom `flex-col` layout with
+`overflow-y-auto` and `[overflow-anchor:none]`. Auto-scroll is driven by
+`IntersectionObserver` on a sentinel element and `ResizeObserver` on the
+content wrapper (to detect growth during streaming). Scroll updates are
+RAF-throttled to avoid redundant work on high-refresh-rate displays.
+
+Notable scroll work includes a pin starvation fix for the sticky user
+message, a restore-guard lifecycle to prevent scroll jumps on mount, and
+WebKit phantom scroll handling where content resizes don't fire scroll
+events.
+
 ---
 
 ## Stream State (`streamState.ts`)
@@ -183,22 +254,32 @@ a tool call and its result arrive in separate database messages.
 
 ---
 
-## Tool Rendering (`ai-elements/tool/`)
+## Tool Rendering (`components/ChatElements/tools/`)
 
-Each tool has a specialized renderer dispatched by name:
+Each tool has a specialized renderer dispatched by `Tool.tsx`:
 
 | Tool | Renderer | Notes |
 |---|---|---|
-| `execute` | `ExecuteRenderer` | Shows command, output, exit code |
-| `process_output` | `ProcessOutputRenderer` | Shows process output |
-| `read_file` | `ReadFileRenderer` | File viewer |
-| `write_file` | `WriteFileRenderer` | Diff viewer (before/after) |
-| `edit_files` | `EditFilesRenderer` | Multi-file diff viewer |
-| `create_workspace` | `CreateWorkspaceRenderer` | Workspace name + status |
-| `spawn_agent` etc. | `SubagentRenderer` → `SubagentTool` | Clickable with expand/collapse |
-| `chat_summarized` | `ChatSummarizedRenderer` | Collapsed summary |
-| `computer` | `ComputerRenderer` | Screenshot display |
-| Unknown | `GenericToolRenderer` | Fallback with raw args/result |
+| `execute` | `ExecuteTool` | Shows command, output, exit code |
+| `process_output` | `ProcessOutputTool` | Dedicated process output renderer |
+| `read_file` | `ReadFileTool` | File viewer |
+| `write_file` | `WriteFileTool` | Diff viewer (before/after) |
+| `edit_files` | `EditFilesTool` | Multi-file diff viewer |
+| `create_workspace` | `CreateWorkspaceTool` | Workspace name + status |
+| `spawn_agent` etc. | `SubagentTool` | Clickable with expand/collapse |
+| `chat_summarized` | `ChatSummarizedTool` | Collapsed summary |
+| `computer` | `ComputerTool` | Screenshot display |
+| `list_templates` | `ListTemplatesTool` | Template listing |
+| `read_template` | `ReadTemplateTool` | Template detail |
+| `propose_plan` | `ProposePlanTool` | Plan proposal renderer |
+| Unknown | `GenericToolRenderer` | Fallback; shows `model_intent` as primary label when available |
+
+Shared primitives: `ToolCollapsible.tsx`, `ToolIcon.tsx`, `ToolLabel.tsx`.
+
+Additional components in the tools directory:
+- `InlineDesktopPreview.tsx` — desktop preview for computer use subagent.
+- `WebSearchSources.tsx` — web search source display.
+- `DesktopPanelContext.tsx` — context provider for desktop panel state.
 
 ---
 
@@ -215,20 +296,21 @@ Exposes an imperative ref (`ChatMessageInputRef`) with: `insertText`, `clear`,
 
 ---
 
-## Admin Settings (`AgentSettingsPageView`)
+## Admin Settings
 
-Multi-section settings view (~1,080 lines):
+Settings are now split into separate route-level page files under
+`AgentSettingsPage` (layout with subnav):
 
-| Section | Content | Access |
+| Page | Content | Access |
 |---|---|---|
-| `behavior` | Personal prompt, system prompt, user compaction thresholds, desktop toggle, autostop TTL | Personal: all users. System/desktop/TTL: admin only |
-| `providers` | Provider CRUD (API keys, base URLs) | Admin |
-| `models` | Model config CRUD (per-provider settings, pricing) | Admin |
-| `mcp-servers` | MCP server config CRUD | Admin |
-| `limits` | Usage limit config (global, per-user, per-group overrides) | Admin |
-| `usage` | Cost summaries, per-user drill-down | Admin |
-| `insights` | PR insights | Admin |
-| `templates` | Deployment-wide template allowlist for chat-created workspaces | Admin |
+| `AgentSettingsBehaviorPage` | Personal prompt, system prompt (`include_default_system_prompt` toggle), user compaction thresholds, desktop toggle, autostop TTL | Personal: all users. System/desktop/TTL: admin only |
+| `AgentSettingsProvidersPage` | Provider CRUD (API keys, base URLs) | Admin |
+| `AgentSettingsModelsPage` | Model config CRUD with `enabled` toggle (per-provider settings, pricing) | Admin |
+| `AgentSettingsMCPServersPage` | MCP server config CRUD with `model_intent` toggle | Admin |
+| `AgentSettingsLimitsPage` | Usage limit config (global, per-user, per-group overrides) | Admin |
+| `AgentSettingsUsagePage` | Cost summaries, per-user drill-down | Admin |
+| `AgentSettingsInsightsPage` | PR insights | Admin |
+| `AgentSettingsTemplatesPage` | Deployment-wide template allowlist for chat-created workspaces | Admin |
 
 ---
 
@@ -320,6 +402,11 @@ in the server.
 - **Usage Limits**: config, status, user overrides, group overrides
 - **MCP Servers**: CRUD for MCP server configs
 - **Files**: uploadChatFile, getChatFileText
+- **Title**: `POST /chats/{chatID}/title/regenerate`
+- **Workspace lookup**: `GET /chats/by-workspace`
+- **Chat update**: `PATCH /chats/{chat}` with `pin_order` and `labels`
+  fields
+- **Label filtering**: `?label=key:value` on `GET /chats`
 
 ### SSE/WebSocket Streams
 
@@ -411,16 +498,39 @@ flow:
 3. On success, wraps child routes in dashboard providers
 4. Provides a minimal `AgentsOutletContext` with no-op archive handlers
 
+Additional embed features:
+- **Theme sync**: initial theme from `?theme=light|dark` query param, then
+  `coder:set-theme` postMessage from parent frame. Applied via
+  `applyEmbedTheme()` which sets a class + `data-embed-theme` on `<html>`.
+- **Navigation blocking**: `useBlocker` prevents in-app navigation;
+  `postMessage` to parent frame for external navigation.
+- **Copy/paste support**: for agents desktop within the embedded context.
+
+---
+
+## `hooks/` Directory
+
+The `hooks/` directory contains extracted hooks within the React Compiler
+scope:
+
+- `useAgentsPWA.ts` — PWA installation and update prompts.
+- `useAgentsPageKeybindings.ts` — keyboard shortcuts for the agents page.
+- `useDesktopConnection.ts` — desktop VNC WebSocket connection management.
+- `useFileAttachments.ts` — file attachment handling for chat input.
+- `useGitWatcher.ts` — Git change WebSocket for the right panel.
+- `useOverflowCount.ts` — count of items overflowing a container.
+- `useSpeechRecognition.ts` — speech-to-text input.
+
 ---
 
 ## Open Questions
 
 ### Architecture
 
-1. **`AgentDetail.tsx` is ~980 lines.** It fetches individual chat, paginated
-   messages, parent chat, workspace, models, SSH config, desktop enabled, and
-   owns model selection, send/edit/interrupt mutations, and streaming state. Is
-   there a decomposition plan?
+1. **`AgentChatPage.tsx` (was `AgentDetail.tsx`).** It fetches individual chat,
+   paginated messages, parent chat, workspace, models, SSH config, desktop
+   enabled, and owns model selection, send/edit/interrupt mutations, and
+   streaming state. The rename happened but the decomposition question remains.
 
 2. **`ChatContext.ts` is ~1,100 lines.** The chat store mixes framework-agnostic
    store logic with React-specific wiring (WebSocket lifecycle, REST sync, React
@@ -446,8 +556,8 @@ flow:
 6. **`ChatContext.test.tsx` is 3,240 lines** — the largest test file. Is this
    sustainable? Are there flakiness issues?
 
-7. **`AgentDetail.stories.tsx` is 1,026 lines.** How much of the agent UX is
-   covered by Storybook vs integration tests?
+7. **`AgentChatPage.stories.tsx` (was `AgentDetail.stories.tsx`).** How much
+   of the agent UX is covered by Storybook vs integration tests?
 
 ### Design
 
@@ -460,20 +570,16 @@ flow:
    to ensure new tools get dedicated renderers, or is the generic fallback
    considered sufficient?
 
-10. **`AgentSettingsPageView` is ~1,080 lines with 8 sections.** Each section is
-    essentially a mini-page. Should these be separate route-level components
-    rather than sections within one view?
-
-11. **Model/config ownership leaks into the frontend.** Create/detail pages
+10. **Model/config ownership leaks into the frontend.** Create/detail pages
     need both `chatModels()` and `chatModelConfigs()`, then map
     `provider:model` back to `model_config_id`. Is that layering intentional, or
     should the backend expose a simpler user-facing model selection surface?
 
-12. **Model config schema is generated from Go struct tags** via
+11. **Model config schema is generated from Go struct tags** via
     `scripts/modeloptionsgen` → `chatModelOptionsGenerated.json`. How is this
     kept in sync? Is it part of `make gen`?
 
-13. **File uploads go through a separate endpoint** (`uploadChatFile`) that
+12. **File uploads go through a separate endpoint** (`uploadChatFile`) that
     returns a file ID. The file is then referenced in messages via
     `FileReferenceNode`. But as noted in the backend doc, `chat_files` has no
     FK to `chats` — so uploaded files are orphaned when chats are archived.
