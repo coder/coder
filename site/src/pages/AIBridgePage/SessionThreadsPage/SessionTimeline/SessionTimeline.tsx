@@ -136,11 +136,11 @@ const BracketConnector: FC<BracketConnectorProps> = ({
 				: "grid-rows-[2rem_auto]",
 		)}
 	>
-		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid border-surface-secondary rounded-bl-lg">
+		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid rounded-bl-lg">
 			{/* top rounded line */}
 		</div>
 		{!hideBottomLine && (
-			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-surface-secondary rounded-tl-lg -mt-px">
+			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid rounded-tl-lg -mt-px">
 				{/* bottom rounded line */}
 			</div>
 		)}
@@ -157,10 +157,10 @@ interface ThinkingBlockProps {
 const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
 		<div className="flex items-center">
-			<LoaderIcon className="size-icon-sm text-content-secondary" />
-			<span className="font-mono ml-2">Thinking...</span>
+			<LoaderIcon className="size-icon-xs text-content-secondary" />
+			<span className="font-mono ml-2 text-xs">Thinking...</span>
 		</div>
-		<ExpandableText text={text} className="text-pretty m-0" />
+		<ExpandableText text={text} className="text-sm text-pretty m-0" />
 	</BracketConnector>
 );
 
@@ -188,11 +188,11 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	const [isOpen, setIsOpen] = useState(expandedByDefault);
 
 	return (
-		<BracketConnector contentClassName="mt-2 mr-4 border border-solid border-surface-secondary rounded-md overflow-x-auto">
+		<BracketConnector contentClassName="mt-2 mr-4 border border-solid rounded-md overflow-x-auto">
 			<div className="flex items-center">
 				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
-					<span>Tool call</span>
-					<Badge size="xs" className="font-mono">
+					<span className="text-sm">Tool call</span>
+					<Badge size="xs" className="font-mono ml-1">
 						{tool}
 					</Badge>
 				</CollapseButton>
@@ -207,7 +207,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						outputTokens={outputTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
-					<pre className="bg-surface-secondary rounded-md m-4 p-4 text-xs font-mono text-content-primary overflow-x-auto m-0">
+					<pre className="bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
 						{tool} <JsonPrettyPrinter input={input} />
 					</pre>
 				</>
@@ -231,16 +231,16 @@ const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
 
 	return (
 		<BracketConnector
-			contentClassName="mt-3 border border-solid border-surface-secondary rounded-md mb-4 mr-4"
+			contentClassName="mt-3 border border-solid rounded-md mb-4 mr-4"
 			hideBottomLine
 		>
 			<div className="flex items-center">
 				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
-					<span>Agentic loop completed</span>
+					<span className="text-sm">Agentic loop completed</span>
 				</CollapseButton>
 			</div>
 			{isOpen && (
-				<div className="mb-4 ml-3 mr-4 flex flex-col gap-2 lg:w-1/2 text-xs text-content-secondary">
+				<div className="mb-4 ml-3 mr-4 flex flex-col gap-2 lg:w-1/2 text-sm text-content-secondary">
 					<div className="flex items-center justify-between">
 						<span className="font-medium">In / out tokens</span>
 						<TokenBadges
@@ -302,7 +302,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 	return (
 		<>
-			<div className="border border-surface-secondary border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
+			<div className="border border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
 				{/* left column: avatar and username */}
 				<div className="flex flex-row items-items-start gap-1">
 					<Avatar
@@ -311,7 +311,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 						size="sm"
 						className="flex-shrink-0"
 					/>
-					<span className="text-xs text-content-secondary font-normal py-1">
+					<span className="text-sm text-content-secondary font-normal py-1">
 						{initiator.username}
 					</span>
 				</div>
@@ -320,10 +320,10 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				<div className="flex-grow flex flex-col gap-1">
 					{thread.prompt && (
 						<>
-							<div className="text-xs text-content-secondary font-normal my-1">
+							<div className="text-sm text-content-secondary font-normal my-1">
 								Prompt
 							</div>
-							<p className="text-xs text-content-primary bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
+							<p className="text-sm text-content-secondary bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
 								{thread.prompt}
 							</p>
 						</>
@@ -332,7 +332,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 				{/* right column: details */}
 				<PromptTable
-					className="lg:max-w-64 flex-grow"
+					className="lg:max-w-64 flex-shrink-0"
 					timestamp={new Date(thread.started_at)}
 					model={thread.model}
 					inputTokens={thread.token_usage.input_tokens}
@@ -343,7 +343,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 			<BracketConnector
 				firstRowHeight="60px"
-				contentClassName="border border-surface-secondary border-dashed rounded-md my-4"
+				contentClassName="border border-dashed rounded-md my-4"
 			>
 				{/* Agentic loop */}
 				<div className="flex flex-col lg:flex-row lg:items-center justify-between">
@@ -352,7 +352,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 							isOpen={agenticLoopOpen}
 							onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
 						>
-							Agentic loop
+							<span className="text-sm">Agentic loop</span>
 						</CollapseButton>
 					</div>
 
@@ -368,7 +368,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				{agenticLoopOpen && (
 					<>
 						{/* the little top rounded line above the thinking block */}
-						<div className="border-0 border-t border-r border-solid border-surface-secondary rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+						<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
 							{/* we need the 1px extra to line up with the left border on the other lines */}
 						</div>
 
@@ -446,17 +446,17 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 2: vertical line */}
-				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
+				<div className="row-start-2 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3: sized intentionally to create the visual space above the timeline border */}
-				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-6">
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid h-6">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3/4: AI Governance tooltip */}
-				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2 pt-1">
+				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-sm text-content-secondary px-2 pt-1">
 					AI Governance
 					<TooltipProvider>
 						<Tooltip>
@@ -464,7 +464,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
 							</TooltipTrigger>
 							<TooltipContent
-								className="max-w-64 text-xs"
+								className="max-w-64 text-sm"
 								align="end"
 								side="top"
 							>
@@ -476,7 +476,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 									<Link
 										href={docs("/ai-coder/ai-governance")}
 										target="_blank"
-										className="text-xs"
+										className="text-sm"
 									>
 										More about AI Governance
 									</Link>
@@ -493,10 +493,10 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
-				<div className="row-start-4 col-start-3 border-0 border-l border-solid border-surface-secondary">
+				<div className="row-start-4 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
-				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
+				<div className="row-start-4 col-start-4 border-0 border-t border-dashed">
 					{/* horizontal border */}
 				</div>
 				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg size-4">
@@ -531,7 +531,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
 					{/* horizontal line */}
 				</div>
-				<div className="row-start-6 col-start-3 border-0 border-l border-solid border-surface-secondary">
+				<div className="row-start-6 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
@@ -542,7 +542,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 7: sized intentionally to create the visual space below the timeline border */}
-				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-4">
+				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
 					{/* vertical line */}
 				</div>
 

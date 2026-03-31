@@ -25,7 +25,7 @@ export const ToolCallTable: FC<ToolCallTableProps> = ({
 		<div
 			className={cn(
 				className,
-				"flex flex-col gap-2 text-xs text-content-secondary",
+				"flex flex-col gap-2 text-sm text-content-secondary",
 			)}
 		>
 			<div className="flex items-center justify-between whitespace-nowrap">

@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import type { FC } from "react";
@@ -18,10 +18,10 @@ import {
 	TopbarIconButton,
 } from "#/components/FullPageLayout/Topbar";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipTrigger,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import {
 	Tooltip,
 	TooltipContent,
@@ -74,7 +74,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 }) => {
 	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
-	const theme = useTheme();
 
 	// Quota
 	const hasDailyCost = workspace.latest_build.daily_cost > 0;
@@ -112,7 +111,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	);
 
 	return (
-		<Topbar css={{ gridArea: "topbar" }}>
+		<Topbar className="[grid-area:topbar]">
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<TopbarIconButton component={RouterLink} to="/workspaces">
@@ -159,7 +158,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				{quota && quota.budget > 0 && (
 					<Link
 						component={RouterLink}
-						css={{ color: "inherit" }}
+						className="text-inherit"
 						to={
 							showOrganizations
 								? `/workspaces?filter=organization:${encodeURIComponent(workspace.organization_name)}`
@@ -181,9 +180,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 							<span>
 								{workspace.latest_build.daily_cost}{" "}
-								<span css={{ color: theme.palette.text.secondary }}>
-									credits of
-								</span>{" "}
+								<span className="text-content-secondary">credits of</span>{" "}
 								{quota.budget}
 							</span>
 						</TopbarData>
@@ -199,7 +196,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							component={RouterLink}
 							to={`${templateLink}/settings/schedule`}
 							title="Schedule settings"
-							css={{ color: "inherit" }}
+							className="text-inherit"
 						>
 							{workspace.deleting_at ? (
 								<>Deletion on {formatDate(new Date(workspace.deleting_at))}</>
@@ -262,18 +259,18 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 	ownerAvatarUrl,
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
-			</HelpTooltipTrigger>
+			</HelpPopoverTrigger>
 
-			<HelpTooltipContent align="center">
+			<HelpPopoverContent align="center">
 				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -289,8 +286,8 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 	orgIconUrl,
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger asChild>
+		<HelpPopover>
+			<HelpPopoverTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar
 						size="sm"
@@ -300,16 +297,16 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					/>
 					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
-			</HelpTooltipTrigger>
+			</HelpPopoverTrigger>
 
-			<HelpTooltipContent align="center">
+			<HelpPopoverContent align="center">
 				<AvatarData
 					title={
 						orgPageUrl ? (
 							<Link
 								component={RouterLink}
 								to={orgPageUrl}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								{orgName}
 							</Link>
@@ -330,8 +327,8 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					}
 					imgFallbackText={orgName}
 				/>
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
 
@@ -354,8 +351,8 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 }) => {
 	return (
 		<div className="flex items-center">
-			<HelpTooltip>
-				<HelpTooltipTrigger asChild>
+			<HelpPopover>
+				<HelpPopoverTrigger asChild>
 					<span css={styles.breadcrumbSegment}>
 						<TopbarAvatar
 							src={templateIconUrl}
@@ -366,15 +363,15 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							{workspaceName}
 						</span>
 					</span>
-				</HelpTooltipTrigger>
+				</HelpPopoverTrigger>
 
-				<HelpTooltipContent align="center">
+				<HelpPopoverContent align="center">
 					<AvatarData
 						title={
 							<Link
 								component={RouterLink}
 								to={rootTemplateUrl}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								{templateDisplayName}
 							</Link>
@@ -383,7 +380,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							<Link
 								component={RouterLink}
 								to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
-								css={{ color: "inherit" }}
+								className="text-inherit"
 							>
 								Version: {latestBuildVersionName}
 							</Link>
@@ -398,8 +395,8 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						}
 						imgFallbackText={templateDisplayName}
 					/>
-				</HelpTooltipContent>
-			</HelpTooltip>
+				</HelpPopoverContent>
+			</HelpPopover>
 			<CopyButton text={workspaceName} label="Copy workspace name" />
 		</div>
 	);

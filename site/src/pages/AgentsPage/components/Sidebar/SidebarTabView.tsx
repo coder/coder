@@ -142,7 +142,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	if (desktopChatId) {
 		allPanels.push({
 			id: "desktop",
-			content: <DesktopPanel chatId={desktopChatId} />,
+			content: (
+				<DesktopPanel
+					chatId={desktopChatId}
+					isVisible={effectiveTabId === "desktop"}
+				/>
+			),
 		});
 	}
 

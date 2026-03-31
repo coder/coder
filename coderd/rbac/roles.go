@@ -406,7 +406,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 	agentsAccessRole := Role{
 		Identifier:  RoleAgentsAccess(),
-		DisplayName: "Use Coder Agents",
+		DisplayName: "Coder Agents User",
 		Site:        []Permission{},
 		User: Permissions(map[string][]policy.Action{
 			ResourceChat.Type: {

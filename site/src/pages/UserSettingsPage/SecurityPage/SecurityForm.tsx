@@ -16,27 +16,18 @@ interface SecurityFormValues {
 	confirm_password: string;
 }
 
-export const Language = {
-	oldPasswordLabel: "Old Password",
-	newPasswordLabel: "New Password",
-	confirmPasswordLabel: "Confirm Password",
-	oldPasswordRequired: "Old password is required",
-	newPasswordRequired: "New password is required",
-	confirmPasswordRequired: "Password confirmation is required",
-	passwordMinLength: "Password must be at least 8 characters",
-	passwordMaxLength: "Password must be no more than 64 characters",
-	confirmPasswordMatch: "Password and confirmation must match",
-	updatePassword: "Update password",
-};
-
 const validationSchema = Yup.object({
-	old_password: Yup.string().trim().required(Language.oldPasswordRequired),
-	password: Yup.string().trim().required(Language.newPasswordRequired),
+	old_password: Yup.string().trim().required("Old password is required"),
+	password: Yup.string().trim().required("New password is required"),
 	confirm_password: Yup.string()
 		.trim()
-		.test("passwords-match", Language.confirmPasswordMatch, function (value) {
-			return (this.parent as SecurityFormValues).password === value;
-		}),
+		.test(
+			"passwords-match",
+			"Password and confirmation must match",
+			function (value) {
+				return (this.parent as SecurityFormValues).password === value;
+			},
+		),
 });
 
 interface SecurityFormProps {
@@ -80,27 +71,27 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 					{...getFieldHelpers("old_password")}
 					autoComplete="old_password"
 					fullWidth
-					label={Language.oldPasswordLabel}
+					label="Old Password"
 					type="password"
 				/>
 				<PasswordField
 					{...getFieldHelpers("password")}
 					autoComplete="password"
 					fullWidth
-					label={Language.newPasswordLabel}
+					label="New Password"
 				/>
 				<TextField
 					{...getFieldHelpers("confirm_password")}
 					autoComplete="confirm_password"
 					fullWidth
-					label={Language.confirmPasswordLabel}
+					label="Confirm Password"
 					type="password"
 				/>
 
 				<div>
 					<Button disabled={isLoading} type="submit">
 						<Spinner loading={isLoading} />
-						{Language.updatePassword}
+						Update password
 					</Button>
 				</div>
 			</FormFields>

@@ -10,7 +10,6 @@ import {
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { SetupPage } from "./SetupPage";
-import { Language as PageViewLanguage } from "./SetupPageView";
 
 const fillForm = async ({
 	email = "someone@coder.com",
@@ -20,12 +19,12 @@ const fillForm = async ({
 	email?: string;
 	password?: string;
 } = {}) => {
-	const emailField = screen.getByLabelText(PageViewLanguage.emailLabel);
-	const passwordField = screen.getByLabelText(PageViewLanguage.passwordLabel);
+	const emailField = screen.getByLabelText("Email");
+	const passwordField = screen.getByLabelText("Password");
 	await userEvent.type(emailField, email);
 	await userEvent.type(passwordField, password);
 	const submitButton = screen.getByRole("button", {
-		name: PageViewLanguage.create,
+		name: "Continue with email",
 	});
 	await userEvent.click(submitButton);
 };

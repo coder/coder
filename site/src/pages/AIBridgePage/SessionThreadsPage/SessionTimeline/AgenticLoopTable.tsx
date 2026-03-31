@@ -21,7 +21,7 @@ export const AgenticLoopTable: FC<AgenticLoopTableProps> = ({
 	return (
 		<div
 			className={cn(
-				"text-xs text-content-secondary flex flex-col gap-1",
+				"text-sm text-content-secondary flex flex-col gap-1",
 				className,
 			)}
 		>
