@@ -145,6 +145,8 @@ jobs:
           make "$image_job"
           echo "image=$(cat "$image_job")" >> "$GITHUB_OUTPUT"
 
+      # zizmor: ignore[impostor-commit] GitHub API lookups for this action's
+      # tags are returning 403 in CI.
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # v0.34.0
         with:
