@@ -10,9 +10,9 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { useClientFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
+import { useModelFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
-import { useModelFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
 
 const AISessionListPage: FC = () => {
 	const { permissions } = useAuthenticated();

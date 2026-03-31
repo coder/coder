@@ -1,6 +1,5 @@
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import type { FC, PropsWithChildren } from "react";
-import { Link as RouterLink } from "react-router";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
@@ -47,6 +46,7 @@ interface SessionThreadsPageViewProps {
 	onFetchNextPage: () => void;
 	isAISessionsEnabled: boolean;
 	isAISessionsEntitled: boolean;
+	onBackClicked: () => void;
 }
 
 export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
@@ -58,6 +58,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	onFetchNextPage,
 	isAISessionsEnabled,
 	isAISessionsEntitled,
+	onBackClicked,
 }) => {
 	if (!isAISessionsEntitled) {
 		return <PaywallAIGovernance />;
@@ -81,11 +82,12 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					variant="outline"
 					size="lg"
 					title="Back to AI Bridge sessions list"
+					onClick={onBackClicked}
 				>
-					<RouterLink to="/aibridge/sessions">
+					<span>
 						<ArrowLeftIcon />
 						Back
-					</RouterLink>
+					</span>
 				</Button>
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">

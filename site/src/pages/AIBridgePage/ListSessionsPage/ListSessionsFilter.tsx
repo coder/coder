@@ -10,13 +10,13 @@ import {
 	type ClientFilterMenu,
 } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
 import {
-	ProviderFilter,
-	type ProviderFilterMenu,
-} from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
-import {
 	ModelFilter,
 	type ModelFilterMenu,
 } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
+import {
+	ProviderFilter,
+	type ProviderFilterMenu,
+} from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 
 interface ListSessionsFilterProps {
 	filter: ReturnType<typeof useFilter>;
