@@ -84,6 +84,8 @@ func TestInjection(t *testing.T) {
 func TestRenderPermissionsResolvesMe(t *testing.T) {
 	t.Parallel()
 
+	// GIVEN: a site handler wired to a real RBAC authorizer and a
+	// template that renders only the SSR permissions JSON.
 	siteFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("{{ .Permissions }}"),
@@ -100,7 +102,7 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// User with agents-access role should have createChat = true.
+	// GIVEN: a user with the agents-access role.
 	userWithRole := dbgen.User(t, db, database.User{
 		RBACRoles: []string{"agents-access"},
 	})
@@ -109,30 +111,38 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
+	// WHEN: the user loads the page.
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(codersdk.SessionTokenHeader, tokenWithRole)
 	rw := httptest.NewRecorder()
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 
+	// THEN: the SSR-rendered permissions include createChat = true
+	// because the "me" sentinel in permissions.json was resolved to
+	// the actor's ID, and the agents-access role grants user-scoped
+	// chat create permission.
 	var permsWithRole codersdk.AuthorizationResponse
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
 	require.NoError(t, err)
 	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
 
-	// User without agents-access role should have createChat = false.
+	// GIVEN: a user without the agents-access role.
 	userWithout := dbgen.User(t, db, database.User{})
 	_, tokenWithout := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    userWithout.ID,
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
+	// WHEN: the user loads the page.
 	r = httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(codersdk.SessionTokenHeader, tokenWithout)
 	rw = httptest.NewRecorder()
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 
+	// THEN: createChat = false because the member role does not
+	// grant chat permissions.
 	var permsWithout codersdk.AuthorizationResponse
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithout)
 	require.NoError(t, err)
