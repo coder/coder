@@ -57,13 +57,11 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{"Audit"}</span>
+						<span>Audit</span>
 						<AuditHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>
-					{"View events in your audit log."}
-				</PageHeaderSubtitle>
+				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
 			</PageHeader>
 
 			<ChooseOne>

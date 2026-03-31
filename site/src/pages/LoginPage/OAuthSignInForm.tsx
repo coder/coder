@@ -32,7 +32,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 						)}`}
 					>
 						<ExternalImage src="/icon/github.svg" />
-						{"GitHub"}
+						GitHub
 					</a>
 				</Button>
 			)}

@@ -94,9 +94,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 						>
 							<div>{stage}</div>
 							{shouldDisplayDuration && (
-								<div css={styles.duration}>
-									{duration} {"seconds"}
-								</div>
+								<div css={styles.duration}>{duration} seconds</div>
 							)}
 						</div>
 						{!isEmpty && <Logs hideTimestamps={hideTimestamps} lines={lines} />}

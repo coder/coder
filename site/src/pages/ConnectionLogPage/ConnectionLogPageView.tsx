@@ -56,12 +56,12 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{"Connection Log"}</span>
+						<span>Connection Log</span>
 						<ConnectionLogHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
-					{"View workspace connection events."}
+					View workspace connection events.
 				</PageHeaderSubtitle>
 			</PageHeader>
 

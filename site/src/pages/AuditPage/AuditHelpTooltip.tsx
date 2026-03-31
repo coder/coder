@@ -16,15 +16,14 @@ export const AuditHelpTooltip: FC = () => {
 			<HelpTooltipIconTrigger />
 
 			<HelpTooltipContent>
-				<HelpTooltipTitle>{"What is an audit log?"}</HelpTooltipTitle>
+				<HelpTooltipTitle>What is an audit log?</HelpTooltipTitle>
 				<HelpTooltipText>
-					{
-						"An audit log is a record of events and changes made throughout a system."
-					}
+					An audit log is a record of events and changes made throughout a
+					system.
 				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
 					<HelpTooltipLink href={docs("/admin/security/audit-logs")}>
-						{"Events we track"}
+						Events we track
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
 			</HelpTooltipContent>

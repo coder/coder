@@ -249,12 +249,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[35%]">{"Name"}</TableHead>
+						<TableHead className="w-[35%]">Name</TableHead>
 						<TableHead className="w-[15%]">
 							{showOrganizations ? "Organization" : "Used by"}
 						</TableHead>
-						<TableHead className="w-[10%]">{"Build time"}</TableHead>
-						<TableHead className="w-[15%]">{"Last updated"}</TableHead>
+						<TableHead className="w-[10%]">Build time</TableHead>
+						<TableHead className="w-[15%]">Last updated</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>

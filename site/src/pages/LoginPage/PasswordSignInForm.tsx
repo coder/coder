@@ -47,7 +47,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 		<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
 			<div className="flex flex-col items-start gap-2">
 				<Label htmlFor={emailField.id}>
-					{"Email"}{" "}
+					Email{" "}
 					<span className="text-xs text-content-destructive font-bold">*</span>
 				</Label>
 				<Input
@@ -74,7 +74,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 
 			<div className="flex flex-col items-start gap-2">
 				<Label htmlFor={passwordField.id}>
-					{"Password"}{" "}
+					Password{" "}
 					<span className="text-xs text-content-destructive font-bold">*</span>
 				</Label>
 				<Input
@@ -100,7 +100,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 
 			<Button size="lg" disabled={isSigningIn} className="w-full" type="submit">
 				<Spinner loading={isSigningIn} />
-				{"Sign In"}
+				Sign In
 			</Button>
 
 			<Link

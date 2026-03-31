@@ -16,15 +16,15 @@ export const ConnectionLogHelpTooltip: FC = () => {
 			<HelpTooltipIconTrigger />
 
 			<HelpTooltipContent>
-				<HelpTooltipTitle>{"Why are some events missing?"}</HelpTooltipTitle>
+				<HelpTooltipTitle>Why are some events missing?</HelpTooltipTitle>
 				<HelpTooltipText>
-					{
-						"The connection log is a best-effort log of workspace access. Some events are reported by workspace agents, and receipt of these events by the server is not guaranteed."
-					}
+					The connection log is a best-effort log of workspace access. Some
+					events are reported by workspace agents, and receipt of these events
+					by the server is not guaranteed.
 				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
 					<HelpTooltipLink href={docs("/admin/monitoring/connection-logs")}>
-						{"Connection log documentation"}
+						Connection log documentation
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
 			</HelpTooltipContent>
