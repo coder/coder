@@ -1,4 +1,6 @@
+import { FileIcon, ZapIcon } from "lucide-react";
 import type { FC } from "react";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import {
 	Popover,
 	PopoverContent,
@@ -22,6 +24,8 @@ export interface AgentContextUsage {
 	readonly reasoningTokens?: number;
 	// Percentage (0–100) at which the context will be compacted.
 	readonly compressionThreshold?: number;
+	// Last injected context parts (AGENTS.md files and skills).
+	readonly lastInjectedContext?: readonly ChatMessagePart[];
 }
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -58,6 +62,12 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	return "text-content-secondary/60";
 };
 
+/** Extract the trailing filename from an absolute path. */
+const basename = (path: string): string => {
+	const slash = path.lastIndexOf("/");
+	return slash >= 0 ? path.substring(slash + 1) : path;
+};
+
 const RING_SIZE = 18;
 const RING_STROKE = 2.5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
@@ -90,6 +100,13 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 	const ariaLabel = hasPercent
 		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
 		: "Context usage";
+
+	// Extract context files and skills from lastInjectedContext.
+	const contextFiles =
+		usage?.lastInjectedContext?.filter((p) => p.type === "context-file") ?? [];
+	const skills =
+		usage?.lastInjectedContext?.filter((p) => p.type === "skill") ?? [];
+	const hasInjectedContext = contextFiles.length > 0 || skills.length > 0;
 
 	const triggerButton = (
 		<button
@@ -136,9 +153,67 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 				usage?.compressionThreshold !== undefined &&
 				usage.compressionThreshold > 0 && (
 					<div className="mt-1 text-content-secondary">
-						Compacts at {usage.compressionThreshold}%
+						{`Compacts at ${usage.compressionThreshold}%`}{" "}
 					</div>
 				)}
+			{hasInjectedContext && (
+				<div
+					className={cn(
+						"flex flex-col gap-2 text-content-secondary",
+						hasPercent && "mt-2",
+					)}
+				>
+					{" "}
+					{contextFiles.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">
+								Context files
+							</span>{" "}
+							{contextFiles.map((part) => {
+								if (part.type !== "context-file") return null;
+								return (
+									<div
+										key={part.context_file_path}
+										className="flex items-center gap-1.5"
+									>
+										<FileIcon className="size-3 shrink-0" />
+										<span className="truncate" title={part.context_file_path}>
+											{basename(part.context_file_path)}
+										</span>
+										{part.context_file_truncated && (
+											<span className="shrink-0 text-content-warning">
+												(truncated)
+											</span>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					)}
+					{skills.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">Skills</span>{" "}
+							{skills.map((part) => {
+								if (part.type !== "skill") return null;
+								return (
+									<div
+										key={part.skill_name}
+										className="flex items-center gap-1.5"
+									>
+										<ZapIcon className="size-3 shrink-0" />
+										<span className="truncate">{part.skill_name}</span>
+										{part.skill_description && (
+											<span className="ml-0.5 truncate text-content-secondary/60">
+												– {part.skill_description}
+											</span>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 
@@ -149,7 +224,7 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 		return (
 			<Popover>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-				<PopoverContent side="top" className="w-auto px-3 py-2">
+				<PopoverContent side="top" className="w-auto max-w-72 px-3 py-2">
 					{tooltipContent}
 				</PopoverContent>
 			</Popover>
@@ -159,7 +234,9 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>{triggerButton}</TooltipTrigger>
-			<TooltipContent side="top">{tooltipContent}</TooltipContent>
+			<TooltipContent side="top" className="max-w-72">
+				{tooltipContent}
+			</TooltipContent>
 		</Tooltip>
 	);
 };
