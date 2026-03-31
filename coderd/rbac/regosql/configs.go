@@ -126,22 +126,6 @@ func NoACLConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
-// ChatConverter should be used for the chats table, which has
-// no group_acl or user_acl columns.
-func ChatConverter() *sqltypes.VariableConverter {
-	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
-		organizationOwnerMatcher(),
-		userOwnerMatcher(),
-	)
-	matcher.RegisterMatcher(
-		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
-		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
-	)
-
-	return matcher
-}
-
 func DefaultVariableConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),

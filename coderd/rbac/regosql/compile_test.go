@@ -288,14 +288,14 @@ neq(input.object.owner, "");
 				`"me" = input.object.owner; input.object.owner != ""; input.object.org_owner = ""`,
 			},
 			ExpectedSQL:       p(p("'me' = owner_id :: text") + " AND " + p("owner_id :: text != ''") + " AND " + p("organization_id :: text = ''")),
-			VariableConverter: regosql.ChatConverter(),
+			VariableConverter: regosql.NoACLConverter(),
 		},
 		{
 			Name: "ChatOrgScopedMatches",
 			Queries: []string{
 				`input.object.org_owner = "org-id"`,
 			},
-			ExpectedSQL: p("organization_id :: text = 'org-id'"), VariableConverter: regosql.ChatConverter(),
+			ExpectedSQL: p("organization_id :: text = 'org-id'"), VariableConverter: regosql.NoACLConverter(),
 		},
 	}
 

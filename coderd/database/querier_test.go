@@ -1340,8 +1340,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, secondRows, 0)
 
-		// Org admin should NOT see other users' chats — chats are
-		// not org-scoped resources.
+		// Org admin should NOT see other users' chats when they are
+		// in a different org than the chat owner.
 		orgs, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
 		require.NoError(t, err)
 		require.NotEmpty(t, orgs)

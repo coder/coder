@@ -9,9 +9,12 @@ UPDATE chats c
 SET organization_id = COALESCE(
     (SELECT w.organization_id FROM workspaces w WHERE w.id = c.workspace_id),
     (SELECT om.organization_id FROM organization_members om
-     WHERE om.user_id = c.owner_id LIMIT 1),
+     WHERE om.user_id = c.owner_id ORDER BY om.created_at ASC LIMIT 1),
     (SELECT id FROM organizations WHERE is_default = true LIMIT 1)
 );
 
 -- Step 3: Enforce NOT NULL going forward.
 ALTER TABLE chats ALTER COLUMN organization_id SET NOT NULL;
+
+-- Step 4: Index for efficient lookups by organization.
+CREATE INDEX idx_chats_organization_id ON chats (organization_id);

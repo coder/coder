@@ -3738,6 +3738,8 @@ CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
+CREATE INDEX idx_chats_organization_id ON chats USING btree (organization_id);
+
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
 CREATE INDEX idx_chats_owner_updated_id ON chats USING btree (owner_id, updated_at DESC, id DESC);

@@ -693,7 +693,7 @@ func ConfigWithoutACL() regosql.ConvertConfig {
 // columns.
 func ConfigChats() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
-		VariableConverter: regosql.ChatConverter(),
+		VariableConverter: regosql.NoACLConverter(),
 	}
 }
 

@@ -167,7 +167,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const [selectedOrganizationId, setSelectedOrganizationId] = useState<
 		string | null
-	>(null);
+	>(organizations[0]?.id ?? null);
 	const organizationId = selectedOrganizationId ?? organizations[0]?.id ?? "";
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);

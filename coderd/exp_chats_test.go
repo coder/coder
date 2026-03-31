@@ -198,6 +198,7 @@ func TestPostChats(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -245,10 +246,11 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -280,6 +282,7 @@ func TestPostChats(t *testing.T) {
 		}).WithAgent().Do()
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -316,6 +319,7 @@ func TestPostChats(t *testing.T) {
 		}).WithAgent().Do()
 
 		_, err := orgAdminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -337,10 +341,11 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		workspaceID := uuid.New()
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -371,6 +376,7 @@ func TestPostChats(t *testing.T) {
 		}).WithAgent().Do()
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -390,9 +396,10 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -409,10 +416,11 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			Content: nil,
+			OrganizationID: firstUser.OrganizationID,
+			Content:        nil,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Content is required.", sdkErr.Message)
@@ -424,9 +432,10 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -444,9 +453,10 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartType("image"),
@@ -478,6 +488,7 @@ func TestPostChats(t *testing.T) {
 		insertAssistantCostMessage(ctx, t, db, existingChat.ID, modelConfig.ID, 100)
 
 		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "over limit",
@@ -499,6 +510,7 @@ func TestListChats(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		firstChatA, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -509,6 +521,7 @@ func TestListChats(t *testing.T) {
 		require.NoError(t, err)
 
 		firstChatB, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -602,7 +615,7 @@ func TestListChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Create 5 chats.
@@ -610,6 +623,7 @@ func TestListChats(t *testing.T) {
 		createdChats := make([]codersdk.Chat, 0, totalChats)
 		for i := 0; i < totalChats; i++ {
 			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
 				Content: []codersdk.ChatInputPart{
 					{
 						Type: codersdk.ChatInputPartTypeText,
@@ -754,7 +768,7 @@ func TestWatchChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
@@ -773,6 +787,7 @@ func TestWatchChats(t *testing.T) {
 		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -814,7 +829,7 @@ func TestWatchChats(t *testing.T) {
 		// API → pubsub → websocket pipeline.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
@@ -834,6 +849,7 @@ func TestWatchChats(t *testing.T) {
 		require.True(t, len(event.Data) == 0 || string(event.Data) == "null")
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -1903,6 +1919,7 @@ func TestGetChat(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -1949,6 +1966,7 @@ func TestGetChat(t *testing.T) {
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -1973,10 +1991,11 @@ func TestArchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chatToArchive, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -1987,6 +2006,7 @@ func TestArchiveChat(t *testing.T) {
 		require.NoError(t, err)
 
 		chatToKeep, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2048,6 +2068,7 @@ func TestArchiveChat(t *testing.T) {
 
 		// Create a parent chat via the API.
 		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2110,10 +2131,11 @@ func TestUnarchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2160,10 +2182,11 @@ func TestUnarchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2192,10 +2215,11 @@ func TestUnarchiveChat(t *testing.T) {
 func TestChatPinOrder(t *testing.T) {
 	t.Parallel()
 
-	createChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, title string) codersdk.Chat {
+	createChat := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, orgID uuid.UUID, title string) codersdk.Chat {
 		t.Helper()
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2220,12 +2244,12 @@ func TestChatPinOrder(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
-		first := createChat(ctx, t, client, "first pinned chat")
-		second := createChat(ctx, t, client, "second pinned chat")
-		third := createChat(ctx, t, client, "third pinned chat")
+		first := createChat(ctx, t, client, firstUser.OrganizationID, "first pinned chat")
+		second := createChat(ctx, t, client, firstUser.OrganizationID, "second pinned chat")
+		third := createChat(ctx, t, client, firstUser.OrganizationID, "third pinned chat")
 
 		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
 		require.NoError(t, err)
@@ -2267,11 +2291,11 @@ func TestChatPinOrder(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
-		first := createChat(ctx, t, client, "pinned then archived")
-		second := createChat(ctx, t, client, "stays pinned")
+		first := createChat(ctx, t, client, firstUser.OrganizationID, "pinned then archived")
+		second := createChat(ctx, t, client, firstUser.OrganizationID, "stays pinned")
 
 		// Pin both.
 		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
@@ -2297,10 +2321,10 @@ func TestChatPinOrder(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
-		chat := createChat(ctx, t, client, "negative pin order")
+		chat := createChat(ctx, t, client, firstUser.OrganizationID, "negative pin order")
 		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(-1))})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Pin order must be non-negative.", sdkErr.Message)
@@ -2318,10 +2342,11 @@ func TestPostChatMessages(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2408,10 +2433,11 @@ func TestPostChatMessages(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2439,10 +2465,11 @@ func TestPostChatMessages(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "initial message for usage-limit test",
@@ -2486,10 +2513,11 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 	t.Parallel()
 
 	// createChat is a helper that creates a chat so we can post messages to it.
-	createChatForTest := func(t *testing.T, client *codersdk.ExperimentalClient) codersdk.Chat {
+	createChatForTest := func(t *testing.T, client *codersdk.ExperimentalClient, orgID uuid.UUID) codersdk.Chat {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "initial message",
@@ -2504,9 +2532,9 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
-		chat := createChatForTest(t, client)
+		chat := createChatForTest(t, client, firstUser.OrganizationID)
 
 		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -2566,9 +2594,9 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
-		chat := createChatForTest(t, client)
+		chat := createChatForTest(t, client, firstUser.OrganizationID)
 
 		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -2619,9 +2647,9 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
-		chat := createChatForTest(t, client)
+		chat := createChatForTest(t, client, firstUser.OrganizationID)
 
 		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -2672,9 +2700,9 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
-		chat := createChatForTest(t, client)
+		chat := createChatForTest(t, client, firstUser.OrganizationID)
 
 		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -2725,9 +2753,9 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
-		chat := createChatForTest(t, client)
+		chat := createChatForTest(t, client, firstUser.OrganizationID)
 
 		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
@@ -2838,9 +2866,9 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
-		chat := createChatForTest(t, client)
+		chat := createChatForTest(t, client, firstUser.OrganizationID)
 
 		_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
@@ -2860,11 +2888,12 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// File references should also work in the initial CreateChat call.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type:      codersdk.ChatInputPartTypeFileReference,
 				FileName:  "bug.py",
@@ -2900,6 +2929,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// Create a chat with text first.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -2944,6 +2974,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// Create a chat with text first.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3004,6 +3035,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// Create a new chat with only a file part.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type:   codersdk.ChatInputPartTypeFile,
@@ -3022,11 +3054,12 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Create a chat with text first.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3059,10 +3092,11 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3145,6 +3179,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		// Create a chat with a text + file part.
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3231,10 +3266,11 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "hello before edit",
@@ -3271,10 +3307,11 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3301,10 +3338,11 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3344,11 +3382,12 @@ func TestStreamChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		const initialMessage = "stream chat route initial message"
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3521,6 +3560,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3541,10 +3581,11 @@ func TestRegenerateChatTitle(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "chat for unauthenticated regeneration",
@@ -3562,10 +3603,11 @@ func TestRegenerateChatTitle(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "chat over usage limit",
@@ -3696,10 +3738,11 @@ func TestRegenerateChatTitle(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3846,6 +3889,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -4047,10 +4091,11 @@ func TestGetChatDiffContents(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -4079,6 +4124,7 @@ func TestGetChatDiffContents(t *testing.T) {
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -5387,10 +5433,11 @@ func TestWatchChatDesktop(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -5467,6 +5514,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		t.Helper()
 
 		chat, err := adminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -5599,7 +5647,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		legacyClient, legacyDB := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, legacyClient.Client)
+		firstUser := coderdtest.CreateFirstUser(t, legacyClient.Client)
 		_ = createChatModelConfig(t, legacyClient)
 
 		require.NoError(t, legacyDB.UpsertChatSystemPrompt(dbauthz.AsSystemRestricted(ctx), "Legacy custom instructions"))
@@ -5611,6 +5659,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		require.Equal(t, chatd.DefaultSystemPrompt, resp.DefaultSystemPrompt)
 
 		chat, err := legacyClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: fmt.Sprintf("legacy custom prompt %s", t.Name()),
@@ -5738,7 +5787,7 @@ func TestChatSystemPrompt(t *testing.T) {
 			Pubsub:           pubsub,
 			DeploymentValues: chatDeploymentValues(t),
 		}))
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
@@ -5749,6 +5798,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 		store.failNextGetChatSystemPromptConfig.Store(true)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
@@ -5784,7 +5834,7 @@ func TestChatSystemPrompt(t *testing.T) {
 			Pubsub:           pubsub,
 			DeploymentValues: chatDeploymentValues(t),
 		}))
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
@@ -5797,6 +5847,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		// include_default=false, so chat creation falls back to the built-in default.
 		store.failNextGetChatSystemPromptConfig.Store(true)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: fmt.Sprintf("config-read fallback %s", t.Name()),
