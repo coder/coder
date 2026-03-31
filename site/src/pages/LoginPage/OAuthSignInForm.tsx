@@ -17,7 +17,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 	authMethods,
 }) => {
 	return (
-		<div css={{ display: "grid", gap: "16px" }}>
+		<div className="grid gap-4">
 			{authMethods?.github.enabled && (
 				<Button
 					variant="outline"

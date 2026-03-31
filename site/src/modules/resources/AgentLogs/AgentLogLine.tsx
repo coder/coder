@@ -27,7 +27,7 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 	}, [line.output]);
 
 	return (
-		<LogLine css={{ paddingLeft: 16 }} level={line.level} style={style}>
+		<LogLine className="pl-4" level={line.level} style={style}>
 			{sourceIcon}
 			<LogLinePrefix
 				css={styles.number}

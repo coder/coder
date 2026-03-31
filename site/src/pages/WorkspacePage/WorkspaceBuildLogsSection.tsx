@@ -36,7 +36,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 			>
 				Build logs
 			</header>
-			<div css={{ height: "400px", overflowY: "auto" }}>
+			<div className="h-[400px] overflow-y-auto">
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky
@@ -44,15 +44,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 						css={{ border: 0, borderRadius: 0 }}
 					/>
 				) : (
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							width: "100%",
-							height: "100%",
-						}}
-					>
+					<div className="flex items-center justify-center w-full h-full">
 						<Loader />
 					</div>
 				)}

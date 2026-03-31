@@ -114,12 +114,9 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 				</Stack>
 
 				<div
-					css={{
-						flexGrow: 2,
-						display: "grid",
+					className="grow-[2] grid gap-x-10 gap-y-6"
+					style={{
 						gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-						gap: 40,
-						rowGap: 24,
 					}}
 				>
 					{resource.daily_cost > 0 && (

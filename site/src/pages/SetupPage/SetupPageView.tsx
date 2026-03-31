@@ -142,15 +142,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 	return (
 		<SignInLayout>
-			<header css={{ textAlign: "center", marginBottom: 32 }}>
+			<header className="text-center mb-8">
 				<CoderIcon className="w-12 h-12" />
-				<h1
-					css={{
-						fontWeight: 400,
-						margin: 0,
-						marginTop: 16,
-					}}
-				>
+				<h1 className="font-normal m-0 mt-4">
 					Welcome to <strong>Coder</strong>
 				</h1>
 				<div
@@ -201,14 +195,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					/>
 					<label
 						htmlFor="trial"
-						css={{
-							display: "flex",
-							cursor: "pointer",
-							alignItems: "flex-start",
-							gap: 4,
-							marginTop: -4,
-							marginBottom: 8,
-						}}
+						className="flex cursor-pointer items-start gap-1 -mt-1 mb-2"
 					>
 						<Checkbox
 							id="trial"
@@ -219,8 +206,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							size="small"
 						/>
 
-						<div css={{ fontSize: 14, paddingTop: 4 }}>
-							<span css={{ display: "block", fontWeight: 600 }}>
+						<div className="text-sm pt-1">
+							<span className="block font-semibold">
 								Start a free trial of Enterprise
 							</span>
 							<span
@@ -237,7 +224,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Link
 								href="https://coder.com/pricing"
 								target="_blank"
-								css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
+								className="mt-1 inline-block text-[13px]"
 							>
 								Read more
 							</Link>
@@ -293,11 +280,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								onChange={(_, newValue) =>
 									form.setFieldValue("trial_info.country", newValue?.name)
 								}
-								css={{
-									"&:not(:has(label))": {
-										margin: 0,
-									},
-								}}
+								className="[&:not(:has(label))]:m-0"
 								renderInput={(params) => (
 									<TextField
 										{...params}
