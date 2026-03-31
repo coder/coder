@@ -2760,6 +2760,24 @@ func (q *querier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) (
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByWorkspaceIDs)(ctx, ids)
 }
 
+func (q *querier) GetChatsWithRunningWorkspaces(ctx context.Context) ([]database.GetChatsWithRunningWorkspacesRow, error) {
+	// System-level operation used by the chat processor for
+	// workspace monitoring.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatsWithRunningWorkspaces(ctx)
+}
+
+func (q *querier) GetChatsWithStoppedWorkspaces(ctx context.Context) ([]database.GetChatsWithStoppedWorkspacesRow, error) {
+	// System-level operation used by the chat processor for
+	// workspace monitoring.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatsWithStoppedWorkspaces(ctx)
+}
+
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -2851,6 +2869,15 @@ func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, cre
 
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
+}
+
+func (q *querier) GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx context.Context) ([]uuid.UUID, error) {
+	// System-level operation used by the chat processor for
+	// workspace monitoring.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx)
 }
 
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {

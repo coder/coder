@@ -1157,3 +1157,84 @@ LIMIT 1;
 UPDATE chats
 SET last_read_message_id = @last_read_message_id::bigint
 WHERE id = @id::uuid;
+
+-- name: GetChatsWithStoppedWorkspaces :many
+-- Finds chats in 'waiting' status whose bound workspace has been
+-- stopped (latest build transition=stop, job succeeded). Used to
+-- detect workspace-based status transitions.
+SELECT
+    c.id AS chat_id,
+    c.status AS chat_status,
+    c.workspace_id,
+    wb.transition AS workspace_build_transition,
+    pj.job_status AS provisioner_job_status
+FROM
+    chats c
+INNER JOIN LATERAL (
+    SELECT
+        wb.transition,
+        wb.job_id
+    FROM
+        workspace_builds wb
+    WHERE
+        wb.workspace_id = c.workspace_id
+    ORDER BY
+        wb.build_number DESC
+    LIMIT
+        1
+) wb ON TRUE
+INNER JOIN
+    provisioner_jobs pj ON pj.id = wb.job_id
+WHERE
+    c.archived = FALSE
+    AND c.workspace_id IS NOT NULL
+    AND c.status = 'waiting'::chat_status
+    AND wb.transition = 'stop'::workspace_transition
+    AND pj.job_status = 'succeeded'::provisioner_job_status;
+
+-- name: GetChatsWithRunningWorkspaces :many
+-- Finds chats in 'paused' status whose bound workspace is now
+-- running (latest build transition=start, job succeeded). Used to
+-- resume chats after a workspace restart.
+SELECT
+    c.id AS chat_id,
+    c.status AS chat_status,
+    c.workspace_id,
+    wb.transition AS workspace_build_transition,
+    pj.job_status AS provisioner_job_status
+FROM
+    chats c
+INNER JOIN LATERAL (
+    SELECT
+        wb.transition,
+        wb.job_id
+    FROM
+        workspace_builds wb
+    WHERE
+        wb.workspace_id = c.workspace_id
+    ORDER BY
+        wb.build_number DESC
+    LIMIT
+        1
+) wb ON TRUE
+INNER JOIN
+    provisioner_jobs pj ON pj.id = wb.job_id
+WHERE
+    c.archived = FALSE
+    AND c.workspace_id IS NOT NULL
+    AND c.status = 'paused'::chat_status
+    AND wb.transition = 'start'::workspace_transition
+    AND pj.job_status = 'succeeded'::provisioner_job_status;
+
+-- name: GetDistinctOwnerIDsForChatWorkspaceMonitoring :many
+-- Returns distinct owner IDs for non-archived chats that are either
+-- 'waiting' or 'paused' with a bound workspace. Used to maintain
+-- the dynamic set of workspace event pubsub subscriptions.
+SELECT DISTINCT
+    c.owner_id
+FROM
+    chats c
+WHERE
+    c.archived = FALSE
+    AND c.workspace_id IS NOT NULL
+    AND c.status IN ('waiting'::chat_status, 'paused'::chat_status);

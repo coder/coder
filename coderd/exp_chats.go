@@ -2174,6 +2174,111 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) resumeChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+
+	if chat.Status != database.ChatStatusPaused {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat is not paused.",
+			Detail:  fmt.Sprintf("Chat status is %q, expected %q.", chat.Status, database.ChatStatusPaused),
+		})
+		return
+	}
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat has no workspace.",
+		})
+		return
+	}
+
+	// Start the workspace so it's available when the user sends
+	// a message or the chat is otherwise resumed.
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get latest workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Only start the workspace if it's actually stopped.
+	status := codersdk.ConvertWorkspaceStatus(codersdk.ProvisionerJobStatus(job.JobStatus), codersdk.WorkspaceTransition(build.Transition))
+	if status == codersdk.WorkspaceStatusStopped {
+		_, startErr := api.chatStartWorkspace(
+			ctx,
+			chat.OwnerID,
+			chat.WorkspaceID.UUID,
+			codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+			},
+		)
+		if startErr != nil {
+			api.Logger.Error(ctx, "failed to start workspace for chat resume",
+				slog.F("chat_id", chatID),
+				slog.F("workspace_id", chat.WorkspaceID.UUID),
+				slog.Error(startErr),
+			)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to start workspace.",
+				Detail:  startErr.Error(),
+			})
+			return
+		}
+	}
+
+	// Transition the chat from paused to waiting.
+	if api.chatDaemon != nil {
+		updatedChat, resumeErr := api.chatDaemon.ResumeChat(ctx, chat)
+		if resumeErr != nil {
+			api.Logger.Error(ctx, "failed to resume chat via daemon",
+				slog.F("chat_id", chatID), slog.Error(resumeErr))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resume chat.",
+				Detail:  resumeErr.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	} else {
+		updatedChat, updateErr := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      database.ChatStatusWaiting,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		if updateErr != nil {
+			api.Logger.Error(ctx, "failed to resume chat",
+				slog.F("chat_id", chatID), slog.Error(updateErr))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resume chat.",
+				Detail:  updateErr.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)

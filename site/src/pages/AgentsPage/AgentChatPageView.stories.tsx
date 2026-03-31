@@ -110,6 +110,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
 		hasWorkspace: true,
+		chatStatus: null as TypesGen.ChatStatus | null,
 		store: createChatStore(),
 		pendingEditMessageId: null as number | null,
 		effectiveSelectedModel: defaultModelConfigID,

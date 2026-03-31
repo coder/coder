@@ -587,6 +587,13 @@ export const interruptChat = (_queryClient: QueryClient, chatId: string) => ({
 	// watchChats() WebSocket updates the sidebar.
 });
 
+export const resumeChat = (_queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.resumeChat(chatId),
+	// No onSuccess invalidation needed: the workspace watcher
+	// WebSocket delivers build status updates, and the per-chat
+	// WebSocket delivers the chat status change.
+});
+
 export const deleteChatQueuedMessage = (
 	queryClient: QueryClient,
 	chatId: string,

@@ -2373,6 +2373,36 @@ func (mr *MockStoreMockRecorder) GetChatsByWorkspaceIDs(ctx, ids any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByWorkspaceIDs", reflect.TypeOf((*MockStore)(nil).GetChatsByWorkspaceIDs), ctx, ids)
 }
 
+// GetChatsWithRunningWorkspaces mocks base method.
+func (m *MockStore) GetChatsWithRunningWorkspaces(ctx context.Context) ([]database.GetChatsWithRunningWorkspacesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsWithRunningWorkspaces", ctx)
+	ret0, _ := ret[0].([]database.GetChatsWithRunningWorkspacesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsWithRunningWorkspaces indicates an expected call of GetChatsWithRunningWorkspaces.
+func (mr *MockStoreMockRecorder) GetChatsWithRunningWorkspaces(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsWithRunningWorkspaces", reflect.TypeOf((*MockStore)(nil).GetChatsWithRunningWorkspaces), ctx)
+}
+
+// GetChatsWithStoppedWorkspaces mocks base method.
+func (m *MockStore) GetChatsWithStoppedWorkspaces(ctx context.Context) ([]database.GetChatsWithStoppedWorkspacesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsWithStoppedWorkspaces", ctx)
+	ret0, _ := ret[0].([]database.GetChatsWithStoppedWorkspacesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsWithStoppedWorkspaces indicates an expected call of GetChatsWithStoppedWorkspaces.
+func (mr *MockStoreMockRecorder) GetChatsWithStoppedWorkspaces(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsWithStoppedWorkspaces", reflect.TypeOf((*MockStore)(nil).GetChatsWithStoppedWorkspaces), ctx)
+}
+
 // GetConnectionLogsOffset mocks base method.
 func (m *MockStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	m.ctrl.T.Helper()
@@ -2566,6 +2596,21 @@ func (m *MockStore) GetDeploymentWorkspaceStats(ctx context.Context) (database.G
 func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceStats), ctx)
+}
+
+// GetDistinctOwnerIDsForChatWorkspaceMonitoring mocks base method.
+func (m *MockStore) GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx context.Context) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDistinctOwnerIDsForChatWorkspaceMonitoring", ctx)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDistinctOwnerIDsForChatWorkspaceMonitoring indicates an expected call of GetDistinctOwnerIDsForChatWorkspaceMonitoring.
+func (mr *MockStoreMockRecorder) GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDistinctOwnerIDsForChatWorkspaceMonitoring", reflect.TypeOf((*MockStore)(nil).GetDistinctOwnerIDsForChatWorkspaceMonitoring), ctx)
 }
 
 // GetEligibleProvisionerDaemonsByProvisionerJobIDs mocks base method.

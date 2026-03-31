@@ -720,6 +720,18 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetStaleChats(gomock.Any(), threshold).Return(chats, nil).AnyTimes()
 		check.Args(threshold).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(chats)
 	}))
+	s.Run("GetChatsWithStoppedWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatsWithStoppedWorkspaces(gomock.Any()).Return(nil, nil).AnyTimes()
+		check.Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]database.GetChatsWithStoppedWorkspacesRow(nil))
+	}))
+	s.Run("GetChatsWithRunningWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatsWithRunningWorkspaces(gomock.Any()).Return(nil, nil).AnyTimes()
+		check.Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]database.GetChatsWithRunningWorkspacesRow(nil))
+	}))
+	s.Run("GetDistinctOwnerIDsForChatWorkspaceMonitoring", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetDistinctOwnerIDsForChatWorkspaceMonitoring(gomock.Any()).Return(nil, nil).AnyTimes()
+		check.Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]uuid.UUID(nil))
+	}))
 	s.Run("InsertChat", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatParams{})
 		chat := testutil.Fake(s.T(), faker, database.Chat{OwnerID: arg.OwnerID})
