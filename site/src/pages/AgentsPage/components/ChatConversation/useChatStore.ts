@@ -331,6 +331,11 @@ export const useChatStore = (
 		// Local disposed flag so the message handler (which lives
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
+		// Tracks whether we've delivered the initial WebSocket
+		// snapshot to the store. On the first handleMessage call we
+		// flush buffered parts synchronously and set transportReady
+		// so the loading gate in AgentChatPage can release.
+		let transportReadyFired = false;
 
 		// Parts buffer lives at the effect scope so it persists
 		// across WebSocket messages. A rAF-based flush coalesces
@@ -585,6 +590,25 @@ export const useChatStore = (
 					}
 				}
 			});
+
+			// After the first WebSocket message is processed, flush
+			// any buffered parts synchronously and mark the transport
+			// as ready. This ensures the first render after the
+			// loading gate releases has complete stream state.
+			if (!transportReadyFired) {
+				transportReadyFired = true;
+				if (partsBuf.length > 0) {
+					if (partsFlushTimer !== null) {
+						clearTimeout(partsFlushTimer);
+						partsFlushTimer = null;
+					}
+					const parts = partsBuf.splice(0);
+					if (shouldApplyMessagePart()) {
+						store.applyMessageParts(parts);
+					}
+				}
+				store.setTransportReady(true);
+			}
 		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {

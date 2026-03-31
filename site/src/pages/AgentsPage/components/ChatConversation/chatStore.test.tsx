@@ -2956,7 +2956,7 @@ describe("useChatStore", () => {
 });
 
 describe("thinking indicator event ordering", () => {
-	it("shows starting phase when message_part arrives before status:running in same batch", async () => {
+	it("flushes parts synchronously on initial snapshot when message_part arrives before status:running", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
 
@@ -3001,8 +3001,9 @@ describe("thinking indicator event ordering", () => {
 		});
 
 		// Server sends message_part BEFORE status:running in the same
-		// WebSocket frame. This is the event ordering that previously
-		// caused the "Thinking..." indicator to be skipped.
+		// WebSocket frame. On the initial snapshot delivery, parts are
+		// flushed synchronously (not deferred) so the loading gate can
+		// release with complete stream state.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -3020,28 +3021,16 @@ describe("thinking indicator event ordering", () => {
 			]);
 		});
 
-		// After the batch, the status should be "running" but stream
-		// parts should NOT have been applied yet (deferred to
-		// setTimeout). This is the window where "Thinking..." shows.
+		// Parts should be applied immediately (no deferred window)
+		// because this is the first handleMessage call.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
-			expect(result.current.streamState).toBeNull();
-			expect(result.current.isAwaiting).toBe(true);
-		});
-
-		// Let the deferred parts flush fire (setTimeout 0).
-		await act(async () => {
-			vi.advanceTimersByTime(1);
-		});
-
-		// Now stream state should be populated.
-		await waitFor(() => {
 			expect(result.current.streamState).not.toBeNull();
 			expect(result.current.isAwaiting).toBe(false);
 		});
 	});
 
-	it("shows starting phase when status:running arrives before message_part in same batch", async () => {
+	it("flushes parts synchronously on initial snapshot when status:running arrives before message_part", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
 
@@ -3085,7 +3074,9 @@ describe("thinking indicator event ordering", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Server sends status:running BEFORE message_part (the "good" order).
+		// Server sends status:running BEFORE message_part. On the
+		// initial snapshot delivery, parts are flushed synchronously
+		// so the loading gate can release with complete stream state.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -3103,19 +3094,10 @@ describe("thinking indicator event ordering", () => {
 			]);
 		});
 
-		// Same contract: status set, parts deferred.
+		// Parts should be applied immediately (no deferred window)
+		// because this is the first handleMessage call.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
-			expect(result.current.streamState).toBeNull();
-			expect(result.current.isAwaiting).toBe(true);
-		});
-
-		// Let the deferred parts flush fire.
-		await act(async () => {
-			vi.advanceTimersByTime(1);
-		});
-
-		await waitFor(() => {
 			expect(result.current.streamState).not.toBeNull();
 			expect(result.current.isAwaiting).toBe(false);
 		});

@@ -486,7 +486,7 @@ describe("applyMessagePart / applyMessageParts", () => {
 // ---------------------------------------------------------------------------
 
 describe("resetTransientState", () => {
-	it("clears streamState, streamError, retryState, reconnectState, and subagentOverrides", () => {
+	it("clears streamState, streamError, retryState, reconnectState, subagentOverrides, and transportReady", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
 		store.setStreamError({
@@ -507,6 +507,7 @@ describe("resetTransientState", () => {
 			retryingAt: "2025-01-01T00:00:01.000Z",
 		});
 		store.setSubagentStatusOverride("sub-1", "error");
+		store.setTransportReady(true);
 
 		store.resetTransientState();
 
@@ -516,6 +517,7 @@ describe("resetTransientState", () => {
 		expect(state.retryState).toBeNull();
 		expect(state.reconnectState).toBeNull();
 		expect(state.subagentStatusOverrides.size).toBe(0);
+		expect(state.transportReady).toBe(false);
 	});
 
 	it("preserves messages and queued messages", () => {
