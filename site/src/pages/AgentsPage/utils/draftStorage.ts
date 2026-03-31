@@ -7,7 +7,7 @@
  * and handled transparently on read.
  */
 
-interface ParsedDraft {
+export interface ParsedDraft {
 	/** Plain text content for inputValueRef / send-button checks. */
 	text: string;
 	/**
@@ -51,6 +51,11 @@ function extractTextFromNode(node: {
 	// Leaf text node.
 	if (typeof node.text === "string") {
 		return node.text;
+	}
+	// LineBreakNode serializes as { type: "linebreak" } with no
+	// text or children. Lexical's getTextContent() returns "\n".
+	if (node.type === "linebreak") {
+		return "\n";
 	}
 	// FileReferenceNode and other non-text leaves contribute
 	// nothing to plain text, matching getTextContent() behavior.

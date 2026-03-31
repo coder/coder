@@ -62,7 +62,7 @@ import {
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
-import { parseStoredDraft } from "./utils/draftStorage";
+import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
@@ -100,20 +100,21 @@ export function useConversationEditingState(deps: {
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
-	const [editorInitialValue, setEditorInitialValue] = useState(() => {
-		if (typeof window === "undefined" || !draftStorageKey) {
-			return "";
-		}
-		return parseStoredDraft(localStorage.getItem(draftStorageKey)).text;
-	});
-	const [initialEditorState, setInitialEditorState] = useState<
-		string | undefined
-	>(() => {
-		if (typeof window === "undefined" || !draftStorageKey) {
-			return undefined;
-		}
-		return parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState;
-	});
+	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
+		() => {
+			if (typeof window === "undefined" || !draftStorageKey) {
+				return { editorInitialValue: "", initialEditorState: undefined };
+			}
+			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
+			return {
+				editorInitialValue: draft.text,
+				initialEditorState: draft.editorState,
+			};
+		},
+	);
+
+	// Monotonic counter to force LexicalComposer remount.
+	const [remountKey, setRemountKey] = useState(0);
 
 	// Sync the ref with the initial draft value so callers that
 	// read inputValueRef.current see the persisted draft. Uses a
@@ -129,10 +130,8 @@ export function useConversationEditingState(deps: {
 
 	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
-	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<{
-		text: string;
-		editorState: string | undefined;
-	} | null>(null);
+	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
+		useState<ParsedDraft | null>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
@@ -155,10 +154,11 @@ export function useConversationEditingState(deps: {
 			});
 		}
 		setEditingMessageId(messageId);
-		setEditorInitialValue(text);
-		// Clear serialized state so the LexicalComposer key changes
-		// and the editor remounts with the plain text content.
-		setInitialEditorState(undefined);
+		setDraftState({
+			editorInitialValue: text,
+			initialEditorState: undefined,
+		});
+		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
@@ -166,8 +166,11 @@ export function useConversationEditingState(deps: {
 	const handleCancelHistoryEdit = () => {
 		const savedText = draftBeforeHistoryEdit?.text ?? "";
 		const savedState = draftBeforeHistoryEdit?.editorState;
-		setEditorInitialValue(savedText);
-		setInitialEditorState(savedState);
+		setDraftState({
+			editorInitialValue: savedText,
+			initialEditorState: savedState,
+		});
+		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
@@ -187,10 +190,8 @@ export function useConversationEditingState(deps: {
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
 		number | null
 	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<{
-		text: string;
-		editorState: string | undefined;
-	} | null>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] =
+		useState<ParsedDraft | null>(null);
 
 	const handleStartQueueEdit = (
 		id: number,
@@ -207,10 +208,11 @@ export function useConversationEditingState(deps: {
 			});
 		}
 		setEditingQueuedMessageID(id);
-		setEditorInitialValue(text);
-		// Clear serialized state so the LexicalComposer key changes
-		// and the editor remounts with the plain text content.
-		setInitialEditorState(undefined);
+		setDraftState({
+			editorInitialValue: text,
+			initialEditorState: undefined,
+		});
+		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
 		setEditingFileBlocks(fileBlocks);
 	};
@@ -218,8 +220,11 @@ export function useConversationEditingState(deps: {
 	const handleCancelQueueEdit = () => {
 		const savedText = draftBeforeQueueEdit?.text ?? "";
 		const savedState = draftBeforeQueueEdit?.editorState;
-		setEditorInitialValue(savedText);
-		setInitialEditorState(savedState);
+		setDraftState({
+			editorInitialValue: savedText,
+			initialEditorState: savedState,
+		});
+		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
@@ -271,6 +276,15 @@ export function useConversationEditingState(deps: {
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
+
+		// Don't overwrite the persisted draft while editing a
+		// history or queued message — the original draft (possibly
+		// containing file-reference chips) is saved in React state
+		// and should survive a cancel.
+		if (editingMessageId !== null || editingQueuedMessageID !== null) {
+			return;
+		}
+
 		if (draftStorageKey) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
@@ -290,6 +304,7 @@ export function useConversationEditingState(deps: {
 		chatInputRef,
 		editorInitialValue,
 		initialEditorState,
+		remountKey,
 		editingMessageId,
 		editingFileBlocks,
 		handleEditUserMessage,

@@ -139,6 +139,26 @@ describe("parseStoredDraft", () => {
 		expect(result.text).toBe("nested");
 	});
 
+	it("extracts linebreak nodes as newline characters", () => {
+		const state = JSON.stringify({
+			root: {
+				children: [
+					{
+						children: [
+							{ text: "before", type: "text" },
+							{ type: "linebreak", version: 1 },
+							{ text: "after", type: "text" },
+						],
+						type: "paragraph",
+					},
+				],
+				type: "root",
+			},
+		});
+		const result = parseStoredDraft(state);
+		expect(result.text).toBe("before\nafter");
+	});
+
 	it("handles malformed JSON gracefully", () => {
 		const result = parseStoredDraft("{not valid json");
 		expect(result.text).toBe("{not valid json");

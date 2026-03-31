@@ -34,6 +34,7 @@ interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
+	remountKey: number;
 	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
@@ -351,6 +352,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							inputRef={editing.chatInputRef}
 							initialValue={editing.editorInitialValue}
 							initialEditorState={editing.initialEditorState}
+							remountKey={editing.remountKey}
 							onContentChange={editing.handleContentChange}
 							editingQueuedMessageID={editing.editingQueuedMessageID}
 							onStartQueueEdit={editing.handleStartQueueEdit}

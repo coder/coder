@@ -128,6 +128,7 @@ interface ChatPageInputProps {
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	initialValue?: string;
 	initialEditorState?: string;
+	remountKey?: number;
 	onContentChange?: (
 		content: string,
 		serializedEditorState: string,
@@ -177,6 +178,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	inputRef,
 	initialValue,
 	initialEditorState,
+	remountKey,
 	onContentChange,
 	editingQueuedMessageID,
 	onStartQueueEdit,
@@ -323,6 +325,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			inputRef={inputRef}
 			initialValue={initialValue}
 			initialEditorState={initialEditorState}
+			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}

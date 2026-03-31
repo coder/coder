@@ -80,6 +80,8 @@ interface AgentChatInputProps {
 	// Serialized Lexical editor state for restoring drafts with
 	// file-reference chips. Takes precedence over initialValue.
 	initialEditorState?: string;
+	// Monotonic counter to force editor remount.
+	remountKey?: number;
 	// Called on every content change inside the editor.
 	onContentChange?: (
 		content: string,
@@ -209,6 +211,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	inputRef,
 	initialValue,
 	initialEditorState,
+	remountKey,
 	onContentChange,
 	selectedModel,
 	onModelChange,
@@ -438,8 +441,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleContentChange = (
 		content: string,
-		hasRefs: boolean,
 		serializedEditorState: string,
+		hasRefs: boolean,
 	) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
@@ -661,6 +664,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					placeholder={placeholder}
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
+					remountKey={remountKey}
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}

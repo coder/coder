@@ -61,6 +61,7 @@ const buildEditing = (
 	chatInputRef: { current: null },
 	editorInitialValue: "",
 	initialEditorState: undefined,
+	remountKey: 0,
 	editingMessageId: null as number | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),

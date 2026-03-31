@@ -287,8 +287,8 @@ const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 const ContentChangePlugin: FC<{
 	onChange?: (
 		content: string,
-		hasFileReferences: boolean,
 		serializedEditorState: string,
+		hasFileReferences: boolean,
 	) => void;
 }> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
@@ -315,7 +315,7 @@ const ContentChangePlugin: FC<{
 					if (hasRefs) break;
 				}
 				const serialized = JSON.stringify(editorState.toJSON());
-				onChange(content, hasRefs, serialized);
+				onChange(content, serialized, hasRefs);
 			});
 		});
 	}, [editor, onChange]);
@@ -332,8 +332,14 @@ const ValueSyncPlugin: FC<{
 	initialEditorState?: string;
 }> = function ValueSyncPlugin({ initialValue, initialEditorState }) {
 	const [editor] = useLexicalComposerContext();
+	const hasInitialized = useRef(false);
 
 	useEffect(() => {
+		if (hasInitialized.current) {
+			return;
+		}
+		hasInitialized.current = true;
+
 		// Prefer restoring the full serialized editor state
 		// (preserves file-reference chips and node positions).
 		if (initialEditorState) {
@@ -439,9 +445,11 @@ interface ChatMessageInputProps
 	initialEditorState?: string;
 	onChange?: (
 		content: string,
-		hasFileReferences: boolean,
 		serializedEditorState: string,
+		hasFileReferences: boolean,
 	) => void;
+	/** Monotonic counter to force editor remount. */
+	remountKey?: number;
 	rows?: number;
 	onEnter?: () => void;
 	onFilePaste?: (file: File) => void;
@@ -471,6 +479,7 @@ const ChatMessageInput = ({
 	initialValue,
 	initialEditorState,
 	onChange,
+	remountKey,
 	rows,
 	onEnter,
 	onFilePaste,
@@ -520,24 +529,7 @@ const ChatMessageInput = ({
 						$insertNodes([textNode]);
 						textNode.selectEnd();
 					} else {
-						const root = $getRoot();
-						const lastChild = root.getLastChild();
-
-						if (lastChild && $isParagraphNode(lastChild)) {
-							const textNode = $createTextNode(text);
-							lastChild.append(textNode);
-							textNode.selectEnd();
-						} else if (lastChild) {
-							const textNode = $createTextNode(text);
-							lastChild.insertAfter(textNode);
-							textNode.selectEnd();
-						} else {
-							const paragraph = $createParagraphNode();
-							const textNode = $createTextNode(text);
-							paragraph.append(textNode);
-							root.append(paragraph);
-							textNode.selectEnd();
-						}
+						insertPlainTextIntoEditor(editor, text);
 					}
 				});
 			},
@@ -658,10 +650,7 @@ const ChatMessageInput = ({
 	);
 
 	return (
-		<LexicalComposer
-			initialConfig={initialConfig}
-			key={initialEditorState ?? initialValue}
-		>
+		<LexicalComposer initialConfig={initialConfig} key={remountKey}>
 			<div
 				className={cn(
 					"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-none whitespace-pre-wrap break-words [&>*]:col-start-1 [&>*]:row-start-1",
