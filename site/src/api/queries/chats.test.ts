@@ -778,6 +778,93 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 	});
 
+	it("editChatMessage optimistically removes truncated messages from cache", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		// Seed the infinite messages cache with 5 messages (desc order).
+		const messages: TypesGen.ChatMessage[] = [5, 4, 3, 2, 1].map((id) => ({
+			id,
+			chat_id: chatId,
+			created_at: `2025-01-0${id}T00:00:00Z`,
+			role: "user" as const,
+			content: [{ type: "text" as const, text: `msg ${id}` }],
+		}));
+
+		type InfData = {
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: (number | undefined)[];
+		};
+
+		queryClient.setQueryData<InfData>(chatMessagesKey(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+
+		// Invoke onMutate — this should optimistically truncate messages >= 3.
+		const context = await mutation.onMutate!({
+			messageId: 3,
+			req: { content: [{ type: "text", text: "edited" }] },
+		});
+
+		// Cache should only contain messages with id < 3.
+		const data = queryClient.getQueryData<InfData>(chatMessagesKey(chatId));
+		const remainingIds = data?.pages[0]?.messages.map((m) => m.id);
+		expect(remainingIds).toEqual([2, 1]);
+
+		// Context should contain the previous data for rollback.
+		expect(context?.previousData?.pages[0]?.messages).toHaveLength(5);
+	});
+
+	it("editChatMessage restores cache on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		const messages: TypesGen.ChatMessage[] = [5, 4, 3, 2, 1].map((id) => ({
+			id,
+			chat_id: chatId,
+			created_at: `2025-01-0${id}T00:00:00Z`,
+			role: "user" as const,
+			content: [{ type: "text" as const, text: `msg ${id}` }],
+		}));
+
+		type InfData = {
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: (number | undefined)[];
+		};
+
+		queryClient.setQueryData<InfData>(chatMessagesKey(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+
+		// Optimistically truncate.
+		const context = await mutation.onMutate!({
+			messageId: 3,
+			req: { content: [{ type: "text", text: "edited" }] },
+		});
+
+		// Verify truncation happened.
+		let data = queryClient.getQueryData<InfData>(chatMessagesKey(chatId));
+		expect(data?.pages[0]?.messages).toHaveLength(2);
+
+		// Simulate error — onError should restore the original data.
+		mutation.onError!(
+			new Error("network failure"),
+			{ messageId: 3, req: { content: [{ type: "text", text: "edited" }] } },
+			context,
+		);
+
+		// Cache should be fully restored.
+		data = queryClient.getQueryData<InfData>(chatMessagesKey(chatId));
+		const restoredIds = data?.pages[0]?.messages.map((m) => m.id);
+		expect(restoredIds).toEqual([5, 4, 3, 2, 1]);
+	});
+
 	it("interruptChat does not invalidate unrelated queries", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

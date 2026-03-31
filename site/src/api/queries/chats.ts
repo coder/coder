@@ -1,4 +1,8 @@
-import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
+import type {
+	InfiniteData,
+	QueryClient,
+	UseInfiniteQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
@@ -563,12 +567,65 @@ type EditChatMessageMutationArgs = {
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
+	onMutate: async ({ messageId }: EditChatMessageMutationArgs) => {
+		// Cancel in-flight refetches so they don't overwrite the
+		// optimistic update before the mutation completes.
+		await queryClient.cancelQueries({
+			queryKey: chatMessagesKey(chatId),
+			exact: true,
+		});
+
+		const previousData = queryClient.getQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse>
+		>(chatMessagesKey(chatId));
+
+		// Optimistically remove the edited message and everything
+		// after it. The server soft-deletes these and inserts a
+		// replacement with a new ID. Without this, the WebSocket
+		// handler's upsertCacheMessages adds new messages to the
+		// React Query cache without removing the soft-deleted ones,
+		// causing deleted messages to flash back into view until
+		// the full REST refetch resolves.
+		queryClient.setQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatId), (current) => {
+			if (!current?.pages?.length) {
+				return current;
+			}
+			return {
+				...current,
+				pages: current.pages.map((page) => ({
+					...page,
+					messages: page.messages.filter((m) => m.id < messageId),
+				})),
+			};
+		});
+
+		return { previousData };
+	},
+	onError: (
+		_error: unknown,
+		_variables: EditChatMessageMutationArgs,
+		context:
+			| {
+					previousData?:
+						| InfiniteData<TypesGen.ChatMessagesResponse>
+						| undefined;
+			  }
+			| undefined,
+	) => {
+		// Restore the cache on failure so the user sees the
+		// original messages again.
+		if (context?.previousData) {
+			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
+		}
+	},
 	onSuccess: () => {
-		// Editing truncates all messages after the edited one on the
-		// server. The WebSocket can insert/update messages but cannot
-		// remove stale ones, so a full messages refetch is required.
-		// Use exact matching to avoid cascading to unrelated queries
-		// (diff-status, diff-contents, cost summaries, etc.).
+		// Editing truncates all messages after the edited one on
+		// the server. A full refetch confirms the server state and
+		// picks up the replacement message. Use exact matching to
+		// avoid cascading to unrelated queries (diff-status,
+		// diff-contents, cost summaries, etc.).
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
