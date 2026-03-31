@@ -1147,7 +1147,14 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 }
 
 const listAIBridgeSessions = `-- name: ListAIBridgeSessions :many
-WITH session_page AS (
+WITH cursor_pos AS (
+	-- Resolve the cursor's started_at once, outside the HAVING clause,
+	-- so the planner cannot accidentally re-evaluate it per group.
+	SELECT MIN(aibridge_interceptions.started_at) AS started_at
+	FROM aibridge_interceptions
+	WHERE aibridge_interceptions.session_id = $1 AND aibridge_interceptions.ended_at IS NOT NULL
+),
+session_page AS (
 	-- Paginate at the session level first; only cheap aggregates here.
 	SELECT
 		ai.session_id,
@@ -1162,36 +1169,36 @@ WITH session_page AS (
 		ai.ended_at IS NOT NULL
 		-- Filter by time frame
 		AND CASE
-			WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at >= $1::timestamptz
+			WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at >= $2::timestamptz
 			ELSE true
 		END
 		AND CASE
-			WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at <= $2::timestamptz
+			WHEN $3::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN ai.started_at <= $3::timestamptz
 			ELSE true
 		END
 		-- Filter initiator_id
 		AND CASE
-			WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $3::uuid
+			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $4::uuid
 			ELSE true
 		END
 		-- Filter provider
 		AND CASE
-			WHEN $4::text != '' THEN ai.provider = $4::text
+			WHEN $5::text != '' THEN ai.provider = $5::text
 			ELSE true
 		END
 		-- Filter model
 		AND CASE
-			WHEN $5::text != '' THEN ai.model = $5::text
+			WHEN $6::text != '' THEN ai.model = $6::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $6::text != '' THEN COALESCE(ai.client, 'Unknown') = $6::text
+			WHEN $7::text != '' THEN COALESCE(ai.client, 'Unknown') = $7::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $7::text != '' THEN ai.session_id = $7::text
+			WHEN $8::text != '' THEN ai.session_id = $8::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
@@ -1199,17 +1206,16 @@ WITH session_page AS (
 	GROUP BY
 		ai.session_id, ai.initiator_id
 	HAVING
-		-- Cursor pagination: uses a composite (started_at, session_id) cursor
-		-- to support keyset pagination. The less-than comparison matches the
-		-- DESC sort order so that rows after the cursor come later in results.
-		-- The cursor value is resolved via a scalar subquery so the planner
-		-- can evaluate it once rather than per-group.
+		-- Cursor pagination: uses a composite (started_at, session_id)
+		-- cursor to support keyset pagination. The less-than comparison
+		-- matches the DESC sort order so rows after the cursor come
+		-- later in results. The cursor value comes from cursor_pos to
+		-- guarantee single evaluation.
 		CASE
-			WHEN $8::text != '' THEN (
+			WHEN $1::text != '' THEN (
 				(MIN(ai.started_at), ai.session_id) < (
-					(SELECT MIN(ai2.started_at) FROM aibridge_interceptions ai2
-					 WHERE ai2.session_id = $8 AND ai2.ended_at IS NOT NULL),
-					$8::text
+					(SELECT started_at FROM cursor_pos),
+					$1::text
 				)
 			)
 			ELSE true
@@ -1241,12 +1247,12 @@ FROM
 JOIN
 	visible_users ON visible_users.id = sp.initiator_id
 LEFT JOIN LATERAL (
-	-- Fetch client, metadata, providers and models from this session's interceptions.
 	SELECT
 		(ARRAY_AGG(ai.client ORDER BY ai.started_at, ai.id))[1] AS client,
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models
+		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
+		ARRAY_AGG(ai.id) AS interception_ids
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -1258,23 +1264,14 @@ LEFT JOIN LATERAL (
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
 		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
 	FROM aibridge_token_usages tu
-	WHERE tu.interception_id IN (
-		SELECT ai.id FROM aibridge_interceptions ai
-		WHERE ai.session_id = sp.session_id
-			AND ai.initiator_id = sp.initiator_id
-			AND ai.ended_at IS NOT NULL
-	)
+	WHERE tu.interception_id = ANY(sr.interception_ids)
 ) st ON true
 LEFT JOIN LATERAL (
-	-- Fetch only the most recent user prompt across all interceptions in the session.
+	-- Fetch only the most recent user prompt across all interceptions
+	-- in the session.
 	SELECT up.prompt
 	FROM aibridge_user_prompts up
-	WHERE up.interception_id IN (
-		SELECT ai.id FROM aibridge_interceptions ai
-		WHERE ai.session_id = sp.session_id
-			AND ai.initiator_id = sp.initiator_id
-			AND ai.ended_at IS NOT NULL
-	)
+	WHERE up.interception_id = ANY(sr.interception_ids)
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
@@ -1284,6 +1281,7 @@ ORDER BY
 `
 
 type ListAIBridgeSessionsParams struct {
+	AfterSessionID string    `db:"after_session_id" json:"after_session_id"`
 	StartedAfter   time.Time `db:"started_after" json:"started_after"`
 	StartedBefore  time.Time `db:"started_before" json:"started_before"`
 	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
@@ -1291,7 +1289,6 @@ type ListAIBridgeSessionsParams struct {
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
 	SessionID      string    `db:"session_id" json:"session_id"`
-	AfterSessionID string    `db:"after_session_id" json:"after_session_id"`
 	Offset         int32     `db:"offset_" json:"offset_"`
 	Limit          int32     `db:"limit_" json:"limit_"`
 }
@@ -1323,6 +1320,7 @@ type ListAIBridgeSessionsRow struct {
 // first-interception metadata) only for the ~page-size result set.
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
+		arg.AfterSessionID,
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
@@ -1330,7 +1328,6 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
-		arg.AfterSessionID,
 		arg.Offset,
 		arg.Limit,
 	)

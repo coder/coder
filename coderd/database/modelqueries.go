@@ -961,6 +961,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 
 	query := fmt.Sprintf("-- name: ListAuthorizedAIBridgeSessions :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
+		arg.AfterSessionID,
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
@@ -968,7 +969,6 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
-		arg.AfterSessionID,
 		arg.Offset,
 		arg.Limit,
 	)

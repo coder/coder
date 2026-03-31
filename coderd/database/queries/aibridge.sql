@@ -458,7 +458,14 @@ WHERE
 -- Pagination-first strategy: identify the page of sessions cheaply via a
 -- single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 -- first-interception metadata) only for the ~page-size result set.
-WITH session_page AS (
+WITH cursor_pos AS (
+	-- Resolve the cursor's started_at once, outside the HAVING clause,
+	-- so the planner cannot accidentally re-evaluate it per group.
+	SELECT MIN(aibridge_interceptions.started_at) AS started_at
+	FROM aibridge_interceptions
+	WHERE aibridge_interceptions.session_id = @after_session_id AND aibridge_interceptions.ended_at IS NOT NULL
+),
+session_page AS (
 	-- Paginate at the session level first; only cheap aggregates here.
 	SELECT
 		ai.session_id,
@@ -510,16 +517,15 @@ WITH session_page AS (
 	GROUP BY
 		ai.session_id, ai.initiator_id
 	HAVING
-		-- Cursor pagination: uses a composite (started_at, session_id) cursor
-		-- to support keyset pagination. The less-than comparison matches the
-		-- DESC sort order so that rows after the cursor come later in results.
-		-- The cursor value is resolved via a scalar subquery so the planner
-		-- can evaluate it once rather than per-group.
+		-- Cursor pagination: uses a composite (started_at, session_id)
+		-- cursor to support keyset pagination. The less-than comparison
+		-- matches the DESC sort order so rows after the cursor come
+		-- later in results. The cursor value comes from cursor_pos to
+		-- guarantee single evaluation.
 		CASE
 			WHEN @after_session_id::text != '' THEN (
 				(MIN(ai.started_at), ai.session_id) < (
-					(SELECT MIN(ai2.started_at) FROM aibridge_interceptions ai2
-					 WHERE ai2.session_id = @after_session_id AND ai2.ended_at IS NOT NULL),
+					(SELECT started_at FROM cursor_pos),
 					@after_session_id::text
 				)
 			)
@@ -552,12 +558,12 @@ FROM
 JOIN
 	visible_users ON visible_users.id = sp.initiator_id
 LEFT JOIN LATERAL (
-	-- Fetch client, metadata, providers and models from this session's interceptions.
 	SELECT
 		(ARRAY_AGG(ai.client ORDER BY ai.started_at, ai.id))[1] AS client,
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models
+		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
+		ARRAY_AGG(ai.id) AS interception_ids
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -569,23 +575,14 @@ LEFT JOIN LATERAL (
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
 		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
 	FROM aibridge_token_usages tu
-	WHERE tu.interception_id IN (
-		SELECT ai.id FROM aibridge_interceptions ai
-		WHERE ai.session_id = sp.session_id
-			AND ai.initiator_id = sp.initiator_id
-			AND ai.ended_at IS NOT NULL
-	)
+	WHERE tu.interception_id = ANY(sr.interception_ids)
 ) st ON true
 LEFT JOIN LATERAL (
-	-- Fetch only the most recent user prompt across all interceptions in the session.
+	-- Fetch only the most recent user prompt across all interceptions
+	-- in the session.
 	SELECT up.prompt
 	FROM aibridge_user_prompts up
-	WHERE up.interception_id IN (
-		SELECT ai.id FROM aibridge_interceptions ai
-		WHERE ai.session_id = sp.session_id
-			AND ai.initiator_id = sp.initiator_id
-			AND ai.ended_at IS NOT NULL
-	)
+	WHERE up.interception_id = ANY(sr.interception_ids)
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
