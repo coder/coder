@@ -4,6 +4,7 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
+import { EnterpriseBadge } from "#/components/Badges/Badges";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { FormFields } from "#/components/Form/Form";
@@ -18,9 +19,8 @@ import {
 } from "#/components/HelpPopover/HelpPopover";
 import { Stack } from "#/components/Stack/Stack";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import { getFormHelpers } from "#/utils/formUtils";
-import { EnterpriseBadge } from "#/components/Badges/Badges";
 import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
 
 type PublishTemplateVersionDialogProps = DialogProps & {
 	defaultName: string;

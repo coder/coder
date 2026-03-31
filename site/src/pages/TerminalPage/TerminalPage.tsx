@@ -272,7 +272,7 @@ const TerminalPage: FC = () => {
 
 		if (!workspaceAgent) {
 			terminal.writeln(
-				`Unable to fetch workspace agent: no agent found with ID, is the workspace started?`,
+				"Unable to fetch workspace agent: no agent found with ID, is the workspace started?",
 			);
 			setConnectionStatus("disconnected");
 			return;
