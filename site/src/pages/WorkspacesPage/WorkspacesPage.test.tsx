@@ -312,7 +312,7 @@ describe("WorkspacesPage", () => {
 				id: "2",
 				latest_build: {
 					...MockWorkspace.latest_build,
-					status: "starting" as const,
+					status: "stopping" as const,
 				},
 			},
 			{
@@ -348,11 +348,14 @@ describe("WorkspacesPage", () => {
 		await waitFor(() => {
 			expect(cancelWorkspaceBuild).toHaveBeenCalledTimes(2);
 		});
+		// "starting" and "stopping" don't send expect_status.
 		expect(cancelWorkspaceBuild).toHaveBeenCalledWith(
 			workspaces[0].latest_build.id,
+			undefined,
 		);
 		expect(cancelWorkspaceBuild).toHaveBeenCalledWith(
 			workspaces[1].latest_build.id,
+			undefined,
 		);
 	});
 

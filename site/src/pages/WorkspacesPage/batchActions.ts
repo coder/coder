@@ -67,7 +67,14 @@ export function useBatchActions(
 					.filter((w) =>
 						CANCELLABLE_BUILD_STATUSES.includes(w.latest_build.status),
 					)
-					.map((w) => API.cancelWorkspaceBuild(w.latest_build.id)),
+					.map((w) => {
+						const { status } = w.latest_build;
+						const params =
+							status === "pending" || status === "running"
+								? { expect_status: status }
+								: undefined;
+						return API.cancelWorkspaceBuild(w.latest_build.id, params);
+					}),
 			);
 		},
 		onSuccess,

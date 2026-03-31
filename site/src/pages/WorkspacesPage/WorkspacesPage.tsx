@@ -157,6 +157,7 @@ const WorkspacesPage: FC = () => {
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
 				canChangeVersions={permissions.updateTemplates}
+				canCancelAllBuilds={me.roles.some((role) => role.name === "owner")}
 				checkedWorkspaces={checkedWorkspaces}
 				chatsByWorkspace={chatsByWorkspaceQuery.data}
 				onCheckChange={(newWorkspaces) => {

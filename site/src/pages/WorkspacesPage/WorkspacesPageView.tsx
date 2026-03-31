@@ -61,6 +61,7 @@ interface WorkspacesPageViewProps {
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
 	canChangeVersions: boolean;
+	canCancelAllBuilds: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
@@ -86,6 +87,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	templatesFetchStatus,
 	canCreateTemplate,
 	canChangeVersions,
+	canCancelAllBuilds,
 	onActionSuccess,
 	onActionError,
 	chatsByWorkspace,
@@ -177,10 +179,13 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									disabled={
-										!checkedWorkspaces?.some((w) =>
-											CANCELLABLE_BUILD_STATUSES.includes(
-												w.latest_build.status,
-											),
+										!checkedWorkspaces?.some(
+											(w) =>
+												CANCELLABLE_BUILD_STATUSES.includes(
+													w.latest_build.status,
+												) &&
+												(w.template_allow_user_cancel_workspace_jobs ||
+													canCancelAllBuilds),
 										)
 									}
 									onClick={onBatchCancelTransition}
