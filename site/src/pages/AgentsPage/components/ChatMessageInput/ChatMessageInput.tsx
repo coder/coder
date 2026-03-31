@@ -11,6 +11,7 @@ import {
 	$createTextNode,
 	$getRoot,
 	$getSelection,
+	$insertNodes,
 	$isRangeSelection,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
@@ -23,12 +24,9 @@ import {
 } from "lexical";
 import {
 	type FC,
-	memo,
-	useCallback,
 	useEffect,
 	useImperativeHandle,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 } from "react";
 import { cn } from "#/utils/cn";
@@ -46,7 +44,7 @@ import {
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
-const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
+const DisableFormattingPlugin: FC = function DisableFormattingPlugin() {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -65,7 +63,7 @@ const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
 	}, [editor]);
 
 	return null;
-});
+};
 
 function insertPlainTextIntoEditor(editor: LexicalEditor, text: string) {
 	editor.update(() => {
@@ -97,6 +95,8 @@ function insertPlainTextIntoEditor(editor: LexicalEditor, text: string) {
 	});
 }
 
+// Replaces the entire editor content with the given plain text.
+// Used by the imperative setValue() method.
 function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 	editor.update(() => {
 		const root = $getRoot();
@@ -129,7 +129,7 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 const PasteSanitizationPlugin: FC<{
 	onFilePaste?: (file: File) => void;
 	allowTextAttachmentPaste?: boolean;
-}> = memo(function PasteSanitizationPlugin({
+}> = function PasteSanitizationPlugin({
 	onFilePaste,
 	allowTextAttachmentPaste = true,
 }) {
@@ -255,40 +255,44 @@ const PasteSanitizationPlugin: FC<{
 	}, [allowTextAttachmentPaste, editor, onFilePaste]);
 
 	return null;
-});
+};
 
 // Handles Enter key behavior: plain Enter submits via the onEnter
 // callback, Shift+Enter inserts a newline.
-const EnterKeyPlugin: FC<{ onEnter?: () => void }> = memo(
-	function EnterKeyPlugin({ onEnter }) {
-		const [editor] = useLexicalComposerContext();
+const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
+	onEnter,
+}) {
+	const [editor] = useLexicalComposerContext();
 
-		useEffect(() => {
-			return editor.registerCommand(
-				KEY_ENTER_COMMAND,
-				(event: KeyboardEvent | null) => {
-					if (event?.shiftKey) {
-						return false;
-					}
-					if (onEnter) {
-						event?.preventDefault();
-						onEnter();
-					}
-					return true;
-				},
-				COMMAND_PRIORITY_HIGH,
-			);
-		}, [editor, onEnter]);
+	useEffect(() => {
+		return editor.registerCommand(
+			KEY_ENTER_COMMAND,
+			(event: KeyboardEvent | null) => {
+				if (event?.shiftKey) {
+					return false;
+				}
+				if (onEnter) {
+					event?.preventDefault();
+					onEnter();
+				}
+				return true;
+			},
+			COMMAND_PRIORITY_HIGH,
+		);
+	}, [editor, onEnter]);
 
-		return null;
-	},
-);
+	return null;
+};
 
 // Fires the onChange callback with the editor's plain-text content
 // on every update.
 const ContentChangePlugin: FC<{
-	onChange?: (content: string, hasFileReferences: boolean) => void;
-}> = memo(function ContentChangePlugin({ onChange }) {
+	onChange?: (
+		content: string,
+		hasFileReferences: boolean,
+		serializedEditorState: string,
+	) => void;
+}> = function ContentChangePlugin({ onChange }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -309,19 +313,60 @@ const ContentChangePlugin: FC<{
 					}
 					if (hasRefs) break;
 				}
-				onChange(content, hasRefs);
+				const serialized = JSON.stringify(editorState.toJSON());
+				onChange(content, hasRefs, serialized);
 			});
 		});
 	}, [editor, onChange]);
 
 	return null;
-});
+};
+
+// Seeds the editor with an initial value on first mount. When
+// initialEditorState is provided (a serialized Lexical JSON string),
+// it restores the full editor state including file-reference chips.
+// Falls back to plain-text seeding via initialValue.
+const ValueSyncPlugin: FC<{
+	initialValue?: string;
+	initialEditorState?: string;
+}> = function ValueSyncPlugin({ initialValue, initialEditorState }) {
+	const [editor] = useLexicalComposerContext();
+
+	useEffect(() => {
+		// Prefer restoring the full serialized editor state
+		// (preserves file-reference chips and node positions).
+		if (initialEditorState) {
+			try {
+				const parsed = editor.parseEditorState(initialEditorState);
+				editor.setEditorState(parsed);
+				return;
+			} catch {
+				// Malformed state — fall through to plain-text path.
+			}
+		}
+
+		if (initialValue === undefined || initialValue === "") {
+			return;
+		}
+
+		editor.update(() => {
+			const root = $getRoot();
+			root.clear();
+			const paragraph = $createParagraphNode();
+			const textNode = $createTextNode(initialValue);
+			paragraph.append(textNode);
+			root.append(paragraph);
+		});
+	}, [editor, initialValue, initialEditorState]);
+
+	return null;
+};
 
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
 const InsertTextPlugin: FC<{
 	onEditorReady: (editor: LexicalEditor) => void;
-}> = memo(function InsertTextPlugin({ onEditorReady }) {
+}> = function InsertTextPlugin({ onEditorReady }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -329,7 +374,7 @@ const InsertTextPlugin: FC<{
 	}, [editor, onEditorReady]);
 
 	return null;
-});
+};
 
 /**
  * Structured data for a file reference extracted from the editor.
@@ -353,9 +398,6 @@ type EditorContentPart =
 	  };
 
 export interface ChatMessageInputRef {
-	/**
-	 * Replace the editor's plain-text content in a single Lexical update.
-	 */
 	setValue: (text: string) => void;
 	insertText: (text: string) => void;
 	clear: () => void;
@@ -378,7 +420,17 @@ interface ChatMessageInputProps
 	extends Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref"> {
 	placeholder?: string;
 	initialValue?: string;
-	onChange?: (content: string, hasFileReferences: boolean) => void;
+	/**
+	 * Serialized Lexical editor state JSON. When provided, the editor
+	 * restores the full state (including file-reference chips) instead
+	 * of using initialValue as plain text.
+	 */
+	initialEditorState?: string;
+	onChange?: (
+		content: string,
+		hasFileReferences: boolean,
+		serializedEditorState: string,
+	) => void;
 	rows?: number;
 	onEnter?: () => void;
 	onFilePaste?: (file: File) => void;
@@ -391,7 +443,7 @@ interface ChatMessageInputProps
 // Keeps the Lexical editor's editable state in sync with the
 // disabled prop so that the underlying contentEditable element
 // becomes truly non-interactive when the input is disabled.
-const EditableStatePlugin: FC<{ disabled: boolean }> = memo(
+const EditableStatePlugin: FC<{ disabled: boolean }> =
 	function EditableStatePlugin({ disabled }) {
 		const [editor] = useLexicalComposerContext();
 
@@ -400,241 +452,246 @@ const EditableStatePlugin: FC<{ disabled: boolean }> = memo(
 		}, [editor, disabled]);
 
 		return null;
-	},
-);
+	};
 
-const ChatMessageInput = memo(
-	({
-		className,
-		placeholder,
-		initialValue,
-		onChange,
-		rows,
-		onEnter,
-		onFilePaste,
-		allowTextAttachmentPaste,
-		disabled,
-		autoFocus,
-		"aria-label": ariaLabel,
+const ChatMessageInput = ({
+	className,
+	placeholder,
+	initialValue,
+	initialEditorState,
+	onChange,
+	rows,
+	onEnter,
+	onFilePaste,
+	allowTextAttachmentPaste,
+	disabled,
+	autoFocus,
+	"aria-label": ariaLabel,
+	ref,
+	...props
+}: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
+	const initialConfig = {
+		namespace: "ChatMessageInput",
+		theme: {
+			paragraph: "m-0",
+			inlineDecorator: "mx-1",
+		},
+		onError: (error: Error) => console.error("Lexical error:", error),
+		nodes: [FileReferenceNode],
+		editable: !disabled,
+	};
+	const style = {
+		minHeight: rows ? `${rows * 1.5}rem` : undefined,
+	};
+
+	const editorRef = useRef<LexicalEditor | null>(null);
+
+	const handleEditorReady = (editor: LexicalEditor) => {
+		editorRef.current = editor;
+	};
+
+	useImperativeHandle(
 		ref,
-		...props
-	}: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
-		const initialConfig = useMemo(
-			() => ({
-				namespace: "ChatMessageInput",
-				theme: {
-					paragraph: "m-0",
-					inlineDecorator: "mx-1",
-				},
-				onError: (error: Error) => console.error("Lexical error:", error),
-				nodes: [FileReferenceNode],
-				editable: !disabled,
-			}),
-			[disabled],
-		);
-		const style = useMemo(
-			() => ({
-				minHeight: rows ? `${rows * 1.5}rem` : undefined,
-			}),
-			[rows],
-		);
-
-		const editorRef = useRef<LexicalEditor | null>(null);
-		const lastKnownValueRef = useRef(initialValue ?? "");
-		const pendingReplacementRef = useRef<string | null>(null);
-
-		const replaceValueOrQueue = useCallback((text: string) => {
-			lastKnownValueRef.current = text;
-			const editor = editorRef.current;
-			if (!editor) {
-				pendingReplacementRef.current = text;
-				return;
-			}
-			pendingReplacementRef.current = null;
-			replacePlainTextInEditor(editor, text);
-		}, []);
-
-		const handleEditorReady = useCallback((editor: LexicalEditor) => {
-			editorRef.current = editor;
-			const pendingReplacement = pendingReplacementRef.current;
-			if (pendingReplacement !== null) {
-				pendingReplacementRef.current = null;
-				replacePlainTextInEditor(editor, pendingReplacement);
-				return;
-			}
-			const initialText = lastKnownValueRef.current;
-			if (initialText) {
-				replacePlainTextInEditor(editor, initialText);
-			}
-		}, []);
-
-		const handleContentChange = useCallback(
-			(content: string, hasFileReferences: boolean) => {
-				lastKnownValueRef.current = content;
-				onChange?.(content, hasFileReferences);
+		() => ({
+			setValue: (text: string) => {
+				const editor = editorRef.current;
+				if (!editor) return;
+				replacePlainTextInEditor(editor, text);
 			},
-			[onChange],
-		);
+			insertText: (text: string) => {
+				const editor = editorRef.current;
+				if (!editor) return;
 
-		useImperativeHandle(
-			ref,
-			() => ({
-				setValue: (text: string) => {
-					replaceValueOrQueue(text);
-				},
-				insertText: (text: string) => {
-					const editor = editorRef.current;
-					if (!editor) return;
-
-					insertPlainTextIntoEditor(editor, text);
-				},
-				clear: () => {
-					replaceValueOrQueue("");
-				},
-				focus: () => {
-					const editor = editorRef.current;
-					if (!editor) return;
-					editor.focus(() => {
-						editor.update(() => {
-							const root = $getRoot();
-							const last = root.getLastChild();
-							if (!last) {
-								const paragraph = $createParagraphNode();
-								root.append(paragraph);
-								paragraph.select();
-								return;
+				editor.update(() => {
+					const selection = $getSelection();
+					if ($isRangeSelection(selection)) {
+						const textNode = $createTextNode(text);
+						$insertNodes([textNode]);
+						textNode.selectEnd();
+					} else {
+						const root = $getRoot();
+						const lastChild = root.getLastChild();
+						if (lastChild) {
+							if (lastChild.getType() === "paragraph") {
+								const paragraph = lastChild as ParagraphNode;
+								const textNode = $createTextNode(text);
+								paragraph.append(textNode);
+								textNode.selectEnd();
+							} else {
+								const textNode = $createTextNode(text);
+								lastChild.insertAfter(textNode);
+								textNode.selectEnd();
 							}
-							last.selectEnd();
-						});
-					});
-				},
-				getValue: () => {
-					const editor = editorRef.current;
-					if (!editor) {
-						return lastKnownValueRef.current;
+						} else {
+							const paragraph = $createParagraphNode();
+							const textNode = $createTextNode(text);
+							paragraph.append(textNode);
+							root.append(paragraph);
+							textNode.selectEnd();
+						}
 					}
-					let content = "";
-					editor.getEditorState().read(() => {
-						content = $getRoot().getTextContent();
-					});
-					return content;
-				},
-				addFileReference: (ref: FileReferenceData) => {
-					const editor = editorRef.current;
-					if (!editor) return;
+				});
+			},
+			clear: () => {
+				const editor = editorRef.current;
+				if (!editor) return;
 
+				editor.update(() => {
+					const root = $getRoot();
+					root.clear();
+					const paragraph = $createParagraphNode();
+					root.append(paragraph);
+					paragraph.select();
+				});
+			},
+			focus: () => {
+				const editor = editorRef.current;
+				if (!editor) return;
+				editor.focus(() => {
 					editor.update(() => {
 						const root = $getRoot();
-						let paragraph = root.getFirstChild();
-						if (!paragraph || paragraph.getType() !== "paragraph") {
-							paragraph = $createParagraphNode();
+						const last = root.getLastChild();
+						if (!last) {
+							const paragraph = $createParagraphNode();
 							root.append(paragraph);
+							paragraph.select();
+							return;
 						}
-						const chipNode = $createFileReferenceNode(
-							ref.fileName,
-							ref.startLine,
-							ref.endLine,
-							ref.content,
-						);
-						(paragraph as ParagraphNode).append(chipNode);
-						chipNode.selectNext();
+						last.selectEnd();
 					});
-				},
-				getContentParts: () => {
-					const editor = editorRef.current;
-					if (!editor) return [];
-					const parts: EditorContentPart[] = [];
-					editor.getEditorState().read(() => {
-						const paragraphs = $getRoot().getChildren();
-						for (let i = 0; i < paragraphs.length; i++) {
-							const para = paragraphs[i];
-							if (para.getType() !== "paragraph") continue;
-							// Separate paragraphs with a newline in the
-							// preceding text part, just like getTextContent().
-							if (i > 0) {
+				});
+			},
+			getValue: () => {
+				const editor = editorRef.current;
+				if (!editor) return "";
+				let content = "";
+				editor.getEditorState().read(() => {
+					content = $getRoot().getTextContent();
+				});
+				return content;
+			},
+			addFileReference: (ref: FileReferenceData) => {
+				const editor = editorRef.current;
+				if (!editor) return;
+
+				editor.update(() => {
+					const root = $getRoot();
+					let paragraph = root.getFirstChild();
+					if (!paragraph || paragraph.getType() !== "paragraph") {
+						paragraph = $createParagraphNode();
+						root.append(paragraph);
+					}
+					const chipNode = $createFileReferenceNode(
+						ref.fileName,
+						ref.startLine,
+						ref.endLine,
+						ref.content,
+					);
+					(paragraph as ParagraphNode).append(chipNode);
+					chipNode.selectNext();
+				});
+			},
+			getContentParts: () => {
+				const editor = editorRef.current;
+				if (!editor) return [];
+				const parts: EditorContentPart[] = [];
+				editor.getEditorState().read(() => {
+					const paragraphs = $getRoot().getChildren();
+					for (let i = 0; i < paragraphs.length; i++) {
+						const para = paragraphs[i];
+						if (para.getType() !== "paragraph") continue;
+						// Separate paragraphs with a newline in the
+						// preceding text part, just like getTextContent().
+						if (i > 0) {
+							const last = parts[parts.length - 1];
+							if (last?.type === "text") {
+								(last as { text: string }).text += "\n";
+							} else {
+								parts.push({ type: "text", text: "\n" });
+							}
+						}
+						for (const node of (para as ParagraphNode).getChildren()) {
+							if (node instanceof FileReferenceNode) {
+								parts.push({
+									type: "file-reference",
+									reference: {
+										fileName: node.__fileName,
+										startLine: node.__startLine,
+										endLine: node.__endLine,
+										content: node.__content,
+									},
+								});
+							} else {
+								// Text node (or any other inline) —
+								// merge into the last text part.
+								const t = node.getTextContent();
+								if (!t) continue;
 								const last = parts[parts.length - 1];
 								if (last?.type === "text") {
-									(last as { text: string }).text += "\n";
+									(last as { text: string }).text += t;
 								} else {
-									parts.push({ type: "text", text: "\n" });
-								}
-							}
-							for (const node of (para as ParagraphNode).getChildren()) {
-								if (node instanceof FileReferenceNode) {
-									parts.push({
-										type: "file-reference",
-										reference: {
-											fileName: node.__fileName,
-											startLine: node.__startLine,
-											endLine: node.__endLine,
-											content: node.__content,
-										},
-									});
-								} else {
-									// Text node (or any other inline) —
-									// merge into the last text part.
-									const t = node.getTextContent();
-									if (!t) continue;
-									const last = parts[parts.length - 1];
-									if (last?.type === "text") {
-										(last as { text: string }).text += t;
-									} else {
-										parts.push({ type: "text", text: t });
-									}
+									parts.push({ type: "text", text: t });
 								}
 							}
 						}
-					});
-					return parts;
-				},
-			}),
-			[replaceValueOrQueue],
-		);
+					}
+				});
+				return parts;
+			},
+		}),
+		[],
+	);
 
-		return (
-			<LexicalComposer initialConfig={initialConfig}>
-				<div
-					className={cn(
-						"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-none whitespace-pre-wrap break-words [&>*]:col-start-1 [&>*]:row-start-1",
-						disabled && "cursor-not-allowed opacity-50",
-						className,
-					)}
-					style={style}
-					{...props}
-				>
-					<RichTextPlugin
-						contentEditable={
-							<ContentEditable
-								className="outline-none w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
-								data-testid="chat-message-input"
-								style={{ minHeight: "inherit" }}
-								aria-label={ariaLabel}
-								aria-disabled={disabled}
-							/>
-						}
-						placeholder={
-							<div className="pointer-events-none text-content-secondary [&_p]:leading-normal">
-								{placeholder}
-							</div>
-						}
-						ErrorBoundary={LexicalErrorBoundary}
-					/>
-					<HistoryPlugin />
-					<DisableFormattingPlugin />
-					<PasteSanitizationPlugin
-						onFilePaste={onFilePaste}
-						allowTextAttachmentPaste={allowTextAttachmentPaste}
-					/>
-					<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
-					<ContentChangePlugin onChange={handleContentChange} />
-					<InsertTextPlugin onEditorReady={handleEditorReady} />
-					<EditableStatePlugin disabled={!!disabled} />
-					{autoFocus && <AutoFocusPlugin />}
-				</div>
-			</LexicalComposer>
-		);
-	},
-);
+	return (
+		<LexicalComposer
+			initialConfig={initialConfig}
+			key={initialEditorState ?? initialValue}
+		>
+			<div
+				className={cn(
+					"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-none whitespace-pre-wrap break-words [&>*]:col-start-1 [&>*]:row-start-1",
+					disabled && "cursor-not-allowed opacity-50",
+					className,
+				)}
+				style={style}
+				{...props}
+			>
+				<RichTextPlugin
+					contentEditable={
+						<ContentEditable
+							className="outline-none w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
+							data-testid="chat-message-input"
+							style={{ minHeight: "inherit" }}
+							aria-label={ariaLabel}
+							aria-disabled={disabled}
+						/>
+					}
+					placeholder={
+						<div className="pointer-events-none text-content-secondary [&_p]:leading-normal">
+							{placeholder}
+						</div>
+					}
+					ErrorBoundary={LexicalErrorBoundary}
+				/>
+				<HistoryPlugin />
+				<DisableFormattingPlugin />
+				<PasteSanitizationPlugin
+					onFilePaste={onFilePaste}
+					allowTextAttachmentPaste={allowTextAttachmentPaste}
+				/>
+				<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
+				<ContentChangePlugin onChange={onChange} />
+				<ValueSyncPlugin
+					initialValue={initialValue}
+					initialEditorState={initialEditorState}
+				/>
+				<InsertTextPlugin onEditorReady={handleEditorReady} />
+				<EditableStatePlugin disabled={!!disabled} />
+				{autoFocus && <AutoFocusPlugin />}
+			</div>
+		</LexicalComposer>
+	);
+};
 ChatMessageInput.displayName = "ChatMessageInput";
 
 export { ChatMessageInput };

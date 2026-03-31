@@ -59,6 +59,8 @@ const buildEditing = (
 	overrides: Partial<ComponentProps<typeof AgentChatPageView>["editing"]> = {},
 ) => ({
 	chatInputRef: { current: null },
+	editorInitialValue: "",
+	initialEditorState: undefined,
 	editingMessageId: null as number | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),

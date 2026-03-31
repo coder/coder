@@ -126,8 +126,13 @@ interface ChatPageInputProps {
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
 	inputRef?: React.Ref<ChatMessageInputRef>;
-	initialInputValue?: string;
-	onContentChange?: (content: string) => void;
+	initialValue?: string;
+	initialEditorState?: string;
+	onContentChange?: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 	editingQueuedMessageID: number | null;
 	onStartQueueEdit: (
 		id: number,
@@ -170,7 +175,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelSelectorPlaceholder,
 	isModelCatalogLoading = false,
 	inputRef,
-	initialInputValue,
+	initialValue,
+	initialEditorState,
 	onContentChange,
 	editingQueuedMessageID,
 	onStartQueueEdit,
@@ -315,7 +321,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			previewUrls={previewUrls}
 			textContents={textContents}
 			inputRef={inputRef}
-			initialValue={initialInputValue}
+			initialValue={initialValue}
+			initialEditorState={initialEditorState}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}

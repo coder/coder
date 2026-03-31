@@ -10,7 +10,6 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { FileReferenceChip } from "#/components/ChatMessageInput/FileReferenceNode";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -34,6 +33,7 @@ import {
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
+import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { getEditableUserMessagePayload } from "./messageParsing";
