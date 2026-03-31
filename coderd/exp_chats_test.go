@@ -508,6 +508,7 @@ func TestPostChats(t *testing.T) {
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
 
 		existingChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "existing-limit-chat",
@@ -638,9 +639,10 @@ func TestListChats(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		// Create a member without agents-access and insert a chat
-		// owned by them via system context. This verifies the
-		// RBAC filter actually excludes results rather than
-		// returning empty because no chats exist.
+		// owned by them via system context. With org-scoped chats,
+		// org members can read their own chats through org membership
+		// even without agents-access. The agents-access role gates
+		// chat creation (enforced in the handler), not reading.
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		_, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -653,7 +655,7 @@ func TestListChats(t *testing.T) {
 
 		chats, err := memberClient.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Empty(t, chats)
+		require.Len(t, chats, 1)
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
