@@ -39,17 +39,28 @@ pub struct WorkspacesResponse {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-fn status_modifier(status: &str) -> &'static str {
+fn status_text_class(status: &str) -> &'static str {
     match status {
-        "running" => "status--running",
-        "stopped" => "status--stopped",
-        "starting" => "status--starting",
-        "stopping" => "status--stopping",
-        "failed" => "status--failed",
-        "canceling" | "canceled" => "status--stopped",
-        "deleting" => "status--deleting",
-        "deleted" => "status--deleted",
-        "pending" => "status--starting",
+        "running" => "text-[var(--content-success)]",
+        "stopped" => "text-[var(--content-secondary)]",
+        "starting" | "stopping" | "pending" => "text-[var(--content-warning)]",
+        "failed" => "text-[var(--content-destructive)]",
+        "canceling" | "canceled" => "text-[var(--content-secondary)]",
+        "deleting" => "text-[var(--content-destructive)]",
+        "deleted" => "text-[var(--content-disabled)]",
+        _ => "",
+    }
+}
+
+fn status_dot_class(status: &str) -> &'static str {
+    match status {
+        "running" => "bg-[var(--content-success)]",
+        "stopped" => "bg-[var(--content-secondary)]",
+        "starting" | "stopping" | "pending" => "bg-[var(--content-warning)] animate-pulse",
+        "failed" => "bg-[var(--content-destructive)]",
+        "canceling" | "canceled" => "bg-[var(--content-secondary)]",
+        "deleting" => "bg-[var(--content-destructive)] animate-pulse",
+        "deleted" => "bg-[var(--content-disabled)]",
         _ => "",
     }
 }
@@ -253,18 +264,18 @@ pub fn WorkspacesPage() -> impl IntoView {
     };
 
     view! {
-        <div class="margins">
+        <div class="max-w-[1380px] w-full mx-auto px-6">
 
             // ── Page header ──────────────────────────────────────────────
-            <header class="page-header">
-                <h1 class="page-header__title">"Workspaces"</h1>
-                <a href="/templates" class="btn btn--primary">"+ New workspace"</a>
+            <header class="flex items-center justify-between pt-8 pb-6 max-md:flex-col max-md:items-start max-md:gap-4">
+                <h1 class="text-2xl font-semibold flex items-center gap-2">"Workspaces"</h1>
+                <a href="/templates" class="inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium cursor-pointer transition-all border border-transparent px-4 py-2.5 bg-[var(--content-primary)] text-[var(--content-invert)] hover:bg-gray-300 no-underline whitespace-nowrap leading-none">"+ New workspace"</a>
             </header>
 
             // ── Filter bar ───────────────────────────────────────────────
-            <div class="filter-bar">
+            <div class="flex items-center gap-2 py-4">
                 <input
-                    class="filter-input"
+                    class="flex-1 px-3 py-2 text-sm font-[family-name:var(--font-sans)] text-[var(--content-primary)] bg-[var(--surface-primary)] border border-[var(--border-default)] rounded-lg outline-none transition-colors focus:border-[var(--primary)]"
                     type="text"
                     placeholder="Search workspaces\u{2026}"
                     prop:value={move || search_query.get()}
@@ -273,23 +284,23 @@ pub fn WorkspacesPage() -> impl IntoView {
                     }
                     on:keydown=on_search
                 />
-                <button class="filter-tag">"Status"</button>
-                <button class="filter-tag">"Template"</button>
+                <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--content-secondary)]">"Status"</button>
+                <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--content-secondary)]">"Template"</button>
             </div>
 
             // ── Table ────────────────────────────────────────────────────
             {move || match data.get() {
                 None => view! { <LoadingTable /> }.into_any(),
                 Some(Err(err)) => view! {
-                    <div class="empty-state">
-                        <p class="empty-state__title">"Failed to load workspaces"</p>
-                        <p class="empty-state__message">{err}</p>
+                    <div class="flex flex-col items-center justify-center py-16 px-8 text-center">
+                        <p class="text-lg font-semibold mb-2">"Failed to load workspaces"</p>
+                        <p class="text-[var(--content-secondary)] text-sm max-w-[480px]">{err}</p>
                     </div>
                 }.into_any(),
                 Some(Ok(resp)) if resp.workspaces.is_empty() => view! {
-                    <div class="empty-state">
-                        <p class="empty-state__title">"No workspaces found"</p>
-                        <p class="empty-state__message">
+                    <div class="flex flex-col items-center justify-center py-16 px-8 text-center">
+                        <p class="text-lg font-semibold mb-2">"No workspaces found"</p>
+                        <p class="text-[var(--content-secondary)] text-sm max-w-[480px]">
                             "Create a workspace from a template to get started."
                         </p>
                     </div>
@@ -298,7 +309,7 @@ pub fn WorkspacesPage() -> impl IntoView {
                     let count = resp.count;
                     let len = resp.workspaces.len();
                     view! {
-                        <div class="table-toolbar">
+                        <div class="flex items-center justify-between px-4 py-3 text-[13px] text-[var(--content-secondary)] border border-[var(--border-default)] border-b-0 rounded-t-lg">
                             <span>
                                 {format!("1\u{2013}{len} of {count} workspaces")}
                             </span>
@@ -330,8 +341,8 @@ pub fn WorkspacesPage() -> impl IntoView {
 #[component]
 fn LoadingTable() -> impl IntoView {
     view! {
-        <div class="table-toolbar">
-            <span class="skeleton" style="width:12rem;height:1rem"></span>
+        <div class="flex items-center justify-between px-4 py-3 text-[13px] text-[var(--content-secondary)] border border-[var(--border-default)] border-b-0 rounded-t-lg">
+            <span class="bg-[var(--surface-tertiary)] rounded-lg animate-pulse" style="width:12rem;height:1rem"></span>
         </div>
         <table>
             <thead>
@@ -346,16 +357,16 @@ fn LoadingTable() -> impl IntoView {
                 {(0..5).map(|_| view! {
                     <tr>
                         <td>
-                            <div class="avatar-data">
-                                <div class="avatar skeleton" style="width:40px;height:40px"></div>
-                                <div class="avatar-data__info">
-                                    <span class="skeleton" style="width:8rem;height:0.875rem;display:block"></span>
-                                    <span class="skeleton" style="width:5rem;height:0.75rem;display:block;margin-top:0.25rem"></span>
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-[var(--surface-tertiary)] animate-pulse shrink-0"></div>
+                                <div class="flex flex-col gap-0.5 min-w-0">
+                                    <span class="bg-[var(--surface-tertiary)] rounded-lg animate-pulse block" style="width:8rem;height:0.875rem"></span>
+                                    <span class="bg-[var(--surface-tertiary)] rounded-lg animate-pulse block mt-1" style="width:5rem;height:0.75rem"></span>
                                 </div>
                             </div>
                         </td>
-                        <td><span class="skeleton" style="width:6rem;height:0.875rem;display:block"></span></td>
-                        <td><span class="skeleton" style="width:5rem;height:0.875rem;display:block"></span></td>
+                        <td><span class="bg-[var(--surface-tertiary)] rounded-lg animate-pulse block" style="width:6rem;height:0.875rem"></span></td>
+                        <td><span class="bg-[var(--surface-tertiary)] rounded-lg animate-pulse block" style="width:5rem;height:0.875rem"></span></td>
                         <td></td>
                     </tr>
                 }).collect::<Vec<_>>()}
@@ -370,8 +381,8 @@ fn LoadingTable() -> impl IntoView {
 fn WorkspaceRow(workspace: Workspace) -> impl IntoView {
     let owner_initial = initial_of(&workspace.owner_name);
     let status = &workspace.latest_build.status;
-    let status_cls = format!("status {}", status_modifier(status));
-    let dot_cls = format!("status__dot {}", status_modifier(status));
+    let status_cls = format!("inline-flex items-center gap-1.5 text-[13px] font-medium {}", status_text_class(status));
+    let dot_cls = format!("w-2 h-2 rounded-full shrink-0 {}", status_dot_class(status));
     let label = status_label(status).to_string();
     let can_start = status == "stopped" || status == "failed" || status == "canceled";
     let can_stop = status == "running" || status == "starting";
@@ -401,31 +412,31 @@ fn WorkspaceRow(workspace: Workspace) -> impl IntoView {
         }>
             // ── Name + owner ─────────────────────────────────────────
             <td>
-                <div class="avatar-data">
-                    <div class="avatar">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-[var(--surface-tertiary)] flex items-center justify-center font-semibold text-sm text-[var(--content-primary)] shrink-0 overflow-hidden [&_img]:w-full [&_img]:h-full [&_img]:object-cover">
                         {if has_avatar {
                             view! { <img src={avatar_url.clone()} alt="" /> }.into_any()
                         } else {
                             view! { {owner_initial} }.into_any()
                         }}
                     </div>
-                    <div class="avatar-data__info">
-                        <span class="avatar-data__title">
+                    <div class="flex flex-col gap-0.5 min-w-0">
+                        <span class="text-sm font-medium text-[var(--content-primary)] whitespace-nowrap overflow-hidden text-ellipsis">
                             {favorite.then(|| view! { <StarIcon /> " " })}
                             {name}
                             {outdated.then(|| view! {
-                                " " <span class="badge badge--outdated">"Outdated"</span>
+                                " " <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-full bg-[var(--content-warning)]/15 text-[var(--content-warning)]">"Outdated"</span>
                             })}
                         </span>
-                        <span class="avatar-data__subtitle">{owner_name}</span>
+                        <span class="text-[13px] text-[var(--content-secondary)]">{owner_name}</span>
                     </div>
                 </div>
             </td>
 
             // ── Template ─────────────────────────────────────────────
             <td>
-                <div class="avatar-data">
-                    <div class="avatar avatar--icon">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-md bg-[var(--surface-tertiary)] flex items-center justify-center font-semibold text-sm text-[var(--content-primary)] shrink-0 overflow-hidden [&_img]:w-full [&_img]:h-full [&_img]:object-cover">
                         {if has_img_icon {
                             view! { <img src={tmpl_icon.clone()} alt="" /> }.into_any()
                         } else {
@@ -446,18 +457,18 @@ fn WorkspaceRow(workspace: Workspace) -> impl IntoView {
 
             // ── Actions ──────────────────────────────────────────────
             <td>
-                <div style="display:flex;gap:0.25rem;justify-content:flex-end">
+                <div class="flex gap-1 justify-end">
                     {can_start.then(|| view! {
-                        <button class="btn btn--outline btn--icon" title="Start workspace">
+                        <button class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-sm font-medium cursor-pointer transition-all border border-[var(--border-default)] bg-transparent text-[var(--content-primary)] hover:bg-[var(--surface-secondary)] hover:border-[var(--border-hover)]" title="Start workspace">
                             <PlayIcon />
                         </button>
                     })}
                     {can_stop.then(|| view! {
-                        <button class="btn btn--outline btn--icon" title="Stop workspace">
+                        <button class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-sm font-medium cursor-pointer transition-all border border-[var(--border-default)] bg-transparent text-[var(--content-primary)] hover:bg-[var(--surface-secondary)] hover:border-[var(--border-hover)]" title="Stop workspace">
                             <StopIcon />
                         </button>
                     })}
-                    <button class="btn btn--ghost btn--icon" title="More options">
+                    <button class="inline-flex items-center justify-center w-10 h-10 rounded-lg cursor-pointer transition-all border border-transparent bg-transparent text-[var(--content-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--content-primary)]" title="More options">
                         <MoreIcon />
                     </button>
                 </div>

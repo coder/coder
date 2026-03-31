@@ -131,28 +131,28 @@ pub fn SetupPage() -> impl IntoView {
     };
 
     view! {
-        <div class="signin-layout">
-            <div class="signin-container">
-                <div class="signin-header">
+        <div class="flex flex-col items-center justify-center min-h-screen p-8">
+            <div class="w-full max-w-[385px]">
+                <div class="text-center mb-8 [&_svg]:w-12 [&_svg]:h-12 [&_svg]:fill-current [&_svg]:mx-auto [&_h1]:font-normal [&_h1]:text-2xl [&_h1]:mt-4">
                     <CoderIcon />
                     <h1>"Welcome to " <strong>"Coder"</strong></h1>
-                    <p class="signin-header__subtitle">
+                    <p class="mt-3 text-[var(--content-secondary)] text-sm">
                         "Let\u{2019}s create your first admin user account"
                     </p>
                 </div>
 
                 {move || error_msg.get().map(|msg| view! {
-                    <div class="alert alert--error" style="margin-bottom:1rem;padding:0.75rem 1rem;border-radius:0.5rem;background:hsl(0,75%,15%);border:1px solid hsl(0,91%,71%);color:hsl(0,91%,71%);font-size:0.875rem">
+                    <div class="mb-4 px-4 py-3 rounded-lg bg-red-950 border border-red-400 text-red-400 text-sm">
                         {msg}
                     </div>
                 })}
 
-                <form class="signin-form" on:submit=on_submit>
-                    <div class="form-field">
-                        <label class="form-label" for="setup-email">"Email"</label>
+                <form class="flex flex-col gap-5" on:submit=on_submit>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[13px] font-medium text-[var(--content-secondary)]" for="setup-email">"Email"</label>
                         <input
                             id="setup-email"
-                            class="form-input"
+                            class="w-full px-3 py-2.5 text-sm font-[family-name:var(--font-sans)] text-[var(--content-primary)] bg-[var(--surface-primary)] border border-[var(--border-default)] rounded-lg outline-none transition-colors focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/15 placeholder:text-[var(--content-disabled)]"
                             type="text"
                             placeholder="admin@example.com"
                             autocomplete="email"
@@ -166,11 +166,11 @@ pub fn SetupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <div class="form-field">
-                        <label class="form-label" for="setup-password">"Password"</label>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[13px] font-medium text-[var(--content-secondary)]" for="setup-password">"Password"</label>
                         <input
                             id="setup-password"
-                            class="form-input"
+                            class="w-full px-3 py-2.5 text-sm font-[family-name:var(--font-sans)] text-[var(--content-primary)] bg-[var(--surface-primary)] border border-[var(--border-default)] rounded-lg outline-none transition-colors focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/15 placeholder:text-[var(--content-disabled)]"
                             type="password"
                             placeholder="At least 8 characters"
                             autocomplete="new-password"
@@ -184,9 +184,10 @@ pub fn SetupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <label class="checkbox-label">
+                    <label class="flex items-start gap-2 cursor-pointer text-sm">
                         <input
                             type="checkbox"
+                            class="w-[18px] h-[18px] mt-0.5 accent-[var(--primary)] cursor-pointer"
                             prop:checked=move || trial.get()
                             on:change=move |ev| {
                                 let target: HtmlInputElement =
@@ -194,9 +195,9 @@ pub fn SetupPage() -> impl IntoView {
                                 set_trial.set(target.checked());
                             }
                         />
-                        <span class="checkbox-label__text">
+                        <span>
                             <strong>"Start a free trial of Enterprise"</strong>
-                            <span class="checkbox-label__desc">
+                            <span class="block text-[13px] text-[var(--content-secondary)] leading-relaxed">
                                 "Get access to high availability, template RBAC, audit logging, and more."
                             </span>
                         </span>
@@ -204,20 +205,20 @@ pub fn SetupPage() -> impl IntoView {
 
                     <button
                         type="submit"
-                        class="btn btn--primary btn--lg btn--full"
+                        class="w-full inline-flex items-center justify-center gap-2 rounded-lg text-[15px] font-medium cursor-pointer transition-all border border-transparent px-5 py-3 bg-[var(--content-primary)] text-[var(--content-invert)] hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed no-underline whitespace-nowrap leading-none"
                         disabled=move || loading.get()
                     >
                         <Show
                             when=move || loading.get()
                             fallback=|| "Continue with email"
                         >
-                            <span class="spinner spinner--invert"></span>
+                            <span class="inline-block w-4 h-4 border-2 border-black/20 border-t-[var(--content-invert)] rounded-full animate-spin"></span>
                             " Creating account\u{2026}"
                         </Show>
                     </button>
                 </form>
 
-                <footer class="signin-footer">
+                <footer class="mt-8 text-center text-xs text-[var(--content-secondary)]">
                     "\u{00a9} 2025 Coder Technologies, Inc."
                 </footer>
             </div>
