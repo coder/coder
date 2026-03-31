@@ -222,7 +222,6 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		layout: "fullscreen",
 		user: MockUserOwner,
 		webSocket: [],
-		chromatic: { disableSnapshot: true },
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${CHAT_ID}`,
