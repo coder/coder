@@ -34,11 +34,9 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Chat files retention period. Chats are currently experimental,
-	// so we hard-code this rather than exposing a deployment config
-	// knob. This can be promoted to a configurable setting when
-	// chats graduate from experimental status.
-	maxChatFileAge     = 30 * 24 * time.Hour // 30 days
+	// Batch sizes for chat purging. Chat files use a smaller batch
+	// than other record types because they contain bytea blob data.
+	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
 )
 
@@ -219,13 +217,37 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		deleteChatFilesBefore := start.Add(-maxChatFileAge)
-		purgedChatFiles, err := tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
-			BeforeTime: deleteChatFilesBefore,
-			LimitCount: chatFilesBatchSize,
-		})
+		// Chat retention is configured via site_configs. When
+		// enabled, old archived chats are deleted first, then
+		// orphaned chat files. Deleting a chat does not cascade
+		// to chat_files (no FK), so files from deleted chats
+		// become orphaned and are caught by DeleteOldChatFiles
+		// in the same tick.
+		var purgedChats int64
+		var purgedChatFiles int64
+		chatRetentionDays, err := tx.GetChatRetentionDays(ctx)
 		if err != nil {
-			return xerrors.Errorf("failed to delete old chat files: %w", err)
+			return xerrors.Errorf("get chat retention config: %w", err)
+		}
+		if chatRetentionDays > 0 {
+			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour
+			deleteChatsBefore := start.Add(-chatRetention)
+
+			purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+				BeforeTime: deleteChatsBefore,
+				LimitCount: chatsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old chats: %w", err)
+			}
+
+			purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+				BeforeTime: deleteChatsBefore,
+				LimitCount: chatFilesBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old chat files: %w", err)
+			}
 		}
 
 		i.logger.Debug(ctx, "purged old database entries",
@@ -234,6 +256,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("aibridge_records", purgedAIBridgeRecords),
 			slog.F("connection_logs", purgedConnectionLogs),
 			slog.F("audit_logs", purgedAuditLogs),
+			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("duration", i.clk.Since(start)),
 		)
@@ -248,6 +271,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
 			i.recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
+			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
 		}
 
