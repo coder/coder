@@ -3319,13 +3319,14 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send another message with the SAME file.
-		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		msgResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "same file again"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
 			},
 		})
 		require.NoError(t, err)
+		require.Empty(t, msgResp.Warnings, "dedup below cap should not produce warnings")
 
 		// GET — should have exactly 1 file (deduped by SQL DISTINCT).
 		chatResult, err := client.GetChat(ctx, chat.ID)
@@ -3361,6 +3362,8 @@ func TestChatMessageWithFiles(t *testing.T) {
 		}
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Content: parts})
 		require.NoError(t, err)
+		require.Empty(t, chat.Warnings, "creating a chat at exactly the cap should not warn")
+		require.Len(t, chat.Files, codersdk.MaxChatFileIDs, "all files should be linked on creation")
 
 		// Upload one more file.
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
@@ -3395,6 +3398,47 @@ func TestChatMessageWithFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, msgResp2.Warnings, "re-referencing an existing file should not warn")
+	})
+
+	t.Run("FileCapOnCreate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+
+		// Upload MaxChatFileIDs + 1 files.
+		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs+1)
+		for i := range codersdk.MaxChatFileIDs + 1 {
+			resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("create%d.png", i), bytes.NewReader(pngData))
+			require.NoError(t, err)
+			fileIDs = append(fileIDs, resp.ID)
+		}
+
+		// Create a chat with all files (one over the cap).
+		parts := []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "over cap on create"},
+		}
+		for _, fid := range fileIDs {
+			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
+		}
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Content: parts})
+		require.NoError(t, err, "chat creation should succeed even when cap is exceeded")
+		require.NotEmpty(t, chat.Warnings, "response should warn about unlinked files")
+		require.Contains(t, chat.Warnings[0], "file cap reached")
+
+		// Only MaxChatFileIDs files should actually be linked.
+		// With SQL-level batch rejection, ALL files are rejected
+		// when the result would exceed the cap. Since we're
+		// sending MaxChatFileIDs+1 files, the deduped count is
+		// 21 > 20, so 0 rows are affected and all files are
+		// unlinked.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Empty(t, chatResult.Files, "no files should be linked when batch exceeds cap")
 	})
 }
 

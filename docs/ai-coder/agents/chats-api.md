@@ -220,6 +220,12 @@ files that have been successfully linked to the chat. File linking is
 best-effort; if linking fails, the file remains in message content but
 will be absent from this field.
 
+When file linking is skipped (e.g. the per-chat file cap is reached),
+`POST /chats` includes a `warnings` array on the `Chat` response and
+`POST /chats/{chat}/messages` includes a `warnings` array on the
+`CreateChatMessageResponse`. The `warnings` field is `omitempty` and
+absent when all files are linked successfully.
+
 ### Get chat messages
 
 `GET /api/experimental/chats/{chat}/messages`
