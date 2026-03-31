@@ -195,14 +195,14 @@ coderd/x/chatd/
 │   ├── createworkspace.go # Create workspace from template (idempotent, waits for build)
 │   ├── startworkspace.go # Start a stopped workspace
 │   ├── proposeplan.go    # Present a markdown plan file for user review
-│   ├── mcpworkspace.go   # Workspace MCP tool discovery via .mcp.json (ListMCPTools/CallMCPTool)
+│   ├── mcpworkspace.go   # Wraps CallMCPTool for proxying tool invocations to workspace MCP servers
 │   └── skill.go          # Skills: discover .agents/skills/<name>/SKILL.md, read_skill/read_skill_file tools
 │
 ├── chatcost/             # Token cost calculation (microdollar precision)
 │   └── chatcost.go       # CalculateTotalCostMicros
 │
 ├── chaterror/            # Error classification and user-facing message generation
-│   ├── classify.go       # ClassifiedError: severity, retryability, provider Retry-After
+│   ├── classify.go       # ClassifiedError: kind, retryability, provider Retry-After
 │   ├── kind.go           # ErrorKind enum (rate_limit, auth, config, startup_timeout, …)
 │   ├── message.go        # terminalMessage() + retryMessage() for frontend display
 │   ├── payload.go        # Projectors for ChatStreamError / ChatStreamRetry payloads
@@ -244,7 +244,8 @@ Decomposition has started: `configcache.go` (config caching),
 
 System prompt composition uses the `include_default_system_prompt` boolean
 toggle. `resolvedChatSystemPrompt()` composes `[default?, custom?]` joined
-by `\n\n`.
+by `\n\n`. This composition happens at the HTTP handler layer
+(`coderd/exp_chats.go`), not inside chatd.
 
 ### 2. The Chat Loop (chatloop/)
 
@@ -313,10 +314,10 @@ Notable tool groupings:
 - **Planning tool**: `propose_plan` for presenting Markdown plans to the user
 - **Provider-native tools**: e.g. `web_search`, defined separately from `chattool/`
 
-- **Workspace MCP tools**: `mcpworkspace.go` — discovers `.mcp.json` from the
-  workspace agent via `ListMCPTools` and proxies calls via `CallMCPTool`. Tools
-  are prefixed with server name (`slug__toolName`), same convention as
-  admin-configured MCP tools.
+- **Workspace MCP tools**: `mcpworkspace.go` — wraps `CallMCPTool` for proxying
+  individual tool invocations to workspace MCP servers. Discovery via
+  `ListMCPTools` happens in `chatd.go`, not here. Tools are prefixed with
+  server name (`slug__toolName`), same convention as admin-configured MCP tools.
 - **Skill tools**: `skill.go` — `read_skill` lists available skills from
   `.agents/skills/` in the workspace, `read_skill_file` reads individual skill
   files. Skills are auto-discovered directories containing `SKILL.md` with
@@ -385,9 +386,10 @@ Output tokens include reasoning tokens per provider semantics — adding
 ### 10. Quick Generation (quickgen.go)
 
 `quickgen.go` handles lightweight background LLM tasks. Besides
-`GenerateChatTitle` (fire-and-forget after first assistant response), it
-exposes `RegenerateChatTitle` with
-`POST /api/experimental/chats/{chatID}/title/regenerate`. The regenerate
+`maybeGenerateChatTitle` (fire-and-forget after first assistant response), it
+exports helper functions (`extractManualTitleTurns`, `selectManualTitleTurnIndexes`,
+`buildManualTitleContext`, `renderManualTitlePrompt`, `generateManualTitle`)
+consumed by `Server.RegenerateChatTitle()` in `chatd.go`. The regenerate
 endpoint uses richer context: first user turn + last 3 turns + gap markers.
 
 ---
@@ -742,7 +744,8 @@ Instruction files (AGENTS.md) are now persisted as `context-file` message parts
 on first workspace attachment via `persistInstructionFiles()`, rather than being
 re-resolved per turn. The `last_injected_context` column on `chats` stores the
 most recently persisted context to avoid redundant writes. Per-turn
-`resolveInstructions()` + `InsertSystem()` has been removed.
+`resolveInstructions()` has been removed. `InsertSystem()` remains the mechanism
+for injecting persisted instructions into the LLM prompt.
 
 ### Questions to resolve
 

@@ -53,7 +53,7 @@ AgentsPage (layout: sidebar + outlet)
   └─ AgentsPageView (layout shell)
        ├─ AgentsSidebar (Sidebar/AgentsSidebar.tsx)
        │    ├─ Pinned chats section (drag-to-reorder via @dnd-kit)
-       │    ├─ Read/unread indicator (bold + blue dot)
+       │    ├─ Read/unread indicator (blue dot)
        │    └─ SidebarTabView (Sidebar/SidebarTabView.tsx)
        └─ <Outlet>
             ├─ AgentCreatePage (AgentCreateForm.tsx)
@@ -73,7 +73,7 @@ AgentsPage (layout: sidebar + outlet)
             │    └─ RightPanel/ (desktop VNC, git panel, diff viewer)
             ├─ AgentSettingsBehaviorPage (personal prompt, system prompt, desktop, TTL)
             ├─ AgentSettingsProvidersPage (provider CRUD)
-            ├─ AgentSettingsModelsPage (model config CRUD with enabled toggle)
+            ├─ AgentSettingsModelsPage (model config CRUD)
             ├─ AgentSettingsMCPServersPage (MCP server config with model_intent toggle)
             ├─ AgentSettingsLimitsPage (usage limits)
             ├─ AgentSettingsUsagePage (cost summaries)
@@ -101,8 +101,9 @@ AgentEmbedPage (iframe wrapper with theme sync + navigation blocking)
 
 ### Additional state
 
-- **Read/unread tracking**: `has_unread` on `Chat`, `last_read_message_id`
-  updated on stream connect/disconnect.
+- **Read/unread tracking**: `has_unread` is a server-computed boolean (based
+  on `last_read_message_id`), exposed on the `Chat` type. The backend updates
+  the read cursor on stream connect/disconnect.
 - **Pinned chats**: `pin_order`, optimistic cache reorder,
   `reorderPinnedChat` mutation.
 - **`liveStatusModel`**: centralized live-status pipeline
@@ -145,10 +146,11 @@ the server if events are missed.
 
 ---
 
-## Chat Store (`ChatContext.ts`)
+## Chat Store (`chatStore.ts` + `useChatStore.ts`)
 
-The chat store is the most complex piece of frontend state (~1,100 lines). It is
-a **framework-agnostic external store** consumed via `useSyncExternalStore`.
+The chat store is the most complex piece of frontend state (~1,186 lines across
+two files). It is a **framework-agnostic external store** consumed via
+`useSyncExternalStore`.
 
 ### Architecture
 
@@ -305,7 +307,7 @@ Settings are now split into separate route-level page files under
 |---|---|---|
 | `AgentSettingsBehaviorPage` | Personal prompt, system prompt (`include_default_system_prompt` toggle), user compaction thresholds, desktop toggle, autostop TTL | Personal: all users. System/desktop/TTL: admin only |
 | `AgentSettingsProvidersPage` | Provider CRUD (API keys, base URLs) | Admin |
-| `AgentSettingsModelsPage` | Model config CRUD with `enabled` toggle (per-provider settings, pricing) | Admin |
+| `AgentSettingsModelsPage` | Model config CRUD (per-provider settings, pricing) | Admin |
 | `AgentSettingsMCPServersPage` | MCP server config CRUD with `model_intent` toggle | Admin |
 | `AgentSettingsLimitsPage` | Usage limit config (global, per-user, per-group overrides) | Admin |
 | `AgentSettingsUsagePage` | Cost summaries, per-user drill-down | Admin |
@@ -406,7 +408,8 @@ in the server.
 - **Workspace lookup**: `GET /chats/by-workspace`
 - **Chat update**: `PATCH /chats/{chat}` with `pin_order` and `labels`
   fields
-- **Label filtering**: `?label=key:value` on `GET /chats`
+- **Label filtering**: `?label=key:value` on `GET /chats` (backend-only API
+  surface; not yet consumed by the frontend client)
 
 ### SSE/WebSocket Streams
 
@@ -441,7 +444,7 @@ WebSockets.
 
 ### Per-chat reconnect strategy
 
-`ChatContext` waits for the initial REST message history before opening the
+The chat store waits for the initial REST message history before opening the
 socket so it can seed `lastMessageIdRef`. Reconnects then call
 `watchChat(chatId, after_id)` with the last durable message ID.
 
@@ -532,9 +535,10 @@ scope:
    enabled, and owns model selection, send/edit/interrupt mutations, and
    streaming state. The rename happened but the decomposition question remains.
 
-2. **`ChatContext.ts` is ~1,100 lines.** The chat store mixes framework-agnostic
-   store logic with React-specific wiring (WebSocket lifecycle, REST sync, React
-   Query cache updates). Should these be separated?
+2. **`chatStore.ts` + `useChatStore.ts` total ~1,186 lines.** The chat store
+   mixes framework-agnostic store logic with React-specific wiring (WebSocket
+   lifecycle, REST sync, React Query cache updates). Should these be further
+   separated?
 
 3. **Naming mismatch: `/agents` routes vs `/api/experimental/chats/` API.**
    The UI calls them "agents", the backend calls them "chats". The generated
@@ -553,7 +557,7 @@ scope:
 
 ### Testing
 
-6. **`ChatContext.test.tsx` is 3,240 lines** — the largest test file. Is this
+6. **`chatStore.test.tsx` is ~3,400 lines** — the largest test file. Is this
    sustainable? Are there flakiness issues?
 
 7. **`AgentChatPage.stories.tsx` (was `AgentDetail.stories.tsx`).** How much

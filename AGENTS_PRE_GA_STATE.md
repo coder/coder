@@ -140,9 +140,9 @@ This means the system currently has more than one visibility model at once:
 - owner/org visibility for uploaded files, and
 - workspace permission checks that differ by feature.
 
-The `agents-access` role adds a new access-control layer that is orthogonal to
-existing RBAC: a user may have workspace permissions but still be unable to
-create chats without the role.
+The `agents-access` role introduces a new access dimension within RBAC: a user
+may have workspace permissions but still be unable to create chats without the
+role.
 
 `AsSystemRestricted` has been partially replaced with narrower purpose-built
 actors (`AsSystemOAuth2`, `AsSystemReadProvisionerDaemons`, `AsProvisionerd`) in
@@ -193,9 +193,11 @@ The durable binding includes **`chats.workspace_id`**, **`chats.build_id`**, and
 an earlier removal; they serve as an optimistic cache of the agent a chat should
 use.
 
-On the hot path, the bound agent is loaded by ID directly. The "first agent in
-latest build" resolution only applies to initial binding and the
-repair/re-resolve path.
+On tool/prompt setup calls (`getWorkspaceAgent`), the bound agent is loaded by
+ID directly. Connection establishment (`workspaceAgentIDForConn`) always
+re-verifies against the latest build. Initial binding and the repair/re-resolve
+path use best-match agent selection via `FindChatAgent` (suffix-matching for
+`*-coderd-chat` agents, deterministic sort fallback).
 
 A chat can begin in three states:
 
@@ -219,7 +221,9 @@ possible.
 Several behaviors are more fluid than the UI suggests:
 
 - the binding is to a workspace row, not to a stable workspace agent,
-- agent selection is effectively "first agent in latest build",
+- agent selection uses best-match logic via `FindChatAgent` (suffix-matching
+  for `*-coderd-chat` agents, deterministic sort fallback), while connection
+  establishment always re-verifies against the latest build,
 - `create_workspace` may reuse, wait, suggest `start_workspace`, or create a
   replacement workspace depending on current state,
 - pre-attached workspaces are validated for access but not for liveness, and
@@ -364,13 +368,13 @@ terminal failure states from one source of truth.
 
 - Backend appendix section: `Streaming Architecture`
 - Frontend appendix sections:
-  - `Chat Store (`ChatContext.ts`)`
+  - `Chat Store (`chatStore.ts`)`
   - `Realtime Reconciliation Model`
 - Representative files:
   - `coderd/x/chatd/chatd.go`
   - `coderd/x/chatd/chatloop/chatloop.go`
   - `coderd/exp_chats.go`
-  - `site/src/pages/AgentsPage/components/AgentDetail/ChatContext.ts`
+  - `site/src/pages/AgentsPage/components/ChatConversation/chatStore.ts`
   - `site/src/utils/OneWayWebSocket.ts`
 
 ## Configuration surfaces and ownership
@@ -673,7 +677,7 @@ read semantics.
 - Representative files:
   - `site/src/pages/AgentsPage/AgentEmbedPage.tsx`
   - `site/src/pages/AgentsPage/AgentDetail.tsx`
-  - `site/src/pages/AgentsPage/components/AgentDetail/ChatContext.ts`
+  - `site/src/pages/AgentsPage/components/ChatConversation/chatStore.ts`
   - `coderd/exp_chats.go`
 
 ## Open questions for discussion
@@ -727,7 +731,8 @@ keeps surfacing.
   - or none of the above until the next turn?
 - Is multi-agent workspace behavior supposed to be stable enough that a chat can
   be thought of as talking to a specific agent, or is the current
-  "first agent in latest build" behavior the intended abstraction?
+  best-match agent selection (via `FindChatAgent`) behavior the intended
+  abstraction?
 - How should workspace MCP tool discovery interact with the admin-configured MCP
   server list? What happens when they conflict?
 
@@ -858,7 +863,7 @@ conversations more concrete:
 |-------------------------------------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | Authorization, identity, and visibility         | `coderd/x/chatd/ARCHITECTURE.md` -> `Organization Scoping — Pre-GA Blocker`, `Authorization Model` | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Admin Settings`, `Configuration Sources the UI Must Reconcile` | `coderd/exp_chats.go`, `coderd/database/dbauthz/dbauthz.go`, `coderd/httpmw/chatparam.go`, `coderd/rbac/roles.go`                                                    |
 | Chat/workspace binding and lifecycle            | `coderd/x/chatd/ARCHITECTURE.md` -> `Workspace Binding Lifecycle`                                  | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Realtime Reconciliation Model`                                 | `coderd/x/chatd/chatd.go`, `coderd/x/chatd/chattool/createworkspace.go`, `coderd/x/chatd/chattool/startworkspace.go`, `coderd/x/chatd/dialvalidation.go`, `coderd/x/chatd/chattool/mcpworkspace.go`, `coderd/x/chatd/chattool/skill.go`                         |
-| Realtime model and delivery semantics           | `coderd/x/chatd/ARCHITECTURE.md` -> `Streaming Architecture`                                       | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Chat Store`, `Realtime Reconciliation Model`                   | `coderd/x/chatd/chatd.go`, `coderd/exp_chats.go`, `site/src/pages/AgentsPage/components/AgentDetail/ChatContext.ts`, `coderd/x/chatd/chaterror/`                          |
+| Realtime model and delivery semantics           | `coderd/x/chatd/ARCHITECTURE.md` -> `Streaming Architecture`                                       | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Chat Store`, `Realtime Reconciliation Model`                   | `coderd/x/chatd/chatd.go`, `coderd/exp_chats.go`, `site/src/pages/AgentsPage/components/ChatConversation/chatStore.ts`, `coderd/x/chatd/chaterror/`                          |
 | Configuration surfaces and ownership            | `coderd/x/chatd/ARCHITECTURE.md` -> `Configuration Layers and Ownership`                           | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Configuration Sources the UI Must Reconcile`                   | `coderd/exp_chats.go`, `coderd/mcp.go`, `site/src/api/queries/chats.ts`, `site/src/pages/AgentsPage/utils/modelOptions.ts`, `coderd/x/chatd/configcache.go`                   |
 | Chat data lifecycle and retention               | `coderd/x/chatd/ARCHITECTURE.md` -> `Chat Data Lifecycle`                                          | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Open Questions`                                                | `coderd/database/migrations/000422_chats.up.sql`, `coderd/database/migrations/000429_chat_files.up.sql`, `coderd/database/queries/chats.sql` |
 | Operational characteristics and testing reality | `coderd/x/chatd/ARCHITECTURE.md` -> `Known Technical Debt`, `Open Questions`                       | `site/src/pages/AgentsPage/ARCHITECTURE.md` -> `Open Questions`                                                | `coderd/x/chatd/chatd.go`, `coderd/x/chatd/chatd_test.go`, `coderd/x/chatd/chattest/*`                                                       |
