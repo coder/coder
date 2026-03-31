@@ -183,8 +183,8 @@ export const InvalidDraftShowsFooter: Story = {
 			name: /GPT-4o compaction threshold/i,
 		});
 
-		// Type an invalid value
-		await userEvent.type(gpt4oInput, "abc");
+		// Type an out-of-range value (number inputs reject non-numeric chars)
+		await userEvent.type(gpt4oInput, "150");
 
 		// Input should be marked invalid
 		await waitFor(() => {
