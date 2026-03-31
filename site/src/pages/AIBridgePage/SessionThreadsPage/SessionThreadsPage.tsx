@@ -6,7 +6,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
-import { getAIBridgePermissions } from "../utils";
+import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { SessionThreadsPageView } from "./SessionThreadsPageView";
 
 const SessionThreadsPage: FC = () => {
@@ -34,6 +34,7 @@ const SessionThreadsPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Session Threads", "AI Bridge")}</title>
+
 			<SessionThreadsPageView
 				session={firstPage}
 				threads={allThreads}

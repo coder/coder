@@ -5,9 +5,7 @@ import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
 } from "#/api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
@@ -16,7 +14,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { docs } from "#/utils/docs";
+import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 
@@ -66,21 +64,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	}
 
 	if (!isAISessionsEnabled) {
-		return (
-			<Alert className="mb-12" severity="warning" prominent>
-				<AlertTitle>
-					AI Bridge is included in your license, but not set up yet.
-				</AlertTitle>
-				<AlertDescription>
-					You have access to AI Governance, but it still needs to be setup.
-					Check out the{" "}
-					<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
-						AI Bridge
-					</Link>{" "}
-					documentation to get started.
-				</AlertDescription>
-			</Alert>
-		);
+		return <AIBridgeSetupAlert />;
 	}
 
 	// calculate the total number of tool calls across all loaded threads

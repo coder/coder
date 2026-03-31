@@ -8,7 +8,7 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
-import { getAIBridgePermissions } from "../utils";
+import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { useClientFilterMenu } from "./RequestLogsFilter/ClientFilter";
 import { useModelFilterMenu } from "./RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "./RequestLogsFilter/ProviderFilter";

@@ -1,23 +1,3 @@
-import type { Entitlements } from "#/api/typesGenerated";
-import type { Permissions } from "#/modules/permissions";
-
-// Users are allowed to view their own request logs via the API,
-// but an AI Bridge page is only visible if the feature is enabled and
-// the user has the `viewAnyAIBridgeInterception` permission. (as it's
-// defined in the Admin settings dropdown).
-export const getAIBridgePermissions = (
-	entitlements: Entitlements,
-	permissions: Permissions,
-) => {
-	const isEntitled =
-		entitlements.features.aibridge.entitlement === "entitled" ||
-		entitlements.features.aibridge.entitlement === "grace_period";
-	const isEnabled = entitlements.features.aibridge.enabled;
-	const hasPermission = permissions.viewAnyAIBridgeInterception;
-
-	return { isEntitled, isEnabled, hasPermission };
-};
-
 export const roundTokenDisplay = (tokens: number) => {
 	if (tokens >= 1000) {
 		return `${(tokens / 1000).toFixed(1)}k`;

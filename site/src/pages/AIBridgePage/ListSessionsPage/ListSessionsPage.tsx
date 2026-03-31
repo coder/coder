@@ -8,9 +8,9 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { useClientFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
-import { getAIBridgePermissions } from "../utils";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 const AISessionListPage: FC = () => {
