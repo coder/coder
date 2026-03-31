@@ -46,12 +46,31 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 	};
 };
 
+const setMobileViewport = (isMobile: boolean) => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn((query: string): MediaQueryList => {
+			return {
+				matches: query === "(max-width: 639px)" ? isMobile : false,
+				media: query,
+				onchange: null,
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+				dispatchEvent: vi.fn(() => true),
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+			} as MediaQueryList;
+		}),
+	});
+};
+
 describe("getPersistedDraftInputValue", () => {
 	const chatID = "chat-abc-123";
 	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
 
 	beforeEach(() => {
 		localStorage.clear();
+		setMobileViewport(false);
 	});
 
 	it("reads the initial value from localStorage for a given chatID", () => {
@@ -71,6 +90,7 @@ describe("useConversationEditingState", () => {
 
 	beforeEach(() => {
 		localStorage.clear();
+		setMobileViewport(false);
 	});
 
 	const renderEditing = () => {
@@ -106,7 +126,7 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("loads edit text into the composer and restores the prior draft on cancel", () => {
+	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
 		const { result, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("work in progress");
 		result.current.chatInputRef.current = mockInput.handle;
@@ -117,6 +137,7 @@ describe("useConversationEditingState", () => {
 
 		expect(result.current.editingMessageId).toBe(7);
 		expect(mockInput.setValue).toHaveBeenCalledWith("edited message");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
 
 		act(() => {
 			result.current.handleCancelHistoryEdit();
@@ -125,6 +146,59 @@ describe("useConversationEditingState", () => {
 		expect(result.current.editingMessageId).toBeNull();
 		expect(mockInput.setValue).toHaveBeenLastCalledWith("work in progress");
 		expect(mockInput.currentValue.value).toBe("work in progress");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+		unmount();
+	});
+
+	it("loads queue edit text into the composer and restores the prior draft on cancel without refocusing", () => {
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("work in progress");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued message", []);
+		});
+
+		expect(result.current.editingQueuedMessageID).toBe(9);
+		expect(mockInput.setValue).toHaveBeenCalledWith("queued message");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+
+		act(() => {
+			result.current.handleCancelQueueEdit();
+		});
+
+		expect(result.current.editingQueuedMessageID).toBeNull();
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("work in progress");
+		expect(mockInput.currentValue.value).toBe("work in progress");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+		unmount();
+	});
+
+	it("does not force focus when replacing input values on mobile", () => {
+		setMobileViewport(true);
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("draft before edit");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued message", []);
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.handleCancelQueueEdit();
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
 		unmount();
 	});
 

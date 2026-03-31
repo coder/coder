@@ -109,7 +109,15 @@ export function useConversationEditingState(deps: {
 	const getCurrentInputValue = () => chatInputRef.current?.getValue() ?? "";
 	const replaceInputValue = (content: string) => {
 		chatInputRef.current?.setValue(content);
-		chatInputRef.current?.focus();
+	};
+	const focusInputIfDesktop = () => {
+		if (!isMobileViewport()) {
+			chatInputRef.current?.focus();
+		}
+	};
+	const replaceInputValueAndFocus = (content: string) => {
+		replaceInputValue(content);
+		focusInputIfDesktop();
 	};
 
 	// -- History editing state --
@@ -130,7 +138,7 @@ export function useConversationEditingState(deps: {
 			editingMessageId !== null ? prev : getCurrentInputValue(),
 		);
 		setEditingMessageId(messageId);
-		replaceInputValue(text);
+		replaceInputValueAndFocus(text);
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
@@ -159,7 +167,7 @@ export function useConversationEditingState(deps: {
 			editingQueuedMessageID === null ? getCurrentInputValue() : prev,
 		);
 		setEditingQueuedMessageID(id);
-		replaceInputValue(text);
+		replaceInputValueAndFocus(text);
 		setEditingFileBlocks(fileBlocks);
 	};
 
@@ -181,9 +189,7 @@ export function useConversationEditingState(deps: {
 		await onSend(message, fileIds, editedMessageID);
 		// Clear input and editing state on success.
 		chatInputRef.current?.clear();
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
-		}
+		focusInputIfDesktop();
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
@@ -529,7 +535,9 @@ const AgentChatPage: FC = () => {
 		}
 		const prefix = current.trim() ? "\n\n" : "";
 		chatInputRef.current?.insertText(prefix + commitPrompt);
-		chatInputRef.current?.focus();
+		if (!isMobileViewport()) {
+			chatInputRef.current?.focus();
+		}
 	};
 
 	// Prefer the explicit PR number from the API, and only fall back to URL
