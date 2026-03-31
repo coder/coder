@@ -12,6 +12,7 @@ import {
 	$getRoot,
 	$getSelection,
 	$insertNodes,
+	$isParagraphNode,
 	$isRangeSelection,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
@@ -20,7 +21,6 @@ import {
 	KEY_ENTER_COMMAND,
 	type LexicalEditor,
 	PASTE_COMMAND,
-	type ParagraphNode,
 } from "lexical";
 import {
 	type FC,
@@ -74,17 +74,15 @@ function insertPlainTextIntoEditor(editor: LexicalEditor, text: string) {
 		}
 		const root = $getRoot();
 		const lastChild = root.getLastChild();
-		if (lastChild) {
-			if (lastChild.getType() === "paragraph") {
-				const paragraph = lastChild as ParagraphNode;
-				const textNode = $createTextNode(text);
-				paragraph.append(textNode);
-				textNode.selectEnd();
-			} else {
-				const textNode = $createTextNode(text);
-				lastChild.insertAfter(textNode);
-				textNode.selectEnd();
-			}
+
+		if (lastChild && $isParagraphNode(lastChild)) {
+			const textNode = $createTextNode(text);
+			lastChild.append(textNode);
+			textNode.selectEnd();
+		} else if (lastChild) {
+			const textNode = $createTextNode(text);
+			lastChild.insertAfter(textNode);
+			textNode.selectEnd();
 		} else {
 			const paragraph = $createParagraphNode();
 			const textNode = $createTextNode(text);
@@ -303,14 +301,17 @@ const ContentChangePlugin: FC<{
 				const root = $getRoot();
 				const content = root.getTextContent();
 				let hasRefs = false;
+
 				for (const child of root.getChildren()) {
-					if (child.getType() !== "paragraph") continue;
-					for (const node of (child as ParagraphNode).getChildren()) {
+					if (!$isParagraphNode(child)) continue;
+
+					for (const node of child.getChildren()) {
 						if (node instanceof FileReferenceNode) {
 							hasRefs = true;
 							break;
 						}
 					}
+
 					if (hasRefs) break;
 				}
 				const serialized = JSON.stringify(editorState.toJSON());
@@ -396,6 +397,16 @@ type EditorContentPart =
 			readonly type: "file-reference";
 			readonly reference: FileReferenceData;
 	  };
+
+// Mutable variant used internally while building the parts
+// array so we can append to the last text segment without
+// casting away readonly.
+type MutableTextPart = { type: "text"; text: string };
+type MutableFileRefPart = {
+	type: "file-reference";
+	reference: FileReferenceData;
+};
+type MutableContentPart = MutableTextPart | MutableFileRefPart;
 
 export interface ChatMessageInputRef {
 	setValue: (text: string) => void;
@@ -511,17 +522,15 @@ const ChatMessageInput = ({
 					} else {
 						const root = $getRoot();
 						const lastChild = root.getLastChild();
-						if (lastChild) {
-							if (lastChild.getType() === "paragraph") {
-								const paragraph = lastChild as ParagraphNode;
-								const textNode = $createTextNode(text);
-								paragraph.append(textNode);
-								textNode.selectEnd();
-							} else {
-								const textNode = $createTextNode(text);
-								lastChild.insertAfter(textNode);
-								textNode.selectEnd();
-							}
+
+						if (lastChild && $isParagraphNode(lastChild)) {
+							const textNode = $createTextNode(text);
+							lastChild.append(textNode);
+							textNode.selectEnd();
+						} else if (lastChild) {
+							const textNode = $createTextNode(text);
+							lastChild.insertAfter(textNode);
+							textNode.selectEnd();
 						} else {
 							const paragraph = $createParagraphNode();
 							const textNode = $createTextNode(text);
@@ -576,41 +585,54 @@ const ChatMessageInput = ({
 
 				editor.update(() => {
 					const root = $getRoot();
-					let paragraph = root.getFirstChild();
-					if (!paragraph || paragraph.getType() !== "paragraph") {
-						paragraph = $createParagraphNode();
+					const firstChild = root.getFirstChild();
+					const paragraph = $isParagraphNode(firstChild)
+						? firstChild
+						: $createParagraphNode();
+
+					if (!$isParagraphNode(firstChild)) {
 						root.append(paragraph);
 					}
+
 					const chipNode = $createFileReferenceNode(
 						ref.fileName,
 						ref.startLine,
 						ref.endLine,
 						ref.content,
 					);
-					(paragraph as ParagraphNode).append(chipNode);
+					paragraph.append(chipNode);
 					chipNode.selectNext();
 				});
 			},
 			getContentParts: () => {
 				const editor = editorRef.current;
 				if (!editor) return [];
-				const parts: EditorContentPart[] = [];
+
+				const parts: MutableContentPart[] = [];
+
+				const appendText = (str: string) => {
+					const last = parts[parts.length - 1];
+					if (last?.type === "text") {
+						last.text += str;
+					} else {
+						parts.push({ type: "text", text: str });
+					}
+				};
+
 				editor.getEditorState().read(() => {
 					const paragraphs = $getRoot().getChildren();
+
 					for (let i = 0; i < paragraphs.length; i++) {
 						const para = paragraphs[i];
-						if (para.getType() !== "paragraph") continue;
+						if (!$isParagraphNode(para)) continue;
+
 						// Separate paragraphs with a newline in the
 						// preceding text part, just like getTextContent().
 						if (i > 0) {
-							const last = parts[parts.length - 1];
-							if (last?.type === "text") {
-								(last as { text: string }).text += "\n";
-							} else {
-								parts.push({ type: "text", text: "\n" });
-							}
+							appendText("\n");
 						}
-						for (const node of (para as ParagraphNode).getChildren()) {
+
+						for (const node of para.getChildren()) {
 							if (node instanceof FileReferenceNode) {
 								parts.push({
 									type: "file-reference",
@@ -622,21 +644,14 @@ const ChatMessageInput = ({
 									},
 								});
 							} else {
-								// Text node (or any other inline) —
-								// merge into the last text part.
 								const t = node.getTextContent();
-								if (!t) continue;
-								const last = parts[parts.length - 1];
-								if (last?.type === "text") {
-									(last as { text: string }).text += t;
-								} else {
-									parts.push({ type: "text", text: t });
-								}
+								if (t) appendText(t);
 							}
 						}
 					}
 				});
-				return parts;
+
+				return parts as EditorContentPart[];
 			},
 		}),
 		[],
