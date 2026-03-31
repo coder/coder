@@ -1834,9 +1834,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File B: 31 days old, in an active chat -> should be retained.
 				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
-				err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:  activeChat.ID,
-					FileIDs: []uuid.UUID{fileB},
+				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     activeChat.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{fileB},
 				})
 				require.NoError(t, err)
 
@@ -1881,9 +1882,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File D: 31 days old, in a chat archived 31 days ago -> should be deleted.
 				fileD := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				oldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
-				err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:  oldArchivedChat.ID,
-					FileIDs: []uuid.UUID{fileD},
+				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     oldArchivedChat.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{fileD},
 				})
 				require.NoError(t, err)
 				// AppendChatFileIDs sets updated_at to NOW(), so backdate again.
@@ -1894,9 +1896,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File E: 31 days old, in a chat archived 10 days ago -> should be retained.
 				fileE := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				recentArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-10*24*time.Hour))
-				err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:  recentArchivedChat.ID,
-					FileIDs: []uuid.UUID{fileE},
+				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     recentArchivedChat.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{fileE},
 				})
 				require.NoError(t, err)
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
@@ -1906,9 +1909,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// File F: 31 days old, in BOTH an active chat AND an old archived chat -> should be retained.
 				fileF := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 				anotherOldArchivedChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
-				err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:  anotherOldArchivedChat.ID,
-					FileIDs: []uuid.UUID{fileF},
+				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     anotherOldArchivedChat.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{fileF},
 				})
 				require.NoError(t, err)
 				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2",
@@ -1916,9 +1920,10 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				activeChatForF := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
-				err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
-					ChatID:  activeChatForF.ID,
-					FileIDs: []uuid.UUID{fileF},
+				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     activeChatForF.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{fileF},
 				})
 				require.NoError(t, err)
 
