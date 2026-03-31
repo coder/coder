@@ -393,6 +393,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	var req codersdk.CreateChatRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -532,6 +537,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat.",
 			Detail:  err.Error(),
@@ -650,6 +659,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -660,6 +673,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -670,6 +687,10 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		EndDate:   endDate,
 	})
 	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
