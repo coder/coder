@@ -1701,6 +1701,7 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -2272,6 +2273,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		ContextLimit:         200000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 

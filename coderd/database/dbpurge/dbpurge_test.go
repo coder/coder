@@ -1709,10 +1709,11 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		mc, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-			Provider:     "openai",
-			Model:        "test-model",
-			ContextLimit: 8192,
-			Options:      json.RawMessage("{}"),
+			Provider:        "openai",
+			Model:           "test-model",
+			ContextLimit:    8192,
+			Options:         json.RawMessage("{}"),
+			AllowedGroupIds: []uuid.UUID{},
 		})
 		require.NoError(t, err)
 		return chatDeps{user: user, org: org, modelConfig: mc}

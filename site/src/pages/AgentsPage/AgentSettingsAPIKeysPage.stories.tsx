@@ -35,6 +35,7 @@ const createModel = (
 	model_config: overrides.model_config,
 	created_at: overrides.created_at ?? "2026-03-01T00:00:00.000Z",
 	updated_at: overrides.updated_at ?? "2026-03-01T00:00:00.000Z",
+	allowed_group_ids: overrides.allowed_group_ids ?? [],
 });
 
 const baseProvider = createProvider({

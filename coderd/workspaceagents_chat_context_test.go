@@ -216,6 +216,7 @@ func TestAgentChatContext(t *testing.T) {
 				ContextLimit:         originalModel.ContextLimit,
 				CompressionThreshold: originalModel.CompressionThreshold,
 				Options:              json.RawMessage(`{}`),
+				AllowedGroupIds:      []uuid.UUID{},
 			},
 		)
 		require.NoError(t, err)

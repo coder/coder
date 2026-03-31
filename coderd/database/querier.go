@@ -382,9 +382,17 @@ type sqlcQuerier interface {
 	// Providers can be disabled independently of their model configs.
 	// Check both to ensure the selected config is actually usable.
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
-	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
+	// Returns enabled model configs visible to the given user.
+	// When allowed_group_ids is empty the config is visible to everyone.
+	// Otherwise the user must be a member of at least one allowed group
+	// (union semantics). Pass uuid.Nil to bypass group filtering.
+	GetEnabledChatModelConfigs(ctx context.Context, userID uuid.UUID) ([]ChatModelConfig, error)
 	GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error)
-	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	// Returns enabled MCP server configs visible to the given user.
+	// When allowed_group_ids is empty the config is visible to everyone.
+	// Otherwise the user must be a member of at least one allowed group
+	// (union semantics). Pass uuid.Nil to bypass group filtering.
+	GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]MCPServerConfig, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error)
 	GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error)

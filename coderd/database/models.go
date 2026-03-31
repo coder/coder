@@ -4489,6 +4489,7 @@ type ChatModelConfig struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
+	AllowedGroupIds      []uuid.UUID     `db:"allowed_group_ids" json:"allowed_group_ids"`
 }
 
 type ChatProvider struct {
@@ -4730,6 +4731,7 @@ type MCPServerConfig struct {
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
+	AllowedGroupIds         []uuid.UUID    `db:"allowed_group_ids" json:"allowed_group_ids"`
 }
 
 type MCPServerUserToken struct {

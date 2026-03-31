@@ -640,7 +640,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	gomock.InOrder(
 		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
@@ -803,7 +803,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	gomock.InOrder(
 		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
@@ -3177,7 +3177,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		database.ChatModelConfig{}, xerrors.New("no model configured"),
 	).AnyTimes()
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return(nil, nil).AnyTimes()
-	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(
 		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
 	).AnyTimes()

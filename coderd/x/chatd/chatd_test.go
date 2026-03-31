@@ -785,6 +785,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 		ToolDenyList:    []string{},
 		CreatedBy:       user.ID,
 		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -801,6 +802,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 		ToolDenyList:    []string{},
 		CreatedBy:       user.ID,
 		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -817,6 +819,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 		ToolDenyList:    []string{},
 		CreatedBy:       user.ID,
 		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -4778,6 +4781,7 @@ func seedChatDependenciesWithProvider(
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 	return user, org, model
@@ -4826,6 +4830,7 @@ func seedChatDependenciesWithProviderPolicy(
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -6113,17 +6118,18 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	// happen after seedChatDependencies so user.ID exists for
 	// the foreign key.
 	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "Test MCP",
-		Slug:          "test-mcp",
-		Url:           mcpTS.URL,
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+		DisplayName:     "Test MCP",
+		Slug:            "test-mcp",
+		Url:             mcpTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -6306,6 +6312,7 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 		ToolDenyList:    []string{},
 		CreatedBy:       user.ID,
 		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -6421,6 +6428,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 		ToolDenyList:    []string{},
 		CreatedBy:       user.ID,
 		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -6626,19 +6634,20 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	// Seed the MCP server config with OAuth2 auth pointing to our
 	// mock token endpoint.
 	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:    "Authed MCP",
-		Slug:           "authed-mcp",
-		Url:            mcpTS.URL,
-		Transport:      "streamable_http",
-		AuthType:       "oauth2",
-		OAuth2ClientID: "test-client-id",
-		OAuth2TokenURL: tokenSrv.URL,
-		Availability:   "default_off",
-		Enabled:        true,
-		ToolAllowList:  []string{},
-		ToolDenyList:   []string{},
-		CreatedBy:      user.ID,
-		UpdatedBy:      user.ID,
+		DisplayName:     "Authed MCP",
+		Slug:            "authed-mcp",
+		Url:             mcpTS.URL,
+		Transport:       "streamable_http",
+		AuthType:        "oauth2",
+		OAuth2ClientID:  "test-client-id",
+		OAuth2TokenURL:  tokenSrv.URL,
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -6760,19 +6769,20 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 
 	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:    "Broken MCP",
-		Slug:           "broken-mcp",
-		Url:            "http://127.0.0.1:0/does-not-exist",
-		Transport:      "streamable_http",
-		AuthType:       "oauth2",
-		OAuth2ClientID: "test-client-id",
-		OAuth2TokenURL: tokenSrv.URL,
-		Availability:   "default_off",
-		Enabled:        true,
-		ToolAllowList:  []string{},
-		ToolDenyList:   []string{},
-		CreatedBy:      user.ID,
-		UpdatedBy:      user.ID,
+		DisplayName:     "Broken MCP",
+		Slug:            "broken-mcp",
+		Url:             "http://127.0.0.1:0/does-not-exist",
+		Transport:       "streamable_http",
+		AuthType:        "oauth2",
+		OAuth2ClientID:  "test-client-id",
+		OAuth2TokenURL:  tokenSrv.URL,
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 

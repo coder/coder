@@ -10,7 +10,9 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, lazy, Suspense, useId, useState } from "react";
+import { useQuery } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { groups } from "#/api/queries/groups";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -351,6 +353,7 @@ interface MCPServerFormValues {
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
 	customHeadersTouched: boolean;
+	allowedGroupIds: string[];
 }
 
 const buildInitialValues = (
@@ -381,6 +384,9 @@ const buildInitialValues = (
 	toolDenyList: joinList(server?.tool_deny_list),
 	customHeaders: [],
 	customHeadersTouched: false,
+	allowedGroupIds: server?.allowed_group_ids
+		? [...server.allowed_group_ids]
+		: [],
 });
 
 interface ServerFormProps {
@@ -409,6 +415,12 @@ const ServerForm: FC<ServerFormProps> = ({
 	const [showDetails, setShowDetails] = useState(false);
 	const [showAuth, setShowAuth] = useState(false);
 	const [showBehavior, setShowBehavior] = useState(false);
+	const [showAccessControl, setShowAccessControl] = useState(
+		(server?.allowed_group_ids ?? []).length > 0,
+	);
+
+	const groupsQuery = useQuery(groups());
+	const allGroups = groupsQuery.data ?? [];
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialValues(server),
@@ -456,6 +468,8 @@ const ServerForm: FC<ServerFormProps> = ({
 					}),
 				tool_allow_list: splitList(values.toolAllowList),
 				tool_deny_list: splitList(values.toolDenyList),
+				allowed_group_ids:
+					values.allowedGroupIds.length > 0 ? values.allowedGroupIds : [],
 			};
 
 			await onSave(req, server?.id);
@@ -1038,6 +1052,69 @@ const ServerForm: FC<ServerFormProps> = ({
 							</CollapsibleContent>
 						</div>
 					</Collapsible>
+					{/* ── Access Control ── */}
+					<hr className="!my-2 border-0 border-t border-solid border-border" />
+					<div>
+						<button
+							type="button"
+							onClick={() => setShowAccessControl((v) => !v)}
+							className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+						>
+							{showAccessControl ? (
+								<ChevronDownIcon className="h-4 w-4" />
+							) : (
+								<ChevronRightIcon className="h-4 w-4" />
+							)}
+							Access Control
+						</button>
+						{showAccessControl && (
+							<div className="mt-4 space-y-2">
+								<p className="m-0 text-xs text-content-secondary">
+									Restrict this server to specific groups. When no groups are
+									selected, the server is available to all users.
+								</p>
+								{groupsQuery.isLoading ? (
+									<p className="m-0 text-xs text-content-secondary">
+										Loading groups...
+									</p>
+								) : allGroups.length === 0 ? (
+									<p className="m-0 text-xs text-content-secondary">
+										No groups available.
+									</p>
+								) : (
+									<div className="max-h-48 space-y-1 overflow-y-auto rounded border border-solid border-border p-2">
+										{allGroups.map((g) => (
+											<label
+												key={g.id}
+												className="flex items-center gap-2 rounded p-1 text-sm hover:bg-surface-secondary"
+											>
+												<input
+													type="checkbox"
+													checked={form.values.allowedGroupIds.includes(g.id)}
+													onChange={(e) => {
+														const ids = form.values.allowedGroupIds;
+														if (e.target.checked) {
+															void form.setFieldValue("allowedGroupIds", [
+																...ids,
+																g.id,
+															]);
+														} else {
+															void form.setFieldValue(
+																"allowedGroupIds",
+																ids.filter((id) => id !== g.id),
+															);
+														}
+													}}
+													className="rounded"
+												/>
+												<span>{g.display_name || g.name}</span>
+											</label>
+										))}
+									</div>
+								)}
+							</div>
+						)}
+					</div>
 				</div>
 
 				<div className="mt-auto py-6">
@@ -1171,6 +1248,14 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				tool_deny_list: req.tool_deny_list
 					? [...req.tool_deny_list]
 					: undefined,
+				allowed_group_ids: (() => {
+					const current = req.allowed_group_ids ?? [];
+					const previous = editingServer?.allowed_group_ids ?? [];
+					if (JSON.stringify(current) === JSON.stringify(previous)) {
+						return undefined;
+					}
+					return [...current];
+				})(),
 			};
 			try {
 				await onUpdateServer({ id, req: updateReq });

@@ -141,6 +141,7 @@ func seedInternalChatDeps(
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -232,6 +233,7 @@ func insertInternalChatModelConfig(
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -727,6 +729,7 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
@@ -1248,17 +1251,18 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 	insertEnabledAnthropicProvider(ctx, t, db, user.ID)
 
 	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "MCP Test",
-		Slug:          "mcp-test",
-		Url:           "https://mcp.example.com",
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+		DisplayName:     "MCP Test",
+		Slug:            "mcp-test",
+		Url:             "https://mcp.example.com",
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -1306,32 +1310,34 @@ func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
 	// Insert two MCP server configs so we can verify both are
 	// inherited by the child chat.
 	mcpA, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "MCP A",
-		Slug:          "mcp-a",
-		Url:           "https://mcp-a.example.com",
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+		DisplayName:     "MCP A",
+		Slug:            "mcp-a",
+		Url:             "https://mcp-a.example.com",
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
 	mcpB, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:   "MCP B",
-		Slug:          "mcp-b",
-		Url:           "https://mcp-b.example.com",
-		Transport:     "streamable_http",
-		AuthType:      "none",
-		Availability:  "default_off",
-		Enabled:       true,
-		ToolAllowList: []string{},
-		ToolDenyList:  []string{},
-		CreatedBy:     user.ID,
-		UpdatedBy:     user.ID,
+		DisplayName:     "MCP B",
+		Slug:            "mcp-b",
+		Url:             "https://mcp-b.example.com",
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -1368,6 +1374,65 @@ func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, parentMCPIDs, childChat.MCPServerIDs,
 		"child chat must inherit MCP server IDs from parent")
+}
+
+func TestSpawnComputerUseAgent_InheritsMCPServerIDs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(ctx, t, db)
+
+	// Insert an MCP server config.
+	mcpCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:     "MCP Test",
+		Slug:            "mcp-test",
+		Url:             "https://mcp.example.com",
+		Transport:       "streamable_http",
+		AuthType:        "none",
+		Availability:    "default_off",
+		Enabled:         true,
+		ToolAllowList:   []string{},
+		ToolDenyList:    []string{},
+		CreatedBy:       user.ID,
+		UpdatedBy:       user.ID,
+		AllowedGroupIds: []uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	parentMCPIDs := []uuid.UUID{mcpCfg.ID}
+
+	// Create a parent chat with MCP servers.
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "parent-cu-mcp",
+		ModelConfigID:      model.ID,
+		MCPServerIDs:       parentMCPIDs,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	// Spawn a child via createChildSubagentChat, which inherits
+	// MCP server IDs from the parent.
+	child, err := server.createChildSubagentChat(
+		ctx,
+		parentChat,
+		"check the UI",
+		"computer-use-child",
+	)
+	require.NoError(t, err)
+
+	// Verify the child inherited MCP server IDs.
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, parentMCPIDs, childChat.MCPServerIDs,
+		"computer use child chat must inherit MCP server IDs from parent")
 }
 
 func TestCreateChildSubagentChat_NoMCPServersStaysEmpty(t *testing.T) {

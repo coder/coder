@@ -1285,6 +1285,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -9861,6 +9862,7 @@ func TestInsertChatMessages(t *testing.T) {
 			ContextLimit:         128000,
 			CompressionThreshold: 80,
 			Options:              json.RawMessage(`{}`),
+			AllowedGroupIds:      []uuid.UUID{},
 		})
 		require.NoError(t, err)
 
@@ -10068,6 +10070,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -10444,6 +10447,7 @@ func TestGetPRInsights(t *testing.T) {
 			ContextLimit:         128000,
 			CompressionThreshold: 80,
 			Options:              json.RawMessage(`{}`),
+			AllowedGroupIds:      []uuid.UUID{},
 		})
 		require.NoError(t, err)
 
@@ -10891,6 +10895,7 @@ func TestGetPRInsights(t *testing.T) {
 			ContextLimit:         128000,
 			CompressionThreshold: 80,
 			Options:              json.RawMessage(`{}`),
+			AllowedGroupIds:      []uuid.UUID{},
 		})
 		require.NoError(t, err)
 
@@ -11008,6 +11013,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 			ContextLimit:         128000,
 			CompressionThreshold: 80,
 			Options:              json.RawMessage(`{}`),
+			AllowedGroupIds:      []uuid.UUID{},
 		})
 		require.NoError(t, err)
 
@@ -11193,6 +11199,7 @@ func TestChatLabels(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -11417,6 +11424,7 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -11605,6 +11613,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -11992,6 +12001,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -12126,6 +12136,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -12241,6 +12252,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -12366,6 +12378,7 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -12464,6 +12477,7 @@ func TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns(t *testi
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -12576,6 +12590,7 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 
@@ -12665,6 +12680,7 @@ func TestChatHasUnread(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		AllowedGroupIds:      []uuid.UUID{},
 	})
 	require.NoError(t, err)
 

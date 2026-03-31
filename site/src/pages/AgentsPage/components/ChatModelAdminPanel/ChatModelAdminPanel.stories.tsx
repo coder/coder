@@ -45,6 +45,7 @@ const createModelConfig = (
 	context_limit: overrides.context_limit ?? 200000,
 	compression_threshold: overrides.compression_threshold ?? 70,
 	model_config: overrides.model_config,
+	allowed_group_ids: overrides.allowed_group_ids ?? [],
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 });

@@ -49,7 +49,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		configs, err = api.Database.GetMCPServerConfigs(ctx)
 	} else {
 		//nolint:gocritic // All authenticated users need to read enabled MCP server configs to use the chat feature.
-		configs, err = api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))
+		configs, err = api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -124,6 +124,25 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate allowed group IDs if provided.
+	if len(req.AllowedGroupIDs) > 0 {
+		//nolint:gocritic // System context needed to validate group IDs.
+		result, err := api.Database.ValidateGroupIDs(dbauthz.AsSystemRestricted(ctx), req.AllowedGroupIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate group IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !result.Ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more group IDs are invalid.",
+			})
+			return
+		}
+	}
+
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
@@ -174,6 +193,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				AllowInPlanMode:         req.AllowInPlanMode,
 				CreatedBy:               apiKey.UserID,
 				UpdatedBy:               apiKey.UserID,
+				AllowedGroupIds:         coalesceUUIDSlice(req.AllowedGroupIDs),
 			})
 			if err != nil {
 				switch {
@@ -261,6 +281,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ModelIntent:             inserted.ModelIntent,
 				AllowInPlanMode:         inserted.AllowInPlanMode,
 				UpdatedBy:               apiKey.UserID,
+				AllowedGroupIds:         inserted.AllowedGroupIds,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -331,6 +352,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		AllowInPlanMode:         req.AllowInPlanMode,
 		CreatedBy:               apiKey.UserID,
 		UpdatedBy:               apiKey.UserID,
+		AllowedGroupIds:         coalesceUUIDSlice(req.AllowedGroupIDs),
 	})
 	if err != nil {
 		switch {
@@ -588,6 +610,22 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			allowInPlanMode = *req.AllowInPlanMode
 		}
 
+		allowedGroupIDs := existing.AllowedGroupIds
+		if req.AllowedGroupIDs != nil {
+			allowedGroupIDs = coalesceUUIDSlice(*req.AllowedGroupIDs)
+			// Validate the new group IDs.
+			if len(allowedGroupIDs) > 0 {
+				//nolint:gocritic // System context needed to validate group IDs.
+				result, valErr := tx.ValidateGroupIDs(dbauthz.AsSystemRestricted(ctx), allowedGroupIDs)
+				if valErr != nil {
+					return xerrors.Errorf("validate group IDs: %w", valErr)
+				}
+				if !result.Ok {
+					return xerrors.New("one or more group IDs are invalid")
+				}
+			}
+		}
+
 		// When auth_type changes, clear fields belonging to the
 		// previous auth type so stale secrets don't persist.
 		if authType != existing.AuthType {
@@ -659,6 +697,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			AllowInPlanMode:         allowInPlanMode,
 			UpdatedBy:               apiKey.UserID,
 			ID:                      existing.ID,
+			AllowedGroupIds:         allowedGroupIDs,
 		})
 		return err
 	}, nil)
@@ -1143,6 +1182,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		AllowInPlanMode: config.AllowInPlanMode,
 		CreatedAt:       config.CreatedAt,
 		UpdatedAt:       config.UpdatedAt,
+
+		AllowedGroupIDs: config.AllowedGroupIds,
 	}
 }
 
@@ -1197,6 +1238,13 @@ func coalesceStringSlice(ss []string) []string {
 		return []string{}
 	}
 	return ss
+}
+
+func coalesceUUIDSlice(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+	return ids
 }
 
 // mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
