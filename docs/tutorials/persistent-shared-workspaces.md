@@ -60,8 +60,6 @@ leaves the team or the organization.
 # On-call example — substitute a name that fits your use case
 coder users create \
   --username oncall-sre \
-  --email oncall-sre@yourcompany.com \
-  --login-type none \
   --service-account
 ```
 
