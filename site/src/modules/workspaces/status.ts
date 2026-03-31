@@ -12,3 +12,13 @@ export const ACTIVE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
 	"starting",
 	"stopping",
 ];
+
+/**
+ * The set of workspace statuses where the current build can be cancelled.
+ */
+export const CANCELLABLE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
+	"starting",
+	"stopping",
+	"pending",
+	"deleting",
+];

@@ -2,7 +2,8 @@ import { useMutation } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
-import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
+import type { Response, Workspace, WorkspaceBuild } from "#/api/typesGenerated";
+import { CANCELLABLE_BUILD_STATUSES } from "#/modules/workspaces/status";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
@@ -17,6 +18,7 @@ type UseBatchActionsResult = Readonly<{
 	isProcessing: boolean;
 	start: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	stop: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
+	cancel: (workspaces: readonly Workspace[]) => Promise<Response[]>;
 	delete: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	updateTemplateVersions: (
 		payload: UpdateAllPayload,
@@ -53,6 +55,24 @@ export function useBatchActions(
 		onSuccess,
 		onError: (error) => {
 			toast.error("Failed to stop workspaces.", {
+				description: getErrorDetail(error),
+			});
+		},
+	});
+
+	const cancelAllMutation = useMutation({
+		mutationFn: (workspaces: readonly Workspace[]) => {
+			return Promise.all(
+				workspaces
+					.filter((w) =>
+						CANCELLABLE_BUILD_STATUSES.includes(w.latest_build.status),
+					)
+					.map((w) => API.cancelWorkspaceBuild(w.latest_build.id)),
+			);
+		},
+		onSuccess,
+		onError: (error) => {
+			toast.error("Failed to cancel some workspace builds.", {
 				description: getErrorDetail(error),
 			});
 		},
@@ -129,6 +149,7 @@ export function useBatchActions(
 		unfavorite: unfavoriteAllMutation.mutateAsync,
 		start: startAllMutation.mutateAsync,
 		stop: stopAllMutation.mutateAsync,
+		cancel: cancelAllMutation.mutateAsync,
 		delete: deleteAllMutation.mutateAsync,
 		updateTemplateVersions: updateAllMutation.mutateAsync,
 		isProcessing:
@@ -136,6 +157,7 @@ export function useBatchActions(
 			unfavoriteAllMutation.isPending ||
 			startAllMutation.isPending ||
 			stopAllMutation.isPending ||
+			cancelAllMutation.isPending ||
 			deleteAllMutation.isPending,
 	};
 }

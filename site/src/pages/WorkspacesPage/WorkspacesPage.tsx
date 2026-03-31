@@ -184,6 +184,7 @@ const WorkspacesPage: FC = () => {
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
 				onBatchStopTransition={() => batchActions.stop(checkedWorkspaces)}
+				onBatchCancelTransition={() => batchActions.cancel(checkedWorkspaces)}
 				onBatchUpdateTransition={() => {
 					// Just because batch-updating can be really dangerous
 					// action for running workspaces, we're going to invalidate

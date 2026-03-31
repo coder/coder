@@ -1,4 +1,10 @@
-import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
+import {
+	CircleXIcon,
+	CloudIcon,
+	PlayIcon,
+	SquareIcon,
+	TrashIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "#/api/errors";
@@ -24,6 +30,7 @@ import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWi
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Stack } from "#/components/Stack/Stack";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
+import { CANCELLABLE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "#/utils/workspace";
 import {
@@ -49,6 +56,7 @@ interface WorkspacesPageViewProps {
 	onBatchUpdateTransition: () => void;
 	onBatchStartTransition: () => void;
 	onBatchStopTransition: () => void;
+	onBatchCancelTransition: () => void;
 	templatesFetchStatus: TemplateQuery["status"];
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
@@ -72,6 +80,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	onBatchUpdateTransition,
 	onBatchStopTransition,
 	onBatchStartTransition,
+	onBatchCancelTransition,
 	isRunningBatchAction,
 	templates,
 	templatesFetchStatus,
@@ -165,6 +174,18 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 									onClick={onBatchStopTransition}
 								>
 									<SquareIcon /> Stop
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									disabled={
+										!checkedWorkspaces?.some((w) =>
+											CANCELLABLE_BUILD_STATUSES.includes(
+												w.latest_build.status,
+											),
+										)
+									}
+									onClick={onBatchCancelTransition}
+								>
+									<CircleXIcon /> Cancel
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>

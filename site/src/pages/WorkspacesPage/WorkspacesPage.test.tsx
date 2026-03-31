@@ -297,6 +297,65 @@ describe("WorkspacesPage", () => {
 		);
 	});
 
+	it("cancels only the selected workspaces with active builds", async () => {
+		const workspaces = [
+			{
+				...MockWorkspace,
+				id: "1",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					status: "starting" as const,
+				},
+			},
+			{
+				...MockWorkspace,
+				id: "2",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					status: "starting" as const,
+				},
+			},
+			{
+				...MockWorkspace,
+				id: "3",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					status: "running" as const,
+				},
+			},
+		];
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces,
+			count: workspaces.length,
+		});
+		const cancelWorkspaceBuild = vi
+			.spyOn(API, "cancelWorkspaceBuild")
+			.mockResolvedValue({ message: "build canceled" });
+		const user = userEvent.setup();
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		await user.click(getWorkspaceCheckbox(workspaces[0]));
+		await user.click(getWorkspaceCheckbox(workspaces[1]));
+		await user.click(getWorkspaceCheckbox(workspaces[2]));
+
+		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
+		const cancelButton = await screen.findByRole("menuitem", {
+			name: /cancel/i,
+		});
+		await user.click(cancelButton);
+
+		await waitFor(() => {
+			expect(cancelWorkspaceBuild).toHaveBeenCalledTimes(2);
+		});
+		expect(cancelWorkspaceBuild).toHaveBeenCalledWith(
+			workspaces[0].latest_build.id,
+		);
+		expect(cancelWorkspaceBuild).toHaveBeenCalledWith(
+			workspaces[1].latest_build.id,
+		);
+	});
+
 	it("correctly handles pagination by including pagination parameters in query key", async () => {
 		const totalWorkspaces = 50;
 		const workspacesPage1 = Array.from({ length: 25 }, (_, i) => ({
