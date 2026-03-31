@@ -4954,19 +4954,7 @@ func (p *Server) resolveUserProviderAPIKeys(
 		}
 		enabledProviders[normalizedProvider] = struct{}{}
 	}
-	for provider := range keys.ByProvider {
-		if _, ok := enabledProviders[provider]; ok {
-			continue
-		}
-		delete(keys.ByProvider, provider)
-		delete(keys.BaseURLByProvider, provider)
-	}
-	if _, ok := enabledProviders[chatprovider.NormalizeProvider("openai")]; !ok {
-		keys.OpenAI = ""
-	}
-	if _, ok := enabledProviders[chatprovider.NormalizeProvider("anthropic")]; !ok {
-		keys.Anthropic = ""
-	}
+	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
 	return keys, nil
 }
 

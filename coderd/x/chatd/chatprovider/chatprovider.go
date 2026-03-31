@@ -333,21 +333,19 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	}
 }
 
-type ModelCatalog struct {
-	keys ProviderAPIKeys
-}
+type ModelCatalog struct{}
 
-func NewModelCatalog(keys ProviderAPIKeys) *ModelCatalog {
-	return &ModelCatalog{
-		keys: keys,
-	}
+func NewModelCatalog() *ModelCatalog {
+	return &ModelCatalog{}
 }
 
 // ListConfiguredModels returns a model catalog from enabled DB-backed model
 // configs. The second return value reports whether DB-backed models were used.
-func (c *ModelCatalog) ListConfiguredModels(
+func (*ModelCatalog) ListConfiguredModels(
 	configuredProviders []ConfiguredProvider,
 	configuredModels []ConfiguredModel,
+	availabilityByProvider map[string]ProviderAvailability,
+	enabledProviders map[string]struct{},
 ) (codersdk.ChatModelsResponse, bool) {
 	if len(configuredModels) == 0 {
 		return codersdk.ChatModelsResponse{}, false
@@ -391,11 +389,14 @@ func (c *ModelCatalog) ListConfiguredModels(
 		return codersdk.ChatModelsResponse{}, false
 	}
 
-	keys := MergeProviderAPIKeys(c.keys, configuredProviders)
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
 	}
 	for _, provider := range providers {
+		if _, ok := enabledProviders[provider]; !ok {
+			continue
+		}
+
 		models := modelsByProvider[provider]
 		sortChatModels(models)
 
@@ -403,11 +404,14 @@ func (c *ModelCatalog) ListConfiguredModels(
 			Provider: provider,
 			Models:   models,
 		}
-		if keys.APIKey(provider) == "" {
+		if avail, ok := availabilityByProvider[provider]; ok {
+			result.Available = avail.Available
+			if !avail.Available {
+				result.UnavailableReason = avail.UnavailableReason
+			}
+		} else {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		} else {
-			result.Available = true
 		}
 
 		response.Providers = append(response.Providers, result)
@@ -417,31 +421,61 @@ func (c *ModelCatalog) ListConfiguredModels(
 }
 
 // ListConfiguredProviderAvailability returns provider availability derived from
-// deployment/env keys merged with enabled DB provider keys.
-func (c *ModelCatalog) ListConfiguredProviderAvailability(
+// the policy-aware availability map for enabled providers.
+func (*ModelCatalog) ListConfiguredProviderAvailability(
 	configuredProviders []ConfiguredProvider,
+	availabilityByProvider map[string]ProviderAvailability,
+	enabledProviders map[string]struct{},
 ) codersdk.ChatModelsResponse {
-	keys := MergeProviderAPIKeys(c.keys, configuredProviders)
+	_ = configuredProviders
 	response := codersdk.ChatModelsResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
 	}
 
 	for _, provider := range supportedProviderNames {
+		if _, ok := enabledProviders[provider]; !ok {
+			continue
+		}
+
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
 			Models:   []codersdk.ChatModel{},
 		}
-		if keys.APIKey(provider) == "" {
+		if avail, ok := availabilityByProvider[provider]; ok {
+			result.Available = avail.Available
+			if !avail.Available {
+				result.UnavailableReason = avail.UnavailableReason
+			}
+		} else {
 			result.Available = false
 			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		} else {
-			result.Available = true
 		}
 
 		response.Providers = append(response.Providers, result)
 	}
 
 	return response
+}
+
+// PruneDisabledProviderKeys removes entries from keys that do not
+// belong to an enabled provider. It clears ByProvider and
+// BaseURLByProvider entries for disabled providers and zeroes the
+// legacy OpenAI and Anthropic fields when those providers are not
+// enabled.
+func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
+	for provider := range keys.ByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
+		delete(keys.ByProvider, provider)
+		delete(keys.BaseURLByProvider, provider)
+	}
+	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
+		keys.OpenAI = ""
+	}
+	if _, ok := enabledProviders[NormalizeProvider("anthropic")]; !ok {
+		keys.Anthropic = ""
+	}
 }
 
 func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {

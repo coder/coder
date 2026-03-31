@@ -300,6 +300,369 @@ func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	}
 }
 
+func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
+	t.Parallel()
+
+	configuredProvider := func(provider string, apiKey string) chatprovider.ConfiguredProvider {
+		return chatprovider.ConfiguredProvider{
+			ProviderID: uuid.New(),
+			Provider:   provider,
+			APIKey:     apiKey,
+		}
+	}
+	enabledProviders := func(providers ...string) map[string]struct{} {
+		result := make(map[string]struct{}, len(providers))
+		for _, provider := range providers {
+			result[chatprovider.NormalizeProvider(provider)] = struct{}{}
+		}
+		return result
+	}
+
+	catalog := chatprovider.NewModelCatalog()
+	tests := []struct {
+		name                   string
+		configuredProviders    []chatprovider.ConfiguredProvider
+		configuredModels       []chatprovider.ConfiguredModel
+		availabilityByProvider map[string]chatprovider.ProviderAvailability
+		enabledProviders       map[string]struct{}
+		want                   codersdk.ChatModelsResponse
+	}{
+		{
+			name: "PolicyUnavailableOverridesConfiguredKey",
+			configuredProviders: []chatprovider.ConfiguredProvider{
+				configuredProvider(fantasyopenai.Name, "sk-central"),
+			},
+			configuredModels: []chatprovider.ConfiguredModel{{
+				Provider: fantasyopenai.Name,
+				Model:    "gpt-4",
+			}},
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				fantasyopenai.Name: {
+					Available:         false,
+					UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+				},
+			},
+			enabledProviders: enabledProviders(fantasyopenai.Name),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:          fantasyopenai.Name,
+				Available:         false,
+				UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+				Models: []codersdk.ChatModel{{
+					ID:          fantasyopenai.Name + ":gpt-4",
+					Provider:    fantasyopenai.Name,
+					Model:       "gpt-4",
+					DisplayName: "gpt-4",
+				}},
+			}}},
+		},
+		{
+			name: "PolicyAvailableMarksProviderAvailable",
+			configuredProviders: []chatprovider.ConfiguredProvider{
+				configuredProvider(fantasyanthropic.Name, "sk-central"),
+			},
+			configuredModels: []chatprovider.ConfiguredModel{{
+				Provider: fantasyanthropic.Name,
+				Model:    "claude-3-5-sonnet",
+			}},
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: true},
+			},
+			enabledProviders: enabledProviders(fantasyanthropic.Name),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:  fantasyanthropic.Name,
+				Available: true,
+				Models: []codersdk.ChatModel{{
+					ID:          fantasyanthropic.Name + ":claude-3-5-sonnet",
+					Provider:    fantasyanthropic.Name,
+					Model:       "claude-3-5-sonnet",
+					DisplayName: "claude-3-5-sonnet",
+				}},
+			}}},
+		},
+		{
+			name: "DisabledProviderOmitted",
+			configuredProviders: []chatprovider.ConfiguredProvider{
+				configuredProvider(fantasyanthropic.Name, "sk-anthropic"),
+				configuredProvider(fantasyopenai.Name, "sk-openai"),
+			},
+			configuredModels: []chatprovider.ConfiguredModel{
+				{Provider: fantasyanthropic.Name, Model: "claude-3-5-sonnet"},
+				{Provider: fantasyopenai.Name, Model: "gpt-4"},
+			},
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: true},
+				fantasyopenai.Name:    {Available: true},
+			},
+			enabledProviders: enabledProviders(fantasyopenai.Name),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:  fantasyopenai.Name,
+				Available: true,
+				Models: []codersdk.ChatModel{{
+					ID:          fantasyopenai.Name + ":gpt-4",
+					Provider:    fantasyopenai.Name,
+					Model:       "gpt-4",
+					DisplayName: "gpt-4",
+				}},
+			}}},
+		},
+		{
+			name: "MissingAvailabilityDefaultsToMissingAPIKey",
+			configuredProviders: []chatprovider.ConfiguredProvider{
+				configuredProvider(fantasyopenai.Name, "sk-central"),
+			},
+			configuredModels: []chatprovider.ConfiguredModel{{
+				Provider: fantasyopenai.Name,
+				Model:    "gpt-4o",
+			}},
+			enabledProviders: enabledProviders(fantasyopenai.Name),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:          fantasyopenai.Name,
+				Available:         false,
+				UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
+				Models: []codersdk.ChatModel{{
+					ID:          fantasyopenai.Name + ":gpt-4o",
+					Provider:    fantasyopenai.Name,
+					Model:       "gpt-4o",
+					DisplayName: "gpt-4o",
+				}},
+			}}},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := catalog.ListConfiguredModels(
+				tt.configuredProviders,
+				tt.configuredModels,
+				tt.availabilityByProvider,
+				tt.enabledProviders,
+			)
+			require.True(t, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
+	t.Parallel()
+
+	enabledProviders := func(providers ...string) map[string]struct{} {
+		result := make(map[string]struct{}, len(providers))
+		for _, provider := range providers {
+			result[chatprovider.NormalizeProvider(provider)] = struct{}{}
+		}
+		return result
+	}
+
+	catalog := chatprovider.NewModelCatalog()
+	configuredProviders := []chatprovider.ConfiguredProvider{
+		{Provider: fantasyanthropic.Name},
+		{Provider: fantasyopenai.Name},
+	}
+	tests := []struct {
+		name                   string
+		availabilityByProvider map[string]chatprovider.ProviderAvailability
+		enabledProviders       map[string]struct{}
+		want                   codersdk.ChatModelsResponse
+	}{
+		{
+			name: "EnabledProvidersUsePolicyAvailability",
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {
+					Available:         false,
+					UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+				},
+				fantasyopenai.Name: {Available: true},
+			},
+			enabledProviders: enabledProviders(fantasyanthropic.Name, fantasyopenai.Name),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{
+				{
+					Provider:          fantasyanthropic.Name,
+					Available:         false,
+					UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
+					Models:            []codersdk.ChatModel{},
+				},
+				{
+					Provider:  fantasyopenai.Name,
+					Available: true,
+					Models:    []codersdk.ChatModel{},
+				},
+			}},
+		},
+		{
+			name: "DisabledSupportedProviderOmitted",
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: true},
+				fantasyopenai.Name:    {Available: true},
+			},
+			enabledProviders: enabledProviders(fantasyopenai.Name),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:  fantasyopenai.Name,
+				Available: true,
+				Models:    []codersdk.ChatModel{},
+			}}},
+		},
+		{
+			name:             "MissingAvailabilityDefaultsToMissingAPIKey",
+			enabledProviders: enabledProviders(fantasyopenai.Name),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:          fantasyopenai.Name,
+				Available:         false,
+				UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
+				Models:            []codersdk.ChatModel{},
+			}}},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := catalog.ListConfiguredProviderAvailability(
+				configuredProviders,
+				tt.availabilityByProvider,
+				tt.enabledProviders,
+			)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestPruneDisabledProviderKeys(t *testing.T) {
+	t.Parallel()
+
+	enabledProviders := func(providers ...string) map[string]struct{} {
+		result := make(map[string]struct{}, len(providers))
+		for _, provider := range providers {
+			result[chatprovider.NormalizeProvider(provider)] = struct{}{}
+		}
+		return result
+	}
+
+	tests := []struct {
+		name             string
+		keys             chatprovider.ProviderAPIKeys
+		enabledProviders map[string]struct{}
+		want             chatprovider.ProviderAPIKeys
+	}{
+		{
+			name: "DisabledProviderEntriesRemoved",
+			keys: chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasyanthropic.Name: "sk-anthropic",
+					fantasyopenai.Name:    "sk-openai",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyanthropic.Name: "https://anthropic.example.com",
+					fantasyopenai.Name:    "https://openai.example.com",
+				},
+			},
+			enabledProviders: enabledProviders(fantasyopenai.Name),
+			want: chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasyopenai.Name: "sk-openai",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenai.Name: "https://openai.example.com",
+				},
+			},
+		},
+		{
+			name: "OpenAIDisabledClearsLegacyField",
+			keys: chatprovider.ProviderAPIKeys{
+				OpenAI:    "sk-openai",
+				Anthropic: "sk-anthropic",
+				ByProvider: map[string]string{
+					fantasyopenai.Name:    "sk-openai",
+					fantasyanthropic.Name: "sk-anthropic",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenai.Name:    "https://openai.example.com",
+					fantasyanthropic.Name: "https://anthropic.example.com",
+				},
+			},
+			enabledProviders: enabledProviders(fantasyanthropic.Name),
+			want: chatprovider.ProviderAPIKeys{
+				Anthropic: "sk-anthropic",
+				ByProvider: map[string]string{
+					fantasyanthropic.Name: "sk-anthropic",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyanthropic.Name: "https://anthropic.example.com",
+				},
+			},
+		},
+		{
+			name: "AnthropicDisabledClearsLegacyField",
+			keys: chatprovider.ProviderAPIKeys{
+				OpenAI:    "sk-openai",
+				Anthropic: "sk-anthropic",
+				ByProvider: map[string]string{
+					fantasyopenai.Name:    "sk-openai",
+					fantasyanthropic.Name: "sk-anthropic",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenai.Name:    "https://openai.example.com",
+					fantasyanthropic.Name: "https://anthropic.example.com",
+				},
+			},
+			enabledProviders: enabledProviders(fantasyopenai.Name),
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI: "sk-openai",
+				ByProvider: map[string]string{
+					fantasyopenai.Name: "sk-openai",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenai.Name: "https://openai.example.com",
+				},
+			},
+		},
+		{
+			name: "AllEnabledLeavesKeysUnchanged",
+			keys: chatprovider.ProviderAPIKeys{
+				OpenAI:    "sk-openai",
+				Anthropic: "sk-anthropic",
+				ByProvider: map[string]string{
+					fantasyopenai.Name:    "sk-openai",
+					fantasyanthropic.Name: "sk-anthropic",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenai.Name:    "https://openai.example.com",
+					fantasyanthropic.Name: "https://anthropic.example.com",
+				},
+			},
+			enabledProviders: enabledProviders(fantasyopenai.Name, fantasyanthropic.Name),
+			want: chatprovider.ProviderAPIKeys{
+				OpenAI:    "sk-openai",
+				Anthropic: "sk-anthropic",
+				ByProvider: map[string]string{
+					fantasyopenai.Name:    "sk-openai",
+					fantasyanthropic.Name: "sk-anthropic",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenai.Name:    "https://openai.example.com",
+					fantasyanthropic.Name: "https://anthropic.example.com",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			keys := tt.keys
+			chatprovider.PruneDisabledProviderKeys(&keys, tt.enabledProviders)
+			require.Equal(t, tt.want, keys)
+		})
+	}
+}
+
 func TestCoderHeaders(t *testing.T) {
 	t.Parallel()
 

@@ -602,39 +602,24 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	keys, providerAvailability := chatprovider.ResolveUserProviderKeys(
+	_, providerAvailability := chatprovider.ResolveUserProviderKeys(
 		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
 		configuredProviders,
 		userKeys,
 	)
-	catalog := chatprovider.NewModelCatalog(keys)
+	catalog := chatprovider.NewModelCatalog()
 	var response codersdk.ChatModelsResponse
 	if configured, ok := catalog.ListConfiguredModels(
-		configuredProviders, configuredModels,
+		configuredProviders, configuredModels, providerAvailability, enabledProviderNames,
 	); ok {
 		response = configured
 	} else {
-		response = catalog.ListConfiguredProviderAvailability(configuredProviders)
+		response = catalog.ListConfiguredProviderAvailability(
+			configuredProviders,
+			providerAvailability,
+			enabledProviderNames,
+		)
 	}
-
-	for i, provider := range response.Providers {
-		availability, ok := providerAvailability[chatprovider.NormalizeProvider(provider.Provider)]
-		if !ok {
-			continue
-		}
-		response.Providers[i].Available = availability.Available
-		if !availability.Available && availability.UnavailableReason != "" {
-			response.Providers[i].UnavailableReason = availability.UnavailableReason
-		}
-	}
-	filteredProviders := response.Providers[:0]
-	for _, provider := range response.Providers {
-		if _, ok := enabledProviderNames[chatprovider.NormalizeProvider(provider.Provider)]; !ok {
-			continue
-		}
-		filteredProviders = append(filteredProviders, provider)
-	}
-	response.Providers = filteredProviders
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
