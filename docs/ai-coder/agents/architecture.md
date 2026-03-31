@@ -106,10 +106,15 @@ Tools are how the agent takes action. Each tool call from the LLM translates to
 a concrete operation — either inside a workspace or within the control plane
 itself.
 
-The agent is restricted to the tool set defined in this section. It has no
-direct access to the Coder API beyond what these tools expose and cannot
-execute arbitrary operations against the control plane. If a capability is
-not represented by a tool, the agent cannot perform it.
+The agent is restricted to the built-in tool set defined in this section,
+plus any additional tools from workspace skills and MCP servers. Skills
+provide structured instructions the agent loads on demand
+(see [Extending Agents](./extending-agents.md)). MCP tools come from
+admin-configured external servers
+(see [MCP Servers](./platform-controls/mcp-servers.md)) and from workspace
+`.mcp.json` files. The agent has no direct access to the Coder API beyond
+what these tools expose and cannot execute arbitrary operations against the
+control plane.
 
 ### Workspace connection lifecycle
 
@@ -144,24 +149,26 @@ workspace connection. Platform and orchestration tools are only available to
 root chats — sub-agents spawned by `spawn_agent` do not have access to them
 and cannot create workspaces or spawn further sub-agents.
 
-| Tool               | What it does                                                                           |
-|--------------------|----------------------------------------------------------------------------------------|
-| `list_templates`   | Browses available workspace templates, sorted by popularity.                           |
-| `read_template`    | Gets template details and configurable parameters.                                     |
-| `create_workspace` | Creates a workspace from a template and waits for it to be ready.                      |
-| `start_workspace`  | Starts the chat's workspace if it is currently stopped. Idempotent if already running. |
+| Tool               | What it does                                                                            |
+|--------------------|-----------------------------------------------------------------------------------------|
+| `list_templates`   | Browses available workspace templates, sorted by popularity.                            |
+| `read_template`    | Gets template details and configurable parameters.                                      |
+| `create_workspace` | Creates a workspace from a template and waits for it to be ready.                       |
+| `start_workspace`  | Starts the chat's workspace if it is currently stopped. Idempotent if already running.  |
+| `propose_plan`     | Presents a Markdown plan file from the workspace for user review before implementation. |
 
 ### Orchestration tools
 
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool            | What it does                                                 |
-|-----------------|--------------------------------------------------------------|
-| `spawn_agent`   | Delegates a task to a sub-agent with its own context window. |
-| `wait_agent`    | Waits for a sub-agent to finish and collects its result.     |
-| `message_agent` | Sends a follow-up message to a running sub-agent.            |
-| `close_agent`   | Stops a running sub-agent.                                   |
+| Tool                       | What it does                                                                                                                                                                      |
+|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spawn_agent`              | Delegates a task to a sub-agent with its own context window.                                                                                                                      |
+| `wait_agent`               | Waits for a sub-agent to finish and collects its result.                                                                                                                          |
+| `message_agent`            | Sends a follow-up message to a running sub-agent.                                                                                                                                 |
+| `close_agent`              | Stops a running sub-agent.                                                                                                                                                        |
+| `spawn_computer_use_agent` | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an Anthropic provider and the desktop feature to be enabled by an administrator. |
 
 ### Provider tools
 

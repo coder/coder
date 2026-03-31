@@ -855,9 +855,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
-	// The filter dropdown attaches to the first visible section
-	// header. When pinned chats exist, that's the Pinned header;
-	// otherwise it falls through to the first non-empty time group.
+	// Attach the archived filter to the first visible section header.
+	// When the list is empty, fall back to contextual empty-state links
+	// instead of a floating standalone icon.
 	const showFilterOnPinned = pinnedChats.length > 0;
 	const firstNonEmptyGroup = showFilterOnPinned
 		? undefined
@@ -1069,15 +1069,19 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													? "No archived agents"
 													: "No agents yet"}
 										</p>
-										{archivedFilter === "archived" && (
-											<button
-												type="button"
-												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-												onClick={() => onArchivedFilterChange?.("active")}
-											>
-												← Back to active
-											</button>
-										)}
+										<button
+											type="button"
+											className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+											onClick={() =>
+												onArchivedFilterChange?.(
+													archivedFilter === "archived" ? "active" : "archived",
+												)
+											}
+										>
+											{archivedFilter === "archived"
+												? "← Back to active"
+												: "View archived →"}
+										</button>
 									</div>
 								) : (
 									<div>
