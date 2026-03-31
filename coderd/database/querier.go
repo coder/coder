@@ -59,6 +59,9 @@ type sqlcQuerier interface {
 	// it only proceeds when the resulting array length does not exceed
 	// max_file_ids. Returns 0 rows affected when the cap would be
 	// exceeded (all new IDs are silently rejected as a batch).
+	// The inner SELECT uses FOR UPDATE to prevent lost-update races
+	// under concurrent access (two concurrent appends on the same chat
+	// would otherwise read stale file_ids and overwrite each other).
 	// updated_at is only bumped when file_ids actually changes.
 	AppendChatFileIDs(ctx context.Context, arg AppendChatFileIDsParams) (int64, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) error

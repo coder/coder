@@ -556,11 +556,14 @@ RETURNING
 -- it only proceeds when the resulting array length does not exceed
 -- max_file_ids. Returns 0 rows affected when the cap would be
 -- exceeded (all new IDs are silently rejected as a batch).
+-- The inner SELECT uses FOR UPDATE to prevent lost-update races
+-- under concurrent access (two concurrent appends on the same chat
+-- would otherwise read stale file_ids and overwrite each other).
 -- updated_at is only bumped when file_ids actually changes.
 WITH new AS (
     SELECT COALESCE(array_agg(DISTINCT fid ORDER BY fid), '{}') AS ids
     FROM unnest(
-        (SELECT file_ids FROM chats WHERE id = @chat_id::uuid)
+        (SELECT file_ids FROM chats WHERE id = @chat_id::uuid FOR UPDATE)
         || COALESCE(@file_ids::uuid[], '{}'::uuid[])
     ) AS fid
 )

@@ -517,7 +517,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// Link any user-uploaded files referenced in the initial
 	// message to this newly created chat (best-effort; cap
 	// enforced in SQL).
-	unlinked := api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
 
 	// Re-read the chat so the response reflects the authoritative
 	// database state (including SQL DISTINCT dedup of file_ids).
@@ -543,8 +543,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	if len(unlinked) > 0 {
-		response.Warnings = append(response.Warnings,
-			fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs))
+		msg := fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs)
+		if !capExceeded {
+			msg = fmt.Sprintf("%d file(s) could not be linked due to a server error", len(unlinked))
+		}
+		response.Warnings = append(response.Warnings, msg)
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
@@ -1858,7 +1861,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 
 	// Link any user-uploaded files referenced in this message
 	// to the chat (best-effort; cap enforced in SQL).
-	unlinked := api.linkFilesToChat(ctx, chatID, fileIDs)
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chatID, fileIDs)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -1869,8 +1872,11 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		response.Message = &message
 	}
 	if len(unlinked) > 0 {
-		response.Warnings = append(response.Warnings,
-			fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs))
+		msg := fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs)
+		if !capExceeded {
+			msg = fmt.Sprintf("%d file(s) could not be linked due to a server error", len(unlinked))
+		}
+		response.Warnings = append(response.Warnings, msg)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -1946,17 +1952,24 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	// Link any user-uploaded files referenced in the edited
 	// message to the chat (best-effort; cap enforced in SQL).
-	unlinked := api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
 	message := convertChatMessage(editResult.Message)
 	// patchChatMessage returns a ChatMessage, not a
 	// CreateChatMessageResponse. Log unlinked files so the
 	// info is at least visible server-side.
 	if len(unlinked) > 0 {
-		api.Logger.Warn(ctx, "file cap reached during message edit",
-			slog.F("chat_id", chat.ID),
-			slog.F("unlinked_file_ids", unlinked),
-			slog.F("max_file_ids", codersdk.MaxChatFileIDs),
-		)
+		if capExceeded {
+			api.Logger.Warn(ctx, "file cap reached during message edit",
+				slog.F("chat_id", chat.ID),
+				slog.F("unlinked_file_ids", unlinked),
+				slog.F("max_file_ids", codersdk.MaxChatFileIDs),
+			)
+		} else {
+			api.Logger.Error(ctx, "failed to link files during message edit",
+				slog.F("chat_id", chat.ID),
+				slog.F("unlinked_file_ids", unlinked),
+			)
+		}
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, message)
 }
@@ -3930,9 +3943,9 @@ func truncateRunes(value string, maxLen int) string {
 // Cap enforcement and dedup are handled atomically in SQL. Returns
 // the subset of fileIDs that were NOT linked (empty on success).
 // Failures are logged but never block the caller.
-func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) []uuid.UUID {
+func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) (unlinked []uuid.UUID, capExceeded bool) {
 	if len(fileIDs) == 0 {
-		return nil
+		return nil, false
 	}
 	rowsAffected, err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
 		ChatID:     chatID,
@@ -3945,7 +3958,7 @@ func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs [
 			slog.F("file_ids", fileIDs),
 			slog.Error(err),
 		)
-		return fileIDs
+		return fileIDs, false
 	}
 	if rowsAffected == 0 {
 		api.Logger.Warn(ctx, "file cap reached, files not linked",
@@ -3953,9 +3966,9 @@ func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs [
 			slog.F("file_ids", fileIDs),
 			slog.F("max_file_ids", codersdk.MaxChatFileIDs),
 		)
-		return fileIDs
+		return fileIDs, true
 	}
-	return nil
+	return nil, false
 }
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
