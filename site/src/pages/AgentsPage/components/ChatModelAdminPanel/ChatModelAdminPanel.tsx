@@ -154,9 +154,6 @@ const useProviderStates = (
 			? providerConfigEntry
 			: undefined;
 		const catalogProvider = catalogProvidersByProvider.get(provider);
-		const catalogProviderSource = readOptionalString(
-			(catalogProvider as CatalogProvider & { source?: string })?.source,
-		);
 		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
 		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
 		const hasCatalogAPIKey = catalogProvider
