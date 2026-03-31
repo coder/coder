@@ -38,12 +38,14 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	// Setup supported providers with circuit breaker config.
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+			// Uses OpenAI's default Name.
 			BaseURL:          cfg.OpenAI.BaseURL.String(),
 			Key:              cfg.OpenAI.Key.String(),
 			CircuitBreaker:   cbConfig,
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}),
 		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+			// Uses Anthropic's default Name.
 			BaseURL:          cfg.Anthropic.BaseURL.String(),
 			Key:              cfg.Anthropic.Key.String(),
 			CircuitBreaker:   cbConfig,
