@@ -53,7 +53,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						variant="subtle"
 						onClick={(e) => {
 							e.preventDefault();
-							if (frameRef.current?.contentWindow) {
+							if (frameRef.current?.contentWindow && link.href !== null) {
 								frameRef.current.contentWindow.location.href = link.href;
 							}
 						}}
@@ -75,7 +75,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink to={link.href} target="_blank">
+								<RouterLink to={link.href ?? ""} target="_blank">
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>
@@ -86,7 +86,11 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			)}
 
 			{app.health === "healthy" || app.health === "disabled" ? (
-				<TaskIframe ref={frameRef} src={link.href} title={link.label} />
+				<TaskIframe
+					ref={frameRef}
+					src={link.href ?? undefined}
+					title={link.label}
+				/>
 			) : app.health === "unhealthy" ? (
 				<div className="w-full h-full flex flex-col items-center justify-center p-4">
 					<h3 className="m-0 font-medium text-content-primary text-base text-center">
