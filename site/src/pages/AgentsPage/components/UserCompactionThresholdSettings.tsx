@@ -257,7 +257,8 @@ export const UserCompactionThresholdSettings: FC<
 							const isThisModelMutating = pendingModels.has(modelConfig.id);
 							const isInvalid =
 								draftValue.length > 0 && parsedDraftValue === null;
-							const isWarning100 = draftValue === "100";
+							const isWarning100 =
+								draftValue === "100" && drafts[modelConfig.id] !== undefined;
 							const rowError = rowErrors[modelConfig.id];
 							const modelName = modelConfig.display_name || modelConfig.model;
 
@@ -283,6 +284,7 @@ export const UserCompactionThresholdSettings: FC<
 												<TooltipTrigger asChild>
 													<Input
 														aria-label={`${modelName} compaction threshold`}
+														aria-invalid={isInvalid || undefined}
 														type="number"
 														min={0}
 														max={100}
@@ -314,6 +316,11 @@ export const UserCompactionThresholdSettings: FC<
 													</TooltipContent>
 												)}
 											</Tooltip>
+											{isInvalid && (
+												<span className="sr-only" aria-live="polite">
+													Enter a whole number between 0 and 100.
+												</span>
+											)}{" "}
 											<span className="text-xs text-content-secondary">%</span>
 											<Tooltip>
 												<TooltipTrigger asChild>
@@ -347,6 +354,8 @@ export const UserCompactionThresholdSettings: FC<
 							);
 						})}
 					</TableBody>
+					{/* Raw tfoot because TableFooter adds bg-muted/50 styling
+						   that doesn't suit this compact inline footer. */}
 					{(dirtyRows.length > 0 || hasAnyErrors) && (
 						<tfoot>
 							<tr>
@@ -361,21 +370,23 @@ export const UserCompactionThresholdSettings: FC<
 										>
 											Cancel
 										</Button>
-										<Button
-											size="sm"
-											type="button"
-											disabled={dirtyRows.length === 0 || hasAnyPending}
-											onClick={handleSaveAll}
-										>
-											{hasAnyPending
-												? "Saving..."
-												: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
-										</Button>
+										{dirtyRows.length > 0 && (
+											<Button
+												size="sm"
+												type="button"
+												disabled={hasAnyPending}
+												onClick={handleSaveAll}
+											>
+												{hasAnyPending
+													? "Saving..."
+													: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
+											</Button>
+										)}
 									</div>
 								</td>
 							</tr>
 						</tfoot>
-					)}
+					)}{" "}
 				</Table>
 			)}
 		</div>

@@ -181,6 +181,44 @@ export const Loading: Story = {
 	},
 };
 
+export const PartialSaveFailure: Story = {
+	name: "Partial Save Failure",
+	args: {
+		onSaveThreshold: fn(async (modelConfigId: string) => {
+			if (modelConfigId === "model-2") {
+				throw new globalThis.Error("Network error");
+			}
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("spinbutton", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		const claudeInput = await canvas.findByRole("spinbutton", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "90");
+		await userEvent.type(claudeInput, "55");
+
+		const saveButton = await canvas.findByRole("button", {
+			name: /Save 2 changes/i,
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-1", 90);
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 55);
+		});
+
+		// model-2 should show an error, footer should still be visible
+		await waitFor(() => {
+			expect(canvas.getByText("Network error")).toBeInTheDocument();
+		});
+	},
+};
+
 export const ErrorState: Story = {
 	name: "Error",
 	args: {
