@@ -448,7 +448,7 @@ export const ttlShutdownAt = (formTTL: number): string => {
 		return `Your workspace will shut down ${humanDuration(formTTL * 60 * 60 * 1000)} after its next start.`;
 	} catch (e) {
 		if (e instanceof RangeError) {
-			return "Please enter a limit that is less than or equal to 720 hours (30 days).";
+			return "Please enter a limit that is less than or equal to 30 days (720 hours).";
 		}
 		throw e;
 	}
