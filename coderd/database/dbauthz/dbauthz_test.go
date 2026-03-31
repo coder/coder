@@ -2414,12 +2414,6 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserChatProviderKeys(gomock.Any(), u.ID).Return([]database.UserChatProviderKey{key}, nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns([]database.UserChatProviderKey{key})
 	}))
-	s.Run("GetUserChatProviderKeysByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		providerID := uuid.New()
-		key := testutil.Fake(s.T(), faker, database.UserChatProviderKey{ChatProviderID: providerID})
-		dbm.EXPECT().GetUserChatProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.UserChatProviderKey{key}, nil).AnyTimes()
-		check.Args(providerID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.UserChatProviderKey{key})
-	}))
 	s.Run("GetUserChatProviderKeyByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.GetUserChatProviderKeyByProviderIDParams{UserID: u.ID, ChatProviderID: uuid.New()}

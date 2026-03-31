@@ -4,9 +4,6 @@ SELECT * FROM user_chat_provider_keys WHERE user_id = @user_id ORDER BY created_
 -- name: GetUserChatProviderKeyByProviderID :one
 SELECT * FROM user_chat_provider_keys WHERE user_id = @user_id AND chat_provider_id = @chat_provider_id;
 
--- name: GetUserChatProviderKeysByProviderID :many
-SELECT * FROM user_chat_provider_keys WHERE chat_provider_id = @chat_provider_id;
-
 -- name: InsertUserChatProviderKey :one
 INSERT INTO user_chat_provider_keys (user_id, chat_provider_id, api_key, api_key_key_id)
 VALUES (@user_id, @chat_provider_id, @api_key, sqlc.narg('api_key_key_id')::text)

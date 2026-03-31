@@ -22729,41 +22729,6 @@ func (q *sqlQuerier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UU
 	return items, nil
 }
 
-const getUserChatProviderKeysByProviderID = `-- name: GetUserChatProviderKeysByProviderID :many
-SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE chat_provider_id = $1
-`
-
-func (q *sqlQuerier) GetUserChatProviderKeysByProviderID(ctx context.Context, chatProviderID uuid.UUID) ([]UserChatProviderKey, error) {
-	rows, err := q.db.QueryContext(ctx, getUserChatProviderKeysByProviderID, chatProviderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []UserChatProviderKey
-	for rows.Next() {
-		var i UserChatProviderKey
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.ChatProviderID,
-			&i.APIKey,
-			&i.ApiKeyKeyID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertUserChatProviderKey = `-- name: InsertUserChatProviderKey :one
 INSERT INTO user_chat_provider_keys (user_id, chat_provider_id, api_key, api_key_key_id)
 VALUES ($1, $2, $3, $4::text)

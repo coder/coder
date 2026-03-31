@@ -499,19 +499,6 @@ func (db *dbCrypt) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID
 	return keys, nil
 }
 
-func (db *dbCrypt) GetUserChatProviderKeysByProviderID(ctx context.Context, chatProviderID uuid.UUID) ([]database.UserChatProviderKey, error) {
-	keys, err := db.Store.GetUserChatProviderKeysByProviderID(ctx, chatProviderID)
-	if err != nil {
-		return nil, err
-	}
-	for i := range keys {
-		if err := db.decryptUserChatProviderKey(&keys[i]); err != nil {
-			return nil, err
-		}
-	}
-	return keys, nil
-}
-
 func (db *dbCrypt) InsertUserChatProviderKey(ctx context.Context, params database.InsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
 	if strings.TrimSpace(params.APIKey) == "" {
 		params.ApiKeyKeyID = sql.NullString{}

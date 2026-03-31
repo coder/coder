@@ -2552,14 +2552,6 @@ func (m queryMetricsStore) GetUserChatProviderKeys(ctx context.Context, userID u
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserChatProviderKeysByProviderID(ctx context.Context, chatProviderID uuid.UUID) ([]database.UserChatProviderKey, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserChatProviderKeysByProviderID(ctx, chatProviderID)
-	m.queryLatencies.WithLabelValues("GetUserChatProviderKeysByProviderID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatProviderKeysByProviderID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserChatSpendInPeriod(ctx, arg)

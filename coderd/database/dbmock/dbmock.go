@@ -4773,21 +4773,6 @@ func (mr *MockStoreMockRecorder) GetUserChatProviderKeys(ctx, userID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatProviderKeys", reflect.TypeOf((*MockStore)(nil).GetUserChatProviderKeys), ctx, userID)
 }
 
-// GetUserChatProviderKeysByProviderID mocks base method.
-func (m *MockStore) GetUserChatProviderKeysByProviderID(ctx context.Context, chatProviderID uuid.UUID) ([]database.UserChatProviderKey, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserChatProviderKeysByProviderID", ctx, chatProviderID)
-	ret0, _ := ret[0].([]database.UserChatProviderKey)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserChatProviderKeysByProviderID indicates an expected call of GetUserChatProviderKeysByProviderID.
-func (mr *MockStoreMockRecorder) GetUserChatProviderKeysByProviderID(ctx, chatProviderID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatProviderKeysByProviderID", reflect.TypeOf((*MockStore)(nil).GetUserChatProviderKeysByProviderID), ctx, chatProviderID)
-}
-
 // GetUserChatSpendInPeriod mocks base method.
 func (m *MockStore) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
 	m.ctrl.T.Helper()

@@ -4057,13 +4057,6 @@ func (q *querier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID)
 	return q.db.GetUserChatProviderKeys(ctx, userID)
 }
 
-func (q *querier) GetUserChatProviderKeysByProviderID(ctx context.Context, chatProviderID uuid.UUID) ([]database.UserChatProviderKey, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetUserChatProviderKeysByProviderID(ctx, chatProviderID)
-}
-
 func (q *querier) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
 		return 0, err
