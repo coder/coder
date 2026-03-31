@@ -15,6 +15,25 @@ const modelOptions = [
 	},
 ] as const;
 
+const mock403Error = Object.assign(
+	new Error("Request failed with status code 403"),
+	{
+		isAxiosError: true,
+		response: {
+			status: 403,
+			statusText: "Forbidden",
+			data: {
+				message: "Forbidden.",
+				detail: "Insufficient permissions to create chat.",
+			},
+			headers: {},
+			config: {},
+		},
+		config: {},
+		toJSON: () => ({}),
+	},
+);
+
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
@@ -274,31 +293,14 @@ export const ForbiddenErrorWithRole: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: true,
-		createError: Object.assign(
-			new Error("Request failed with status code 403"),
-			{
-				isAxiosError: true,
-				response: {
-					status: 403,
-					statusText: "Forbidden",
-					data: {
-						message: "Forbidden.",
-						detail: "Insufficient permissions to update chat.",
-					},
-					headers: {},
-					config: {},
-				},
-				config: {},
-				toJSON: () => ({}),
-			},
-		),
+		createError: mock403Error,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// The friendly "role required" alert must NOT appear because the
 		// user has the agents-access role.
 		await expect(
-			canvas.queryByText("Use Coder Agents role required"),
+			canvas.queryByText("Permission required"),
 		).not.toBeInTheDocument();
 		// The generic ErrorAlert should surface the real backend message.
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
@@ -312,12 +314,11 @@ export const ForbiddenNoAgentsRole: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: false,
+		createError: mock403Error,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Use Coder Agents role required"),
-		).toBeInTheDocument();
+		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
 		).toBeInTheDocument();

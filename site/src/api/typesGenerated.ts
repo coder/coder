@@ -4854,6 +4854,13 @@ export interface OrganizationSyncSettings {
 	readonly organization_assign_default: boolean;
 }
 
+// From codersdk/authorization.go
+/**
+ * OwnerMeSentinel is the special owner_id value in permission
+ * checks that resolves to the authenticated user's own ID.
+ */
+export const OwnerMeSentinel = "me";
+
 // From codersdk/chats.go
 /**
  * PRInsightsModelBreakdown contains PR metrics for a single model.

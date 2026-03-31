@@ -128,25 +128,25 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
 
 	// GIVEN: a user without the agents-access role.
-	userWithout := dbgen.User(t, db, database.User{})
-	_, tokenWithout := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    userWithout.ID,
+	userWithoutRole := dbgen.User(t, db, database.User{})
+	_, tokenWithoutRole := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userWithoutRole.ID,
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
 	// WHEN: the user loads the page.
 	r = httptest.NewRequest("GET", "/", nil)
-	r.Header.Set(codersdk.SessionTokenHeader, tokenWithout)
+	r.Header.Set(codersdk.SessionTokenHeader, tokenWithoutRole)
 	rw = httptest.NewRecorder()
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 
 	// THEN: createChat = false because the member role does not
 	// grant chat permissions.
-	var permsWithout codersdk.AuthorizationResponse
-	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithout)
+	var permsWithoutRole codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
 	require.NoError(t, err)
-	assert.False(t, permsWithout["createChat"], "user without agents-access role should have createChat = false")
+	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
