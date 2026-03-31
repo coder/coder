@@ -317,35 +317,6 @@ const ContentChangePlugin: FC<{
 	return null;
 });
 
-// Seeds the editor with an initial value on first mount only.
-const ValueSyncPlugin: FC<{ initialValue?: string }> = memo(
-	function ValueSyncPlugin({ initialValue }) {
-		const [editor] = useLexicalComposerContext();
-		const hasInitialized = useRef(false);
-
-		useEffect(() => {
-			if (!hasInitialized.current && initialValue !== undefined) {
-				hasInitialized.current = true;
-
-				if (initialValue === "") {
-					return;
-				}
-
-				editor.update(() => {
-					const root = $getRoot();
-					root.clear();
-					const paragraph = $createParagraphNode();
-					const textNode = $createTextNode(initialValue);
-					paragraph.append(textNode);
-					root.append(paragraph);
-				});
-			}
-		}, [editor, initialValue]);
-
-		return null;
-	},
-);
-
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
 const InsertTextPlugin: FC<{
@@ -469,13 +440,37 @@ const ChatMessageInput = memo(
 		);
 
 		const editorRef = useRef<LexicalEditor | null>(null);
+		const lastKnownValueRef = useRef(initialValue ?? "");
+		const pendingReplacementRef = useRef<string | null>(null);
+
+		const replaceValueOrQueue = useCallback((text: string) => {
+			lastKnownValueRef.current = text;
+			const editor = editorRef.current;
+			if (!editor) {
+				pendingReplacementRef.current = text;
+				return;
+			}
+			pendingReplacementRef.current = null;
+			replacePlainTextInEditor(editor, text);
+		}, []);
 
 		const handleEditorReady = useCallback((editor: LexicalEditor) => {
 			editorRef.current = editor;
+			const pendingReplacement = pendingReplacementRef.current;
+			if (pendingReplacement !== null) {
+				pendingReplacementRef.current = null;
+				replacePlainTextInEditor(editor, pendingReplacement);
+				return;
+			}
+			const initialText = lastKnownValueRef.current;
+			if (initialText) {
+				replacePlainTextInEditor(editor, initialText);
+			}
 		}, []);
 
 		const handleContentChange = useCallback(
 			(content: string, hasFileReferences: boolean) => {
+				lastKnownValueRef.current = content;
 				onChange?.(content, hasFileReferences);
 			},
 			[onChange],
@@ -485,10 +480,7 @@ const ChatMessageInput = memo(
 			ref,
 			() => ({
 				setValue: (text: string) => {
-					const editor = editorRef.current;
-					if (!editor) return;
-
-					replacePlainTextInEditor(editor, text);
+					replaceValueOrQueue(text);
 				},
 				insertText: (text: string) => {
 					const editor = editorRef.current;
@@ -497,10 +489,7 @@ const ChatMessageInput = memo(
 					insertPlainTextIntoEditor(editor, text);
 				},
 				clear: () => {
-					const editor = editorRef.current;
-					if (!editor) return;
-
-					replacePlainTextInEditor(editor, "");
+					replaceValueOrQueue("");
 				},
 				focus: () => {
 					const editor = editorRef.current;
@@ -520,13 +509,7 @@ const ChatMessageInput = memo(
 					});
 				},
 				getValue: () => {
-					const editor = editorRef.current;
-					if (!editor) return "";
-					let content = "";
-					editor.getEditorState().read(() => {
-						content = $getRoot().getTextContent();
-					});
-					return content;
+					return lastKnownValueRef.current;
 				},
 				addFileReference: (ref: FileReferenceData) => {
 					const editor = editorRef.current;
@@ -597,7 +580,7 @@ const ChatMessageInput = memo(
 					return parts;
 				},
 			}),
-			[],
+			[replaceValueOrQueue],
 		);
 
 		return (
@@ -636,7 +619,6 @@ const ChatMessageInput = memo(
 					/>
 					<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
 					<ContentChangePlugin onChange={handleContentChange} />
-					<ValueSyncPlugin initialValue={initialValue} />
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
 					<EditableStatePlugin disabled={!!disabled} />
 					{autoFocus && <AutoFocusPlugin />}
