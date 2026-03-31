@@ -3308,6 +3308,10 @@ func TestChatMessageWithFiles(t *testing.T) {
 		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
+		// Record message count before the rejected request.
+		msgsBefore, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
 		// Sending a message with the extra file should fail.
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
@@ -3317,6 +3321,14 @@ func TestChatMessageWithFiles(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Contains(t, sdkErr.Message, "Too many files")
+
+		// The rejected request must not have persisted a message.
+		msgsAfter, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, len(msgsBefore.Messages), len(msgsAfter.Messages),
+			"cap rejection should not leave a partially committed message")
+		require.Equal(t, len(msgsBefore.QueuedMessages), len(msgsAfter.QueuedMessages),
+			"cap rejection should not leave a queued message")
 	})
 }
 

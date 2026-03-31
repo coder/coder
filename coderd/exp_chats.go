@@ -1799,6 +1799,18 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject early if the file cap would be exceeded. This must
+	// happen before SendMessage so a cap failure doesn't leave a
+	// committed or queued message.
+	if len(fileIDs) > 0 && len(chat.FileIDs)+len(fileIDs) > codersdk.MaxChatFileIDs {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many files associated with chat.",
+			Detail: fmt.Sprintf("chat already has %d file(s) and cannot add %d more (limit: %d)",
+				len(chat.FileIDs), len(fileIDs), codersdk.MaxChatFileIDs),
+		})
+		return
+	}
+
 	// Validate MCP server IDs exist.
 	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
 		//nolint:gocritic // Need to validate MCP server IDs exist.
@@ -1859,14 +1871,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link any user-uploaded files referenced in this message
-	// to the chat.
-	if err := api.linkFilesToChat(ctx, chatID, len(chat.FileIDs), fileIDs); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Too many files associated with chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	// to the chat. The cap was already validated above, so this
+	// call only performs the DB append.
+	api.bestEffortLinkFilesToChat(ctx, chatID, fileIDs)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -1918,6 +1925,18 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject early if the file cap would be exceeded. This must
+	// happen before EditMessage so a cap failure doesn't leave a
+	// committed edit.
+	if len(fileIDs) > 0 && len(chat.FileIDs)+len(fileIDs) > codersdk.MaxChatFileIDs {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many files associated with chat.",
+			Detail: fmt.Sprintf("chat already has %d file(s) and cannot add %d more (limit: %d)",
+				len(chat.FileIDs), len(fileIDs), codersdk.MaxChatFileIDs),
+		})
+		return
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
@@ -1949,14 +1968,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link any user-uploaded files referenced in the edited
-	// message to the chat.
-	if err := api.linkFilesToChat(ctx, chat.ID, len(chat.FileIDs), fileIDs); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Too many files associated with chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	// message to the chat. The cap was already validated above,
+	// so this call only performs the DB append.
+	api.bestEffortLinkFilesToChat(ctx, chat.ID, fileIDs)
 	message := convertChatMessage(editResult.Message)
 	httpapi.Write(ctx, rw, http.StatusOK, message)
 }
@@ -3943,6 +3957,25 @@ func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, existingF
 		return xerrors.Errorf("append file IDs: %w", err)
 	}
 	return nil
+}
+
+// bestEffortLinkFilesToChat appends file IDs to a chat's file_ids
+// array. Failures are logged but do not block the request. Use
+// this after the cap has already been validated.
+func (api *API) bestEffortLinkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) {
+	if len(fileIDs) == 0 {
+		return
+	}
+	if err := api.Database.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+		ChatID:  chatID,
+		FileIDs: fileIDs,
+	}); err != nil {
+		api.Logger.Error(ctx, "failed to link files to chat",
+			slog.F("chat_id", chatID),
+			slog.F("file_ids", fileIDs),
+			slog.Error(err),
+		)
+	}
 }
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
