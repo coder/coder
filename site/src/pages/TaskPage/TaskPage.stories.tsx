@@ -376,9 +376,9 @@ export const TaskPausedSnapshotTooltip: Story = {
 		const tooltipTrigger = await canvas.findByRole("button", {
 			name: /info/i,
 		});
-		await userEvent.hover(tooltipTrigger);
+		await userEvent.click(tooltipTrigger);
 		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toHaveTextContent(
+			expect(screen.getByRole("dialog")).toHaveTextContent(
 				/This log snapshot was taken/,
 			),
 		);
