@@ -236,6 +236,15 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return <Loader />;
 	}
 
+	let submitLabel = "Update and start";
+	if (restartWithParameters.isPending) {
+		submitLabel = "Stopping workspace";
+	} else if (startWithParameters.isPending) {
+		submitLabel = "Starting workspace";
+	} else if (workspace.latest_build.status === "running") {
+		submitLabel = "Update and restart";
+	}
+
 	return (
 		<div className="flex flex-col gap-6 max-w-screen-md">
 			<title>{pageTitle(workspace.name, "Parameters")}</title>
@@ -281,15 +290,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					isSubmitting={
 						startWithParameters.isPending || restartWithParameters.isPending
 					}
-					submitLabel={
-						restartWithParameters.isPending
-							? "Stopping workspace"
-							: startWithParameters.isPending
-								? "Starting workspace"
-								: workspace.latest_build.status === "running"
-									? "Update and restart"
-									: "Update and start"
-					}
+					submitLabel={submitLabel}
 					onSubmit={handleSubmit}
 					onCancel={() =>
 						navigate(`/@${workspace.owner_name}/${workspace.name}`)
