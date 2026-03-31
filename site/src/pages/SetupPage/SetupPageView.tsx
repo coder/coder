@@ -58,7 +58,7 @@ export const Language = {
 	orgSizeLabel: "Organization size",
 	newsletterSectionLabel: "Newsletter signup",
 	newsletterMarketingLabel: "Marketing updates",
-	newsletterMarketingDescription: "Product announcements, tips, best practices",
+	newsletterMarketingDescription: "Latest articles, workshops, events, and announcements",
 	newsletterReleasesLabel: "Release & security updates",
 	newsletterReleasesDescription: "New releases, patches, security advisories",
 };
