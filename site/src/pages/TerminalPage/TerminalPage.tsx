@@ -23,6 +23,12 @@ import { pageTitle } from "#/utils/page";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
 
+export const Language = {
+	workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
+	workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
+	websocketErrorMessagePrefix: "WebSocket failed: ",
+};
+
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
 	// is notably a pain because of assumptions certain programs might make about your
