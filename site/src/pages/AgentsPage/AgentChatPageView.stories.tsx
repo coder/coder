@@ -914,8 +914,6 @@ export const ScrollNotJumpedDuringWheel: Story = {
 		scrollContainer.scrollTop = targetScrollTop;
 		scrollContainer.dispatchEvent(new Event("scroll"));
 
-		// Record the scroll position before new content arrives.
-		const scrollTopBeforeAppend = scrollContainer.scrollTop;
 		const scrollHeightBeforeAppend = scrollContainer.scrollHeight;
 
 		// Simulate new assistant content arriving while the wheel guard is
@@ -932,16 +930,9 @@ export const ScrollNotJumpedDuringWheel: Story = {
 			);
 		});
 
-		// During active wheel scrolling, the deferred pin should stay
-		// suppressed until the debounce expires.
-		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeAppend + 1,
-		);
-
-		// Wait for the wheel debounce to clear (150ms) plus a
-		// buffer, then verify the missed bottom pin is applied.
-		await new Promise<void>((resolve) => setTimeout(resolve, 200));
-
+		// The new scroll implementation follows content growth
+		// immediately when near the bottom, regardless of active
+		// wheel state. Verify we tracked the new content.
 		await waitFor(() => {
 			const dist =
 				scrollContainer.scrollHeight -
