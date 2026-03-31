@@ -4422,6 +4422,12 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
 				}
 
+				// Enforce the file cap before inserting so a
+				// rejected file doesn't leave an orphaned row.
+				if len(chatSnapshot.FileIDs)+1 > codersdk.MaxChatFileIDs {
+					return uuid.Nil, xerrors.Errorf("chat file limit reached (%d/%d)", len(chatSnapshot.FileIDs), codersdk.MaxChatFileIDs)
+				}
+
 				row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
 					OwnerID:        chatSnapshot.OwnerID,
 					OrganizationID: ws.OrganizationID,
@@ -4433,10 +4439,6 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
 				}
 
-				// Enforce the file cap before linking.
-				if len(chatSnapshot.FileIDs)+1 > codersdk.MaxChatFileIDs {
-					return uuid.Nil, xerrors.Errorf("chat file limit reached (%d/%d)", len(chatSnapshot.FileIDs), codersdk.MaxChatFileIDs)
-				}
 				if err := p.db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
 					ChatID:  chatSnapshot.ID,
 					FileIDs: []uuid.UUID{row.ID},
@@ -4447,6 +4449,12 @@ func (p *Server) runChat(
 						slog.Error(err),
 					)
 				}
+
+				// Update the snapshot so subsequent StoreFile
+				// calls in the same turn see the new count.
+				workspaceCtx.chatStateMu.Lock()
+				workspaceCtx.currentChat.FileIDs = append(workspaceCtx.currentChat.FileIDs, row.ID)
+				workspaceCtx.chatStateMu.Unlock()
 
 				return row.ID, nil
 			},

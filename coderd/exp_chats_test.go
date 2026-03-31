@@ -2104,6 +2104,29 @@ func TestGetChat(t *testing.T) {
 		require.Equal(t, firstUser.OrganizationID, f.OrganizationID)
 		require.Equal(t, "plan.md", f.Name)
 		require.Equal(t, "text/markdown", f.MimeType)
+
+		// Fill up to the cap by inserting more files via the
+		// chatd DB path, then verify the cap is enforced.
+		for i := 1; i < codersdk.MaxChatFileIDs; i++ {
+			extra, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+				OwnerID:        firstUser.UserID,
+				OrganizationID: firstUser.OrganizationID,
+				Name:           fmt.Sprintf("file%d.md", i),
+				Mimetype:       "text/markdown",
+				Data:           []byte("data"),
+			})
+			require.NoError(t, err)
+			err = store.AppendChatFileIDs(chatdCtx, database.AppendChatFileIDsParams{
+				ChatID:  chat.ID,
+				FileIDs: []uuid.UUID{extra.ID},
+			})
+			require.NoError(t, err)
+		}
+
+		// Chat should now have exactly MaxChatFileIDs files.
+		chatResult, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
 	})
 }
 
