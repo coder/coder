@@ -3178,6 +3178,17 @@ export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 }
 
+// From codersdk/chats.go
+/**
+ * EditChatMessageResponse is the response from editing a message in a chat.
+ * Edits are always synchronous (no queueing), so the message is returned
+ * directly.
+ */
+export interface EditChatMessageResponse {
+	readonly message: ChatMessage;
+	readonly warnings?: readonly string[];
+}
+
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
 	| "azure-devops"

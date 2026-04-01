@@ -3566,7 +3566,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, msgResp.Warnings, "response should warn about unlinked files")
-		require.Contains(t, msgResp.Warnings[0], "file cap reached")
+		require.Contains(t, msgResp.Warnings[0], "file linking skipped")
 
 		// The extra file should NOT appear in the chat's files.
 		chatResult, err := client.GetChat(ctx, chat.ID)
@@ -3614,7 +3614,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Content: parts})
 		require.NoError(t, err, "chat creation should succeed even when cap is exceeded")
 		require.NotEmpty(t, chat.Warnings, "response should warn about unlinked files")
-		require.Contains(t, chat.Warnings[0], "file cap reached")
+		require.Contains(t, chat.Warnings[0], "file linking skipped")
 
 		// Only MaxChatFileIDs files should actually be linked.
 		// With SQL-level batch rejection, ALL files are rejected
@@ -3672,11 +3672,11 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NoError(t, err)
 		// The edited message is soft-deleted and a new one is inserted,
 		// so the returned ID will differ from the original.
-		require.NotEqual(t, userMessageID, edited.ID)
-		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Role)
+		require.NotEqual(t, userMessageID, edited.Message.ID)
+		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Message.Role)
 
 		foundEditedText := false
-		for _, part := range edited.Content {
+		for _, part := range edited.Message.Content {
 			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "hello after edit" {
 				foundEditedText = true
 			}
@@ -3764,11 +3764,11 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NoError(t, err)
 		// The edited message is soft-deleted and a new one is inserted,
 		// so the returned ID will differ from the original.
-		require.NotEqual(t, userMessageID, edited.ID)
+		require.NotEqual(t, userMessageID, edited.Message.ID)
 
 		// Assert the edit response preserves the file_id.
 		var foundText, foundFile bool
-		for _, part := range edited.Content {
+		for _, part := range edited.Message.Content {
 			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
 				foundText = true
 			}
@@ -3962,6 +3962,60 @@ func TestPatchChatMessage(t *testing.T) {
 		require.Equal(t, uploadResp.ID, f.ID)
 		require.Equal(t, "edit-linked.png", f.Name)
 		require.Equal(t, "image/png", f.MimeType)
+	})
+
+	t.Run("CapExceededOnEdit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a chat with MaxChatFileIDs files already linked.
+		parts := []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "fill to cap"},
+		}
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		for i := range codersdk.MaxChatFileIDs {
+			up, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("cap-%d.png", i), bytes.NewReader(pngData))
+			require.NoError(t, err)
+			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: up.ID})
+		}
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Content: parts})
+		require.NoError(t, err)
+		require.Empty(t, chat.Warnings, "all files should link on create")
+
+		// Find the user message.
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// Upload one more file and try to link via edit.
+		extra, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "edit with extra file"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: extra.ID},
+			},
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, edited.Warnings, "edit should surface cap warning")
+		require.Contains(t, edited.Warnings[0], "file linking skipped")
+
+		// Verify the cap is still enforced.
+		chatResult, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
+			"file count should not exceed the cap")
 	})
 }
 

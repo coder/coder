@@ -134,6 +134,12 @@ edited message onward, truncating any messages that followed it.
 |-----------|-------------------|----------|----------------------------------|
 | `content` | `ChatInputPart[]` | yes      | The replacement message content. |
 
+The response is an `EditChatMessageResponse` with the edited `message`
+and an optional `warnings` array. When file references in the edited
+content cannot be linked (e.g. the per-chat file cap is reached), the
+edit still succeeds and the `warnings` array describes which files
+were not linked.
+
 ### Stream updates
 
 `GET /api/experimental/chats/{chat}/stream`

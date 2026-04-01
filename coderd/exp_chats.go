@@ -530,24 +530,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var chatFiles []database.GetChatFileMetadataByIDsRow
-	if len(chat.FileIDs) > 0 {
-		chatFiles, err = api.Database.GetChatFileMetadataByIDs(ctx, chat.FileIDs)
-		if err != nil {
-			api.Logger.Error(ctx, "failed to fetch chat file metadata",
-				slog.F("chat_id", chat.ID),
-				slog.F("file_ids", chat.FileIDs),
-				slog.Error(err),
-			)
-		}
-	}
+	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID, chat.FileIDs)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	if len(unlinked) > 0 {
-		msg := fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs)
-		if !capExceeded {
-			msg = fmt.Sprintf("%d file(s) could not be linked due to a server error", len(unlinked))
+		if capExceeded {
+			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
+		} else {
+			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
 		}
-		response.Warnings = append(response.Warnings, msg)
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
@@ -1288,18 +1278,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Hydrate file metadata from the chat's file_ids array.
-	var chatFiles []database.GetChatFileMetadataByIDsRow
-	if len(chat.FileIDs) > 0 {
-		var err error
-		chatFiles, err = api.Database.GetChatFileMetadataByIDs(ctx, chat.FileIDs)
-		if err != nil {
-			api.Logger.Error(ctx, "failed to fetch chat file metadata",
-				slog.F("chat_id", chat.ID),
-				slog.F("file_ids", chat.FileIDs),
-				slog.Error(err),
-			)
-		}
-	}
+	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID, chat.FileIDs)
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, diffStatus, chatFiles))
 }
@@ -1872,11 +1851,11 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		response.Message = &message
 	}
 	if len(unlinked) > 0 {
-		msg := fmt.Sprintf("file cap reached: %d file(s) not linked (limit: %d)", len(unlinked), codersdk.MaxChatFileIDs)
-		if !capExceeded {
-			msg = fmt.Sprintf("%d file(s) could not be linked due to a server error", len(unlinked))
+		if capExceeded {
+			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
+		} else {
+			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
 		}
-		response.Warnings = append(response.Warnings, msg)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -1953,25 +1932,17 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	// Link any user-uploaded files referenced in the edited
 	// message to the chat (best-effort; cap enforced in SQL).
 	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
-	message := convertChatMessage(editResult.Message)
-	// patchChatMessage returns a ChatMessage, not a
-	// CreateChatMessageResponse. Log unlinked files so the
-	// info is at least visible server-side.
+	response := codersdk.EditChatMessageResponse{
+		Message: convertChatMessage(editResult.Message),
+	}
 	if len(unlinked) > 0 {
 		if capExceeded {
-			api.Logger.Warn(ctx, "file cap reached during message edit",
-				slog.F("chat_id", chat.ID),
-				slog.F("unlinked_file_ids", unlinked),
-				slog.F("max_file_ids", codersdk.MaxChatFileIDs),
-			)
+			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
 		} else {
-			api.Logger.Error(ctx, "failed to link files during message edit",
-				slog.F("chat_id", chat.ID),
-				slog.F("unlinked_file_ids", unlinked),
-			)
+			response.Warnings = append(response.Warnings, fileLinkErrorWarning(len(unlinked)))
 		}
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, message)
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3940,8 +3911,12 @@ func truncateRunes(value string, maxLen int) string {
 }
 
 // linkFilesToChat appends file IDs to a chat's file_ids array.
-// Cap enforcement and dedup are handled atomically in SQL. Returns
-// the subset of fileIDs that were NOT linked (empty on success).
+// Cap enforcement and dedup are handled atomically in SQL.
+// On success returns (nil, false). On failure returns the full
+// input fileIDs slice — linking is all-or-nothing because the
+// SQL operates on the batch atomically. capExceeded indicates
+// whether the failure was due to the cap being exceeded (true)
+// or a database error (false).
 // Failures are logged but never block the caller.
 func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) (unlinked []uuid.UUID, capExceeded bool) {
 	if len(fileIDs) == 0 {
@@ -3969,6 +3944,38 @@ func (api *API) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs [
 		return fileIDs, true
 	}
 	return nil, false
+}
+
+// fileLinkCapWarning builds a user-facing warning when a batch
+// of file IDs was atomically rejected because the resulting
+// array would exceed the per-chat file cap.
+func fileLinkCapWarning(count int) string {
+	return fmt.Sprintf("file linking skipped: batch of %d file(s) would exceed limit of %d", count, codersdk.MaxChatFileIDs)
+}
+
+// fileLinkErrorWarning builds a user-facing warning when a
+// database error prevented linking files to a chat.
+func fileLinkErrorWarning(count int) string {
+	return fmt.Sprintf("%d file(s) could not be linked due to a server error", count)
+}
+
+// fetchChatFileMetadata returns metadata for the given file
+// IDs. Errors are logged and result in a nil return (callers
+// treat file metadata as best-effort).
+func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) []database.GetChatFileMetadataByIDsRow {
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	rows, err := api.Database.GetChatFileMetadataByIDs(ctx, fileIDs)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to fetch chat file metadata",
+			slog.F("chat_id", chatID),
+			slog.F("file_ids", fileIDs),
+			slog.Error(err),
+		)
+		return nil
+	}
+	return rows
 }
 
 func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {

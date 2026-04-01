@@ -400,6 +400,14 @@ type CreateChatMessageResponse struct {
 	Warnings      []string           `json:"warnings,omitempty"`
 }
 
+// EditChatMessageResponse is the response from editing a message in a chat.
+// Edits are always synchronous (no queueing), so the message is returned
+// directly.
+type EditChatMessageResponse struct {
+	Message  ChatMessage `json:"message"`
+	Warnings []string    `json:"warnings,omitempty"`
+}
+
 // UploadChatFileResponse is the response from uploading a chat file.
 type UploadChatFileResponse struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
@@ -1880,7 +1888,7 @@ func (c *ExperimentalClient) EditChatMessage(
 	chatID uuid.UUID,
 	messageID int64,
 	req EditChatMessageRequest,
-) (ChatMessage, error) {
+) (EditChatMessageResponse, error) {
 	res, err := c.Request(
 		ctx,
 		http.MethodPatch,
@@ -1888,14 +1896,14 @@ func (c *ExperimentalClient) EditChatMessage(
 		req,
 	)
 	if err != nil {
-		return ChatMessage{}, err
+		return EditChatMessageResponse{}, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return ChatMessage{}, readBodyAsChatUsageLimitError(res)
+		return EditChatMessageResponse{}, readBodyAsChatUsageLimitError(res)
 	}
 	defer res.Body.Close()
-	var message ChatMessage
-	return message, json.NewDecoder(res.Body).Decode(&message)
+	var resp EditChatMessageResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.
