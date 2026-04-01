@@ -20,10 +20,29 @@ export function setChimeEnabled(enabled: boolean): void {
 	}
 }
 
+/**
+ * Whether Kyleosophy mode is active. Force-enabled on
+ * dev.coder.com because the people deserve Kyle.
+ */
 export function getKylesophyEnabled(): boolean {
+	if (isKylesophyForced()) {
+		return true;
+	}
 	try {
 		const stored = localStorage.getItem(KYLEOSOPHY_PREFERENCE_KEY);
 		return stored === null ? false : stored === "true";
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Whether the current deployment force-enables Kyleosophy,
+ * bypassing the user preference.
+ */
+export function isKylesophyForced(): boolean {
+	try {
+		return globalThis.location?.hostname === "dev.coder.com";
 	} catch {
 		return false;
 	}

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getChimeEnabled,
 	getKylesophyEnabled,
+	isKylesophyForced,
 	KYLEOSOPHY_SOUNDS,
 	LOCK_HOLD_MS,
 	maybePlayChime,
@@ -311,5 +312,40 @@ describe("maybePlayChime", () => {
 		const url = (audioSpy as unknown as ReturnType<typeof vi.fn>).mock
 			.calls[0][0] as string;
 		expect(url).toBe("/chime.mp3");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// isKylesophyForced
+// ---------------------------------------------------------------------------
+
+describe("isKylesophyForced", () => {
+	const originalLocation = globalThis.location;
+
+	afterEach(() => {
+		Object.defineProperty(globalThis, "location", {
+			value: originalLocation,
+			writable: true,
+			configurable: true,
+		});
+	});
+
+	it("returns true on dev.coder.com", () => {
+		Object.defineProperty(globalThis, "location", {
+			value: { hostname: "dev.coder.com" },
+			writable: true,
+			configurable: true,
+		});
+		expect(isKylesophyForced()).toBe(true);
+		expect(getKylesophyEnabled()).toBe(true);
+	});
+
+	it("returns false on other hosts", () => {
+		Object.defineProperty(globalThis, "location", {
+			value: { hostname: "coder.example.com" },
+			writable: true,
+			configurable: true,
+		});
+		expect(isKylesophyForced()).toBe(false);
 	});
 });
