@@ -526,6 +526,92 @@ func TestPostChats(t *testing.T) {
 		})
 		requireChatUsageLimitExceededError(t, err, 100, 100, wantResetsAt)
 	})
+
+	t.Run("NilOrganizationID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: uuid.Nil,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello",
+				},
+			},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("NonMemberOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		// Create a second organization via the database since the
+		// API endpoint is enterprise-only.
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello",
+				},
+			},
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("CrossOrgWorkspaceMismatch", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+
+		// Create a second organization and add the admin as a member
+		// so the request passes the membership check but fails on
+		// the workspace org mismatch.
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: secondOrg.ID,
+			UserID:         firstUser.UserID,
+		})
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello",
+				},
+			},
+			WorkspaceID: &workspaceBuild.Workspace.ID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Workspace does not belong to the specified organization.", sdkErr.Message)
+	})
 }
 
 func TestListChats(t *testing.T) {
