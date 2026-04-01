@@ -38,10 +38,23 @@ func TestRemoveTrailingVersionInfo(t *testing.T) {
 			Version:                    "v2.32.0-rc.1+683a720-devel",
 			ExpectedAfterStrippingInfo: "v2.32.0-rc.1",
 		},
+		// Bare devel suffix, no build metadata.
+		{
+			Version:                    "v2.32.0-devel",
+			ExpectedAfterStrippingInfo: "v2.32.0",
+		},
+		// Plain release, identity case.
+		{
+			Version:                    "v2.16.0",
+			ExpectedAfterStrippingInfo: "v2.16.0",
+		},
 	}
 
 	for _, tc := range testCases {
-		stripped := removeTrailingVersionInfo(tc.Version)
-		require.Equal(t, tc.ExpectedAfterStrippingInfo, stripped)
+		t.Run(tc.Version, func(t *testing.T) {
+			t.Parallel()
+			stripped := removeTrailingVersionInfo(tc.Version)
+			require.Equal(t, tc.ExpectedAfterStrippingInfo, stripped)
+		})
 	}
 }

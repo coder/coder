@@ -47,6 +47,18 @@ describe("defaultDocsUrl", () => {
 		expect(url).toBe("https://coder.com/docs/@v2.16.0/admin/users");
 	});
 
+	it("should strip bare devel suffix with no build metadata", async () => {
+		setBuildInfoVersion("v2.32.0-devel");
+		const url = await getDocsUrl("/admin/users");
+		expect(url).toBe("https://coder.com/docs/@v2.32.0/admin/users");
+	});
+
+	it("should use plain release version as-is", async () => {
+		setBuildInfoVersion("v2.16.0");
+		const url = await getDocsUrl("/admin/users");
+		expect(url).toBe("https://coder.com/docs/@v2.16.0/admin/users");
+	});
+
 	it("should produce unversioned URL for v0.0.0 dev builds", async () => {
 		setBuildInfoVersion("v0.0.0-devel+abc123");
 		const url = await getDocsUrl("/admin/users");
