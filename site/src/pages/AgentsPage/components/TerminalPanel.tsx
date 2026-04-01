@@ -33,9 +33,6 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
-	// Use the chat ID as a stable reconnection token so the PTY
-	// session persists across navigations and reloads.
-	const [reconnectionToken] = useState(() => chatId);
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const config = useQuery(deploymentConfig());
@@ -101,7 +98,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 					isVisible={isVisible}
 					onStatusChange={setConnectionStatus}
 					onError={handleTerminalError}
-					reconnectionToken={reconnectionToken}
+					reconnectionToken={chatId}
 					baseUrl={terminalConfig.baseUrl}
 					terminalFontFamily={terminalConfig.fontFamily}
 					renderer={terminalConfig.renderer}
