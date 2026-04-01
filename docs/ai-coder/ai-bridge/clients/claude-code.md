@@ -46,9 +46,7 @@ account.
 
 ## Pre-configuring in Templates
 
-Template admins can pre-configure Claude Code for a seamless experience.
-Admins can automatically inject the user's Coder session token and the
-AI Bridge base URL into the workspace environment.
+Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Bridge base URL into the workspace environment.
 
 ```hcl
 module "claude-code" {
@@ -62,9 +60,7 @@ module "claude-code" {
 
 ### Coder Tasks
 
-[Coder Tasks](../../tasks.md) provides a framework for agents to complete
-background development operations autonomously. Claude Code can be configured
-in your Tasks automatically:
+[Coder Tasks](../../tasks.md) provides a framework for agents to complete background development operations autonomously. Claude Code can be configured in your Tasks automatically:
 
 ```hcl
 resource "coder_ai_task" "task" {
