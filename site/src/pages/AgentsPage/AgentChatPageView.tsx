@@ -40,6 +40,7 @@ import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -80,6 +81,7 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	chatId?: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
@@ -119,6 +121,7 @@ interface AgentChatPageViewProps {
 	// Sidebar content data.
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatus | undefined;
+	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		refresh: () => boolean;
@@ -171,6 +174,7 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	chatId,
 	chatTitle,
 	parentChat,
 	persistedError,
@@ -197,6 +201,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onSetShowSidebarPanel,
 	prNumber,
 	diffStatusData,
+	debugLoggingEnabled,
 	gitWatcher,
 	canOpenEditors,
 	canOpenWorkspace,
@@ -477,6 +482,22 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 													}
 													workspace={workspace}
 													workspaceAgent={workspaceAgent}
+												/>
+											),
+										},
+									]
+								: []),
+							...(debugLoggingEnabled
+								? [
+										{
+											id: "debug",
+											label: "Debug",
+											content: (
+												<DebugPanel
+													chatId={chatId ?? agentId}
+													enabled={
+														shouldShowSidebar && sidebarTabId === "debug"
+													}
 												/>
 											),
 										},

@@ -13,10 +13,12 @@ import { API, watchWorkspace } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import {
 	chat,
+	chatDebugLogging,
 	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
+	chatUserDebugLogging,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -486,8 +488,21 @@ const AgentChatPage: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const deploymentDebugLoggingQuery = useQuery(chatDebugLogging());
+	const userDebugLoggingQuery = useQuery(chatUserDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+
+	const chatDebugOverride = chatQuery.data?.debug_logs_enabled_override;
+	const userDebugEnabled =
+		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
+	const userDebugOverrideSet =
+		userDebugLoggingQuery.data?.debug_logging_override_set ?? false;
+	const deploymentDebugEnabled =
+		deploymentDebugLoggingQuery.data?.debug_logging_enabled ?? false;
+	const debugLoggingEnabled =
+		chatDebugOverride ??
+		(userDebugOverrideSet ? userDebugEnabled : deploymentDebugEnabled);
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -1114,6 +1129,7 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			chatId={chatQuery.data.id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			persistedError={persistedError}
@@ -1140,6 +1156,7 @@ const AgentChatPage: FC = () => {
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
+			debugLoggingEnabled={debugLoggingEnabled}
 			gitWatcher={gitWatcher}
 			canOpenEditors={canOpenEditors}
 			canOpenWorkspace={canOpenWorkspace}
