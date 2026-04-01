@@ -44,6 +44,7 @@ func TestService_IsEnabled(t *testing.T) {
 	err := db.UpsertChatDebugLoggingEnabled(ctx, true)
 	require.NoError(t, err)
 	require.True(t, svc.IsEnabled(ctx, chat.ID, uuid.Nil))
+	require.True(t, svc.IsEnabled(ctx, chat.ID, owner.ID))
 
 	err = db.UpsertUserChatDebugLoggingEnabled(ctx,
 		database.UpsertUserChatDebugLoggingEnabledParams{
@@ -53,6 +54,7 @@ func TestService_IsEnabled(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.False(t, svc.IsEnabled(ctx, chat.ID, owner.ID))
+	require.False(t, svc.IsEnabled(ctx, chat.ID, uuid.Nil))
 
 	_, err = sqlDB.ExecContext(ctx,
 		"UPDATE chats SET debug_logs_enabled_override = $1 WHERE id = $2",
@@ -61,6 +63,15 @@ func TestService_IsEnabled(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.True(t, svc.IsEnabled(ctx, chat.ID, owner.ID))
+}
+
+func TestService_IsEnabled_ZeroValueService(t *testing.T) {
+	t.Parallel()
+
+	var svc *chatdebug.Service
+	require.False(t, svc.IsEnabled(context.Background(), uuid.Nil, uuid.Nil))
+
+	require.False(t, (&chatdebug.Service{}).IsEnabled(context.Background(), uuid.Nil, uuid.Nil))
 }
 
 func TestService_CreateRun(t *testing.T) {
@@ -102,6 +113,22 @@ func TestService_CreateRun(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, run.ID, stored.ID)
 	require.JSONEq(t, string(run.Summary), string(stored.Summary))
+}
+
+func TestService_CreateRun_TypedNilSummaryUsesDefaultObject(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	var summary map[string]any
+
+	run, err := fixture.svc.CreateRun(fixture.ctx, chatdebug.CreateRunParams{
+		ChatID:  fixture.chat.ID,
+		Kind:    chatdebug.KindChatTurn,
+		Status:  chatdebug.StatusInProgress,
+		Summary: summary,
+	})
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(run.Summary))
 }
 
 func TestService_UpdateRun(t *testing.T) {
@@ -175,6 +202,33 @@ func TestService_CreateStep(t *testing.T) {
 	require.Equal(t, step.ID, steps[0].ID)
 }
 
+func TestService_CreateStep_RetriesDuplicateStepNumbers(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	run := createRun(t, fixture)
+
+	first, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+		RunID:      run.ID,
+		ChatID:     fixture.chat.ID,
+		StepNumber: 1,
+		Operation:  chatdebug.OperationStream,
+		Status:     chatdebug.StatusInProgress,
+	})
+	require.NoError(t, err)
+
+	second, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+		RunID:      run.ID,
+		ChatID:     fixture.chat.ID,
+		StepNumber: 1,
+		Operation:  chatdebug.OperationGenerate,
+		Status:     chatdebug.StatusInProgress,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, first.StepNumber)
+	require.EqualValues(t, 2, second.StepNumber)
+}
+
 func TestService_UpdateStep(t *testing.T) {
 	t.Parallel()
 
@@ -229,6 +283,44 @@ func TestService_UpdateStep(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, storedSteps, 1)
 	require.Equal(t, updated.ID, storedSteps[0].ID)
+}
+
+func TestService_UpdateStep_TypedNilAttemptsPreserveExistingValue(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	run := createRun(t, fixture)
+	step, err := fixture.svc.CreateStep(fixture.ctx, chatdebug.CreateStepParams{
+		RunID:      run.ID,
+		ChatID:     fixture.chat.ID,
+		StepNumber: 1,
+		Operation:  chatdebug.OperationStream,
+		Status:     chatdebug.StatusInProgress,
+	})
+	require.NoError(t, err)
+
+	_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
+		ID:     step.ID,
+		ChatID: fixture.chat.ID,
+		Status: chatdebug.StatusCompleted,
+		Attempts: []chatdebug.Attempt{{
+			Number: 1,
+		}},
+	})
+	require.NoError(t, err)
+
+	var typedNilAttempts []chatdebug.Attempt
+	updated, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
+		ID:       step.ID,
+		ChatID:   fixture.chat.ID,
+		Attempts: typedNilAttempts,
+	})
+	require.NoError(t, err)
+
+	var attempts []map[string]any
+	require.NoError(t, json.Unmarshal(updated.Attempts, &attempts))
+	require.Len(t, attempts, 1)
+	require.EqualValues(t, 1, attempts[0]["number"])
 }
 
 func TestService_DeleteByChatID(t *testing.T) {
@@ -364,6 +456,109 @@ func TestService_FinalizeStale(t *testing.T) {
 	require.True(t, storedSteps[0].FinishedAt.Valid)
 }
 
+func TestService_FinalizeStale_BroadcastsFinalizeEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	owner, chat, model := seedChat(ctx, t, db)
+	require.NotEqual(t, uuid.Nil, owner.ID)
+
+	staleTime := time.Now().Add(-10 * time.Minute).UTC().Round(time.Microsecond)
+	run, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Kind:          string(chatdebug.KindChatTurn),
+		Status:        string(chatdebug.StatusInProgress),
+		StartedAt:     sql.NullTime{Time: staleTime, Valid: true},
+		UpdatedAt:     sql.NullTime{Time: staleTime, Valid: true},
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      run.ID,
+		StepNumber: 1,
+		Operation:  string(chatdebug.OperationStream),
+		Status:     string(chatdebug.StatusInProgress),
+		StartedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		ChatID:     chat.ID,
+	})
+	require.NoError(t, err)
+
+	memoryPubsub := dbpubsub.NewInMemory()
+	svc := chatdebug.NewService(db, testutil.Logger(t), memoryPubsub)
+	events := make(chan struct {
+		event chatdebug.DebugEvent
+		err   error
+	}, 1)
+	cancel, err := memoryPubsub.Subscribe(chatdebug.PubsubChannel(uuid.Nil),
+		func(_ context.Context, message []byte) {
+			var event chatdebug.DebugEvent
+			events <- struct {
+				event chatdebug.DebugEvent
+				err   error
+			}{
+				event: event,
+				err:   json.Unmarshal(message, &event),
+			}
+		},
+	)
+	require.NoError(t, err)
+	defer cancel()
+
+	result, err := svc.FinalizeStale(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, result.RunsFinalized)
+	require.EqualValues(t, 1, result.StepsFinalized)
+
+	select {
+	case received := <-events:
+		require.NoError(t, received.err)
+		require.Equal(t, chatdebug.EventKindFinalize, received.event.Kind)
+		require.Equal(t, uuid.Nil, received.event.ChatID)
+		require.Equal(t, uuid.Nil, received.event.RunID)
+		require.Equal(t, uuid.Nil, received.event.StepID)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for finalize event")
+	}
+}
+
+func TestService_FinalizeStale_NoChangesDoesNotBroadcast(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	owner, chat, _ := seedChat(ctx, t, db)
+	require.NotEqual(t, uuid.Nil, owner.ID)
+
+	memoryPubsub := dbpubsub.NewInMemory()
+	svc := chatdebug.NewService(db, testutil.Logger(t), memoryPubsub)
+	events := make(chan chatdebug.DebugEvent, 1)
+	cancel, err := memoryPubsub.Subscribe(chatdebug.PubsubChannel(uuid.Nil),
+		func(_ context.Context, message []byte) {
+			var event chatdebug.DebugEvent
+			if err := json.Unmarshal(message, &event); err == nil {
+				events <- event
+			}
+		},
+	)
+	require.NoError(t, err)
+	defer cancel()
+
+	result, err := svc.FinalizeStale(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, result.RunsFinalized)
+	require.EqualValues(t, 0, result.StepsFinalized)
+
+	select {
+	case event := <-events:
+		t.Fatalf("unexpected finalize event: %+v", event)
+	default:
+	}
+
+	_ = chat // keep seeded chat usage explicit for test readability.
+}
+
 func TestService_PublishesEvents(t *testing.T) {
 	t.Parallel()
 
@@ -483,6 +678,7 @@ func insertChat(
 	t.Helper()
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelID,
 		Title:             "chat-" + uuid.NewString(),

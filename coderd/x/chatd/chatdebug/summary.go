@@ -107,6 +107,7 @@ func (s *Service) AggregateRunSummary(
 		"total_cache_creation_tokens",
 		"total_cache_read_tokens",
 		"endpoint_label",
+		"has_error",
 	} {
 		delete(result, key)
 	}
@@ -115,9 +116,13 @@ func (s *Service) AggregateRunSummary(
 		totalOutput        int64
 		totalCacheCreation int64
 		totalCacheRead     int64
+		hasError           bool
 	)
 
 	for _, step := range steps {
+		if step.Error.Valid || step.Status == string(StatusError) || step.Status == string(StatusInterrupted) {
+			hasError = true
+		}
 		if !step.Usage.Valid || len(step.Usage.RawMessage) == 0 {
 			continue
 		}
@@ -151,6 +156,10 @@ func (s *Service) AggregateRunSummary(
 		result["total_cache_read_tokens"] = totalCacheRead
 	}
 
+	if hasError {
+		result["has_error"] = true
+	}
+
 	// Derive endpoint_label from the first completed attempt's path
 	// across all steps. This gives the debug panel a meaningful
 	// identifier like "POST /v1/messages" for the run row.
@@ -161,7 +170,7 @@ func (s *Service) AggregateRunSummary(
 	return result, nil
 }
 
-// extractEndpointLabel scans steps for the first attempt with a
+// extractEndpointLabel scans steps for the first completed attempt with a
 // non-empty path and returns "METHOD /path" (or just "/path").
 func extractEndpointLabel(steps []database.ChatDebugStep) string {
 	for _, step := range steps {
@@ -173,7 +182,7 @@ func extractEndpointLabel(steps []database.ChatDebugStep) string {
 			continue
 		}
 		for _, a := range attempts {
-			if a.Path == "" {
+			if a.Status != attemptStatusCompleted || a.Path == "" {
 				continue
 			}
 			if a.Method != "" {

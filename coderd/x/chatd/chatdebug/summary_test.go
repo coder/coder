@@ -237,6 +237,45 @@ func TestService_AggregateRunSummary(t *testing.T) {
 		require.NotContains(t, got, "endpoint_label")
 	})
 
+	t.Run("RecomputesHasErrorAndCompletedEndpointLabel", func(t *testing.T) {
+		t.Parallel()
+		fixture := newFixture(t)
+		run := createRun(t, fixture)
+
+		step1 := createTestStep(t, fixture, run.ID)
+		_, err := fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
+			ID:     step1.ID,
+			ChatID: fixture.chat.ID,
+			Status: chatdebug.StatusError,
+			Attempts: []chatdebug.Attempt{{
+				Number: 1,
+				Status: "failed",
+				Method: "POST",
+				Path:   "/failed",
+			}},
+		})
+		require.NoError(t, err)
+
+		step2 := createTestStepN(t, fixture, run.ID, 2)
+		_, err = fixture.svc.UpdateStep(fixture.ctx, chatdebug.UpdateStepParams{
+			ID:     step2.ID,
+			ChatID: fixture.chat.ID,
+			Status: chatdebug.StatusCompleted,
+			Attempts: []chatdebug.Attempt{{
+				Number: 1,
+				Status: "completed",
+				Method: "POST",
+				Path:   "/v1/messages",
+			}},
+		})
+		require.NoError(t, err)
+
+		got, err := fixture.svc.AggregateRunSummary(fixture.ctx, run.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, true, got["has_error"])
+		require.Equal(t, "POST /v1/messages", got["endpoint_label"])
+	})
+
 	t.Run("MultipleStepsSumTokens", func(t *testing.T) {
 		t.Parallel()
 		fixture := newFixture(t)

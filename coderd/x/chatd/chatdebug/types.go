@@ -106,7 +106,16 @@ type DebugEvent struct {
 	StepID uuid.UUID `json:"step_id,omitempty"`
 }
 
+// BroadcastPubsubChannel is the shared pubsub channel for chat-debug events
+// that are not scoped to a single chat, such as stale finalization sweeps.
+const BroadcastPubsubChannel = "chat_debug:broadcast"
+
 // PubsubChannel returns the chat-scoped pubsub channel for debug events.
+// Nil chat IDs use the shared broadcast channel so publishers and subscribers
+// can coordinate through one discoverable helper.
 func PubsubChannel(chatID uuid.UUID) string {
+	if chatID == uuid.Nil {
+		return BroadcastPubsubChannel
+	}
 	return "chat_debug:" + chatID.String()
 }

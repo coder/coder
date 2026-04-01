@@ -1,6 +1,7 @@
 package chatdebug
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -16,8 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
-
-const broadcastPubsubChannel = "chat_debug:broadcast"
 
 // StaleThreshold matches chatd's in-flight stale timeout for debug rows.
 const StaleThreshold = 5 * time.Minute
@@ -103,6 +102,10 @@ func (s *Service) IsEnabled(
 	chatID uuid.UUID,
 	ownerID uuid.UUID,
 ) bool {
+	if s == nil || s.db == nil {
+		return false
+	}
+
 	authCtx := chatdContext(ctx)
 
 	chat, err := s.db.GetChatByID(authCtx, chatID)
@@ -117,15 +120,19 @@ func (s *Service) IsEnabled(
 		return chat.DebugLogsEnabledOverride.Bool
 	}
 
-	if ownerID != uuid.Nil {
-		enabled, err := s.db.GetUserChatDebugLoggingEnabled(authCtx, ownerID)
+	effectiveOwnerID := ownerID
+	if effectiveOwnerID == uuid.Nil {
+		effectiveOwnerID = chat.OwnerID
+	}
+	if effectiveOwnerID != uuid.Nil {
+		enabled, err := s.db.GetUserChatDebugLoggingEnabled(authCtx, effectiveOwnerID)
 		if err == nil {
 			return enabled
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
 			s.log.Warn(ctx, "failed to load user chat debug logging setting",
 				slog.Error(err),
-				slog.F("owner_id", ownerID),
+				slog.F("owner_id", effectiveOwnerID),
 			)
 			return false
 		}
@@ -209,31 +216,47 @@ func (s *Service) CreateStep(
 	ctx context.Context,
 	params CreateStepParams,
 ) (database.ChatDebugStep, error) {
-	step, err := s.db.InsertChatDebugStep(chatdContext(ctx),
-		database.InsertChatDebugStepParams{
-			RunID:               params.RunID,
-			StepNumber:          params.StepNumber,
-			Operation:           string(params.Operation),
-			Status:              string(params.Status),
-			HistoryTipMessageID: nullInt64(params.HistoryTipMessageID),
-			AssistantMessageID:  sql.NullInt64{},
-			NormalizedRequest:   s.nullJSON(params.NormalizedRequest),
-			NormalizedResponse:  pqtype.NullRawMessage{},
-			Usage:               pqtype.NullRawMessage{},
-			Attempts:            pqtype.NullRawMessage{},
-			Error:               pqtype.NullRawMessage{},
-			Metadata:            pqtype.NullRawMessage{},
-			StartedAt:           sql.NullTime{},
-			UpdatedAt:           sql.NullTime{},
-			FinishedAt:          sql.NullTime{},
-			ChatID:              params.ChatID,
-		})
-	if err != nil {
-		return database.ChatDebugStep{}, err
+	insert := database.InsertChatDebugStepParams{
+		RunID:               params.RunID,
+		StepNumber:          params.StepNumber,
+		Operation:           string(params.Operation),
+		Status:              string(params.Status),
+		HistoryTipMessageID: nullInt64(params.HistoryTipMessageID),
+		AssistantMessageID:  sql.NullInt64{},
+		NormalizedRequest:   s.nullJSON(params.NormalizedRequest),
+		NormalizedResponse:  pqtype.NullRawMessage{},
+		Usage:               pqtype.NullRawMessage{},
+		Attempts:            pqtype.NullRawMessage{},
+		Error:               pqtype.NullRawMessage{},
+		Metadata:            pqtype.NullRawMessage{},
+		StartedAt:           sql.NullTime{},
+		UpdatedAt:           sql.NullTime{},
+		FinishedAt:          sql.NullTime{},
+		ChatID:              params.ChatID,
 	}
 
-	s.publishEvent(step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
-	return step, nil
+	for {
+		step, err := s.db.InsertChatDebugStep(chatdContext(ctx), insert)
+		if err == nil {
+			s.publishEvent(step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
+			return step, nil
+		}
+		if !database.IsUniqueViolation(err, database.UniqueIndexChatDebugStepsRunStep) {
+			return database.ChatDebugStep{}, err
+		}
+
+		steps, listErr := s.db.GetChatDebugStepsByRunID(chatdContext(ctx), params.RunID)
+		if listErr != nil {
+			return database.ChatDebugStep{}, err
+		}
+		nextStepNumber := insert.StepNumber + 1
+		for _, existing := range steps {
+			if existing.StepNumber >= nextStepNumber {
+				nextStepNumber = existing.StepNumber + 1
+			}
+		}
+		insert.StepNumber = nextStepNumber
+	}
 }
 
 // UpdateStep updates an existing debug step and emits a step update event.
@@ -312,7 +335,9 @@ func (s *Service) FinalizeStale(
 		return database.FinalizeStaleChatDebugRowsRow{}, err
 	}
 
-	s.publishEvent(uuid.Nil, EventKindFinalize, uuid.Nil, uuid.Nil)
+	if result.RunsFinalized > 0 || result.StepsFinalized > 0 {
+		s.publishEvent(uuid.Nil, EventKindFinalize, uuid.Nil, uuid.Nil)
+	}
 	return result, nil
 }
 
@@ -343,6 +368,9 @@ func (s *Service) nullJSON(value any) pqtype.NullRawMessage {
 			slog.Error(err),
 			slog.F("value_type", fmt.Sprintf("%T", value)),
 		)
+		return pqtype.NullRawMessage{}
+	}
+	if bytes.Equal(data, []byte("null")) {
 		return pqtype.NullRawMessage{}
 	}
 
@@ -381,9 +409,6 @@ func (s *Service) publishEvent(
 	}
 
 	channel := PubsubChannel(chatID)
-	if chatID == uuid.Nil {
-		channel = broadcastPubsubChannel
-	}
 	if err := s.pubsub.Publish(channel, data); err != nil {
 		s.log.Warn(context.Background(), "failed to publish chat debug event",
 			slog.Error(err),

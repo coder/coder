@@ -2,6 +2,8 @@ package chatdebug //nolint:testpackage // Uses unexported debug-model helpers.
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -74,6 +77,122 @@ type testError struct{ message string }
 
 func (e *testError) Error() string { return e.message }
 
+func expectDebugLoggingOverride(
+	t *testing.T,
+	db *dbmock.MockStore,
+	chatID uuid.UUID,
+	enabled bool,
+) {
+	t.Helper()
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+		ID: chatID,
+		DebugLogsEnabledOverride: sql.NullBool{
+			Bool:  enabled,
+			Valid: true,
+		},
+	}, nil)
+}
+
+func expectCreateStepNumberWithRequestValidity(
+	t *testing.T,
+	db *dbmock.MockStore,
+	runID uuid.UUID,
+	chatID uuid.UUID,
+	stepNumber int32,
+	op Operation,
+	normalizedRequestValid bool,
+) uuid.UUID {
+	t.Helper()
+
+	stepID := uuid.New()
+	db.EXPECT().
+		InsertChatDebugStep(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatDebugStepParams{})).
+		DoAndReturn(func(_ context.Context, params database.InsertChatDebugStepParams) (database.ChatDebugStep, error) {
+			require.Equal(t, runID, params.RunID)
+			require.Equal(t, chatID, params.ChatID)
+			require.Equal(t, stepNumber, params.StepNumber)
+			require.Equal(t, string(op), params.Operation)
+			require.Equal(t, string(StatusInProgress), params.Status)
+			require.Equal(t, normalizedRequestValid, params.NormalizedRequest.Valid)
+
+			return database.ChatDebugStep{
+				ID:         stepID,
+				RunID:      runID,
+				ChatID:     chatID,
+				StepNumber: params.StepNumber,
+				Operation:  params.Operation,
+				Status:     params.Status,
+			}, nil
+		})
+
+	return stepID
+}
+
+func expectCreateStepNumber(
+	t *testing.T,
+	db *dbmock.MockStore,
+	runID uuid.UUID,
+	chatID uuid.UUID,
+	stepNumber int32,
+	op Operation,
+) uuid.UUID {
+	t.Helper()
+
+	return expectCreateStepNumberWithRequestValidity(
+		t,
+		db,
+		runID,
+		chatID,
+		stepNumber,
+		op,
+		true,
+	)
+}
+
+func expectCreateStep(
+	t *testing.T,
+	db *dbmock.MockStore,
+	runID uuid.UUID,
+	chatID uuid.UUID,
+	op Operation,
+) uuid.UUID {
+	t.Helper()
+
+	return expectCreateStepNumber(t, db, runID, chatID, 1, op)
+}
+
+func expectUpdateStep(
+	t *testing.T,
+	db *dbmock.MockStore,
+	stepID uuid.UUID,
+	chatID uuid.UUID,
+	status Status,
+	assertFn func(database.UpdateChatDebugStepParams),
+) {
+	t.Helper()
+
+	db.EXPECT().
+		UpdateChatDebugStep(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatDebugStepParams{})).
+		DoAndReturn(func(_ context.Context, params database.UpdateChatDebugStepParams) (database.ChatDebugStep, error) {
+			require.Equal(t, stepID, params.ID)
+			require.Equal(t, chatID, params.ChatID)
+			require.True(t, params.Status.Valid)
+			require.Equal(t, string(status), params.Status.String)
+			require.True(t, params.FinishedAt.Valid)
+
+			if assertFn != nil {
+				assertFn(params)
+			}
+
+			return database.ChatDebugStep{
+				ID:     stepID,
+				ChatID: chatID,
+				Status: params.Status.String,
+			}, nil
+		})
+}
+
 func TestDebugModel_Provider(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +218,7 @@ func TestDebugModel_Disabled(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
 	ownerID := uuid.New()
+
 	svc := NewService(db, testutil.Logger(t), nil)
 	respWant := &fantasy.Response{FinishReason: fantasy.FinishReasonStop}
 	inner := &scriptedModel{
@@ -147,6 +267,16 @@ func TestDebugModel_Generate(t *testing.T) {
 		Usage:        fantasy.Usage{InputTokens: 10, OutputTokens: 4, TotalTokens: 14},
 		Warnings:     []fantasy.CallWarning{{Message: "warning"}},
 	}
+
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationGenerate)
+	expectUpdateStep(t, db, stepID, chatID, StatusCompleted, func(params database.UpdateChatDebugStepParams) {
+		require.True(t, params.NormalizedResponse.Valid)
+		require.True(t, params.Usage.Valid)
+		require.True(t, params.Attempts.Valid)
+		require.False(t, params.Error.Valid)
+		require.False(t, params.Metadata.Valid)
+	})
 
 	svc := NewService(db, testutil.Logger(t), nil)
 	inner := &scriptedModel{
@@ -200,6 +330,20 @@ func TestDebugModel_GeneratePersistsAttemptsWithoutResponseClose(t *testing.T) {
 	}))
 	defer server.Close()
 
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationGenerate)
+	expectUpdateStep(t, db, stepID, chatID, StatusCompleted, func(params database.UpdateChatDebugStepParams) {
+		require.True(t, params.Attempts.Valid)
+		require.True(t, params.NormalizedResponse.Valid)
+		require.True(t, params.Usage.Valid)
+
+		var attempts []Attempt
+		require.NoError(t, json.Unmarshal(params.Attempts.RawMessage, &attempts))
+		require.Len(t, attempts, 1)
+		require.Equal(t, attemptStatusCompleted, attempts[0].Status)
+		require.Equal(t, http.StatusCreated, attempts[0].ResponseStatus)
+	})
+
 	svc := NewService(db, testutil.Logger(t), nil)
 	inner := &scriptedModel{
 		generateFn: func(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
@@ -247,6 +391,16 @@ func TestDebugModel_GenerateError(t *testing.T) {
 	ownerID := uuid.New()
 	runID := uuid.New()
 	wantErr := &testError{message: "boom"}
+
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationGenerate)
+	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
+		require.False(t, params.NormalizedResponse.Valid)
+		require.False(t, params.Usage.Valid)
+		require.True(t, params.Attempts.Valid)
+		require.True(t, params.Error.Valid)
+		require.False(t, params.Metadata.Valid)
+	})
 
 	svc := NewService(db, testutil.Logger(t), nil)
 	model := &debugModel{
@@ -303,6 +457,16 @@ func TestDebugModel_Stream(t *testing.T) {
 		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 8, OutputTokens: 3, TotalTokens: 11}},
 	}
 
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
+	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
+		require.True(t, params.NormalizedResponse.Valid)
+		require.True(t, params.Usage.Valid)
+		require.True(t, params.Attempts.Valid)
+		require.True(t, params.Error.Valid)
+		require.True(t, params.Metadata.Valid)
+	})
+
 	svc := NewService(db, testutil.Logger(t), nil)
 	model := &debugModel{
 		inner: &scriptedModel{
@@ -349,6 +513,16 @@ func TestDebugModel_StreamObject(t *testing.T) {
 		{Type: fantasy.ObjectStreamPartTypeObject, Object: map[string]any{"value": "object"}},
 		{Type: fantasy.ObjectStreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 5, OutputTokens: 2, TotalTokens: 7}},
 	}
+
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
+	expectUpdateStep(t, db, stepID, chatID, StatusCompleted, func(params database.UpdateChatDebugStepParams) {
+		require.True(t, params.NormalizedResponse.Valid)
+		require.True(t, params.Usage.Valid)
+		require.True(t, params.Attempts.Valid)
+		require.False(t, params.Error.Valid)
+		require.True(t, params.Metadata.Valid)
+	})
 
 	svc := NewService(db, testutil.Logger(t), nil)
 	model := &debugModel{
@@ -446,6 +620,16 @@ func TestDebugModel_StreamEarlyStop(t *testing.T) {
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "first"},
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "second"},
 	}
+
+	expectDebugLoggingOverride(t, db, chatID, true)
+	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
+	expectUpdateStep(t, db, stepID, chatID, StatusInterrupted, func(params database.UpdateChatDebugStepParams) {
+		require.True(t, params.NormalizedResponse.Valid)
+		require.False(t, params.Usage.Valid)
+		require.True(t, params.Attempts.Valid)
+		require.False(t, params.Error.Valid)
+		require.True(t, params.Metadata.Valid)
+	})
 
 	svc := NewService(db, testutil.Logger(t), nil)
 	model := &debugModel{
