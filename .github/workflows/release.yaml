@@ -563,6 +563,35 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
+      # Mark the Linear release as shipped.
+      - name: Extract Linear release version
+        if: ${{ !inputs.dry_run }}
+        id: linear_version
+        run: |
+          # Skip RC releases — they must not complete the Linear release.
+          if [[ "$VERSION" == *-rc* ]]; then
+            echo "RC release (${VERSION}), skipping Linear release completion."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
+          linear_version=$(echo "$VERSION" | cut -d. -f1,2)
+          echo "version=$linear_version" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Completing Linear release ${linear_version}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Complete Linear release
+        if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
+        continue-on-error: true
+        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          version: ${{ steps.linear_version.outputs.version }}
+          timeout: 300
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
