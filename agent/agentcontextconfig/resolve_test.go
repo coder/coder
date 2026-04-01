@@ -10,7 +10,6 @@ import (
 )
 
 func TestResolvePath(t *testing.T) {
-
 	t.Run("EmptyInput", func(t *testing.T) {
 		t.Parallel()
 		require.Equal(t, "", agentcontextconfig.ResolvePath("", "/base"))
@@ -72,7 +71,6 @@ func TestResolvePath_HomeUnset(t *testing.T) {
 }
 
 func TestResolvePaths(t *testing.T) {
-
 	t.Run("EmptyString", func(t *testing.T) {
 		t.Parallel()
 		require.Nil(t, agentcontextconfig.ResolvePaths("", "/base"))
