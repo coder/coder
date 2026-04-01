@@ -68,8 +68,8 @@ const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
 			<Tabs
-				defaultValue={tab}
-				onValueChange={(value) => {
+				value={tab}
+				onValueChange={(value: string) => {
 					setSearchParams({ tab: value });
 				}}
 			>
