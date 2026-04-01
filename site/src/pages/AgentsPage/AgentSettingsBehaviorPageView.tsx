@@ -574,6 +574,7 @@ export const AgentSettingsBehaviorPageView: FC<
 							type="number"
 							min={0}
 							step={1}
+							aria-label="Chat retention period in days"
 							value={retentionDays}
 							onChange={(event) =>
 								setLocalRetentionDays(

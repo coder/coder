@@ -7068,7 +7068,7 @@ func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, incl
 }
 
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertChatRetentionDays(ctx, retentionDays)
