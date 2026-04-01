@@ -166,7 +166,12 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 
 	// Inject workspace RBAC into context so dbauthz can use the
 	// fast path instead of requiring system-level escalation.
-	ctx, _ = a.Workspace.ContextInject(ctx)
+	var ctxErr error
+	ctx, ctxErr = a.Workspace.ContextInject(ctx)
+	if ctxErr != nil {
+		a.Log.Debug(ctx, "failed to inject workspace RBAC, falling back to slow path",
+			slog.Error(ctxErr))
+	}
 
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)

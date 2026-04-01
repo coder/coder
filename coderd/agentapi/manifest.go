@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -31,6 +32,7 @@ type ManifestAPI struct {
 	DerpForceWebSockets      bool
 	WorkspaceID              uuid.UUID
 	Workspace                *CachedWorkspaceFields
+	Log                      slog.Logger
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -62,7 +64,12 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	eg.Go(func() (err error) {
 		scriptCtx := ctx
 		if a.Workspace != nil {
-			scriptCtx, _ = a.Workspace.ContextInject(ctx)
+			var ctxErr error
+			scriptCtx, ctxErr = a.Workspace.ContextInject(ctx)
+			if ctxErr != nil {
+				a.Log.Debug(ctx, "failed to inject workspace RBAC for scripts, falling back to slow path",
+					slog.Error(ctxErr))
+			}
 		}
 		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(scriptCtx, []uuid.UUID{workspaceAgent.ID})
 		return err
