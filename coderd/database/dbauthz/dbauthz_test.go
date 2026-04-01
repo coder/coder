@@ -3813,10 +3813,12 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 }
 
 func (s *MethodTestSuite) TestSystemFunctions() {
-	s.Run("GetLatestWorkspaceAppStatusByAppID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetLatestWorkspaceAppStatusByAppID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
 		appID := uuid.New()
-		dbm.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(database.WorkspaceAppStatus{}, nil).AnyTimes()
-		check.Args(appID).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		dbm.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(database.WorkspaceAppStatus{WorkspaceID: w.ID}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		check.Args(appID).Asserts(w, policy.ActionRead)
 	}))
 	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
@@ -4130,10 +4132,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().InsertTemplateVersionParameter(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.TemplateVersionParameter{TemplateVersionID: v.ID}), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("InsertWorkspaceAppStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertWorkspaceAppStatusParams{ID: uuid.New(), State: "working"}
+	s.Run("InsertWorkspaceAppStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := database.InsertWorkspaceAppStatusParams{ID: uuid.New(), WorkspaceID: w.ID, State: "working"}
 		dbm.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), arg).Return(testutil.Fake(s.T(), gofakeit.New(0), database.WorkspaceAppStatus{ID: arg.ID, State: arg.State}), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertWorkspaceResourceParams{ID: uuid.New(), Transition: database.WorkspaceTransitionStart}
@@ -4318,10 +4322,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceUniqueOwnerCountByTemplateIDs(gomock.Any(), ids).Return([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ids := []uuid.UUID{uuid.New()}
+	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agentID := uuid.New()
+		ids := []uuid.UUID{agentID}
 		dbm.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentScript{}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(w, nil).AnyTimes()
+		check.Args(ids).Asserts(w, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentLogSourcesByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
