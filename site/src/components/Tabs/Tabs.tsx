@@ -79,7 +79,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({ ...props }) => {
 	);
 };
 
-export type TabsContentProps = ComponentProps<typeof TabsPrimitive.Content>;
+type TabsContentProps = ComponentProps<typeof TabsPrimitive.Content>;
 
 export const TabsContent: FC<TabsContentProps> = ({ ...props }) => {
 	return <TabsPrimitive.Content {...props} />;
