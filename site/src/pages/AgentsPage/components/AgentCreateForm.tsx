@@ -6,6 +6,8 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { Label } from "#/components/Label/Label";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -39,6 +41,7 @@ export type CreateChatOptions = {
 	workspaceId?: string;
 	model?: string;
 	mcpServerIds?: string[];
+	organizationId: string;
 };
 
 /**
@@ -127,7 +130,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspacesError,
 	isWorkspacesLoading,
 }) => {
-	const { organizations } = useDashboard();
+	const { organizations, showOrganizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
 		useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
@@ -165,6 +168,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
+	const [selectedOrganizationId, setSelectedOrganizationId] = useState<
+		string | null
+	>(organizations[0]?.id ?? null);
+	const organizationId = selectedOrganizationId ?? organizations[0]?.id ?? "";
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -195,6 +202,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
 	const selectedModelRef = useRef(selectedModel);
+	const organizationIdRef = useRef(organizationId);
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
 		null,
 	);
@@ -213,6 +221,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		selectedWorkspaceIdRef.current = selectedWorkspaceId;
 		selectedModelRef.current = selectedModel;
 		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
+		organizationIdRef.current = organizationId;
 	});
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
@@ -236,6 +245,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			fileIDs,
 			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 			model: selectedModelRef.current || undefined,
+			organizationId: organizationIdRef.current,
 			mcpServerIds:
 				selectedMCPServerIdsRef.current.length > 0
 					? [...selectedMCPServerIdsRef.current]
@@ -258,7 +268,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizations[0]?.id, { persist: true });
+	} = useFileAttachments(organizationId || undefined, { persist: true });
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -314,6 +324,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					)
 				) : null}
 				{workspacesError != null && <ErrorAlert error={workspacesError} />}
+				{showOrganizations && (
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="organization">Organization</Label>
+						<OrganizationAutocomplete
+							id="organization"
+							required
+							onChange={(org) => {
+								setSelectedOrganizationId(org?.id ?? null);
+							}}
+						/>
+					</div>
+				)}
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."

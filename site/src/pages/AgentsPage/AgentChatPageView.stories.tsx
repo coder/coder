@@ -39,6 +39,7 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	id: AGENT_ID,
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Help me refactor",
 	status: "completed",

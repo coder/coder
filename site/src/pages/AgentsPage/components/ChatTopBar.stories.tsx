@@ -57,6 +57,7 @@ export const WithParentChat: Story = {
 	args: {
 		parentChat: {
 			id: "parent-chat-1",
+			organization_id: "test-org-id",
 			owner_id: "owner-id",
 			last_model_config_id: "model-config-1",
 			mcp_server_ids: [],

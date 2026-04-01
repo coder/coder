@@ -124,6 +124,7 @@ const todayTimestamp = new Date().toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
+	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",

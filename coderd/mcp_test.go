@@ -1276,7 +1276,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newMCPClient(t)
-	_ = coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -1288,6 +1288,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 
 	// Create a chat referencing the MCP server.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,

@@ -403,6 +403,39 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate organization membership.
+	if req.OrganizationID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "organization_id is required.",
+		})
+		return
+	}
+	orgMembers, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: req.OrganizationID,
+		UserID:         apiKey.UserID,
+		IncludeSystem:  false,
+		GithubUserID:   0,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not a member of the specified organization.",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate organization membership.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(orgMembers) == 0 {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not a member of the specified organization.",
+		})
+		return
+	}
+
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -479,6 +512,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
@@ -2822,6 +2856,12 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	selection.WorkspaceID = uuid.NullUUID{
 		UUID:  workspace.ID,
 		Valid: true,
+	}
+
+	if workspace.OrganizationID != req.OrganizationID {
+		return selection, http.StatusBadRequest, &codersdk.Response{
+			Message: "Workspace does not belong to the specified organization.",
+		}
 	}
 
 	if !api.Authorize(r, policy.ActionSSH, workspace) {
