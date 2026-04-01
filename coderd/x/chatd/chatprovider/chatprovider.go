@@ -2,6 +2,7 @@ package chatprovider
 
 import (
 	"context"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -1114,13 +1115,15 @@ func CoderHeadersFromIDs(
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
 // API request. extraHeaders, when non-nil, are sent as additional
-// HTTP headers on every request.
+// HTTP headers on every request. httpClient, when non-nil, is used for
+// all provider HTTP requests.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
 	providerKeys ProviderAPIKeys,
 	userAgent string,
 	extraHeaders map[string]string,
+	httpClient *http.Client,
 ) (fantasy.LanguageModel, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
@@ -1146,6 +1149,9 @@ func ModelFromConfig(
 		if baseURL != "" {
 			options = append(options, fantasyanthropic.WithBaseURL(baseURL))
 		}
+		if httpClient != nil {
+			options = append(options, fantasyanthropic.WithHTTPClient(httpClient))
+		}
 		providerClient, err = fantasyanthropic.New(options...)
 	case fantasyazure.Name:
 		if baseURL == "" {
@@ -1160,6 +1166,9 @@ func ModelFromConfig(
 		if len(extraHeaders) > 0 {
 			azureOpts = append(azureOpts, fantasyazure.WithHeaders(extraHeaders))
 		}
+		if httpClient != nil {
+			azureOpts = append(azureOpts, fantasyazure.WithHTTPClient(httpClient))
+		}
 		providerClient, err = fantasyazure.New(azureOpts...)
 	case fantasybedrock.Name:
 		bedrockOpts := []fantasybedrock.Option{
@@ -1168,6 +1177,9 @@ func ModelFromConfig(
 		}
 		if len(extraHeaders) > 0 {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHeaders(extraHeaders))
+		}
+		if httpClient != nil {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasybedrock.New(bedrockOpts...)
 	case fantasygoogle.Name:
@@ -1180,6 +1192,9 @@ func ModelFromConfig(
 		}
 		if baseURL != "" {
 			options = append(options, fantasygoogle.WithBaseURL(baseURL))
+		}
+		if httpClient != nil {
+			options = append(options, fantasygoogle.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
@@ -1194,6 +1209,9 @@ func ModelFromConfig(
 		if baseURL != "" {
 			options = append(options, fantasyopenai.WithBaseURL(baseURL))
 		}
+		if httpClient != nil {
+			options = append(options, fantasyopenai.WithHTTPClient(httpClient))
+		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
 		options := []fantasyopenaicompat.Option{
@@ -1206,6 +1224,9 @@ func ModelFromConfig(
 		if baseURL != "" {
 			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
 		}
+		if httpClient != nil {
+			options = append(options, fantasyopenaicompat.WithHTTPClient(httpClient))
+		}
 		providerClient, err = fantasyopenaicompat.New(options...)
 	case fantasyopenrouter.Name:
 		routerOpts := []fantasyopenrouter.Option{
@@ -1214,6 +1235,9 @@ func ModelFromConfig(
 		}
 		if len(extraHeaders) > 0 {
 			routerOpts = append(routerOpts, fantasyopenrouter.WithHeaders(extraHeaders))
+		}
+		if httpClient != nil {
+			routerOpts = append(routerOpts, fantasyopenrouter.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyopenrouter.New(routerOpts...)
 	case fantasyvercel.Name:
@@ -1226,6 +1250,9 @@ func ModelFromConfig(
 		}
 		if baseURL != "" {
 			options = append(options, fantasyvercel.WithBaseURL(baseURL))
+		}
+		if httpClient != nil {
+			options = append(options, fantasyvercel.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyvercel.New(options...)
 	default:
