@@ -1,9 +1,8 @@
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
-import { Pill } from "#/components/Pill/Pill";
 import { Response, Shimmer } from "../ChatElements";
-import { getKindLabel, getProviderStatusURL } from "./chatStatusHelpers";
+import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
 const RESPONSE_STARTUP_GRACE_MS = 15_000;
@@ -115,12 +114,6 @@ const StatusCountdown: FC<{
 
 const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 	const statusURL = getProviderStatusURL(status.kind, status.provider);
-	const pillType =
-		status.phase === "failed"
-			? "error"
-			: status.kind === "generic"
-				? "inactive"
-				: "warning";
 	const severity =
 		status.phase === "failed"
 			? "error"
@@ -134,15 +127,7 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 	return (
 		<Alert severity={severity}>
 			<div className="space-y-2.5">
-				<div className="flex flex-wrap items-center gap-2">
-					<AlertTitle>{status.title}</AlertTitle>
-					<Pill
-						className="h-5 px-2.5 text-[10px] font-semibold"
-						type={pillType}
-					>
-						{getKindLabel(status.kind)}
-					</Pill>
-				</div>
+				<AlertTitle>{status.title}</AlertTitle>{" "}
 				<AlertDescription>
 					{status.message}{" "}
 					{statusURL && (
