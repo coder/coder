@@ -6,6 +6,9 @@ import { Calendar } from "./Calendar";
 const meta: Meta<typeof Calendar> = {
 	title: "components/Calendar",
 	component: Calendar,
+	args: {
+		today: new Date("2025-03-15"),
+	},
 	decorators: [
 		(Story) => (
 			<div className="rounded-lg border border-solid border-border-default w-fit">
@@ -21,6 +24,7 @@ type Story = StoryObj<typeof Calendar>;
 export const Single: Story = {
 	args: {
 		mode: "single",
+		defaultMonth: new Date("2025-03-15"),
 		selected: new Date("2025-03-15"),
 	},
 };
@@ -34,6 +38,8 @@ export const Range: Story = {
 		return (
 			<Calendar
 				mode="range"
+				today={new Date("2025-03-15")}
+				defaultMonth={new Date("2025-03-10")}
 				selected={range}
 				onSelect={(r) => r && setRange(r)}
 				numberOfMonths={2}
@@ -45,6 +51,7 @@ export const Range: Story = {
 export const TwoMonths: Story = {
 	args: {
 		mode: "single",
+		defaultMonth: new Date("2025-03-15"),
 		numberOfMonths: 2,
 		selected: new Date("2025-03-15"),
 	},
@@ -53,6 +60,7 @@ export const TwoMonths: Story = {
 export const DisabledFutureDates: Story = {
 	args: {
 		mode: "single",
+		defaultMonth: new Date("2025-03-15"),
 		selected: new Date("2025-03-15"),
 		disabled: { after: new Date("2025-03-20") },
 	},
