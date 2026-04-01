@@ -607,7 +607,8 @@ const ChatMessageItem = memo<{
 													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
 											}}
 										/>
-										)}								</div>
+									)}{" "}
+								</div>
 							</MessageContent>
 						</Message>
 					) : (
