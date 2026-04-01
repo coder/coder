@@ -249,7 +249,7 @@ export const AgentSettingsBehaviorPageView: FC<
 		<>
 			<SectionHeader
 				label="Behavior"
-				description="Custom instructions that shape how the agent responds in your chats."
+				description="Custom instructions that shape how the agent responds in your conversations."
 			/>
 			{/* ── Personal prompt (always visible) ── */}
 			<form
@@ -260,7 +260,7 @@ export const AgentSettingsBehaviorPageView: FC<
 					Personal Instructions
 				</h3>
 				<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-					Applied to all your chats. Only visible to you.
+					Applied to all your conversations. Only visible to you.
 				</p>
 				<TextareaAutosize
 					className={cn(
@@ -462,8 +462,8 @@ export const AgentSettingsBehaviorPageView: FC<
 							<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
 								Set a default autostop for agent-created workspaces that don't
 								have one defined in their template. Template-defined autostop
-								rules always take precedence. Active chats will extend the stop
-								time.
+								rules always take precedence. Active conversations will extend
+								the stop time.
 							</p>
 							<Switch
 								checked={isAutostopEnabled}

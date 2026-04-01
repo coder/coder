@@ -298,7 +298,10 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 
 					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table className="text-sm" aria-label="Cost breakdown by chat">
+						<Table
+							className="text-sm"
+							aria-label="Cost breakdown by conversation"
+						>
 							<TableHeader>
 								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
 									<TableHead className="px-4 py-3">Chat</TableHead>

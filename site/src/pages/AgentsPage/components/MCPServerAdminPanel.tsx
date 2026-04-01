@@ -64,7 +64,7 @@ const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
 		label: "Force On",
-		description: "Always injected into every chat session.",
+		description: "Always injected into every conversation.",
 	},
 	{
 		value: "default_on",
@@ -158,7 +158,7 @@ const ServerList: FC<ServerListProps> = ({
 			label={sectionLabel ?? "MCP Servers"}
 			description={
 				sectionDescription ??
-				"Configure external MCP servers that provide additional tools for AI chat sessions."
+				"Configure external MCP servers that provide additional tools for Coder Agents."
 			}
 			badge={sectionBadge}
 			action={
@@ -744,7 +744,7 @@ const ServerForm: FC<ServerFormProps> = ({
 					<Field
 						label="Availability"
 						htmlFor={`${formId}-availability`}
-						description="Controls how this server appears in new chats."
+						description="Controls how this server appears in new conversations."
 					>
 						<Select
 							value={form.values.availability}

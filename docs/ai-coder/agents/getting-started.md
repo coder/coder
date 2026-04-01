@@ -1,7 +1,7 @@
 # Getting Started
 
 This guide walks platform teams and administrators through enabling Coder
-Agents, preparing your deployment, and running your first chat.
+Agents, preparing your deployment, and running your first conversation.
 
 > [!NOTE]
 > Coder Agents is in [Early Access](./early-access.md). Deploy to a
@@ -24,7 +24,7 @@ Before you begin, confirm the following:
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for enabling the experiment and
   configuring providers.
-- **Coder Agents User role** assigned to each user who needs to create or use chats.
+- **Coder Agents User role** assigned to each user who needs to create or use conversations.
   Owners can assign this from **Admin** > **Users**. See
   [Grant Coder Agents User](#step-3-grant-coder-agents-user) below.
 
@@ -74,7 +74,7 @@ Detailed instructions for each provider and model option are in the
 
 ## Step 3: Grant Coder Agents User
 
-The **Coder Agents User** role controls which users can create and use chats.
+The **Coder Agents User** role controls which users can create and use conversations.
 Members do not have Coder Agents User by default.
 
 1. Go to **Admin** > **Users** in the Coder dashboard.
@@ -85,7 +85,7 @@ Repeat for each user who needs access. Owners always have full access
 and do not need the role.
 
 > [!NOTE]
-> Users who created chats before this role was introduced are
+> Users who created conversations before this role was introduced are
 > automatically granted the role during upgrade.
 
 ## Step 4: Start your first chat
@@ -144,7 +144,7 @@ set of expectations and limitations.
 
 ### Set a deployment-wide system prompt
 
-Administrators can set a system prompt that applies to all chats across the
+Administrators can set a system prompt that applies to all conversations across the
 deployment. Use this to encode organizational conventions:
 
 - Coding standards and style guidelines.
@@ -207,8 +207,8 @@ multiplier, not a replacement for developer judgment.
 The [Chats API](./chats-api.md) enables programmatic access to Coder Agents.
 This is useful for building automations such as:
 
-- Triggering chats from CI/CD pipelines when builds fail.
-- Creating chats from GitHub webhooks on new issues or PRs.
+- Triggering conversations from CI/CD pipelines when builds fail.
+- Creating conversations from GitHub webhooks on new issues or PRs.
 - Building internal tools or dashboards on top of the API.
 - Scripting batch operations across repositories.
 
