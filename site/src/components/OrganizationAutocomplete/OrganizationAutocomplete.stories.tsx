@@ -160,6 +160,11 @@ export const PreselectedOrgUserSelects: Story = {
 				expect.objectContaining({ id: MockOrganization.id }),
 			),
 		);
+		// Button should still show the prop-controlled value since
+		// the parent hasn't updated organizationId.
+		await waitFor(() =>
+			expect(button).toHaveTextContent(MockOrganization2.display_name),
+		);
 	},
 };
 

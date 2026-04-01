@@ -31,6 +31,12 @@ type OrganizationAutocompleteProps = {
 	 * displayed selection is derived from this prop. The parent
 	 * is responsible for updating this prop in response to user
 	 * selections via onChange.
+	 *
+	 * When combined with `check`, the ID must reference an org
+	 * the user is authorized for — if the org fails the check,
+	 * the button silently shows placeholder text without firing
+	 * onChange(null). The follow-up full-object refactor will
+	 * address this.
 	 */
 	organizationId?: string;
 };
