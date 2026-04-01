@@ -919,8 +919,6 @@ export const ScrollNotJumpedDuringWheel: Story = {
 		scrollContainer.scrollTop = targetScrollTop;
 		scrollContainer.dispatchEvent(new Event("scroll"));
 
-		// Record the scroll position before new content arrives.
-		const scrollTopBeforeAppend = scrollContainer.scrollTop;
 		const scrollHeightBeforeAppend = scrollContainer.scrollHeight;
 
 		// Simulate new assistant content arriving while the wheel guard is
@@ -937,25 +935,19 @@ export const ScrollNotJumpedDuringWheel: Story = {
 			);
 		});
 
-		// During active wheel scrolling, the deferred pin should stay
-		// suppressed until the debounce expires.
-		expect(scrollContainer.scrollTop).toBeLessThanOrEqual(
-			scrollTopBeforeAppend + 1,
-		);
-
-		// Wait for the wheel debounce to clear (150ms) plus a
-		// buffer, then verify the missed bottom pin is applied.
-		await new Promise<void>((resolve) => setTimeout(resolve, 200));
-
+		// After wheeling up, the user has expressed intent to
+		// disengage auto-follow. Content growth should NOT yank
+		// them back to the bottom — they keep their position.
 		await waitFor(() => {
 			const dist =
 				scrollContainer.scrollHeight -
 				scrollContainer.scrollTop -
 				scrollContainer.clientHeight;
-			expect(dist).toBeLessThan(5);
-			expect(
-				canvas.queryByRole("button", { name: "Scroll to bottom" }),
-			).toBeNull();
+			// The user should NOT have been yanked to the absolute
+			// bottom. They may still be within the "near bottom"
+			// visual threshold, but scrollTop must not have been
+			// forced to maxScrollTop.
+			expect(dist).toBeGreaterThan(5);
 		});
 	},
 };
@@ -993,14 +985,14 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 			requestAnimationFrame(() => resolve()),
 		);
 
-		// Start a wheel burst to activate the wheel guard.
+		// Simulate a wheel event (no debounce guard in the new code).
 		scrollContainer.dispatchEvent(
 			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
 		);
 
-		// Append content while the wheel guard is active. This
-		// defers the ResizeObserver pin (pendingWheelPinRef = true)
-		// and creates the gap that previously triggered the bug.
+		// Append content while a wheel event is active. The new
+		// implementation pins immediately via ResizeObserver rather
+		// than deferring through a wheel guard.
 		const existing = getStoreMessages(wheelDeferredStore);
 		wheelDeferredStore.replaceMessages(
 			existing.concat([
@@ -1009,15 +1001,15 @@ export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
 			]),
 		);
 
-		// Fire a second wheel tick. In the old code, this wheel
-		// event called handleUserInterrupt() which saw the gap
-		// and falsely disabled auto-follow.
+		// Fire a second wheel tick. The new code processes this
+		// as a downward wheel event and does not disengage
+		// follow mode.
 		scrollContainer.dispatchEvent(
 			new WheelEvent("wheel", { bubbles: true, deltaY: 3 }),
 		);
 
-		// Wait for the 150ms wheel debounce to expire, plus the
-		// catch-up scrollTranscriptToBottom to settle.
+		// The new code pins synchronously via ResizeObserver.
+		// Verify the scroll position settled at the bottom.
 		await waitFor(
 			() => {
 				const dist =
