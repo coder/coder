@@ -41,9 +41,23 @@ export interface AIBridgeBedrockConfig {
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly openai: AIBridgeOpenAIConfig;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
+	/**
+	 * Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 */
 	readonly bedrock: AIBridgeBedrockConfig;
+	/**
+	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
+	 */
+	readonly providers?: readonly AIBridgeProviderConfig[];
 	/**
 	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -106,6 +120,31 @@ export interface AIBridgeModelThought {
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * AIBridgeProviderConfig represents a single AI Bridge provider instance,
+ * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * This follows the same indexed pattern as ExternalAuthConfig.
+ */
+export interface AIBridgeProviderConfig {
+	/**
+	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 */
+	readonly type: string;
+	/**
+	 * Name is the unique instance identifier used for routing.
+	 * Defaults to Type if not provided.
+	 */
+	readonly name: string;
+	/**
+	 * BaseURL is the base URL of the upstream provider API.
+	 */
+	readonly base_url: string;
+	readonly bedrock_region?: string;
+	readonly bedrock_model?: string;
+	readonly bedrock_small_fast_model?: string;
 }
 
 // From codersdk/deployment.go
