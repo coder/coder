@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,6 +15,16 @@ import (
 	agentsdk "github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// platformAbsPath constructs an absolute path that is valid
+// on the current platform. On Windows, paths must include a
+// drive letter to be considered absolute.
+func platformAbsPath(parts ...string) string {
+	if runtime.GOOS == "windows" {
+		return `C:\` + filepath.Join(parts...)
+	}
+	return "/" + filepath.Join(parts...)
+}
 
 // TestReportConnectionEmpty tests that reportConnection() doesn't choke if given an empty IP string, which is what we
 // send if we cannot get the remote address.
@@ -51,8 +63,11 @@ func TestContextConfigAPI_InitOnce(t *testing.T) {
 	// After the fix, contextConfigAPI is set once in init() and
 	// never reassigned. Config() evaluates lazily via the
 	// manifest, so there is no concurrent write to race with.
+	dir1 := platformAbsPath("dir1")
+	dir2 := platformAbsPath("dir2")
+
 	a := &agent{}
-	a.manifest.Store(&agentsdk.Manifest{Directory: "/dir1"})
+	a.manifest.Store(&agentsdk.Manifest{Directory: dir1})
 	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
@@ -62,12 +77,12 @@ func TestContextConfigAPI_InitOnce(t *testing.T) {
 
 	cfg1 := a.contextConfigAPI.Config()
 	require.NotEmpty(t, cfg1.MCPConfigFiles)
-	require.Contains(t, cfg1.MCPConfigFiles[0], "/dir1")
+	require.Contains(t, cfg1.MCPConfigFiles[0], dir1)
 
 	// Simulate manifest update on reconnection — no field
 	// reassignment needed, the lazy closure picks it up.
-	a.manifest.Store(&agentsdk.Manifest{Directory: "/dir2"})
+	a.manifest.Store(&agentsdk.Manifest{Directory: dir2})
 	cfg2 := a.contextConfigAPI.Config()
 	require.NotEmpty(t, cfg2.MCPConfigFiles)
-	require.Contains(t, cfg2.MCPConfigFiles[0], "/dir2")
+	require.Contains(t, cfg2.MCPConfigFiles[0], dir2)
 }
