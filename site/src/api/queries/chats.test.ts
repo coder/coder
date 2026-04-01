@@ -788,7 +788,7 @@ describe("mutation invalidation scope", () => {
 	const makeMsg = (chatId: string, id: number): TypesGen.ChatMessage => ({
 		id,
 		chat_id: chatId,
-		created_at: `2025-01-01T00:00:0${id}Z`,
+		created_at: `2025-01-01T00:00:${String(id).padStart(2, "0")}Z`,
 		role: "user" as const,
 		content: [{ type: "text" as const, text: `msg ${id}` }],
 	});
@@ -861,6 +861,31 @@ describe("mutation invalidation scope", () => {
 
 		expect(context.previousData).toBeUndefined();
 		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeUndefined();
+	});
+
+	it("editChatMessage onError handles undefined context gracefully", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
+
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+
+		// Pass undefined context — simulates onMutate throwing before
+		// it could return a snapshot.
+		mutation.onError(
+			new Error("fail"),
+			{ messageId: 2, req: editReq },
+			undefined,
+		);
+
+		// Cache should be untouched — no crash, no corruption.
+		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
+		expect(data?.pages[0]?.messages.map((m) => m.id)).toEqual([3, 2, 1]);
 	});
 
 	it("editChatMessage onMutate filters across multiple pages", async () => {
