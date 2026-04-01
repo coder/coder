@@ -17,9 +17,8 @@ import { openMaybePortForwardedURL } from "#/utils/portForward";
 
 interface TerminalPanelProps {
 	/** Used as the reconnection token so the PTY session survives
-	 * navigation and page reloads. When omitted a random token is
-	 * generated per mount (no reconnection). */
-	chatId?: string;
+	 * navigation and page reloads. */
+	chatId: string;
 	isVisible?: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -35,9 +34,8 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
 	// Use the chat ID as a stable reconnection token so the PTY
-	// session persists across navigations and reloads. Fall back
-	// to a random UUID when no chat ID is provided.
-	const [reconnectionToken] = useState(() => chatId ?? crypto.randomUUID());
+	// session persists across navigations and reloads.
+	const [reconnectionToken] = useState(() => chatId);
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const config = useQuery(deploymentConfig());
