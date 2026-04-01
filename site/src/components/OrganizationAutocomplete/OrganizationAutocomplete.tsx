@@ -99,7 +99,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			return;
 		}
 		const org = options[0];
-		if (options.length !== 1 || org === selected) {
+		if (options.length !== 1 || org.id === selected?.id) {
 			return;
 		}
 
