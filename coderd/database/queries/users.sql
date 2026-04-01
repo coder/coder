@@ -213,6 +213,33 @@ RETURNING *;
 -- name: DeleteUserChatCompactionThreshold :exec
 DELETE FROM user_configs WHERE user_id = @user_id AND key = @key;
 
+-- name: GetUserChatDebugLoggingEnabled :one
+SELECT
+	COALESCE((
+		SELECT value = 'true'
+		FROM user_configs
+		WHERE user_id = @user_id
+			AND key = 'chat_debug_logging_enabled'
+	), false) :: boolean AS debug_logging_enabled;
+
+-- name: UpsertUserChatDebugLoggingEnabled :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (
+	@user_id,
+	'chat_debug_logging_enabled',
+	CASE
+		WHEN sqlc.arg(debug_logging_enabled)::bool THEN 'true'
+		ELSE 'false'
+	END
+)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = CASE
+	WHEN sqlc.arg(debug_logging_enabled)::bool THEN 'true'
+	ELSE 'false'
+END
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_debug_logging_enabled';
+
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
 	value::boolean as task_notification_alert_dismissed

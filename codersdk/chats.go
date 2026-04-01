@@ -68,6 +68,9 @@ type Chat struct {
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
 	HasUnread bool `json:"has_unread"`
+	// DebugLogsEnabledOverride overrides debug logging for this
+	// chat when set.
+	DebugLogsEnabledOverride *bool `json:"debug_logs_enabled_override,omitempty"`
 	// LastInjectedContext holds the most recently persisted
 	// injected context parts (AGENTS.md files and skills). It
 	// is updated only when context changes — first workspace
@@ -357,8 +360,9 @@ type UpdateChatRequest struct {
 	// - >0 (chat is already pinned): move the chat to the
 	//   requested position, shifting neighbors as needed. The
 	//   value is clamped to [1, pinned_count].
-	PinOrder *int32             `json:"pin_order,omitempty"`
-	Labels   *map[string]string `json:"labels,omitempty"`
+	PinOrder                 *int32             `json:"pin_order,omitempty"`
+	Labels                   *map[string]string `json:"labels,omitempty"`
+	DebugLogsEnabledOverride *bool              `json:"debug_logs_enabled_override,omitempty"`
 }
 
 // CreateChatMessageRequest is the request to add a message to a chat.
@@ -469,6 +473,92 @@ type ChatDesktopEnabledResponse struct {
 // UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// ChatDebugSettings is the response for getting the debug logging setting.
+type ChatDebugSettings struct {
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
+}
+
+// UpdateChatDebugLoggingRequest is the request to update the debug logging setting.
+type UpdateChatDebugLoggingRequest struct {
+	DebugLoggingEnabled bool `json:"debug_logging_enabled"`
+}
+
+// ChatDebugRunSummary is a lightweight run entry for list endpoints.
+type ChatDebugRunSummary struct {
+	ID         uuid.UUID       `json:"id" format:"uuid"`
+	ChatID     uuid.UUID       `json:"chat_id" format:"uuid"`
+	Kind       string          `json:"kind"`
+	Status     string          `json:"status"`
+	Provider   *string         `json:"provider,omitempty"`
+	Model      *string         `json:"model,omitempty"`
+	Summary    json.RawMessage `json:"summary"`
+	StartedAt  time.Time       `json:"started_at" format:"date-time"`
+	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
+	FinishedAt *time.Time      `json:"finished_at,omitempty" format:"date-time"`
+}
+
+// ChatDebugRun is the detailed run response including steps.
+type ChatDebugRun struct {
+	ID                  uuid.UUID       `json:"id" format:"uuid"`
+	ChatID              uuid.UUID       `json:"chat_id" format:"uuid"`
+	RootChatID          *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
+	ModelConfigID       *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	TriggerMessageID    *int64          `json:"trigger_message_id,omitempty"`
+	HistoryTipMessageID *int64          `json:"history_tip_message_id,omitempty"`
+	Kind                string          `json:"kind"`
+	Status              string          `json:"status"`
+	Provider            *string         `json:"provider,omitempty"`
+	Model               *string         `json:"model,omitempty"`
+	Summary             json.RawMessage `json:"summary"`
+	StartedAt           time.Time       `json:"started_at" format:"date-time"`
+	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
+	FinishedAt          *time.Time      `json:"finished_at,omitempty" format:"date-time"`
+	Steps               []ChatDebugStep `json:"steps"`
+}
+
+// ChatDebugStep is a single step within a debug run.
+type ChatDebugStep struct {
+	ID                  uuid.UUID        `json:"id" format:"uuid"`
+	RunID               uuid.UUID        `json:"run_id" format:"uuid"`
+	ChatID              uuid.UUID        `json:"chat_id" format:"uuid"`
+	StepNumber          int32            `json:"step_number"`
+	Operation           string           `json:"operation"`
+	Status              string           `json:"status"`
+	HistoryTipMessageID *int64           `json:"history_tip_message_id,omitempty"`
+	AssistantMessageID  *int64           `json:"assistant_message_id,omitempty"`
+	NormalizedRequest   json.RawMessage  `json:"normalized_request"`
+	NormalizedResponse  *json.RawMessage `json:"normalized_response,omitempty"`
+	Usage               *json.RawMessage `json:"usage,omitempty"`
+	Attempts            json.RawMessage  `json:"attempts"`
+	Error               *json.RawMessage `json:"error,omitempty"`
+	Metadata            json.RawMessage  `json:"metadata"`
+	StartedAt           time.Time        `json:"started_at" format:"date-time"`
+	UpdatedAt           time.Time        `json:"updated_at" format:"date-time"`
+	FinishedAt          *time.Time       `json:"finished_at,omitempty" format:"date-time"`
+}
+
+// ChatDebugAttempt is a single LLM attempt within a step.
+// Kept opaque for now — the attempts field on ChatDebugStep
+// is json.RawMessage.
+type ChatDebugAttempt struct {
+	AttemptNumber int32            `json:"attempt_number"`
+	Status        string           `json:"status"`
+	RawRequest    *json.RawMessage `json:"raw_request,omitempty"`
+	RawResponse   *json.RawMessage `json:"raw_response,omitempty"`
+	Error         *json.RawMessage `json:"error,omitempty"`
+	DurationMs    *int64           `json:"duration_ms,omitempty"`
+	StartedAt     time.Time        `json:"started_at" format:"date-time"`
+	FinishedAt    *time.Time       `json:"finished_at,omitempty" format:"date-time"`
+}
+
+// ChatDebugEvent is a forward-compatible SSE event type for future
+// live debug streaming. No transport is wired in this phase.
+type ChatDebugEvent struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
 }
 
 // DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
@@ -1516,6 +1606,60 @@ func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req U
 	return nil
 }
 
+// GetChatDebugLoggingEnabled returns the deployment-wide debug logging setting.
+func (c *ExperimentalClient) GetChatDebugLoggingEnabled(ctx context.Context) (ChatDebugSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-logging", nil)
+	if err != nil {
+		return ChatDebugSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugSettings{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDebugLoggingEnabled updates the deployment-wide debug logging setting.
+func (c *ExperimentalClient) UpdateChatDebugLoggingEnabled(ctx context.Context, req UpdateChatDebugLoggingRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatDebugLoggingEnabled returns the user debug logging setting.
+func (c *ExperimentalClient) GetUserChatDebugLoggingEnabled(ctx context.Context) (ChatDebugSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-debug-logging", nil)
+	if err != nil {
+		return ChatDebugSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugSettings{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatDebugLoggingEnabled updates the user debug logging setting.
+func (c *ExperimentalClient) UpdateUserChatDebugLoggingEnabled(ctx context.Context, req UpdateChatDebugLoggingRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-debug-logging", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetChatWorkspaceTTL returns the configured chat workspace TTL.
 func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/workspace-ttl", nil)
@@ -1776,6 +1920,34 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 		streamCancel()
 		return nil
 	}), nil
+}
+
+// GetChatDebugRuns returns the debug runs for a chat.
+func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.UUID) ([]ChatDebugRunSummary, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatDebugRunSummary
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatDebugRun returns a debug run for a chat.
+func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UUID, runID uuid.UUID) (ChatDebugRun, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs/%s", chatID, runID), nil)
+	if err != nil {
+		return ChatDebugRun{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugRun{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugRun
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // GetChat returns a chat by ID.

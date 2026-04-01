@@ -525,6 +525,17 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateChatDebugLogsEnabledOverride :one
+UPDATE
+    chats
+SET
+    debug_logs_enabled_override = @debug_logs_enabled_override,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: UpdateChatWorkspaceBinding :one
 UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,

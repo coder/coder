@@ -1516,6 +1516,30 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	return &value
 }
 
+func nullStringPtr(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	value := v.String
+	return &value
+}
+
+func nullTimePtr(v sql.NullTime) *time.Time {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Time
+	return &value
+}
+
+func nullRawMessagePtr(v pqtype.NullRawMessage) *json.RawMessage {
+	if !v.Valid {
+		return nil
+	}
+	value := v.RawMessage
+	return &value
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1559,6 +1583,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		rootChatID := c.ID
 		chat.RootChatID = &rootChatID
 	}
+	if c.DebugLogsEnabledOverride.Valid {
+		val := c.DebugLogsEnabledOverride.Bool
+		chat.DebugLogsEnabledOverride = &val
+	}
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
@@ -1584,6 +1612,47 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 		}
 	}
 	return chat
+}
+
+// ChatDebugRunSummary converts a database.ChatDebugRun to a
+// codersdk.ChatDebugRunSummary.
+func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {
+	return codersdk.ChatDebugRunSummary{
+		ID:         r.ID,
+		ChatID:     r.ChatID,
+		Kind:       r.Kind,
+		Status:     r.Status,
+		Provider:   nullStringPtr(r.Provider),
+		Model:      nullStringPtr(r.Model),
+		Summary:    r.Summary,
+		StartedAt:  r.StartedAt,
+		UpdatedAt:  r.UpdatedAt,
+		FinishedAt: nullTimePtr(r.FinishedAt),
+	}
+}
+
+// ChatDebugStep converts a database.ChatDebugStep to a
+// codersdk.ChatDebugStep.
+func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
+	return codersdk.ChatDebugStep{
+		ID:                  s.ID,
+		RunID:               s.RunID,
+		ChatID:              s.ChatID,
+		StepNumber:          s.StepNumber,
+		Operation:           s.Operation,
+		Status:              s.Status,
+		HistoryTipMessageID: nullInt64Ptr(s.HistoryTipMessageID),
+		AssistantMessageID:  nullInt64Ptr(s.AssistantMessageID),
+		NormalizedRequest:   s.NormalizedRequest,
+		NormalizedResponse:  nullRawMessagePtr(s.NormalizedResponse),
+		Usage:               nullRawMessagePtr(s.Usage),
+		Attempts:            s.Attempts,
+		Error:               nullRawMessagePtr(s.Error),
+		Metadata:            s.Metadata,
+		StartedAt:           s.StartedAt,
+		UpdatedAt:           s.UpdatedAt,
+		FinishedAt:          nullTimePtr(s.FinishedAt),
+	}
 }
 
 // ChatRows converts a slice of database.GetChatsRow (which embeds
