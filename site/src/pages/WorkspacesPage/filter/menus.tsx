@@ -103,6 +103,7 @@ export const useStatusFilterMenu = ({
 }: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	const statusesToFilter: WorkspaceStatus[] = [
 		"running",
+		"starting",
 		"stopped",
 		"failed",
 		"pending",
