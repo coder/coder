@@ -29,9 +29,6 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 
 	return (
 		<div
-			// css={(theme) => ({
-			// 	borderLeft: `1px solid ${theme.palette.divider}`,
-			// })}
 			{...htmlProps}
 			className={cn(
 				"flex flex-col flex-1 min-h-full relative h-fit",
