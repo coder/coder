@@ -627,7 +627,10 @@ const ChatMessageItem = memo<{
 										mcpServers={mcpServers}
 										afterResponseSlot={
 											hasCopyableContent && isLastAssistantMessage ? (
-												<div data-testid="assistant-copy-button">
+												<div
+													className="flex"
+													data-testid="assistant-copy-button"
+												>
 													<CopyButton
 														text={parsed.markdown}
 														label="Copy message"
@@ -646,42 +649,40 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
-				{isUser && (hasCopyableContent || onEditUserMessage) && (
-					<div
-						className="absolute right-0 top-full z-10 flex items-center gap-1 py-0.5 pl-6 pr-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
-						style={{
-							background:
-								"linear-gradient(to right, transparent, hsl(var(--surface-primary)) 40%)",
-						}}
-					>
-						{(hasCopyableContent || onEditUserMessage) && !isSavingMessage && (
-							<>
-								{hasCopyableContent && (
-									<CopyButton text={parsed.markdown} label="Copy message" />
-								)}
-								{onEditUserMessage && (
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<button
-												type="button"
-												className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-												aria-label="Edit message"
-												onClick={() => {
-													const { text, fileBlocks } =
-														getEditableUserMessagePayload(message);
-													onEditUserMessage(message.id, text, fileBlocks);
-												}}
-											>
-												<PencilIcon className="size-3.5" />
-											</button>
-										</TooltipTrigger>
-										<TooltipContent side="top">Edit message</TooltipContent>
-									</Tooltip>
-								)}
-							</>
-						)}
-					</div>
-				)}
+				{isUser &&
+					!isSavingMessage &&
+					(hasCopyableContent || onEditUserMessage) && (
+						<div
+							className="absolute right-0 top-full z-10 flex items-center gap-1 py-0.5 pl-6 pr-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							style={{
+								background:
+									"linear-gradient(to right, transparent, hsl(var(--surface-primary)) 40%)",
+							}}
+						>
+							{hasCopyableContent && (
+								<CopyButton text={parsed.markdown} label="Copy message" />
+							)}
+							{onEditUserMessage && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+											aria-label="Edit message"
+											onClick={() => {
+												const { text, fileBlocks } =
+													getEditableUserMessagePayload(message);
+												onEditUserMessage(message.id, text, fileBlocks);
+											}}
+										>
+											<PencilIcon className="size-3.5" />
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="top">Edit message</TooltipContent>
+								</Tooltip>
+							)}
+						</div>
+					)}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
