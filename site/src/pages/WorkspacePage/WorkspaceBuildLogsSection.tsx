@@ -41,7 +41,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 					<WorkspaceBuildLogs
 						sticky
 						logs={logs}
-						css={{ border: 0, borderRadius: 0 }}
+						className="rounded-none border-none [&_.logs-header]:px-4"
 					/>
 				) : (
 					<div className="flex items-center justify-center w-full h-full">
