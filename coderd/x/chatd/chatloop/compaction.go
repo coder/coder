@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -46,6 +48,9 @@ type CompactionOptions struct {
 	SystemSummaryPrefix string
 	Timeout             time.Duration
 	Persist             func(context.Context, CompactionResult) error
+	DebugSvc            *chatdebug.Service
+	ChatID              uuid.UUID
+	HistoryTipMessageID int64
 
 	// ToolCallID and ToolName identify the synthetic tool call
 	// used to represent compaction in the message stream.
@@ -269,6 +274,78 @@ func shouldCompact(contextTokens, contextLimit int64, thresholdPercent int32) (f
 	return usagePercent, usagePercent >= float64(thresholdPercent)
 }
 
+func startCompactionDebugRun(
+	ctx context.Context,
+	options CompactionOptions,
+) (context.Context, func(error)) {
+	if options.DebugSvc == nil || options.ChatID == uuid.Nil {
+		return ctx, func(error) {}
+	}
+
+	parentRun, ok := chatdebug.RunFromContext(ctx)
+	if !ok {
+		return ctx, func(error) {}
+	}
+
+	historyTipMessageID := options.HistoryTipMessageID
+	if historyTipMessageID == 0 {
+		historyTipMessageID = parentRun.HistoryTipMessageID
+	}
+
+	run, err := options.DebugSvc.CreateRun(ctx, chatdebug.CreateRunParams{
+		ChatID:              options.ChatID,
+		RootChatID:          parentRun.RootChatID,
+		ParentChatID:        parentRun.ParentChatID,
+		ModelConfigID:       parentRun.ModelConfigID,
+		TriggerMessageID:    parentRun.TriggerMessageID,
+		HistoryTipMessageID: historyTipMessageID,
+		Kind:                chatdebug.KindCompaction,
+		Status:              chatdebug.StatusInProgress,
+		Provider:            parentRun.Provider,
+		Model:               parentRun.Model,
+	})
+	if err != nil {
+		if options.OnError != nil {
+			options.OnError(xerrors.Errorf("create compaction debug run: %w", err))
+		}
+		return ctx, func(error) {}
+	}
+
+	compactionCtx := chatdebug.ContextWithRun(ctx, &chatdebug.RunContext{
+		RunID:               run.ID,
+		ChatID:              options.ChatID,
+		RootChatID:          parentRun.RootChatID,
+		ParentChatID:        parentRun.ParentChatID,
+		ModelConfigID:       parentRun.ModelConfigID,
+		TriggerMessageID:    parentRun.TriggerMessageID,
+		HistoryTipMessageID: historyTipMessageID,
+		Kind:                chatdebug.KindCompaction,
+		Provider:            parentRun.Provider,
+		Model:               parentRun.Model,
+	})
+
+	return compactionCtx, func(runErr error) {
+		status := chatdebug.StatusCompleted
+		if runErr != nil {
+			status = chatdebug.StatusError
+		}
+		if _, updateErr := options.DebugSvc.UpdateRun(
+			context.WithoutCancel(compactionCtx),
+			chatdebug.UpdateRunParams{
+				ID:         run.ID,
+				ChatID:     options.ChatID,
+				Status:     status,
+				FinishedAt: time.Now(),
+			},
+		); updateErr != nil && options.OnError != nil {
+			options.OnError(xerrors.Errorf(
+				"finalize compaction debug run: %w",
+				updateErr,
+			))
+		}
+	}
+}
+
 // generateCompactionSummary asks the model to summarize the
 // conversation so far. The provided messages should contain the
 // complete history (system prompt, user/assistant turns, tool
@@ -279,7 +356,7 @@ func generateCompactionSummary(
 	model fantasy.LanguageModel,
 	messages []fantasy.Message,
 	options CompactionOptions,
-) (string, error) {
+) (summary string, err error) {
 	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
 	summaryPrompt = append(summaryPrompt, messages...)
 	summaryPrompt = append(summaryPrompt, fantasy.Message{
@@ -292,6 +369,11 @@ func generateCompactionSummary(
 
 	summaryCtx, cancel := context.WithTimeout(ctx, options.Timeout)
 	defer cancel()
+
+	summaryCtx, finishDebugRun := startCompactionDebugRun(summaryCtx, options)
+	defer func() {
+		finishDebugRun(err)
+	}()
 
 	response, err := model.Generate(summaryCtx, fantasy.Call{
 		Prompt:     summaryPrompt,
