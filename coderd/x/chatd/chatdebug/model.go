@@ -8,6 +8,7 @@ import (
 	"iter"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
@@ -128,6 +129,7 @@ type normalizedContentPart struct {
 	ToolCallID  string `json:"tool_call_id,omitempty"`
 	ToolName    string `json:"tool_name,omitempty"`
 	Arguments   string `json:"arguments,omitempty"`
+	Result      string `json:"result,omitempty"`
 	InputLength int    `json:"input_length,omitempty"`
 	MediaType   string `json:"media_type,omitempty"`
 	SourceType  string `json:"source_type,omitempty"`
@@ -189,6 +191,13 @@ func (d *debugModel) Generate(
 	ctx context.Context,
 	call fantasy.Call,
 ) (*fantasy.Response, error) {
+	if d.svc == nil {
+		return d.inner.Generate(ctx, call)
+	}
+	if _, ok := RunFromContext(ctx); !ok {
+		return d.inner.Generate(ctx, call)
+	}
+
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationGenerate,
 		normalizeCall(call))
 	if handle == nil {
@@ -214,6 +223,13 @@ func (d *debugModel) Stream(
 	ctx context.Context,
 	call fantasy.Call,
 ) (fantasy.StreamResponse, error) {
+	if d.svc == nil {
+		return d.inner.Stream(ctx, call)
+	}
+	if _, ok := RunFromContext(ctx); !ok {
+		return d.inner.Stream(ctx, call)
+	}
+
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream,
 		normalizeCall(call))
 	if handle == nil {
@@ -233,6 +249,13 @@ func (d *debugModel) GenerateObject(
 	ctx context.Context,
 	call fantasy.ObjectCall,
 ) (*fantasy.ObjectResponse, error) {
+	if d.svc == nil {
+		return d.inner.GenerateObject(ctx, call)
+	}
+	if _, ok := RunFromContext(ctx); !ok {
+		return d.inner.GenerateObject(ctx, call)
+	}
+
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationGenerate,
 		normalizeObjectCall(call))
 	if handle == nil {
@@ -261,6 +284,13 @@ func (d *debugModel) StreamObject(
 	ctx context.Context,
 	call fantasy.ObjectCall,
 ) (fantasy.ObjectStreamResponse, error) {
+	if d.svc == nil {
+		return d.inner.StreamObject(ctx, call)
+	}
+	if _, ok := RunFromContext(ctx); !ok {
+		return d.inner.StreamObject(ctx, call)
+	}
+
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream,
 		normalizeObjectCall(call))
 	if handle == nil {
@@ -291,7 +321,18 @@ func appendStreamDebugText(buf *strings.Builder, text string) {
 		return
 	}
 	if len(text) > remaining {
-		text = text[:remaining]
+		cut := 0
+		for _, r := range text {
+			size := utf8.RuneLen(r)
+			if size < 0 {
+				size = 1
+			}
+			if cut+size > remaining {
+				break
+			}
+			cut += size
+		}
+		text = text[:cut]
 	}
 	_, _ = buf.WriteString(text)
 }
@@ -308,7 +349,12 @@ func wrapStreamSeq(
 			usageSeen    bool
 			finishReason fantasy.FinishReason
 			textBuf      strings.Builder
+			reasoningBuf strings.Builder
 			toolCalls    []normalizedContentPart
+			sources      []normalizedContentPart
+			warnings     []normalizedWarning
+			streamError  any
+			streamStatus = StatusCompleted
 			once         sync.Once
 		)
 
@@ -323,11 +369,19 @@ func wrapStreamSeq(
 						Text: text,
 					})
 				}
+				if reasoning := reasoningBuf.String(); reasoning != "" {
+					content = append(content, normalizedContentPart{
+						Type: "reasoning",
+						Text: reasoning,
+					})
+				}
 				content = append(content, toolCalls...)
+				content = append(content, sources...)
 
 				resp := normalizedResponsePayload{
 					Content:      content,
 					FinishReason: string(finishReason),
+					Warnings:     warnings,
 				}
 				if usageSeen {
 					resp.Usage = normalizeUsage(latestUsage)
@@ -337,7 +391,7 @@ func wrapStreamSeq(
 				if usageSeen {
 					usage = &latestUsage
 				}
-				handle.finish(ctx, status, resp, usage, nil, map[string]any{
+				handle.finish(ctx, status, resp, usage, streamError, map[string]any{
 					"stream_summary": summary,
 				})
 			})
@@ -347,21 +401,40 @@ func wrapStreamSeq(
 			seq(func(part fantasy.StreamPart) bool {
 				summary.PartCount++
 				summary.WarningCount += len(part.Warnings)
+				if len(part.Warnings) > 0 {
+					warnings = append(warnings, normalizeWarnings(part.Warnings)...)
+				}
 
 				switch part.Type {
 				case fantasy.StreamPartTypeTextDelta:
 					summary.TextDeltaCount++
 					appendStreamDebugText(&textBuf, part.Delta)
+				case fantasy.StreamPartTypeReasoningDelta:
+					appendStreamDebugText(&reasoningBuf, part.Delta)
 				case fantasy.StreamPartTypeToolCall:
 					summary.ToolCallCount++
 					toolCalls = append(toolCalls, normalizedContentPart{
-						Type:       "tool-call",
+						Type:        "tool-call",
+						ToolCallID:  part.ID,
+						ToolName:    part.ToolCallName,
+						Arguments:   boundText(part.ToolCallInput),
+						InputLength: len(part.ToolCallInput),
+					})
+				case fantasy.StreamPartTypeToolResult:
+					toolCalls = append(toolCalls, normalizedContentPart{
+						Type:       "tool-result",
 						ToolCallID: part.ID,
 						ToolName:   part.ToolCallName,
-						Arguments:  boundText(part.ToolCallInput),
+						Result:     boundText(part.ToolCallInput),
 					})
 				case fantasy.StreamPartTypeSource:
 					summary.SourceCount++
+					sources = append(sources, normalizedContentPart{
+						Type:       string(part.Type),
+						SourceType: string(part.SourceType),
+						Title:      part.Title,
+						URL:        part.URL,
+					})
 				case fantasy.StreamPartTypeFinish:
 					finishReason = part.FinishReason
 					latestUsage = part.Usage
@@ -370,13 +443,19 @@ func wrapStreamSeq(
 
 				if part.Type == fantasy.StreamPartTypeError || part.Error != nil {
 					summary.ErrorCount++
+					streamStatus = StatusError
 					if part.Error != nil {
 						summary.LastError = part.Error.Error()
+						streamError = normalizeError(ctx, part.Error)
 					}
 				}
 
 				if !yield(part) {
-					finalize(StatusInterrupted)
+					if streamStatus == StatusError {
+						finalize(StatusError)
+					} else {
+						finalize(StatusInterrupted)
+					}
 					return false
 				}
 
@@ -384,7 +463,10 @@ func wrapStreamSeq(
 			})
 		}
 
-		finalize(StatusCompleted)
+		if streamStatus == StatusCompleted && ctx.Err() != nil {
+			streamStatus = StatusInterrupted
+		}
+		finalize(streamStatus)
 	}
 }
 
@@ -400,6 +482,9 @@ func wrapObjectStreamSeq(
 			usageSeen    bool
 			finishReason fantasy.FinishReason
 			textBuf      strings.Builder
+			warnings     []normalizedWarning
+			streamError  any
+			streamStatus = StatusCompleted
 			once         sync.Once
 		)
 
@@ -418,6 +503,7 @@ func wrapObjectStreamSeq(
 				resp := normalizedResponsePayload{
 					Content:      content,
 					FinishReason: string(finishReason),
+					Warnings:     warnings,
 				}
 				if usageSeen {
 					resp.Usage = normalizeUsage(latestUsage)
@@ -427,7 +513,7 @@ func wrapObjectStreamSeq(
 				if usageSeen {
 					usage = &latestUsage
 				}
-				handle.finish(ctx, status, resp, usage, nil, map[string]any{
+				handle.finish(ctx, status, resp, usage, streamError, map[string]any{
 					"structured_output": true,
 					"stream_summary":    summary,
 				})
@@ -438,6 +524,9 @@ func wrapObjectStreamSeq(
 			seq(func(part fantasy.ObjectStreamPart) bool {
 				summary.PartCount++
 				summary.WarningCount += len(part.Warnings)
+				if len(part.Warnings) > 0 {
+					warnings = append(warnings, normalizeWarnings(part.Warnings)...)
+				}
 
 				switch part.Type {
 				case fantasy.ObjectStreamPartTypeObject:
@@ -453,13 +542,19 @@ func wrapObjectStreamSeq(
 
 				if part.Type == fantasy.ObjectStreamPartTypeError || part.Error != nil {
 					summary.ErrorCount++
+					streamStatus = StatusError
 					if part.Error != nil {
 						summary.LastError = part.Error.Error()
+						streamError = normalizeError(ctx, part.Error)
 					}
 				}
 
 				if !yield(part) {
-					finalize(StatusInterrupted)
+					if streamStatus == StatusError {
+						finalize(StatusError)
+					} else {
+						finalize(StatusInterrupted)
+					}
 					return false
 				}
 
@@ -467,7 +562,10 @@ func wrapObjectStreamSeq(
 			})
 		}
 
-		finalize(StatusCompleted)
+		if streamStatus == StatusCompleted && ctx.Err() != nil {
+			streamStatus = StatusInterrupted
+		}
+		finalize(streamStatus)
 	}
 }
 
@@ -489,13 +587,23 @@ func normalizeMessages(prompt fantasy.Prompt) []normalizedMessage {
 // boundText truncates s to MaxMessagePartTextLength runes, appending
 // an ellipsis if truncation occurs.
 func boundText(s string) string {
-	return TruncateLabel(s, MaxMessagePartTextLength)
+	if utf8.RuneCountInString(s) <= MaxMessagePartTextLength {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:MaxMessagePartTextLength]) + "…"
 }
 
 func mustMarshalJSON(label string, value any) json.RawMessage {
 	data, err := json.Marshal(value)
 	if err != nil {
-		panic(fmt.Sprintf("chatdebug: failed to marshal %s: %v", label, err))
+		fallback, fallbackErr := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("chatdebug: failed to marshal %s: %v", label, err),
+		})
+		if fallbackErr == nil {
+			return append(json.RawMessage(nil), fallback...)
+		}
+		return json.RawMessage(`{"error":"chatdebug: failed to marshal value"}`)
 	}
 	return append(json.RawMessage(nil), data...)
 }
@@ -505,6 +613,9 @@ func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
 	case fantasy.ToolResultOutputContentText:
 		return boundText(v.Text)
 	case *fantasy.ToolResultOutputContentText:
+		if v == nil {
+			return ""
+		}
 		return boundText(v.Text)
 	case fantasy.ToolResultOutputContentError:
 		if v.Error == nil {
@@ -512,7 +623,7 @@ func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
 		}
 		return boundText(v.Error.Error())
 	case *fantasy.ToolResultOutputContentError:
-		if v.Error == nil {
+		if v == nil || v.Error == nil {
 			return ""
 		}
 		return boundText(v.Error.Error())
@@ -525,6 +636,9 @@ func normalizeToolResultOutput(output fantasy.ToolResultOutputContent) string {
 		}
 		return fmt.Sprintf("[media output: %s]", v.MediaType)
 	case *fantasy.ToolResultOutputContentMedia:
+		if v == nil {
+			return ""
+		}
 		if v.Text != "" {
 			return boundText(v.Text)
 		}
@@ -675,9 +789,13 @@ func normalizeContentParts(content fantasy.ResponseContent) []normalizedContentP
 		case fantasy.ToolResultContent:
 			np.ToolCallID = v.ToolCallID
 			np.ToolName = v.ToolName
+			np.Result = normalizeToolResultOutput(v.Result)
 		case *fantasy.ToolResultContent:
-			np.ToolCallID = v.ToolCallID
-			np.ToolName = v.ToolName
+			if v != nil {
+				np.ToolCallID = v.ToolCallID
+				np.ToolName = v.ToolName
+				np.Result = normalizeToolResultOutput(v.Result)
+			}
 		}
 		result = append(result, np)
 	}

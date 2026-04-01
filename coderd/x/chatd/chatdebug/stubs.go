@@ -4,6 +4,8 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -35,28 +37,103 @@ func NewService(_ database.Store, _ slog.Logger, _ pubsub.Pubsub) *Service {
 
 type attemptSink struct{}
 
-func attemptSinkFromContext(_ context.Context) *attemptSink {
-	return nil
+type attemptSinkKey struct{}
+
+func withAttemptSink(ctx context.Context, sink *attemptSink) context.Context {
+	if sink == nil {
+		panic("chatdebug: nil attemptSink")
+	}
+	return context.WithValue(ctx, attemptSinkKey{}, sink)
 }
 
-type stepHandle struct{}
+func attemptSinkFromContext(ctx context.Context) *attemptSink {
+	sink, _ := ctx.Value(attemptSinkKey{}).(*attemptSink)
+	return sink
+}
+
+var stepCounters sync.Map // map[uuid.UUID]*atomic.Int32
+
+func nextStepNumber(runID uuid.UUID) int32 {
+	val, _ := stepCounters.LoadOrStore(runID, &atomic.Int32{})
+	counter, ok := val.(*atomic.Int32)
+	if !ok {
+		panic("chatdebug: invalid step counter type")
+	}
+	return counter.Add(1)
+}
+
+// CleanupStepCounter removes per-run step counter state. This is used by
+// branch-02 tests and later stacked branches that have a real run lifecycle.
+func CleanupStepCounter(runID uuid.UUID) {
+	stepCounters.Delete(runID)
+}
+
+type stepHandle struct {
+	stepCtx *StepContext
+	sink    *attemptSink
+}
 
 func beginStep(
 	ctx context.Context,
-	_ *Service,
-	_ RecorderOptions,
-	_ Operation,
+	svc *Service,
+	opts RecorderOptions,
+	op Operation,
 	_ any,
 ) (*stepHandle, context.Context) {
-	if holder, ok := reuseHolderFromContext(ctx); ok {
-		holder.mu.Lock()
-		_ = holder.handle
-		holder.mu.Unlock()
+	if svc == nil {
+		return nil, ctx
 	}
-	return nil, ctx
+
+	rc, ok := RunFromContext(ctx)
+	if !ok {
+		return nil, ctx
+	}
+
+	if holder, reuseStep := reuseHolderFromContext(ctx); reuseStep {
+		holder.mu.Lock()
+		defer holder.mu.Unlock()
+		if holder.handle != nil {
+			enriched := ContextWithStep(ctx, holder.handle.stepCtx)
+			enriched = withAttemptSink(enriched, holder.handle.sink)
+			return holder.handle, enriched
+		}
+
+		handle, enriched := newStepHandle(ctx, rc, opts, op)
+		holder.handle = handle
+		return handle, enriched
+	}
+
+	return newStepHandle(ctx, rc, opts, op)
 }
 
-func (*stepHandle) finish(
+func newStepHandle(
+	ctx context.Context,
+	rc *RunContext,
+	opts RecorderOptions,
+	op Operation,
+) (*stepHandle, context.Context) {
+	chatID := opts.ChatID
+	if chatID == uuid.Nil {
+		chatID = rc.ChatID
+	}
+
+	handle := &stepHandle{
+		stepCtx: &StepContext{
+			StepID:              uuid.New(),
+			RunID:               rc.RunID,
+			ChatID:              chatID,
+			StepNumber:          nextStepNumber(rc.RunID),
+			Operation:           op,
+			HistoryTipMessageID: rc.HistoryTipMessageID,
+		},
+		sink: &attemptSink{},
+	}
+	enriched := ContextWithStep(ctx, handle.stepCtx)
+	enriched = withAttemptSink(enriched, handle.sink)
+	return handle, enriched
+}
+
+func (h *stepHandle) finish(
 	_ context.Context,
 	_ Status,
 	_ any,
@@ -64,6 +141,9 @@ func (*stepHandle) finish(
 	_ any,
 	_ any,
 ) {
+	if h == nil || h.stepCtx == nil {
+		return
+	}
 }
 
 // whitespaceRun matches one or more consecutive whitespace characters.
