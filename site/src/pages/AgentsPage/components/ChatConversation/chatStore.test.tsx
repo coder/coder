@@ -3756,9 +3756,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		// must be null in the same snapshot.
 		await waitFor(() => {
 			expect(result.current.orderedIDs).toContain(2);
-			expect(result.current.messagesByID.get(2)?.role).toBe(
-				"assistant",
-			);
+			expect(result.current.messagesByID.get(2)?.role).toBe("assistant");
 			expect(result.current.streamState).toBeNull();
 		});
 	});
@@ -3797,17 +3795,11 @@ describe("stream-to-durable transition (Bug 1)", () => {
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
-				const streamState = useChatSelector(
-					store,
-					selectStreamState,
+				const streamState = useChatSelector(store, selectStreamState);
+				const messagesByID = useChatSelector(store, selectMessagesByID);
+				const hasDurableAssistant = Array.from(messagesByID.values()).some(
+					(m) => m.role === "assistant",
 				);
-				const messagesByID = useChatSelector(
-					store,
-					selectMessagesByID,
-				);
-				const hasDurableAssistant = Array.from(
-					messagesByID.values(),
-				).some((m) => m.role === "assistant");
 
 				snapshots.push({
 					hasStream: streamState !== null,
