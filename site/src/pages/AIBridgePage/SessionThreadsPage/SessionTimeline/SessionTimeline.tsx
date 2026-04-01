@@ -30,14 +30,17 @@ import { AgenticLoopTable } from "./AgenticLoopTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
 
-const EXPANDABLE_COLLAPSE_HEIGHT = 50;
-
 interface ExpandableTextProps {
+	maxHeight: number;
 	text: string;
 	className?: string;
 }
 
-const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
+const ExpandableText: FC<ExpandableTextProps> = ({
+	maxHeight,
+	text,
+	className,
+}) => {
 	const contentRef = useRef<HTMLParagraphElement>(null);
 	const [isExpandable, setIsExpandable] = useState(false);
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -45,8 +48,8 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
-		setIsExpandable(el.scrollHeight > EXPANDABLE_COLLAPSE_HEIGHT);
-	}, []);
+		setIsExpandable(el.scrollHeight > maxHeight);
+	}, [maxHeight]);
 
 	return (
 		<div className="relative">
@@ -55,7 +58,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 				style={
 					isExpandable && !isExpanded
 						? {
-								maxHeight: EXPANDABLE_COLLAPSE_HEIGHT,
+								maxHeight,
 							}
 						: undefined
 				}
@@ -161,6 +164,7 @@ const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 			<span className="font-mono ml-2 text-xs">Thinking...</span>
 		</div>
 		<ExpandableText
+			maxHeight={50}
 			text={text}
 			className="text-sm text-pretty font-normal m-0"
 		/>
@@ -326,9 +330,11 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 							<div className="text-sm text-content-secondary font-normal my-1">
 								Prompt
 							</div>
-							<p className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
-								{thread.prompt}
-							</p>
+							<ExpandableText
+								maxHeight={200}
+								text={thread.prompt}
+								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty"
+							/>
 						</>
 					)}
 				</div>
