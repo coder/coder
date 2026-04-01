@@ -295,14 +295,13 @@ func Test_batcherFlush(t *testing.T) {
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
 
-		retryTrap := clock.Trap().NewTimer("connectionLogBatcher", "retryBackoff")
-		defer retryTrap.Close()
-
 		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
 
 		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
 
-		// First call fails, second succeeds.
+		// First call fails, second succeeds. The retry goroutine
+		// uses cenkalti/backoff with real time, so the second
+		// attempt fires after a short real delay.
 		gomock.InOrder(
 			store.EXPECT().
 				BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
@@ -318,18 +317,7 @@ func Test_batcherFlush(t *testing.T) {
 		)
 
 		require.NoError(t, b.Upsert(ctx, evt))
-
-		// Close triggers the flush. The first attempt fails and
-		// starts a retry goroutine. Advance the clock past the
-		// retry backoff so the second attempt fires.
-		b.cancel()
-		<-b.done
-
-		// Release the retry backoff timer.
-		retryTrap.MustWait(ctx).MustRelease(ctx)
-		clock.Advance(initialRetryInterval).MustWait(ctx)
-
-		b.wg.Wait()
+		require.NoError(t, b.Close())
 	})
 
 	t.Run("CloseWaitsForInFlightRetry", func(t *testing.T) {
@@ -398,54 +386,7 @@ func Test_batcherFlush(t *testing.T) {
 		}
 	})
 
-	t.Run("ShutdownRetriesOneLastTime", func(t *testing.T) {
-		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctrl := gomock.NewController(t)
-		store := dbmock.NewMockStore(ctrl)
-		clock := quartz.NewMock(t)
-
-		retryTrap := clock.Trap().NewTimer("connectionLogBatcher", "retryBackoff")
-		defer retryTrap.Close()
-
-		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
-
-		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
-
-		// First attempt fails, retry waits for backoff, then
-		// shutdown triggers last-chance write which succeeds.
-		gomock.InOrder(
-			store.EXPECT().
-				BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
-				Return(xerrors.New("transient error")).
-				Times(1),
-			store.EXPECT().
-				BatchUpsertConnectionLogs(gomock.Any(), batchParamsMatcher{
-					expectedCount:  1,
-					mustContainIDs: []uuid.UUID{evt.ID},
-				}).
-				Return(nil).
-				Times(1),
-		)
-
-		require.NoError(t, b.Upsert(ctx, evt))
-
-		// Cancel the run loop to trigger flush.
-		b.cancel()
-		<-b.done
-
-		// The retry goroutine is waiting on the backoff timer.
-		// Wait for the timer to be created, then cancel again
-		// to trigger the shutdown path (last-chance write).
-		w := retryTrap.MustWait(ctx)
-		w.MustRelease(ctx)
-
-		// The retry goroutine's select will see ctx.Done() since
-		// we already canceled. It should do the last-chance write.
-		b.wg.Wait()
-	})
 }
 
 // batchParamsMatcher validates BatchUpsertConnectionLogsParams by

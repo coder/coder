@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sqlc-dev/pqtype"
@@ -23,9 +24,9 @@ const (
 	defaultBatchSize = 1000
 
 	// defaultFlushInterval is how frequently to flush batched connection
-	// log entries to the database. One second keeps audit logs near
-	// real-time.
-	defaultFlushInterval = time.Second
+	// log entries to the database. Five seconds balances near-real-time
+	// audit visibility with write efficiency.
+	defaultFlushInterval = 5 * time.Second
 
 	// finalFlushTimeout is the timeout for the final flush when the
 	// batcher is shutting down.
@@ -35,9 +36,9 @@ const (
 	// failed batch write before dropping it.
 	maxRetryDuration = 30 * time.Minute
 
-	// initialRetryInterval is the starting backoff interval for
-	// retrying failed batch writes.
-	initialRetryInterval = time.Second
+	// maxRetryInterval caps the exponential backoff between retry
+	// attempts.
+	maxRetryInterval = 10 * time.Second
 )
 
 // Backend is a destination for connection log events. Backends that
@@ -329,7 +330,7 @@ func (b *DBBatcher) flush(ctx context.Context) {
 	b.wg.Add(1)
 	go func() {
 		defer b.wg.Done()
-		b.writeWithRetry(params, count)
+		b.ensureUpsertLogs(params, count)
 	}()
 }
 
@@ -403,57 +404,32 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 	}
 }
 
-// writeWithRetry retries writing a batch with exponential backoff up
-// to maxRetryDuration total. Each retry goroutine owns its own copy
-// of the params so the run loop is never blocked.
-func (b *DBBatcher) writeWithRetry(params database.BatchUpsertConnectionLogsParams, count int) {
-	deadline := b.clock.Now().Add(maxRetryDuration)
-	backoff := initialRetryInterval
+// ensureUpsertLogs retries writing a batch with exponential backoff
+// up to maxRetryDuration. Uses cenkalti/backoff for retry logic,
+// matching the pattern in enterprise/tailnet/pgcoord.go.
+func (b *DBBatcher) ensureUpsertLogs(params database.BatchUpsertConnectionLogsParams, count int) {
+	eb := backoff.NewExponentialBackOff()
+	eb.MaxElapsedTime = maxRetryDuration
+	eb.MaxInterval = maxRetryInterval
 
-	for attempt := 0; b.clock.Now().Before(deadline); attempt++ {
-		// Wait before retrying (skip delay on the first attempt).
-		if attempt > 0 {
-			timer := b.clock.NewTimer(backoff, "connectionLogBatcher", "retryBackoff")
-			select {
-			case <-timer.C:
-			case <-b.ctx.Done():
-				timer.Stop()
-				// Shutting down — try one last time.
-				b.lastChanceWrite(params, count)
-				return
-			}
-			backoff *= 2
-		}
+	// Use a background context so retries continue even after the
+	// batcher context is canceled (shutdown). The backoff's
+	// MaxElapsedTime bounds the total duration.
+	bkoff := backoff.WithContext(eb, context.Background())
 
-		//nolint:gocritic // System-level batch operation for connection logs.
+	err := backoff.Retry(func() error {
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
-		err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
-		cancel()
-		if err == nil {
-			b.log.Debug(b.ctx, "connection log batch flush complete", slog.F("count", count))
-			return
-		}
-
-		b.log.Warn(b.ctx, "batch upsert failed, will retry",
-			slog.Error(err), slog.F("count", count), slog.F("attempt", attempt+1))
-	}
-
-	b.log.Error(b.ctx, "batch retries exhausted, dropping batch",
-		slog.F("dropped", count), slog.F("retry_duration", maxRetryDuration))
-}
-
-// lastChanceWrite makes one final write attempt during shutdown.
-func (b *DBBatcher) lastChanceWrite(params database.BatchUpsertConnectionLogsParams, count int) {
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
-	defer cancel()
-	//nolint:gocritic // System-level batch operation for connection logs.
-	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
+		defer cancel()
+		//nolint:gocritic // System-level batch operation for connection logs.
+		return b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
+	}, bkoff)
 	if err != nil {
-		b.log.Error(b.ctx, "retry failed during shutdown, dropping batch",
+		b.log.Error(b.ctx, "batch retries exhausted, dropping batch",
 			slog.Error(err), slog.F("dropped", count))
-	} else {
-		b.log.Info(b.ctx, "retry succeeded during shutdown", slog.F("count", count))
+		return
 	}
+
+	b.log.Debug(b.ctx, "connection log batch flush complete", slog.F("count", count))
 }
 
 type connectionSlogBackend struct {
