@@ -295,7 +295,7 @@ const AgentsPage: FC = () => {
 		const chat =
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
 			chatList.find((candidate) => candidate.id === chatId);
-		if (isActiveChat(chat)) {
+		if (chat === undefined || isActiveChat(chat)) {
 			setPendingArchiveChatId(chatId);
 			return;
 		}
