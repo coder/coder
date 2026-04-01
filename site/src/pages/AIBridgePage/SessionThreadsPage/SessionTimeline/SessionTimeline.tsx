@@ -369,8 +369,6 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 						className="lg:max-w-64 flex-1 my-3 mx-2"
 						duration={durationInMs}
 						toolCalls={toolCalls}
-						inputTokens={thread.token_usage.input_tokens}
-						outputTokens={thread.token_usage.output_tokens}
 					/>
 				</div>
 
