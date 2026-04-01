@@ -31,6 +31,7 @@ const meta = {
 	title: "pages/AgentsPage/TerminalPanel",
 	component: TerminalPanel,
 	args: {
+		chatId: "b5a8832c-72db-4679-8393-9a48dff20a20",
 		workspaceAgent: createAgent("ready"),
 	},
 	parameters: {
