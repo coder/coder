@@ -71,6 +71,7 @@ describe("AuditPage", () => {
 		const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog, MockAuditLog2],
 			count: 2,
+			count_cap: 0,
 		});
 
 		// When
@@ -90,6 +91,7 @@ describe("AuditPage", () => {
 		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog],
 			count: 1,
+			count_cap: 0,
 		});
 
 		await renderPage();
@@ -114,6 +116,7 @@ describe("AuditPage", () => {
 		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog],
 			count: 1,
+			count_cap: 0,
 		});
 
 		await renderPage();
@@ -142,7 +145,11 @@ describe("AuditPage", () => {
 		it("filters by URL", async () => {
 			const getAuditLogsSpy = vi
 				.spyOn(API, "getAuditLogs")
-				.mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 });
+				.mockResolvedValue({
+					audit_logs: [MockAuditLog],
+					count: 1,
+					count_cap: 0,
+				});
 
 			const query = "resource_type:workspace action:create";
 			await renderPage({ filter: query });

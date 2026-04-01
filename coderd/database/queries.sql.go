@@ -2351,9 +2351,11 @@ SELECT COUNT(*) FROM (
 		END
 		-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
 		-- @authorize_filter
-	-- Avoid a full sequential scan on a large table: if count > 2000,
-	-- the frontend will show "of 2000+"
-	LIMIT 2001
+	-- Avoid a slow scan on a large table with joins. The caller
+	-- passes the count cap and we add 1 so the frontend can detect
+	-- capping and show "... of N+". A cap of 0 means no limit (NULLIF
+	-- -> NULL + 1 = NULL).
+	LIMIT NULLIF($13::int, 0) + 1
 ) AS limited_count
 `
 
@@ -2370,6 +2372,7 @@ type CountAuditLogsParams struct {
 	DateTo         time.Time `db:"date_to" json:"date_to"`
 	BuildReason    string    `db:"build_reason" json:"build_reason"`
 	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+	CountCap       int32     `db:"count_cap" json:"count_cap"`
 }
 
 func (q *sqlQuerier) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
@@ -2386,6 +2389,7 @@ func (q *sqlQuerier) CountAuditLogs(ctx context.Context, arg CountAuditLogsParam
 		arg.DateTo,
 		arg.BuildReason,
 		arg.RequestID,
+		arg.CountCap,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -7294,9 +7298,11 @@ SELECT COUNT(*) AS count FROM (
 		-- Authorize Filter clause will be injected below in
 		-- CountAuthorizedConnectionLogs
 		-- @authorize_filter
-	-- Avoid a full sequential scan on a large table: if count > 2000,
-	-- the frontend will show "of 2000+"
-	LIMIT 2001
+	-- Avoid a slow scan on a large table with joins. The caller
+	-- passes the count cap and we add 1 so the frontend can detect
+	-- capping and show "... of N+". A cap of 0 means no limit (NULLIF
+	-- -> NULL + 1 = NULL).
+	LIMIT NULLIF($14::int, 0) + 1
 ) AS limited_count
 `
 
@@ -7314,6 +7320,7 @@ type CountConnectionLogsParams struct {
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
 	Status              string    `db:"status" json:"status"`
+	CountCap            int32     `db:"count_cap" json:"count_cap"`
 }
 
 func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error) {
@@ -7331,6 +7338,7 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.WorkspaceID,
 		arg.ConnectionID,
 		arg.Status,
+		arg.CountCap,
 	)
 	var count int64
 	err := row.Scan(&count)

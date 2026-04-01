@@ -237,9 +237,11 @@ SELECT COUNT(*) FROM (
 		END
 		-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
 		-- @authorize_filter
-	-- Avoid a full sequential scan on a large table: if count > 2000,
-	-- the frontend will show "of 2000+"
-	LIMIT 2001
+	-- Avoid a slow scan on a large table with joins. The caller
+	-- passes the count cap and we add 1 so the frontend can detect
+	-- capping and show "... of N+". A cap of 0 means no limit (NULLIF
+	-- -> NULL + 1 = NULL).
+	LIMIT NULLIF(@count_cap::int, 0) + 1
 ) AS limited_count;
 
 -- name: DeleteOldAuditLogConnectionEvents :exec

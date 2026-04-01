@@ -20,14 +20,6 @@ const DEFAULT_RECORDS_PER_PAGE = 25;
 const PAGE_NUMBER_PARAMS_KEY = "page";
 
 /**
- * Some count queries (audit logs, connection logs) use LIMIT 2001
- * in SQL to avoid slow sequential scans on large tables. When the
- * response count exceeds this cap, we assume the true total is
- * unknown and the UI displays "2,000+".
- */
-const COUNT_CAP = 2000;
-
-/**
  * A more specialized version of UseQueryOptions built specifically for
  * paginated queries.
  */
@@ -153,8 +145,13 @@ export function usePaginatedQuery<
 	});
 
 	const count = query.data?.count;
-	const countIsCapped = count !== undefined && count > COUNT_CAP;
-	const totalRecords = countIsCapped ? COUNT_CAP : count;
+	const countCap = query.data?.count_cap;
+	const countIsCapped =
+		countCap !== undefined &&
+		countCap > 0 &&
+		count !== undefined &&
+		count > countCap;
+	const totalRecords = countIsCapped ? countCap : count;
 	let totalPages =
 		totalRecords !== undefined
 			? Math.max(
@@ -461,6 +458,7 @@ type QueryPageParamsWithPayload<TPayload = never> = QueryPageParams & {
  */
 export type PaginatedData = {
 	count: number;
+	count_cap?: number;
 };
 
 /**

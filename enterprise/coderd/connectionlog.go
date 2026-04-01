@@ -16,6 +16,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Limit the count query to avoid a slow sequential scan due to joins
+// on a large table.
+const connectionLogCountCap = 2000
+
 // @Summary Get connection logs
 // @ID get-connection-logs
 // @Security CoderSessionToken
@@ -49,9 +53,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
 
-	// NOTE: The count query is capped with LIMIT N+1 to avoid a slow
-	// sequential scan on a large table. The frontend infers capping
-	// from count > N.
+	countFilter.CountCap = connectionLogCountCap
 	count, err := api.Database.CountConnectionLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -66,6 +68,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
 			ConnectionLogs: []codersdk.ConnectionLog{},
 			Count:          0,
+			CountCap:       connectionLogCountCap,
 		})
 		return
 	}
@@ -83,6 +86,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
 		ConnectionLogs: convertConnectionLogs(dblogs),
 		Count:          count,
+		CountCap:       connectionLogCountCap,
 	})
 }
 

@@ -26,6 +26,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Limit the count query to avoid a slow sequential scan due to joins
+// on a large table.
+const auditLogCountCap = 2000
+
 // @Summary Get audit logs
 // @ID get-audit-logs
 // @Security CoderSessionToken
@@ -66,10 +70,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		countFilter.Username = ""
 	}
 
-	// Use the same filters to count the number of audit logs
-	// NOTE: The count query is capped with LIMIT N+1 to avoid a slow
-	// sequential scan on a large table. The frontend infers capping
-	// from count > N.
+	countFilter.CountCap = auditLogCountCap
 	count, err := api.Database.CountAuditLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -84,6 +85,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 			AuditLogs: []codersdk.AuditLog{},
 			Count:     0,
+			CountCap:  auditLogCountCap,
 		})
 		return
 	}
@@ -101,6 +103,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 		AuditLogs: api.convertAuditLogs(ctx, dblogs),
 		Count:     count,
+		CountCap:  auditLogCountCap,
 	})
 }
 

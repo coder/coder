@@ -270,6 +270,7 @@ describe(usePaginatedQuery.name, () => {
 			return Promise.resolve({
 				data: new Array(itemsOnPage).fill(pageNumber),
 				count: 2001,
+				count_cap: 2000,
 			});
 		});
 
