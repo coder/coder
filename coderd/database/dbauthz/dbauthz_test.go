@@ -5873,6 +5873,33 @@ func TestInsertWorkspaceAppStatus_FastPath(t *testing.T) {
 		_, err := q.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{WorkspaceID: wsID})
 		require.NoError(t, err)
 	})
+
+	t.Run("Denied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		// Inject workspace RBAC but deny all authorization.
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		denyAuthorizer := &coderdtest.RecordingAuthorizer{
+			Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("unauthorized")),
+		}
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// Fast path denied → falls through to slow path → also denied.
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil)
+
+		q := dbauthz.New(mockDB, denyAuthorizer, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), coderdtest.AccessControlStorePointer())
+
+		_, err = q.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{WorkspaceID: wsID})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unauthorized")
+	})
 }
 
 func TestGetWorkspaceAgentScriptsByAgentIDs_FastPath(t *testing.T) {
@@ -5945,6 +5972,33 @@ func TestGetWorkspaceAgentScriptsByAgentIDs_FastPath(t *testing.T) {
 		result, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
 		require.NoError(t, err)
 		require.Equal(t, []database.WorkspaceAgentScript{}, result)
+	})
+
+	t.Run("Denied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		// Inject workspace RBAC but deny all authorization.
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		denyAuthorizer := &coderdtest.RecordingAuthorizer{
+			Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("unauthorized")),
+		}
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// Fast path denied → falls through to slow path → also denied.
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(workspace, nil)
+
+		q := dbauthz.New(mockDB, denyAuthorizer, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), coderdtest.AccessControlStorePointer())
+
+		_, err = q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unauthorized")
 	})
 }
 
@@ -6023,6 +6077,35 @@ func TestGetLatestWorkspaceAppStatusByAppID_FastPath(t *testing.T) {
 		result, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
 		require.NoError(t, err)
 		require.Equal(t, status, result)
+	})
+
+	t.Run("Denied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		// Inject workspace RBAC but deny all authorization.
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		denyAuthorizer := &coderdtest.RecordingAuthorizer{
+			Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("unauthorized")),
+		}
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// Fast path denied → falls through to slow path which
+		// fetches the status, then workspace, then also denied.
+		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(status, nil)
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil)
+
+		q := dbauthz.New(mockDB, denyAuthorizer, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), coderdtest.AccessControlStorePointer())
+
+		_, err = q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unauthorized")
 	})
 }
 
