@@ -98,6 +98,7 @@ export const OrganizationMembersPageView: FC<
 			q: prepareQuery(debouncedSearch),
 			limit: 50,
 		}),
+		select: (data) => data.users,
 		enabled: canEditMembers,
 	});
 
