@@ -302,7 +302,9 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 		new Date(thread.ended_at ?? Date.now()).getTime() -
 		new Date(thread.started_at).getTime();
 
-	const toolCalls = thread.agentic_actions?.reduce(
+	const hasAgenticLoop = thread.agentic_actions.length > 0;
+
+	const toolCalls = thread.agentic_actions.reduce(
 		(count, action) => count + action.tool_calls.length,
 		0,
 	);
@@ -324,7 +326,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				</div>
 
 				{/* center column: prompt */}
-				<div className="flex-grow flex flex-col gap-1">
+				<div className="flex-grow flex flex-col gap-1 mb-2">
 					{thread.prompt && (
 						<>
 							<div className="text-sm text-content-secondary font-normal my-1">
@@ -350,48 +352,54 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				/>
 			</div>
 
-			<BracketConnector
-				firstRowHeight="60px"
-				contentClassName="border border-dashed rounded-md my-4"
-			>
-				{/* Agentic loop */}
-				<div className="flex flex-col lg:flex-row lg:items-center justify-between">
-					<div>
-						<CollapseButton
-							isOpen={agenticLoopOpen}
-							onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
-						>
-							<span className="text-sm font-normal">Agentic loop</span>
-						</CollapseButton>
-					</div>
-
-					<AgenticLoopTable
-						className="lg:max-w-64 flex-1 my-3 mx-2"
-						duration={durationInMs}
-						toolCalls={toolCalls}
-					/>
-				</div>
-
-				{agenticLoopOpen && (
-					<>
-						{/* the little top rounded line above the thinking block */}
-						<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
-							{/* we need the 1px extra to line up with the left border on the other lines */}
+			{hasAgenticLoop ? (
+				<BracketConnector
+					firstRowHeight="60px"
+					contentClassName="border border-dashed rounded-md my-4"
+				>
+					{/* Agentic loop */}
+					<div className="flex flex-col lg:flex-row lg:items-center justify-between">
+						<div>
+							<CollapseButton
+								isOpen={agenticLoopOpen}
+								onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
+							>
+								<span className="text-sm font-normal">Agentic loop</span>
+							</CollapseButton>
 						</div>
 
-						{/* Agentic actions */}
-						{thread.agentic_actions?.map((action, i) => (
-							<AgenticActionItem key={`${thread.id}-${i}`} action={action} />
-						))}
-
-						{/* Agentic loop completed block */}
-						<AgenticLoopCompletedBlock
-							inputTokens={thread.token_usage.input_tokens}
-							outputTokens={thread.token_usage.output_tokens}
+						<AgenticLoopTable
+							className="lg:max-w-64 flex-1 my-3 mx-2"
+							duration={durationInMs}
+							toolCalls={toolCalls}
 						/>
-					</>
-				)}
-			</BracketConnector>
+					</div>
+
+					{agenticLoopOpen && (
+						<>
+							{/* the little top rounded line above the thinking block */}
+							<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+								{/* we need the 1px extra to line up with the left border on the other lines */}
+							</div>
+
+							{/* Agentic actions */}
+							{thread.agentic_actions?.map((action, i) => (
+								<AgenticActionItem key={`${thread.id}-${i}`} action={action} />
+							))}
+
+							{/* Agentic loop completed block */}
+							<AgenticLoopCompletedBlock
+								inputTokens={thread.token_usage.input_tokens}
+								outputTokens={thread.token_usage.output_tokens}
+							/>
+						</>
+					)}
+				</BracketConnector>
+			) : (
+				// if no agentic loop, we need a little spacing element to create
+				// the visual gap between threads
+				<div className="h-4" />
+			)}
 		</>
 	);
 };
