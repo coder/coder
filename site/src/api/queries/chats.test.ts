@@ -741,7 +741,7 @@ describe("mutation invalidation scope", () => {
 		seedAllActiveQueries(queryClient, chatId);
 
 		const mutation = editChatMessage(queryClient, chatId);
-		mutation.onSuccess();
+		mutation.onSettled();
 
 		await new Promise((r) => setTimeout(r, 0));
 
@@ -760,7 +760,7 @@ describe("mutation invalidation scope", () => {
 		seedAllActiveQueries(queryClient, chatId);
 
 		const mutation = editChatMessage(queryClient, chatId);
-		mutation.onSuccess();
+		mutation.onSettled();
 
 		await new Promise((r) => setTimeout(r, 0));
 

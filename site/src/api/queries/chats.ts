@@ -620,12 +620,13 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
 		}
 	},
-	onSuccess: () => {
-		// Editing truncates all messages after the edited one on
-		// the server. A full refetch confirms the server state and
-		// picks up the replacement message. Use exact matching to
-		// avoid cascading to unrelated queries (diff-status,
-		// diff-contents, cost summaries, etc.).
+	onSettled: () => {
+		// Always reconcile with the server regardless of whether
+		// the mutation succeeded or failed. On success this picks
+		// up the replacement message; on failure it confirms the
+		// restore from onError matches the server state. Use exact
+		// matching to avoid cascading to unrelated queries
+		// (diff-status, diff-contents, cost summaries, etc.).
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
