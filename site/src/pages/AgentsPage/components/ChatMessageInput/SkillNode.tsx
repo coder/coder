@@ -10,6 +10,12 @@ import {
 } from "lexical";
 import { XIcon, ZapIcon } from "lucide-react";
 import { type FC, memo, type ReactNode } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 
 export type SkillData = {
@@ -35,11 +41,7 @@ export function SkillChip({
 	onRemove?: () => void;
 	className?: string;
 }) {
-	const title = skillDescription
-		? `${skillName}: ${skillDescription}`
-		: skillName;
-
-	return (
+	const chip = (
 		<span
 			className={cn(
 				"inline-flex h-6 max-w-[300px] cursor-default select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-primary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
@@ -48,7 +50,6 @@ export function SkillChip({
 				extraClassName,
 			)}
 			contentEditable={false}
-			title={title}
 		>
 			<ZapIcon className="size-3 shrink-0" />
 			<span className="min-w-0 truncate text-content-secondary">
@@ -70,6 +71,21 @@ export function SkillChip({
 				</button>
 			)}
 		</span>
+	);
+
+	if (!skillDescription) {
+		return chip;
+	}
+
+	return (
+		<TooltipProvider delayDuration={300}>
+			<Tooltip>
+				<TooltipTrigger asChild>{chip}</TooltipTrigger>
+				<TooltipContent side="top" sideOffset={4} className="max-w-64 text-xs">
+					{skillDescription}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 
