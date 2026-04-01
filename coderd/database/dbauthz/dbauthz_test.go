@@ -5798,6 +5798,227 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 	})
 }
 
+func TestInsertWorkspaceAppStatus_FastPath(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	wsID := uuid.New()
+	orgID := uuid.New()
+
+	workspace := database.Workspace{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	wsIdentity := database.WorkspaceIdentity{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+
+	authorizer := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// GetWorkspaceByID should NOT be called (fast path).
+		mockDB.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), database.InsertWorkspaceAppStatusParams{WorkspaceID: wsID}).Return(database.WorkspaceAppStatus{}, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		_, err = q.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{WorkspaceID: wsID})
+		require.NoError(t, err)
+	})
+
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// GetWorkspaceByID SHOULD be called (slow path).
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil)
+		mockDB.EXPECT().InsertWorkspaceAppStatus(gomock.Any(), database.InsertWorkspaceAppStatusParams{WorkspaceID: wsID}).Return(database.WorkspaceAppStatus{}, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		_, err := q.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{WorkspaceID: wsID})
+		require.NoError(t, err)
+	})
+}
+
+func TestGetWorkspaceAgentScriptsByAgentIDs_FastPath(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	ownerID := uuid.New()
+	wsID := uuid.New()
+	orgID := uuid.New()
+
+	workspace := database.Workspace{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	wsIdentity := database.WorkspaceIdentity{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+
+	authorizer := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// GetWorkspaceByAgentID should NOT be called (fast path).
+		mockDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agentID}).Return([]database.WorkspaceAgentScript{}, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
+		require.NoError(t, err)
+		require.Equal(t, []database.WorkspaceAgentScript{}, result)
+	})
+
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// GetWorkspaceByAgentID SHOULD be called (slow path).
+		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(workspace, nil)
+		mockDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agentID}).Return([]database.WorkspaceAgentScript{}, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agentID})
+		require.NoError(t, err)
+		require.Equal(t, []database.WorkspaceAgentScript{}, result)
+	})
+}
+
+func TestGetLatestWorkspaceAppStatusByAppID_FastPath(t *testing.T) {
+	t.Parallel()
+
+	appID := uuid.New()
+	ownerID := uuid.New()
+	wsID := uuid.New()
+	orgID := uuid.New()
+
+	status := database.WorkspaceAppStatus{
+		ID:          uuid.New(),
+		WorkspaceID: wsID,
+	}
+
+	workspace := database.Workspace{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	wsIdentity := database.WorkspaceIdentity{
+		ID:             wsID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+
+	authorizer := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("WithWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		rbacObj := wsIdentity.RBACObject()
+		ctx, err := dbauthz.WithWorkspaceRBAC(ctx, rbacObj)
+		require.NoError(t, err)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// GetWorkspaceByID should NOT be called (fast path).
+		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(status, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, status, result)
+	})
+
+	t.Run("WithoutWorkspaceRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		mockDB.EXPECT().Wrappers().Return([]string{})
+		// Slow path: fetch status first, then look up workspace.
+		mockDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), appID).Return(status, nil)
+		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil)
+
+		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		result, err := q.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, status, result)
+	})
+}
+
 func TestAsChatd(t *testing.T) {
 	t.Parallel()
 

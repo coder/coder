@@ -719,25 +719,6 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	subjectAgentAPI = rbac.Subject{
-		Type:         rbac.SubjectTypeAgentAPI,
-		FriendlyName: "Agent API",
-		ID:           uuid.Nil.String(),
-		Roles: rbac.Roles([]rbac.Role{
-			{
-				Identifier:  rbac.RoleIdentifier{Name: "agent-api"},
-				DisplayName: "Agent API",
-				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:    {policy.ActionRead, policy.ActionCreate},
-					rbac.ResourceWorkspace.Type: {policy.ActionUpdate},
-				}),
-				User:    []rbac.Permission{},
-				ByOrgID: map[string]rbac.OrgPermissions{},
-			},
-		}),
-		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
-
 	subjectWorkspaceStatsFlusher = rbac.Subject{
 		Type:         rbac.SubjectTypeWorkspaceStatsFlusher,
 		FriendlyName: "Workspace Stats Flusher",
@@ -800,12 +781,6 @@ func AsNotifier(ctx context.Context) context.Context {
 // updating resource monitors.
 func AsResourceMonitor(ctx context.Context) context.Context {
 	return As(ctx, subjectResourceMonitor)
-}
-
-// AsAgentAPI returns a context with an actor that has permissions
-// for agent API operations (app status, metadata, and script queries).
-func AsAgentAPI(ctx context.Context) context.Context {
-	return As(ctx, subjectAgentAPI)
 }
 
 // AsSubAgentAPI returns a context with an actor that has permissions required for
@@ -3076,10 +3051,27 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	// Fast path: use cached workspace RBAC object from context.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
+			return q.db.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+		}
+		q.log.Debug(ctx, "fast path authorization failed for GetLatestWorkspaceAppStatusByAppID, using slow path")
+	}
+
+	// Slow path: fetch status to get workspace ID, then check auth.
+	status, err := q.db.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+	if err != nil {
 		return database.WorkspaceAppStatus{}, err
 	}
-	return q.db.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
+	workspace, err := q.db.GetWorkspaceByID(ctx, status.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+	return status, nil
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
@@ -4373,8 +4365,28 @@ func (q *querier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, i
 }
 
 func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	// Fast path: use cached workspace RBAC object from context.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
+			return q.db.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
+		}
+		q.log.Debug(ctx, "fast path authorization failed for GetWorkspaceAgentScriptsByAgentIDs, using slow path")
+	}
+
+	// Slow path: look up workspace per agent ID (deduplicated).
+	checked := make(map[uuid.UUID]bool)
+	for _, agentID := range ids {
+		workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
+		if err != nil {
+			return nil, err
+		}
+		if checked[workspace.ID] {
+			continue
+		}
+		if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+			return nil, err
+		}
+		checked[workspace.ID] = true
 	}
 	return q.db.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
 }
@@ -5314,7 +5326,21 @@ func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.Inse
 }
 
 func (q *querier) InsertWorkspaceAppStatus(ctx context.Context, arg database.InsertWorkspaceAppStatusParams) (database.WorkspaceAppStatus, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	// Fast path: use cached workspace RBAC object from context.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbacObj); err == nil {
+			return q.db.InsertWorkspaceAppStatus(ctx, arg)
+		}
+		q.log.Debug(ctx, "fast path authorization failed for InsertWorkspaceAppStatus, using slow path",
+			slog.F("workspace_id", arg.WorkspaceID))
+	}
+
+	// Slow path: cheap lookup since WorkspaceID is already in params.
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceAppStatus{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
 		return database.WorkspaceAppStatus{}, err
 	}
 	return q.db.InsertWorkspaceAppStatus(ctx, arg)

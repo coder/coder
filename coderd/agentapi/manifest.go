@@ -17,7 +17,6 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -31,6 +30,7 @@ type ManifestAPI struct {
 	DisableDirectConnections bool
 	DerpForceWebSockets      bool
 	WorkspaceID              uuid.UUID
+	Workspace                *CachedWorkspaceFields
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -60,8 +60,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil
 	})
 	eg.Go(func() (err error) {
-		// nolint:gocritic // Agent API fetches scripts for the workspace agent.
-		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsAgentAPI(ctx), []uuid.UUID{workspaceAgent.ID})
+		scriptCtx := ctx
+		if a.Workspace != nil {
+			scriptCtx, _ = a.Workspace.ContextInject(ctx)
+		}
+		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(scriptCtx, []uuid.UUID{workspaceAgent.ID})
 		return err
 	})
 	eg.Go(func() (err error) {

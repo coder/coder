@@ -164,12 +164,15 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
+	// Inject workspace RBAC into context so dbauthz can use the
+	// fast path instead of requiring system-level escalation.
+	ctx, _ = a.Workspace.ContextInject(ctx)
+
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
 	// Get the latest status for the workspace app to detect no-op updates
-	// nolint:gocritic // Agent API reads app status for the workspace agent.
-	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsAgentAPI(ctx), app.ID)
+	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(ctx, app.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get latest workspace app status.",
@@ -178,8 +181,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
 
-	// nolint:gocritic // Agent API inserts app status on behalf of the agent.
-	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsAgentAPI(ctx), database.InsertWorkspaceAppStatusParams{
+	_, err = a.Database.InsertWorkspaceAppStatus(ctx, database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
 		WorkspaceID: ws.ID,
