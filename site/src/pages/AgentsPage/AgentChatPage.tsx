@@ -752,6 +752,7 @@ const AgentChatPage: FC = () => {
 					req: request,
 				});
 				store.clearStreamState();
+				store.setChatStatus("running");
 				setPendingEditMessageId(null);
 			} catch (error) {
 				setPendingEditMessageId(null);
@@ -790,6 +791,15 @@ const AgentChatPage: FC = () => {
 		// WebSocket stream.
 		if (!response.queued) {
 			store.clearStreamState();
+			// Optimistically set status to "running" so the
+			// "Thinking..." indicator appears immediately.
+			// The server accepted the message (not queued),
+			// so it will start processing. The WebSocket
+			// status:running event no-ops via the
+			// setChatStatus guard. If the server transitions
+			// to error/pending instead, the WebSocket event
+			// overrides this optimistic value.
+			store.setChatStatus("running");
 			if (response.message) {
 				store.upsertDurableMessage(response.message);
 			}
