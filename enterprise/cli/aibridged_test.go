@@ -59,27 +59,18 @@ func TestBuildProviders(t *testing.T) {
 		assert.NotContains(t, names, aibridge.ProviderAnthropic)
 	})
 
-	t.Run("IndexedOverridesLegacy", func(t *testing.T) {
+	t.Run("LegacyConflictsWithIndexed", func(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIBridgeProviderConfig{
-				// Indexed provider uses the same default name as legacy.
 				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Key: "sk-indexed"},
 			},
 		}
 		cfg.LegacyOpenAI.Key = serpent.String("sk-legacy")
 
-		providers, err := buildProviders(cfg, nil)
-		require.NoError(t, err)
-
-		// Should only have one "openai" provider (the indexed one).
-		count := 0
-		for _, p := range providers {
-			if p.Name() == aibridge.ProviderOpenAI {
-				count++
-			}
-		}
-		assert.Equal(t, 1, count, "expected exactly one openai provider")
+		_, err := buildProviders(cfg, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "conflicts with indexed provider")
 	})
 
 	t.Run("IndexedOverridesBuiltin", func(t *testing.T) {
@@ -122,6 +113,50 @@ func TestBuildProviders(t *testing.T) {
 		assert.Contains(t, names, aibridge.ProviderAnthropic)
 		// Indexed provider also present.
 		assert.Contains(t, names, "anthropic-zdr")
+	})
+
+	t.Run("LegacyAnthropicConflictsWithIndexed", func(t *testing.T) {
+		t.Parallel()
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIBridgeProviderConfig{
+				{Type: aibridge.ProviderAnthropic, Name: aibridge.ProviderAnthropic, Key: "sk-indexed"},
+			},
+		}
+		cfg.LegacyAnthropic.Key = serpent.String("sk-legacy")
+
+		_, err := buildProviders(cfg, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "conflicts with indexed provider")
+	})
+
+	t.Run("EmptyConfig", func(t *testing.T) {
+		t.Parallel()
+		// No legacy keys, no indexed providers — should get builtins only.
+		providers, err := buildProviders(codersdk.AIBridgeConfig{}, nil)
+		require.NoError(t, err)
+
+		names := providerNames(providers)
+		assert.Contains(t, names, aibridge.ProviderCopilot)
+		assert.Contains(t, names, agplaibridge.ProviderCopilotBusiness)
+		assert.Contains(t, names, agplaibridge.ProviderCopilotEnterprise)
+		assert.Contains(t, names, agplaibridge.ProviderChatGPT)
+		assert.NotContains(t, names, aibridge.ProviderOpenAI)
+		assert.NotContains(t, names, aibridge.ProviderAnthropic)
+	})
+
+	t.Run("LegacyAnthropicWithBedrock", func(t *testing.T) {
+		t.Parallel()
+		cfg := codersdk.AIBridgeConfig{}
+		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
+		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
+		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
+		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
+
+		providers, err := buildProviders(cfg, nil)
+		require.NoError(t, err)
+
+		names := providerNames(providers)
+		assert.Contains(t, names, aibridge.ProviderAnthropic)
 	})
 
 	t.Run("UnknownType", func(t *testing.T) {

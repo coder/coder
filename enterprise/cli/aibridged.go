@@ -62,10 +62,11 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 
 // buildProviders constructs the list of aibridge providers from config.
 // It merges legacy single-provider env vars, indexed provider configs, and
-// built-in providers (copilot variants, chatgpt) with the following precedence:
-//  1. Indexed providers (from CODER_AIBRIDGE_PROVIDER_<N>_*) take priority.
-//  2. Legacy providers (from CODER_AIBRIDGE_OPENAI_KEY, etc.) are added only
-//     if their default name is not already claimed by an indexed provider.
+// built-in providers (copilot variants, chatgpt):
+//  1. Legacy providers (from CODER_AIBRIDGE_OPENAI_KEY, etc.) are added first.
+//     If a legacy name conflicts with an indexed provider, startup fails with
+//     a clear error asking the admin to remove one or the other.
+//  2. Indexed providers (from CODER_AIBRIDGE_PROVIDER_<N>_*) are added next.
 //  3. Built-in providers are always added unless their name is already claimed.
 func buildProviders(cfg codersdk.AIBridgeConfig, cbConfig *config.CircuitBreaker) ([]aibridge.Provider, error) {
 	var providers []aibridge.Provider
@@ -81,32 +82,34 @@ func buildProviders(cfg codersdk.AIBridgeConfig, cbConfig *config.CircuitBreaker
 		usedNames[name] = struct{}{}
 	}
 
-	// Add legacy OpenAI provider if configured and not overridden.
+	// Add legacy OpenAI provider if configured.
 	if cfg.LegacyOpenAI.Key.String() != "" {
-		if _, overridden := usedNames[aibridge.ProviderOpenAI]; !overridden {
-			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-				Name:             aibridge.ProviderOpenAI,
-				BaseURL:          cfg.LegacyOpenAI.BaseURL.String(),
-				Key:              cfg.LegacyOpenAI.Key.String(),
-				CircuitBreaker:   cbConfig,
-				SendActorHeaders: cfg.SendActorHeaders.Value(),
-			}))
-			usedNames[aibridge.ProviderOpenAI] = struct{}{}
+		if _, conflict := usedNames[aibridge.ProviderOpenAI]; conflict {
+			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_OPENAI_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderOpenAI)
 		}
+		providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+			Name:             aibridge.ProviderOpenAI,
+			BaseURL:          cfg.LegacyOpenAI.BaseURL.String(),
+			Key:              cfg.LegacyOpenAI.Key.String(),
+			CircuitBreaker:   cbConfig,
+			SendActorHeaders: cfg.SendActorHeaders.Value(),
+		}))
+		usedNames[aibridge.ProviderOpenAI] = struct{}{}
 	}
 
-	// Add legacy Anthropic provider if configured and not overridden.
+	// Add legacy Anthropic provider if configured.
 	if cfg.LegacyAnthropic.Key.String() != "" {
-		if _, overridden := usedNames[aibridge.ProviderAnthropic]; !overridden {
-			providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
-				Name:             aibridge.ProviderAnthropic,
-				BaseURL:          cfg.LegacyAnthropic.BaseURL.String(),
-				Key:              cfg.LegacyAnthropic.Key.String(),
-				CircuitBreaker:   cbConfig,
-				SendActorHeaders: cfg.SendActorHeaders.Value(),
-			}, getBedrockConfig(cfg.LegacyBedrock)))
-			usedNames[aibridge.ProviderAnthropic] = struct{}{}
+		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
+			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_ANTHROPIC_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
 		}
+		providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+			Name:             aibridge.ProviderAnthropic,
+			BaseURL:          cfg.LegacyAnthropic.BaseURL.String(),
+			Key:              cfg.LegacyAnthropic.Key.String(),
+			CircuitBreaker:   cbConfig,
+			SendActorHeaders: cfg.SendActorHeaders.Value(),
+		}, getBedrockConfig(cfg.LegacyBedrock)))
+		usedNames[aibridge.ProviderAnthropic] = struct{}{}
 	}
 
 	// Add indexed providers.
