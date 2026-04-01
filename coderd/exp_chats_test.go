@@ -961,6 +961,7 @@ func TestListChatModels(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
+			APIKey:   "test-key",
 		})
 		require.NoError(t, err)
 
@@ -2143,6 +2144,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:                   "openai",
+			APIKey:                     "test-central-key",
 			AllowUserAPIKey:            ptr.Ref(true),
 			AllowCentralAPIKeyFallback: ptr.Ref(true),
 		})
@@ -2158,7 +2160,10 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		listed := requireUserProviderConfig(t, configs, "openai")
 		require.True(t, listed.HasCentralAPIKeyFallback)
 
-		values.AI.BridgeConfig.OpenAI.Key = serpent.String("")
+		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
+			CentralAPIKeyEnabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
 
 		configs, err = client.ListUserChatProviderConfigs(ctx)
 		require.NoError(t, err)
