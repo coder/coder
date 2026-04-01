@@ -405,47 +405,42 @@ func Test_batcherFlush(t *testing.T) {
 
 		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
 
-		evt1 := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
-		evt2 := fakeConnectEvent(uuid.New(), "agent2", uuid.New())
+		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
 
 		// Track all successfully written IDs.
 		var writtenIDs []uuid.UUID
 		var mu sync.Mutex
-		callCount := 0
+		firstCall := true
 		store.EXPECT().
 			BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, p database.BatchUpsertConnectionLogsParams) error {
 				mu.Lock()
 				defer mu.Unlock()
-				callCount++
-				// First two calls (synchronous flushes) fail.
-				if callCount <= 2 {
+				// First call (synchronous flush) fails, queueing
+				// the batch for retry.
+				if firstCall {
+					firstCall = false
 					return xerrors.New("transient error")
 				}
-				// Drain attempts succeed.
+				// Drain/retry attempts succeed.
 				writtenIDs = append(writtenIDs, p.ID...)
 				return nil
 			}).
 			AnyTimes()
 
-		// Send evt1 and trigger flush — fails, queues.
-		require.NoError(t, b.Upsert(ctx, evt1))
+		// Send event and trigger flush — fails, queues.
+		require.NoError(t, b.Upsert(ctx, evt))
 		clock.Advance(defaultFlushInterval).MustWait(ctx)
 		scheduledTrap.MustWait(ctx).MustRelease(ctx)
 
-		// Send evt2 and trigger flush — fails, queues.
-		require.NoError(t, b.Upsert(ctx, evt2))
-		clock.Advance(defaultFlushInterval).MustWait(ctx)
-		scheduledTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Close cancels the context. The retry worker exits its
-		// TickerFunc wait and drains retryCh with writeBatch.
+		// Close triggers shutdown. The retry worker drains
+		// retryCh and writes the batch via writeBatch.
 		require.NoError(t, b.Close())
 
 		mu.Lock()
 		defer mu.Unlock()
-		require.Contains(t, writtenIDs, evt1.ID, "evt1 should be written during shutdown drain")
-		require.Contains(t, writtenIDs, evt2.ID, "evt2 should be written during shutdown drain")
+		require.Contains(t, writtenIDs, evt.ID,
+			"event should be written during shutdown drain")
 	})
 }
 

@@ -32,6 +32,11 @@ const (
 	// Failed batches beyond this limit are dropped.
 	retryQueueSize = 10
 
+	// shutdownWriteTimeout bounds how long a final write attempt
+	// can take during shutdown when the batcher context is already
+	// canceled.
+	shutdownWriteTimeout = 10 * time.Second
+
 	// maxRetries is the number of times to retry a failed batch
 	// write before dropping it and moving on.
 	maxRetries = 3
@@ -347,11 +352,17 @@ func (b *DBBatcher) flush(ctx context.Context) {
 	b.dedupedBatch = make(map[uuid.UUID]batchEntry, b.maxBatchSize)
 	b.nullConnIDBatch = nil
 
-	// Use a background context for the DB write so it isn't
-	// canceled by the batcher's lifecycle context (which may
-	// already be done during shutdown).
+	// Use the batcher's context for normal operation so Close()
+	// can cancel hung writes. During shutdown (ctx already canceled),
+	// fall back to a bounded timeout.
+	writeCtx := b.ctx
+	if writeCtx.Err() != nil {
+		var cancel context.CancelFunc
+		writeCtx, cancel = context.WithTimeout(context.Background(), shutdownWriteTimeout)
+		defer cancel()
+	}
 	//nolint:gocritic // System-level batch operation for connection logs.
-	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(context.Background()), params)
+	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(writeCtx), params)
 	if err == nil {
 		return
 	}
@@ -457,8 +468,6 @@ func (b *DBBatcher) retryLoop() {
 // during a wait, one final attempt is made before returning.
 func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) {
 	count := len(params.ID)
-	//nolint:gocritic // System-level batch operation for connection logs.
-	authCtx := dbauthz.AsConnectionLogger(context.Background())
 	for attempt := range maxRetries {
 		// If shutting down, do one final attempt and exit.
 		if b.draining.Load() || b.ctx.Err() != nil {
@@ -475,7 +484,8 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 			return
 		}
 
-		err := b.store.BatchUpsertConnectionLogs(authCtx, params)
+		//nolint:gocritic // System-level batch operation for connection logs.
+		err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(b.ctx), params)
 		if err == nil {
 			return
 		}
@@ -492,12 +502,13 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 		slog.F("dropped", count))
 }
 
-// writeBatch makes a single write attempt using a background context
-// (since this may be called during shutdown when b.ctx is canceled)
-// and logs on failure.
+// writeBatch makes a single write attempt during shutdown with a
+// bounded timeout so it can't hang indefinitely.
 func (b *DBBatcher) writeBatch(params database.BatchUpsertConnectionLogsParams) {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownWriteTimeout)
+	defer cancel()
 	//nolint:gocritic // System-level batch operation for connection logs.
-	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(context.Background()), params)
+	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctx), params)
 	if err != nil {
 		b.log.Error(b.ctx, "batch write failed on shutdown, dropping batch",
 			slog.Error(err), slog.F("dropped", len(params.ID)))
