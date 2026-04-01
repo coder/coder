@@ -35,7 +35,7 @@ export const YAxisHeader: FC<HTMLProps<HTMLSpanElement>> = (props) => {
 			className={cn(
 				"flex items-center",
 				"sticky top-0 bg-surface-primary",
-				"text-[10px] font-medium text-content-secondary",
+				"text-xs font-medium text-content-secondary",
 				"border-solid border-0 border-b",
 			)}
 			style={{

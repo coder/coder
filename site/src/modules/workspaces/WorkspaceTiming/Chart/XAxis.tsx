@@ -29,13 +29,13 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 
 	return (
 		<div
-			css={(theme) => ({
-				borderLeft: `1px solid ${theme.palette.divider}`,
-				height: "fit-content",
-			})}
+			// css={(theme) => ({
+			// 	borderLeft: `1px solid ${theme.palette.divider}`,
+			// })}
 			{...htmlProps}
 			className={cn(
-				"flex flex-col flex-1 min-h-full relative",
+				"flex flex-col flex-1 min-h-full relative h-fit",
+				"border-solid border-0 border-l",
 				htmlProps.className,
 			)}
 			ref={rootRef}
@@ -91,21 +91,22 @@ const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
 export const XAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return (
 		<section
-			css={(theme) => ({
-				display: "flex",
-				flexDirection: "column",
+			{...props}
+			className={cn(
+				"flex flex-col",
+				// Elevate this section to make it more prominent than the column dashes.
+				"relative z-[1]",
+				"[&:not(:first-of-type)]:pt-[calc(var(--section-padding)_+_var(--header-height))]",
+				"[&:not(:first-of-type)]:border-solid",
+				"[&:not(:first-of-type)]:border-0",
+				"[&:not(:first-of-type)]:border-t",
+				props.className,
+			)}
+			style={{
+				...props.style,
 				gap: "var(--x-axis-rows-gap)",
 				padding: "var(--section-padding)",
-				// Elevate this section to make it more prominent than the column dashes.
-				position: "relative",
-				zIndex: 1,
-
-				"&:not(:first-of-type)": {
-					paddingTop: "calc(var(--section-padding) + var(--header-height))",
-					borderTop: `1px solid ${theme.palette.divider}`,
-				},
-			})}
-			{...props}
+			}}
 		/>
 	);
 };

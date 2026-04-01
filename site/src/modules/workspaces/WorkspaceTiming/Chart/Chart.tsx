@@ -85,6 +85,7 @@ export const ChartToolbar = (props: HTMLProps<HTMLDivElement>) => {
 			{...props}
 			className={cn(
 				"flex items-stretch border-b border-border text-xs",
+				"border-solid border-0 border-b",
 				props.className,
 			)}
 		/>
@@ -161,7 +162,7 @@ export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
 					className="flex items-center gap-2 font-medium leading-none"
 				>
 					<div
-						className="size-[18px] rounded border border-border bg-surface-primary"
+						className="size-[18px] rounded border border-solid bg-surface-primary"
 						style={{
 							borderColor: l.colors?.stroke,
 							backgroundColor: l.colors?.fill,
