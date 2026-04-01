@@ -615,7 +615,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	targetUser := httpmw.UserParam(r)
 	if targetUser.ID != apiKey.UserID && !api.Authorize(r, policy.ActionRead, rbac.ResourceChat.WithOwner(targetUser.ID.String())) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -1494,14 +1494,12 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace not found.",
-		})
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
 		!api.Authorize(r, policy.ActionSSH, workspace) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -2749,7 +2747,7 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			return selection, http.StatusBadRequest, &codersdk.Response{
+			return selection, http.StatusNotFound, &codersdk.Response{
 				Message: "Workspace not found or you do not have access to this resource",
 			}
 		}
@@ -2764,7 +2762,7 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	}
 
 	if !api.Authorize(r, policy.ActionSSH, workspace) {
-		return selection, http.StatusBadRequest, &codersdk.Response{
+		return selection, http.StatusNotFound, &codersdk.Response{
 			Message: "Workspace not found or you do not have access to this resource",
 		}
 	}
