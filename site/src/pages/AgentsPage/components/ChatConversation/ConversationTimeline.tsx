@@ -602,6 +602,7 @@ const ChatMessageItem = memo<{
 										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{
+												opacity: "var(--fade-opacity, 0)",
 												background:
 													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
 											}}
@@ -793,15 +794,17 @@ const StickyUserMessage = memo<{
 					container.style.top = "0px";
 					return;
 				}
-				const visible = Math.max(fullHeight - scrolledPast - 48, MIN_HEIGHT);
+				const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
 				container.style.setProperty("--clip-h", `${visible}px`);
-				// Only show the fade gradient once enough content is
-				// clipped to be visually meaningful.
-				container.style.setProperty(
-					"--fade-opacity",
-					visible < fullHeight - 8 ? "1" : "0",
+				// Only show the blur and gradient once the message
+				// is near its minimum compressed height. Ramp over
+				// the last 40px before MIN_HEIGHT so it doesn't pop.
+				const FADE_RANGE = 40;
+				const fade = Math.max(
+					0,
+					Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
 				);
-
+				container.style.setProperty("--fade-opacity", String(fade));
 				// Push-up effect: when the next user message's sentinel
 				// approaches the bottom of this sticky container, shift
 				// this container upward so it slides out of view — the
@@ -960,6 +963,7 @@ const StickyUserMessage = memo<{
 							<div
 								className="absolute inset-0 backdrop-blur-[1px] bg-surface-primary/15"
 								style={{
+									opacity: "var(--fade-opacity, 0)",
 									maxHeight: "calc(var(--clip-h, 100%) + 48px)",
 									willChange: "max-height, mask-image",
 									maskImage:
