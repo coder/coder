@@ -278,8 +278,9 @@ describe("maybePlayChime", () => {
 	it("uses a kyleosophy sound when kyleosophy is enabled", async () => {
 		setKylesophyEnabled(true);
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+		// Pin the random selection so the test is deterministic.
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
 
-		// Spy on Audio constructor to capture the URL.
 		const audioSpy = vi.spyOn(globalThis, "Audio" as never);
 
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");
@@ -288,7 +289,8 @@ describe("maybePlayChime", () => {
 
 		const url = (audioSpy as unknown as ReturnType<typeof vi.fn>).mock
 			.calls[0][0] as string;
-		expect(url).toMatch(/^\/chime_\d+\.mp3$/);
+		// Math.floor(0.5 * 8) = 4 → "/chime_5.mp3"
+		expect(url).toBe("/chime_5.mp3");
 		expect(KYLEOSOPHY_SOUNDS).toContain(url);
 	});
 
@@ -296,6 +298,10 @@ describe("maybePlayChime", () => {
 		setKylesophyEnabled(false);
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 
+		// Force a fresh Audio element by spying on the constructor
+		// before any call in this test. The previous test left
+		// lastSoundUrl pointing at a kyleosophy URL, so switching
+		// back to /chime.mp3 will always trigger a new Audio().
 		const audioSpy = vi.spyOn(globalThis, "Audio" as never);
 
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");

@@ -54,11 +54,10 @@ export const KYLEOSOPHY_SOUNDS: readonly string[] = [
 ];
 
 /**
- * Play the completion chime audio file. The file is a short,
- * warm two-tone bell sound shipped as a static asset.
- *
- * A single Audio element is reused across calls so the browser
- * only fetches the file once.
+ * Play a completion sound. When Kyleosophy is enabled a random
+ * voice clip is selected; otherwise the default bell chime is
+ * used. The Audio element is cached and reused when the sound
+ * URL hasn't changed between calls.
  */
 let chimeAudio: HTMLAudioElement | null = null;
 let lastSoundUrl: string | null = null;
@@ -66,6 +65,7 @@ let lastSoundUrl: string | null = null;
 function playChimeAudio(soundUrl = "/chime.mp3"): void {
 	try {
 		if (!chimeAudio || soundUrl !== lastSoundUrl) {
+			chimeAudio?.pause();
 			chimeAudio = new Audio(soundUrl);
 			chimeAudio.volume = 0.5;
 			lastSoundUrl = soundUrl;
