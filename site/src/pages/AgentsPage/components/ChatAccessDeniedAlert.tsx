@@ -11,9 +11,7 @@ export const ChatAccessDeniedAlert: FC = () => {
 
 	return (
 		<Alert
-			severity="info"
-			className="py-2"
-			actions={
+				severity="info"			actions={
 					<Button
 						size="sm"
 						onClick={() => window.location.reload()}
