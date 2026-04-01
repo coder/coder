@@ -1840,7 +1840,11 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	gitRef := chatGitRef{
 		Branch:       strings.TrimSpace(query.Get("git_branch")),
 		RemoteOrigin: strings.TrimSpace(query.Get("git_remote_origin")),
-		ChatID:       strings.TrimSpace(query.Get("chat_id")),
+	}
+	if raw := strings.TrimSpace(query.Get("chat_id")); raw != "" {
+		if parsed, err := uuid.Parse(raw); err == nil {
+			gitRef.ChatID = parsed
+		}
 	}
 	// Either match or configID must be provided!
 	match := query.Get("match")

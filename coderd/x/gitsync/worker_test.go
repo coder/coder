@@ -865,7 +865,7 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 		OwnerID:     uuid.New(),
 		Branch:      "my-branch",
 		Origin:      "https://github.com/org/repo",
-		ChatID:      targetChat.String(),
+		ChatID:      targetChat,
 	})
 
 	mu.Lock()
@@ -882,7 +882,7 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 	assert.Equal(t, targetChat, publishedIDs[0])
 }
 
-func TestWorker_MarkStale_WithInvalidChatID(t *testing.T) {
+func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -897,8 +897,8 @@ func TestWorker_MarkStale_WithInvalidChatID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 
-	// GetChats IS called because the invalid ChatID triggers
-	// fallback to workspace-wide broadcast.
+	// GetChats IS called because a nil ChatID triggers the
+	// workspace-wide broadcast path.
 	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, arg database.GetChatsParams) ([]database.GetChatsRow, error) {
 			require.Equal(t, ownerID, arg.OwnerID)
@@ -925,12 +925,12 @@ func TestWorker_MarkStale_WithInvalidChatID(t *testing.T) {
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
+	// Zero-value ChatID (uuid.Nil) triggers broadcast.
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: workspaceID,
 		OwnerID:     ownerID,
 		Branch:      "main",
 		Origin:      "https://github.com/org/repo",
-		ChatID:      "not-a-uuid",
 	})
 
 	mu.Lock()

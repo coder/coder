@@ -72,7 +72,7 @@ const (
 type chatGitRef struct {
 	Branch       string
 	RemoteOrigin string
-	ChatID       string
+	ChatID       uuid.UUID
 }
 
 type chatRepositoryRef struct {

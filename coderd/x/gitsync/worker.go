@@ -280,9 +280,9 @@ type MarkStaleParams struct {
 	OwnerID     uuid.UUID
 	Branch      string
 	Origin      string
-	// ChatID, when non-empty, targets a single chat instead
-	// of broadcasting to every chat on the workspace.
-	ChatID string
+	// ChatID, when set, targets a single chat instead of
+	// broadcasting to every chat on the workspace.
+	ChatID uuid.UUID
 }
 
 // MarkStale persists the git ref for a chat (or all chats on a
@@ -301,16 +301,9 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 	// WorkspaceID. This is safe because ChatID originates from
 	// chatd via the agent (trusted data flow), but differs from
 	// the broadcast path which filters by workspace.
-	if p.ChatID != "" {
-		parsed, err := uuid.Parse(p.ChatID)
-		if err != nil {
-			w.logger.Warn(ctx, "invalid chat ID in mark stale, falling back to workspace broadcast",
-				slog.F("chat_id", p.ChatID),
-				slog.Error(err))
-		} else {
-			w.markStaleSingle(ctx, parsed, p.Branch, p.Origin)
-			return
-		}
+	if p.ChatID != uuid.Nil {
+		w.markStaleSingle(ctx, p.ChatID, p.Branch, p.Origin)
+		return
 	}
 
 	chatRows, err := w.store.GetChats(ctx, database.GetChatsParams{
