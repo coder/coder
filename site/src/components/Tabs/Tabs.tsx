@@ -22,7 +22,7 @@ export const Tabs: FC<TabsProps> = ({ ...props }) => {
 	return <TabsPrimitive.Root {...props} />;
 };
 
-const tabsListVariants = cva("flex items-center", {
+const tabsListVariants = cva("flex flex-wrap items-center", {
 	variants: {
 		variant: {
 			insideBox: cn(
@@ -31,6 +31,8 @@ const tabsListVariants = cva("flex items-center", {
 				"[&_button]:border-x [&_button]:border-y-0 [&_button]:border-solid",
 				"[&_button]:border-x-transparent [&_button[data-state=active]]:border-x-border",
 				"[&_button]:px-4",
+				"[&_button]:text-content-secondary",
+				"[&_button[data-state=active]]:text-content-primary",
 			),
 			outsideBox: cn(
 				"border-solid border-0 border-b gap-6",
@@ -70,7 +72,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({ ...props }) => {
 			className={cn(
 				"border-none py-3 bg-transparent",
 				"text-inherit font-normal text-sm",
-				"inline-flex gap-1 items-center",
+				"inline-flex gap-2 items-center",
 				"cursor-pointer",
 				"transition-colors duration-150 ease-linear",
 			)}
