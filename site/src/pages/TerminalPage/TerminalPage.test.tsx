@@ -1,8 +1,7 @@
-import "jest-canvas-mock";
 import { waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import {
 	MockUserOwner,
@@ -12,6 +11,37 @@ import {
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import TerminalPage from "./TerminalPage";
+
+const reconnectToken = "terminal-page-test-reconnect-token";
+
+vi.mock("uuid", () => ({
+	v4: () => "terminal-page-test-reconnect-token",
+}));
+vi.stubGlobal("jest", vi);
+await import("jest-canvas-mock");
+const { default: WS } = await import("jest-websocket-mock");
+
+Object.defineProperty(window, "matchMedia", {
+	writable: true,
+	value: vi.fn().mockImplementation((query: string) => ({
+		matches: false,
+		media: query,
+		onchange: null,
+		addListener: vi.fn(),
+		removeListener: vi.fn(),
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+		dispatchEvent: vi.fn(),
+	})),
+});
+
+const createWorkspaceTerminalWebSocket = () => {
+	const websocketProtocol =
+		window.location.protocol === "https:" ? "wss" : "ws";
+	const websocketUrl = `${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&height=24&width=80`;
+
+	return new WS(websocketUrl);
+};
 
 const renderTerminal = async (
 	route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
@@ -28,7 +58,7 @@ const renderTerminal = async (
 		// rely on other screen elements to indicate completion.
 		const wrapper =
 			utils.container.querySelector<HTMLDivElement>("[data-status]")!;
-		expect(wrapper.dataset.state).not.toBe("initializing");
+		expect(wrapper.dataset.status).not.toBe("initializing");
 	});
 	return utils;
 };
@@ -51,17 +81,16 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
 };
 
 describe("TerminalPage", () => {
-	afterEach(() => {
-		WS.clean();
+	afterEach(async () => {
+		vi.restoreAllMocks();
+		await WS.clean();
 	});
 
 	it("loads the right workspace data", async () => {
-		jest
-			.spyOn(API, "getWorkspaceByOwnerAndName")
-			.mockResolvedValue(MockWorkspace);
-		new WS(
-			`ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
+		vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockWorkspace,
 		);
+		createWorkspaceTerminalWebSocket();
 		await renderTerminal(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
 		);
@@ -101,15 +130,10 @@ describe("TerminalPage", () => {
 	});
 
 	it("renders data from the backend", async () => {
-		const ws = new WS(
-			`ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
-		);
+		const ws = createWorkspaceTerminalWebSocket();
 		const text = "something to render";
 
 		const { container } = await renderTerminal();
-		// Ideally we could use ws.connected but that seems to pause React updates.
-		// For now, wait for the initial resize message instead.
-		await ws.nextMessage;
 		ws.send(text);
 
 		await expectTerminalText(container, text);
@@ -121,44 +145,35 @@ describe("TerminalPage", () => {
 	// in the other tests since ws.connected appears to pause React updates.  So
 	// for now the initial resize message (and this test) are here to stay.
 	it("resizes on connect", async () => {
-		const ws = new WS(
-			`ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
-		);
+		const ws = createWorkspaceTerminalWebSocket();
+		const resizeMessage = ws.nextMessage;
 
 		await renderTerminal();
 
-		const msg = await ws.nextMessage;
+		const msg = await resizeMessage;
 		const req = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
 		expect(req.height).toBeGreaterThan(0);
 		expect(req.width).toBeGreaterThan(0);
 	});
 
 	it("supports workspace.agent syntax", async () => {
-		const ws = new WS(
-			`ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
-		);
+		const ws = createWorkspaceTerminalWebSocket();
 		const text = "something to render";
 
 		const { container } = await renderTerminal(
 			`/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
 		);
 
-		// Ideally we could use ws.connected but that seems to pause React updates.
-		// For now, wait for the initial resize message instead.
-		await ws.nextMessage;
 		ws.send(text);
 		await expectTerminalText(container, text);
 	});
 
 	it("supports shift+enter", async () => {
-		const ws = new WS(
-			`ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
-		);
+		const ws = createWorkspaceTerminalWebSocket();
+		const initialResizeMessage = ws.nextMessage;
 
 		const { container } = await renderTerminal();
-		// Ideally we could use ws.connected but that seems to pause React updates.
-		// For now, wait for the initial resize message instead.
-		await ws.nextMessage;
+		await initialResizeMessage;
 
 		const msg = ws.nextMessage;
 		const terminal = container.getElementsByClassName("xterm");
