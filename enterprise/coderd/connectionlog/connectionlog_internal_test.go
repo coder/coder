@@ -74,7 +74,11 @@ func Test_addToBatch(t *testing.T) {
 		// The later event wins when the incoming item is not a
 		// disconnect. In practice, this case doesn't occur because
 		// connection IDs are never reused.
-		require.Equal(t, connect.ID, b.dedupedBatch[key].ID)
+		got := b.dedupedBatch[key]
+		require.Equal(t, connect.ID, got.ID)
+		// The disconnect's time should be preserved even though
+		// the connect event replaced it.
+		require.Equal(t, disconnect.Time, got.disconnectTime)
 	})
 
 	t.Run("DisconnectThenEarlierConnect", func(t *testing.T) {
@@ -165,6 +169,61 @@ func Test_addToBatch(t *testing.T) {
 		require.Equal(t, 2, b.batchLen())
 		require.Len(t, b.dedupedBatch, 1)
 		require.Len(t, b.nullConnIDBatch, 1)
+	})
+
+	t.Run("StandaloneDisconnectUsesTimeAsConnectTime", func(t *testing.T) {
+		t.Parallel()
+
+		b := &DBBatcher{
+			maxBatchSize: 100,
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
+		}
+
+		connID := uuid.New()
+		disconnect := fakeDisconnectEvent(uuid.New(), "agent1", connID)
+
+		b.addToBatch(disconnect)
+
+		got := b.dedupedBatch[connID]
+		// A standalone disconnect must not leave connectTime as
+		// zero — that would insert a year-0001 connect_time in
+		// the DB. It should use the disconnect's own timestamp,
+		// matching the single-row UpsertConnectionLog behavior.
+		require.False(t, got.connectTime.IsZero(),
+			"standalone disconnect must have non-zero connectTime")
+		require.Equal(t, disconnect.Time, got.connectTime)
+		require.Equal(t, disconnect.Time, got.disconnectTime)
+	})
+
+	t.Run("DuplicateDisconnectsPreserveConnectTime", func(t *testing.T) {
+		t.Parallel()
+
+		b := &DBBatcher{
+			maxBatchSize: 100,
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
+		}
+
+		wsID := uuid.New()
+		connID := uuid.New()
+
+		connect := fakeConnectEvent(wsID, "agent1", connID)
+		disconnect1 := fakeDisconnectEvent(wsID, "agent1", connID)
+		disconnect2 := fakeDisconnectEvent(wsID, "agent1", connID)
+		disconnect2.Time = disconnect1.Time.Add(time.Second)
+
+		b.addToBatch(connect)
+		b.addToBatch(disconnect1)
+		b.addToBatch(disconnect2)
+
+		require.Equal(t, 1, b.batchLen())
+		got := b.dedupedBatch[connID]
+		// The second disconnect should win (later event) but the
+		// original connect_time from the connect event must be
+		// preserved, not regressed to the disconnect's timestamp.
+		require.Equal(t, disconnect2.ID, got.ID)
+		require.Equal(t, connect.Time, got.connectTime,
+			"connect_time must not regress to disconnect timestamp")
+		require.Equal(t, disconnect2.Time, got.disconnectTime)
 	})
 }
 

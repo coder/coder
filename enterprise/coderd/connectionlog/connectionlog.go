@@ -215,9 +215,13 @@ func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 		UpsertConnectionLogParams: item,
 	}
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected {
-		// Pure disconnect: we don't know the real connect_time,
-		// so leave it as zero. The SQL will ignore the zero
-		// sentinel and keep the existing connect_time.
+		// For standalone disconnect events, use the disconnect
+		// time as both connect and disconnect time. This matches
+		// the single-row UpsertConnectionLog behavior which uses
+		// @time for connect_time regardless of status. The SQL
+		// LEAST logic will correct connect_time if the real
+		// connect event arrives in a later batch.
+		entry.connectTime = item.Time
 		entry.disconnectTime = item.Time
 	} else {
 		entry.connectTime = item.Time
@@ -233,13 +237,20 @@ func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 		b.dedupedBatch[connID] = entry
 		return
 	}
+	// When merging entries for the same connection, always preserve
+	// the earliest non-zero connect_time and latest disconnect_time
+	// so the row records the full session span.
+	if !existing.connectTime.IsZero() && existing.connectTime.Before(entry.connectTime) {
+		entry.connectTime = existing.connectTime
+	}
+	if existing.disconnectTime.After(entry.disconnectTime) {
+		entry.disconnectTime = existing.disconnectTime
+	}
+
 	// Prefer disconnect over connect (superset of info).
-	// If same status, prefer the later event. When merging,
-	// preserve the earliest connect_time and latest
-	// disconnect_time so the row records the full session span.
+	// If same status, prefer the later event.
 	if item.ConnectionStatus == database.ConnectionStatusDisconnected &&
 		existing.ConnectionStatus != database.ConnectionStatusDisconnected {
-		entry.connectTime = existing.connectTime
 		b.dedupedBatch[connID] = entry
 	} else if item.Time.After(existing.Time) {
 		b.dedupedBatch[connID] = entry
@@ -296,11 +307,9 @@ type batchEntry struct {
 	disconnectTime time.Time
 }
 
-// flush builds the batch params, clears the in-memory batch, and
-// writes to the database. On failure, it spawns a background retry
-// goroutine with exponential backoff (capped at maxRetryDuration
-// total). The caller's batch is always cleared immediately so the
-// run loop can continue accumulating new entries.
+// flush builds the batch params, clears the in-memory batch, writes
+// to the database synchronously, and spawns a background retry
+// goroutine on failure.
 func (b *DBBatcher) flush(ctx context.Context) {
 	count := b.batchLen()
 	if count == 0 {
@@ -311,11 +320,21 @@ func (b *DBBatcher) flush(ctx context.Context) {
 
 	params := b.buildParams()
 
-	// Clear the batch immediately so the run loop can continue
-	// accumulating new entries while the write (and any retries)
-	// proceed asynchronously.
+	// Clear the batch before writing so the run loop can start
+	// accumulating new entries if the write is slow.
 	b.dedupedBatch = make(map[uuid.UUID]batchEntry, b.maxBatchSize)
 	b.nullConnIDBatch = nil
+
+	//nolint:gocritic // System-level batch operation for connection logs.
+	authCtx := dbauthz.AsConnectionLogger(context.Background())
+	err := b.store.BatchUpsertConnectionLogs(authCtx, params)
+	if err == nil {
+		b.log.Debug(ctx, "connection log batch flush complete", slog.F("count", count))
+		return
+	}
+
+	b.log.Warn(ctx, "batch upsert failed, starting background retry",
+		slog.Error(err), slog.F("count", count))
 
 	b.wg.Add(1)
 	go func() {
