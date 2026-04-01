@@ -5,8 +5,10 @@ use leptos_router::{
 };
 
 use crate::components::navbar::Navbar;
+use crate::pages::create_workspace::CreateWorkspacePage;
 use crate::pages::login::LoginPage;
 use crate::pages::setup::SetupPage;
+use crate::pages::workspace::WorkspacePage;
 use crate::pages::workspaces::WorkspacesPage;
 
 #[component]
@@ -26,10 +28,26 @@ pub fn App() -> impl IntoView {
                     }
                 />
                 <Route
+                    path=path!("/workspace")
+                    view=|| view! {
+                        <DashboardLayout>
+                            <WorkspacePage />
+                        </DashboardLayout>
+                    }
+                />
+                <Route
                     path=path!("/templates")
                     view=|| view! {
                         <DashboardLayout>
                             <p>"Templates coming soon."</p>
+                        </DashboardLayout>
+                    }
+                />
+                <Route
+                    path=path!("/create-workspace")
+                    view=|| view! {
+                        <DashboardLayout>
+                            <CreateWorkspacePage />
                         </DashboardLayout>
                     }
                 />

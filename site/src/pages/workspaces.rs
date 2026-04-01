@@ -269,7 +269,7 @@ pub fn WorkspacesPage() -> impl IntoView {
             // ── Page header ──────────────────────────────────────────────
             <header class="flex items-center justify-between pt-8 pb-6 max-md:flex-col max-md:items-start max-md:gap-4">
                 <h1 class="text-2xl font-semibold flex items-center gap-2">"Workspaces"</h1>
-                <a href="/templates" class="inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium cursor-pointer transition-all border border-transparent px-4 py-2.5 bg-[var(--content-primary)] text-[var(--content-invert)] hover:bg-gray-300 no-underline whitespace-nowrap leading-none">"New workspace"</a>
+                <a href="/create-workspace" class="inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium cursor-pointer transition-all border border-transparent px-4 py-2.5 bg-[var(--content-primary)] text-[var(--content-invert)] hover:bg-gray-300 no-underline whitespace-nowrap leading-none">"New workspace"</a>
             </header>
 
             // ── Filter bar ───────────────────────────────────────────────
@@ -395,7 +395,7 @@ fn WorkspaceRow(workspace: Workspace) -> impl IntoView {
     let has_img_icon = workspace.template_icon.starts_with('/') ||
                        workspace.template_icon.starts_with("http");
 
-    let row_href = format!("/@{}/{}", workspace.owner_name, workspace.name);
+    let row_href = format!("/workspace?owner={}&name={}", workspace.owner_name, workspace.name);
     let name = workspace.name;
     let owner_name = workspace.owner_name;
     let favorite = workspace.favorite;
