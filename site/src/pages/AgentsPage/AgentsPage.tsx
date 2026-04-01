@@ -29,6 +29,7 @@ import {
 } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -187,6 +188,9 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
+	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
+		string | null
+	>(null);
 	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
 		chatId: string;
 		workspaceId: string;
@@ -282,10 +286,28 @@ const AgentsPage: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
+	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
+		chat?.status === "pending" || chat?.status === "running";
 	const requestArchiveAgent = (chatId: string) => {
-		if (!isArchiving) {
-			archiveAgentMutation.mutate(chatId);
+		if (isArchiving) {
+			return;
 		}
+		const chat = chatList.find((candidate) => candidate.id === chatId);
+		if (isActiveChat(chat)) {
+			setPendingArchiveChatId(chatId);
+			return;
+		}
+		archiveAgentMutation.mutate(chatId);
+	};
+	const handleConfirmArchiveAgent = () => {
+		if (!pendingArchiveChatId || isArchiving) {
+			return;
+		}
+		archiveAgentMutation.mutate(pendingArchiveChatId, {
+			onSettled: () => {
+				setPendingArchiveChatId(null);
+			},
+		});
 	};
 	const requestArchiveAndDeleteWorkspace = async (
 		chatId: string,
@@ -698,6 +720,16 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				archivedFilter={archivedFilter}
 				onArchivedFilterChange={setArchivedFilter}
+			/>
+			<ConfirmDialog
+				open={pendingArchiveChatId !== null}
+				onClose={() => setPendingArchiveChatId(null)}
+				onConfirm={handleConfirmArchiveAgent}
+				type="delete"
+				confirmText="Archive"
+				confirmLoading={archiveAgentMutation.isPending}
+				title="Archive agent?"
+				description="This agent is currently running. Archiving it will interrupt the current run."
 			/>
 			<DeleteDialog
 				key={pendingWorkspaceName}
