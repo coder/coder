@@ -700,6 +700,13 @@ const ChatScrollContainer: FC<{
 		if (!pending || !container) return;
 
 		const delta = container.scrollHeight - pending.scrollHeight;
+		// biome-ignore lint/suspicious/noConsole: temporary debug
+		console.debug("[STB] prepend-restore", {
+			delta,
+			snapshotH: pending.scrollHeight,
+			currentH: container.scrollHeight,
+			scrollTopBefore: container.scrollTop,
+		});
 		if (delta > 0) {
 			suppressNextResize();
 			container.scrollTop += delta;
