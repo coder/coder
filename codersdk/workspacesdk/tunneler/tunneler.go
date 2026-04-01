@@ -20,7 +20,7 @@ type NetworkedApplication interface {
 	// Closer is used to gracefully tear down the application prior to stopping the tunnel.
 	io.Closer
 	// Start the NetworkedApplication, using the provided AgentConn to connect.
-	Start(conn workspacesdk.AgentConn)
+	Start(conn workspacesdk.AgentConn) error
 }
 
 // WorkspaceStarter is used to create a start build of the workspace. It is an interface here because the CLI has lots
@@ -62,6 +62,33 @@ const (
 	// valid states using `range maxState`.
 	maxState // used for testing
 )
+
+func (s state) String() string {
+	switch s {
+	case stateInit:
+		return "init"
+	case exit:
+		return "exit"
+	case waitToStart:
+		return "waitToStart"
+	case waitForWorkspaceStarted:
+		return "waitForWorkspaceStarted"
+	case waitForAgent:
+		return "waitForAgent"
+	case establishTailnet:
+		return "establishTailnet"
+	case tailnetUp:
+		return "tailnetUp"
+	case applicationUp:
+		return "applicationUp"
+	case shutdownApplication:
+		return "shutdownApplication"
+	case shutdownTailnet:
+		return "shutdownTailnet"
+	default:
+		return fmt.Sprintf("unknown(%d)", s)
+	}
+}
 
 type Tunneler struct {
 	config    Config
@@ -179,10 +206,12 @@ func (t *Tunneler) eventLoop() {
 		case e.tailnetUpdate != nil:
 			t.handleTailnetUpdate(e.tailnetUpdate)
 		}
+		t.config.DebugLogger.Debug(t.ctx, "handled event", slog.F("state", t.state))
 	}
 }
 
 func (t *Tunneler) handleSignal() {
+	t.config.DebugLogger.Debug(t.ctx, "got shutdown signal")
 	switch t.state {
 	case exit, shutdownTailnet, shutdownApplication:
 		return
@@ -313,6 +342,10 @@ func (*Tunneler) handleProvisionerJobLog(*codersdk.ProvisionerJobLog) {
 }
 
 func (t *Tunneler) handleAgentUpdate(update *agentUpdate) {
+	t.config.DebugLogger.Debug(t.ctx, "handling agent update",
+		slog.F("state", t.state),
+		slog.F("lifecycle", update.lifecycle),
+		slog.F("agent_id", update.id))
 	if t.state != waitForAgent {
 		return
 	}
@@ -399,10 +432,91 @@ func (t *Tunneler) handleAppUpdate(update *networkedApplicationUpdate) {
 		slog.F("state", t.state), slog.F("app_up", update.up))
 }
 
-func (*Tunneler) handleTailnetUpdate(*tailnetUpdate) {
+func (t *Tunneler) handleTailnetUpdate(update *tailnetUpdate) {
+	switch t.state {
+	case exit:
+		return
+	case stateInit, waitToStart, waitForAgent, waitForWorkspaceStarted:
+		t.config.DebugLogger.Error(t.ctx, "unexpected: tailnet update before we started it",
+			slog.F("state", t.state), slog.F("app_up", update.up), slog.Error(update.err))
+		return
+	}
+	if update.up {
+		t.config.DebugLogger.Debug(t.ctx, "got tailnet 'up' update", slog.F("state", t.state))
+		switch t.state {
+		case establishTailnet:
+			t.agentConn = update.conn
+			t.state = tailnetUp
+			t.wg.Add(1)
+			go t.startApp()
+			return
+		case shutdownTailnet:
+			// this means we were notified to shut down while we were starting the tailnet. We need to tear it down.
+			t.config.DebugLogger.Debug(t.ctx, "gracefully shutting down tailnet after it started")
+			t.agentConn = update.conn
+			t.wg.Add(1)
+			go t.shutdownTailnet()
+			return
+		case tailnetUp:
+			t.config.DebugLogger.Error(t.ctx, "unexpected: got tailnet 'up' update when it is already up")
+			if update.conn != nil && update.conn != t.agentConn {
+				// somehow we have two updates with different connections. Something very bad has happened so we are
+				// going to just bail, rather than try to gracefully tear them both down.
+				t.config.DebugLogger.Fatal(t.ctx, "unexpected: got two different connections")
+			}
+			return
+		case shutdownApplication:
+			t.config.DebugLogger.Error(t.ctx, "unexpected: got tailnet 'up' update when we expected application update")
+			return
+		}
+	}
+	t.config.DebugLogger.Debug(t.ctx, "got tailnet 'down' update", slog.F("state", t.state))
+	switch t.state {
+	case establishTailnet, shutdownTailnet:
+		// Either we failed to establish, or we successfully shut down. In the former case, the error has already been
+		// logged. Nothing else to do now that tailnet is down, since it implies the application is also down.
+		t.cancel()
+		t.state = exit
+		return
+	case tailnetUp:
+		t.config.DebugLogger.Error(t.ctx,
+			"unexpected: got tailnet 'down' update when we were starting the application")
+		return
+	case shutdownApplication:
+		t.config.DebugLogger.Error(t.ctx,
+			"unexpected: got tailnet 'down' update when we were stopping the application")
+		return
+	}
+	t.config.DebugLogger.Critical(t.ctx, "unhandled tailnet update",
+		slog.F("state", t.state), slog.F("app_up", update.up))
+}
+
+func (t *Tunneler) startApp() {
+	t.config.DebugLogger.Debug(t.ctx, "starting networked application")
+	defer t.wg.Done()
+	err := t.config.App.Start(t.agentConn)
+	if err != nil {
+		t.config.DebugLogger.Error(t.ctx, "failed to start application", slog.Error(err))
+		if t.config.LogWriter != nil {
+			_, _ = fmt.Fprintf(t.config.LogWriter, "failed to start: %s", err.Error())
+		}
+		select {
+		case <-t.ctx.Done():
+			t.config.DebugLogger.Info(t.ctx,
+				"context expired before sending event after failed network application start")
+		case t.events <- tunnelerEvent{appUpdate: &networkedApplicationUpdate{up: false, err: err}}:
+		}
+		return
+	}
+	select {
+	case <-t.ctx.Done():
+		t.config.DebugLogger.Info(t.ctx, "context expired before sending network application start update")
+	case t.events <- tunnelerEvent{appUpdate: &networkedApplicationUpdate{up: true}}:
+	}
 }
 
 func (t *Tunneler) closeApp() {
+	t.config.DebugLogger.Info(t.ctx, "closing networked application")
 	defer t.wg.Done()
 	err := t.config.App.Close()
 	if err != nil {
@@ -416,6 +530,7 @@ func (t *Tunneler) closeApp() {
 }
 
 func (t *Tunneler) startWorkspace() {
+	t.config.DebugLogger.Info(t.ctx, "starting workspace")
 	defer t.wg.Done()
 	err := t.config.WorkspaceStarter.StartWorkspace()
 	if err != nil {
@@ -428,10 +543,12 @@ func (t *Tunneler) startWorkspace() {
 			t.config.DebugLogger.Info(t.ctx, "context expired before sending signal after failed workspace start")
 		case t.events <- tunnelerEvent{appUpdate: &networkedApplicationUpdate{up: false}}:
 		}
+		return
 	}
 }
 
 func (t *Tunneler) connectTailnet(id uuid.UUID) {
+	t.config.DebugLogger.Info(t.ctx, "connecting tailnet")
 	defer t.wg.Done()
 	conn, err := t.client.DialAgent(t.ctx, id, &workspacesdk.DialAgentOptions{
 		Logger: t.config.DebugLogger.Named("dialer"),
@@ -446,6 +563,7 @@ func (t *Tunneler) connectTailnet(id uuid.UUID) {
 			t.config.DebugLogger.Info(t.ctx, "context expired before sending event after failed agent dial")
 		case t.events <- tunnelerEvent{tailnetUpdate: &tailnetUpdate{up: false, err: err}}:
 		}
+		return
 	}
 	select {
 	case <-t.ctx.Done():
@@ -455,6 +573,7 @@ func (t *Tunneler) connectTailnet(id uuid.UUID) {
 }
 
 func (t *Tunneler) shutdownTailnet() {
+	t.config.DebugLogger.Info(t.ctx, "shutting down tailnet")
 	defer t.wg.Done()
 	err := t.agentConn.Close()
 	if err != nil {

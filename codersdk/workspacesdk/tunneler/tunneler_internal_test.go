@@ -390,11 +390,10 @@ func TestAppUpdate(t *testing.T) {
 			ctx, cancel := context.WithCancel(testCtx)
 			uut := &Tunneler{
 				config: Config{
-					WorkspaceID:      workspaceID,
-					AgentName:        "test",
-					DebugLogger:      logger.Named("tunneler"),
-					NoWaitForScripts: true,
-					App:              fApp,
+					WorkspaceID: workspaceID,
+					AgentName:   "test",
+					DebugLogger: logger.Named("tunneler"),
+					App:         fApp,
 				},
 				events:    make(chan tunnelerEvent),
 				ctx:       ctx,
@@ -415,6 +414,171 @@ func TestAppUpdate(t *testing.T) {
 	}
 }
 
+func TestTailnetUpdate(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                                  string
+		up                                    bool
+		initState, expected                   state
+		expectStartApp, expectShutdownTailnet bool
+	}{
+		{
+			name:           "mainline_up",
+			up:             true,
+			initState:      establishTailnet,
+			expected:       tailnetUp,
+			expectStartApp: true,
+		},
+		{
+			name:      "mainline_down",
+			up:        false,
+			initState: shutdownTailnet,
+			expected:  exit,
+		},
+		{
+			name:      "failed_tailnet_start",
+			up:        false,
+			initState: establishTailnet,
+			expected:  exit,
+		},
+		{
+			name:                  "graceful_shutdown_while_starting",
+			up:                    true,
+			initState:             shutdownTailnet,
+			expected:              shutdownTailnet,
+			expectShutdownTailnet: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			workspaceID := uuid.UUID{1}
+			logger := testutil.Logger(t)
+
+			ctrl := gomock.NewController(t)
+			mAgentConn := agentconnmock.NewMockAgentConn(ctrl)
+			fApp := &fakeApp{}
+
+			testCtx := testutil.Context(t, testutil.WaitShort)
+			ctx, cancel := context.WithCancel(testCtx)
+			uut := &Tunneler{
+				config: Config{
+					WorkspaceID: workspaceID,
+					AgentName:   "test",
+					DebugLogger: logger.Named("tunneler"),
+					App:         fApp,
+				},
+				events: make(chan tunnelerEvent),
+				ctx:    ctx,
+				cancel: cancel,
+				state:  tc.initState,
+			}
+			if tc.expectShutdownTailnet {
+				mAgentConn.EXPECT().Close().Return(nil).Times(1)
+			}
+
+			update := &tailnetUpdate{up: tc.up}
+			if tc.up {
+				update.conn = mAgentConn
+			}
+			uut.handleTailnetUpdate(update)
+			require.Equal(t, tc.expected, uut.state)
+			cancel() // so that any goroutines can complete without an event loop
+			waitForGoroutines(testCtx, t, uut)
+			require.Equal(t, tc.expectStartApp, fApp.started)
+		})
+	}
+}
+
+func TestTunneler_EventLoop_Signal(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.UUID{1}
+	agentID := uuid.UUID{2}
+	logger := testutil.Logger(t)
+
+	ctrl := gomock.NewController(t)
+	mAgentConn := agentconnmock.NewMockAgentConn(ctrl)
+	fApp := &fakeApp{
+		starts: make(chan appStartRequest),
+		closes: make(chan errorResult),
+	}
+	fClient := &fakeClient{
+		dials: make(chan dialRequest),
+	}
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	uut := &Tunneler{
+		client: fClient,
+		config: Config{
+			WorkspaceID: workspaceID,
+			AgentName:   "test",
+			DebugLogger: logger.Named("tunneler"),
+			App:         fApp,
+		},
+		events: make(chan tunnelerEvent),
+		ctx:    ctx,
+		cancel: cancel,
+		state:  stateInit,
+	}
+	uut.wg.Add(1)
+	go uut.eventLoop()
+
+	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
+		buildUpdate: &buildUpdate{
+			transition: codersdk.WorkspaceTransitionStart,
+			jobStatus:  codersdk.ProvisionerJobPending,
+		},
+	})
+	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
+		buildUpdate: &buildUpdate{
+			transition: codersdk.WorkspaceTransitionStart,
+			jobStatus:  codersdk.ProvisionerJobRunning,
+		},
+	})
+	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
+		buildUpdate: &buildUpdate{
+			transition: codersdk.WorkspaceTransitionStart,
+			jobStatus:  codersdk.ProvisionerJobSucceeded,
+		},
+	})
+	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
+		agentUpdate: &agentUpdate{
+			lifecycle: codersdk.WorkspaceAgentLifecycleReady,
+			id:        agentID,
+		},
+	})
+
+	// Workspace started, agent ready. Should connect the tailnet.
+	tailnetDial := testutil.RequireReceive(testCtx, t, fClient.dials)
+	testutil.RequireSend(testCtx, t, tailnetDial.result, dialResult{conn: mAgentConn})
+
+	// Tailnet up, should start App
+	appStart := testutil.RequireReceive(testCtx, t, fApp.starts)
+	require.Equal(t, mAgentConn, appStart.conn)
+	testutil.RequireSend(testCtx, t, appStart.result, nil)
+
+	connClosed := make(chan struct{})
+	mAgentConn.EXPECT().Close().Times(1).Do(func() {
+		close(connClosed)
+	}).Return(nil)
+
+	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
+		shutdownSignal: &shutdownSignal{},
+	})
+
+	closeReq := testutil.RequireReceive(testCtx, t, fApp.closes)
+	testutil.RequireSend(testCtx, t, closeReq.result, nil)
+
+	// next tailnet closes
+	_ = testutil.TryReceive(testCtx, t, connClosed)
+
+	// should cancel the loop and be at exit
+	waitForGoroutines(testCtx, t, uut)
+	require.Equal(t, exit, uut.state)
+}
+
 func waitForGoroutines(ctx context.Context, t *testing.T, tunneler *Tunneler) {
 	done := make(chan struct{})
 	go func() {
@@ -424,32 +588,87 @@ func waitForGoroutines(ctx context.Context, t *testing.T, tunneler *Tunneler) {
 	_ = testutil.TryReceive(ctx, t, done)
 }
 
+type errorResult struct {
+	result chan error
+}
+
 type fakeWorkspaceStarter struct {
+	starts  chan errorResult
 	started bool
 }
 
 func (f *fakeWorkspaceStarter) StartWorkspace() error {
-	f.started = true
-	return nil
+	if f.starts == nil {
+		f.started = true
+		return nil
+	}
+	result := make(chan error)
+	f.starts <- errorResult{result: result}
+	return <-result
+}
+
+type appStartRequest struct {
+	conn   workspacesdk.AgentConn
+	result chan error
 }
 
 type fakeApp struct {
-	closed bool
+	starts  chan appStartRequest
+	closes  chan errorResult
+	closed  bool
+	started bool
 }
 
 func (f *fakeApp) Close() error {
-	f.closed = true
-	return nil
+	if f.closes == nil {
+		f.closed = true
+		return nil
+	}
+	result := make(chan error)
+	f.closes <- errorResult{result: result}
+	return <-result
 }
 
-func (*fakeApp) Start(workspacesdk.AgentConn) {}
+func (f *fakeApp) Start(conn workspacesdk.AgentConn) error {
+	if f.starts == nil {
+		f.started = true
+		return nil
+	}
+	result := make(chan error)
+	f.starts <- appStartRequest{result: result, conn: conn}
+	return <-result
+}
+
+type dialRequest struct {
+	id     uuid.UUID
+	result chan dialResult
+}
+
+type dialResult struct {
+	conn workspacesdk.AgentConn
+	err  error
+}
 
 type fakeClient struct {
+	// async:
+	dials chan dialRequest
+
+	// sync:
 	conn   workspacesdk.AgentConn
 	dialed bool
 }
 
-func (f *fakeClient) DialAgent(context.Context, uuid.UUID, *workspacesdk.DialAgentOptions) (workspacesdk.AgentConn, error) {
-	f.dialed = true
-	return f.conn, nil
+func (f *fakeClient) DialAgent(
+	_ context.Context, id uuid.UUID, _ *workspacesdk.DialAgentOptions,
+) (
+	workspacesdk.AgentConn, error,
+) {
+	if f.dials == nil {
+		f.dialed = true
+		return f.conn, nil
+	}
+	results := make(chan dialResult)
+	f.dials <- dialRequest{id: id, result: results}
+	result := <-results
+	return result.conn, result.err
 }
