@@ -5,12 +5,20 @@ import { ConversationItem, Message, MessageContent } from "../ChatElements";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
-import type { MergedTool, StreamState } from "./types";
+import type { MergedTool, RenderBlock, StreamState } from "./types";
 
 const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "starting" ||
 	liveStatus.phase === "retrying" ||
 	liveStatus.phase === "reconnecting";
+
+/**
+ * True when the block list contains at least one text or reasoning
+ * block. Tool-call and other non-text blocks don't count because
+ * they don't replace the "Thinking..." placeholder visually.
+ */
+const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
+	blocks.some((b) => b.type === "response" || b.type === "thinking");
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
@@ -40,13 +48,35 @@ export const StreamingOutput: FC<{
 	const isStreaming = liveStatus.phase === "streaming";
 	const shouldShowBlocks =
 		liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
-	const shouldShowStatusCallout = hasTransientLiveStatus(liveStatus);
+	const blocks = shouldShowBlocks ? (streamState?.blocks ?? []) : [];
+
+	// During streaming, keep showing the "Thinking..." indicator
+	// until text or reasoning blocks arrive. This bridges the
+	// visual gap between the "starting" phase placeholder and the
+	// first visible content, preventing the indicator from
+	// flickering away when only tool-call parts (or whitespace-
+	// only text deltas) have been received so far.
+	const needsStreamingThinking =
+		isStreaming && !hasTextOrReasoningBlock(blocks);
+
+	const shouldShowStatusCallout =
+		hasTransientLiveStatus(liveStatus) || needsStreamingThinking;
+
 	if (!shouldShowBlocks && !shouldShowStatusCallout) {
 		return null;
 	}
 
+	// When we need the thinking indicator during streaming, present
+	// a synthetic "starting" status so ChatStatusCallout renders
+	// the shimmer placeholder rather than returning null.
+	const calloutStatus: LiveStatusModel = needsStreamingThinking
+		? {
+				phase: "starting",
+				hasAccumulatedOutput: liveStatus.hasAccumulatedOutput,
+			}
+		: liveStatus;
+
 	const conversationItemProps = { role: "assistant" as const };
-	const blocks = shouldShowBlocks ? (streamState?.blocks ?? []) : [];
 
 	return (
 		<ConversationItem {...conversationItemProps}>
@@ -68,7 +98,7 @@ export const StreamingOutput: FC<{
 						)}
 						{shouldShowStatusCallout && (
 							<ChatStatusCallout
-								status={liveStatus}
+								status={calloutStatus}
 								startingResetKey={startingResetKey}
 							/>
 						)}
