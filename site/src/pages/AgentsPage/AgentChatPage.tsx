@@ -83,6 +83,22 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
+/**
+ * Read the persisted plain-text draft for a given chat ID.
+ * Returns the text portion of the draft (stripping Lexical JSON
+ * wrapper if present) for backward compatibility.
+ */
+export function getPersistedDraftInputValue(
+	chatID: string | undefined,
+): string {
+	if (typeof window === "undefined" || !chatID) {
+		return "";
+	}
+	return parseStoredDraft(
+		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
+	).text;
+}
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
@@ -175,15 +191,6 @@ export function useConversationEditingState(deps: {
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
-		// If restoring a serialized editor state the LexicalComposer
-		// key change handles the remount. Otherwise fall back to
-		// imperative clear + insert for plain-text drafts.
-		if (!savedState) {
-			chatInputRef.current?.clear();
-			if (savedText) {
-				chatInputRef.current?.insertText(savedText);
-			}
-		}
 	};
 
 	// -- Queue editing state --
@@ -229,15 +236,6 @@ export function useConversationEditingState(deps: {
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
 		setEditingFileBlocks([]);
-		// If restoring a serialized editor state the LexicalComposer
-		// key change handles the remount. Otherwise fall back to
-		// imperative clear + insert for plain-text drafts.
-		if (!savedState) {
-			chatInputRef.current?.clear();
-			if (savedText) {
-				chatInputRef.current?.insertText(savedText);
-			}
-		}
 	};
 
 	// Wraps the parent onSend to clear local input/editing state

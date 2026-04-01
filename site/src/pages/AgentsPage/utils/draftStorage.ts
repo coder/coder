@@ -65,10 +65,10 @@ function extractTextFromNode(node: {
 	const childTexts = node.children.map((child) =>
 		extractTextFromNode(child as typeof node),
 	);
-	// Join root-level children (paragraphs) with newlines,
-	// matching Lexical's getTextContent() paragraph separation.
+	// Join root-level children (paragraphs) with double
+	// newlines, matching Lexical's getTextContent() behavior.
 	if (node.type === "root") {
-		return childTexts.join("\n");
+		return childTexts.join("\n\n");
 	}
 	return childTexts.join("");
 }

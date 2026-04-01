@@ -76,9 +76,6 @@ interface AgentChatPageViewProps {
 	editing: EditingState;
 	pendingEditMessageId: number | null;
 
-	// Input configuration.
-	initialInputValue: string;
-
 	// Model/input configuration.
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
@@ -165,7 +162,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	store,
 	editing,
 	pendingEditMessageId,
-	initialInputValue,
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,

@@ -505,17 +505,34 @@ const ChatMessageInput = ({
 	};
 
 	const editorRef = useRef<LexicalEditor | null>(null);
+	// Tracks the last known text content so getValue() can return
+	// a useful value before the Lexical editor hydrates.
+	const lastKnownValueRef = useRef(initialValue ?? "");
+	// Queues a setValue call made before the editor ref is ready.
+	const pendingReplacementRef = useRef<string | null>(null);
 
 	const handleEditorReady = (editor: LexicalEditor) => {
 		editorRef.current = editor;
+		// Flush any queued setValue that arrived before the editor
+		// was ready (e.g. useLayoutEffect in a parent).
+		const pending = pendingReplacementRef.current;
+		if (pending !== null) {
+			pendingReplacementRef.current = null;
+			replacePlainTextInEditor(editor, pending);
+		}
 	};
 
 	useImperativeHandle(
 		ref,
 		() => ({
 			setValue: (text: string) => {
+				lastKnownValueRef.current = text;
 				const editor = editorRef.current;
-				if (!editor) return;
+				if (!editor) {
+					pendingReplacementRef.current = text;
+					return;
+				}
+				pendingReplacementRef.current = null;
 				replacePlainTextInEditor(editor, text);
 			},
 			insertText: (text: string) => {
@@ -564,7 +581,9 @@ const ChatMessageInput = ({
 			},
 			getValue: () => {
 				const editor = editorRef.current;
-				if (!editor) return "";
+				if (!editor) {
+					return lastKnownValueRef.current;
+				}
 				let content = "";
 				editor.getEditorState().read(() => {
 					content = $getRoot().getTextContent();

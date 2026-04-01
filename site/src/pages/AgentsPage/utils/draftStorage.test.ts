@@ -68,7 +68,7 @@ describe("parseStoredDraft", () => {
 			},
 		});
 		const result = parseStoredDraft(state);
-		expect(result.text).toBe("line one\nline two");
+		expect(result.text).toBe("line one\n\nline two");
 	});
 
 	it("skips non-text nodes (file-reference chips)", () => {

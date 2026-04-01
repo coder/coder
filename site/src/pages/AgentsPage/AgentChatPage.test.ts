@@ -93,21 +93,28 @@ describe("useConversationEditingState", () => {
 		setMobileViewport(false);
 	});
 
-	const renderEditing = () => {
+	const renderEditing = (...args: [] | [string | undefined]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef = { current: "" };
+		// createRef returns { current: null }, but we need it initialized
+		// to "" so the hook sees a string.
+		(inputValueRef as { current: string }).current = "";
+
+		const resolvedChatID = args.length === 0 ? chatID : args[0];
 
 		const hook = renderHook(() =>
 			useConversationEditingState({
-				chatID,
+				chatID: resolvedChatID,
 				onSend,
 				onDeleteQueuedMessage,
 				chatInputRef,
+				inputValueRef,
 			}),
 		);
 
-		return { ...hook, onSend };
+		return { ...hook, onSend, inputValueRef };
 	};
 
 	it("persists and removes drafts via handleContentChange", () => {
@@ -135,49 +142,69 @@ describe("useConversationEditingState", () => {
 
 	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
 		const { result, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("work in progress");
-		result.current.chatInputRef.current = mockInput.handle;
+
+		// Simulate the user typing a draft via handleContentChange.
+		act(() => {
+			result.current.handleContentChange(
+				"work in progress",
+				"work in progress",
+				false,
+			);
+		});
+
+		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
 			result.current.handleEditUserMessage(7, "edited message");
 		});
 
 		expect(result.current.editingMessageId).toBe(7);
-		expect(mockInput.setValue).toHaveBeenCalledWith("edited message");
-		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+		expect(result.current.editorInitialValue).toBe("edited message");
+		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
+
+		const remountKeyAfterEdit = result.current.remountKey;
 
 		act(() => {
 			result.current.handleCancelHistoryEdit();
 		});
 
 		expect(result.current.editingMessageId).toBeNull();
-		expect(mockInput.setValue).toHaveBeenLastCalledWith("work in progress");
-		expect(mockInput.currentValue.value).toBe("work in progress");
-		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+		expect(result.current.editorInitialValue).toBe("work in progress");
+		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
 		unmount();
 	});
 
 	it("loads queue edit text into the composer and restores the prior draft on cancel without refocusing", () => {
 		const { result, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("work in progress");
-		result.current.chatInputRef.current = mockInput.handle;
+
+		// Simulate the user typing a draft via handleContentChange.
+		act(() => {
+			result.current.handleContentChange(
+				"work in progress",
+				"work in progress",
+				false,
+			);
+		});
+
+		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
 			result.current.handleStartQueueEdit(9, "queued message", []);
 		});
 
 		expect(result.current.editingQueuedMessageID).toBe(9);
-		expect(mockInput.setValue).toHaveBeenCalledWith("queued message");
-		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+		expect(result.current.editorInitialValue).toBe("queued message");
+		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
+
+		const remountKeyAfterEdit = result.current.remountKey;
 
 		act(() => {
 			result.current.handleCancelQueueEdit();
 		});
 
 		expect(result.current.editingQueuedMessageID).toBeNull();
-		expect(mockInput.setValue).toHaveBeenLastCalledWith("work in progress");
-		expect(mockInput.currentValue.value).toBe("work in progress");
-		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+		expect(result.current.editorInitialValue).toBe("work in progress");
+		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
 		unmount();
 	});
 
@@ -187,6 +214,10 @@ describe("useConversationEditingState", () => {
 		const mockInput = createMockChatInputHandle("draft before edit");
 		result.current.chatInputRef.current = mockInput.handle;
 
+		// Edit/cancel now drive the editor via editorInitialValue +
+		// remountKey, so focus is never called on the mock during
+		// edit and cancel flows. handleSendFromInput is the only
+		// path that calls focus and it skips on mobile viewports.
 		act(() => {
 			result.current.handleEditUserMessage(7, "edited message");
 		});
@@ -212,8 +243,6 @@ describe("useConversationEditingState", () => {
 	it("falls back to the persisted draft when history edit starts before hydration", () => {
 		localStorage.setItem(expectedKey, "persisted draft");
 		const { result, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("");
-		result.current.chatInputRef.current = mockInput.handle;
 
 		act(() => {
 			result.current.handleEditUserMessage(7, "edited message");
@@ -223,16 +252,15 @@ describe("useConversationEditingState", () => {
 			result.current.handleCancelHistoryEdit();
 		});
 
-		expect(mockInput.setValue).toHaveBeenLastCalledWith("persisted draft");
-		expect(mockInput.currentValue.value).toBe("persisted draft");
+		// The hook reads the persisted draft from localStorage when
+		// inputValueRef hasn't been updated by handleContentChange yet.
+		expect(result.current.editorInitialValue).toBe("persisted draft");
 		unmount();
 	});
 
 	it("falls back to the persisted draft when queue edit starts before hydration", () => {
 		localStorage.setItem(expectedKey, "persisted draft");
 		const { result, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("");
-		result.current.chatInputRef.current = mockInput.handle;
 
 		act(() => {
 			result.current.handleStartQueueEdit(9, "queued message", []);
@@ -242,16 +270,19 @@ describe("useConversationEditingState", () => {
 			result.current.handleCancelQueueEdit();
 		});
 
-		expect(mockInput.setValue).toHaveBeenLastCalledWith("persisted draft");
-		expect(mockInput.currentValue.value).toBe("persisted draft");
+		expect(result.current.editorInitialValue).toBe("persisted draft");
 		unmount();
 	});
 
 	it("prefers the live editor value over stale persisted draft state", () => {
 		localStorage.setItem(expectedKey, "stale persisted draft");
 		const { result, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("live draft");
-		result.current.chatInputRef.current = mockInput.handle;
+
+		// Simulate the editor emitting a content change, which updates
+		// inputValueRef to the live value.
+		act(() => {
+			result.current.handleContentChange("live draft", "live draft", false);
+		});
 
 		act(() => {
 			result.current.handleEditUserMessage(7, "edited message");
@@ -261,31 +292,38 @@ describe("useConversationEditingState", () => {
 			result.current.handleCancelHistoryEdit();
 		});
 
-		expect(mockInput.setValue).toHaveBeenLastCalledWith("live draft");
-		expect(mockInput.currentValue.value).toBe("live draft");
+		expect(result.current.editorInitialValue).toBe("live draft");
 		unmount();
 	});
 
-	it("can load the same edit text again after send without relying on a remount", async () => {
+	it("can load the same edit text again after send", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle();
 		result.current.chatInputRef.current = mockInput.handle;
 
+		const remountKeyBefore = result.current.remountKey;
+
 		act(() => {
 			result.current.handleEditUserMessage(7, "hello");
 		});
+
+		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
 
 		await act(async () => {
 			await result.current.handleSendFromInput("hello");
 		});
 
+		const remountKeyAfterSend = result.current.remountKey;
+
 		act(() => {
 			result.current.handleEditUserMessage(7, "hello");
 		});
 
+		// remountKey increments each time an edit is loaded, even for
+		// the same text, so the editor is forced to reinitialize.
+		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
+		expect(result.current.editorInitialValue).toBe("hello");
 		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
-		expect(mockInput.setValue).toHaveBeenNthCalledWith(1, "hello");
-		expect(mockInput.setValue).toHaveBeenNthCalledWith(2, "hello");
 		unmount();
 	});
 
@@ -331,6 +369,7 @@ describe("useConversationEditingState", () => {
 		const mockInputRef = {
 			focus: mockFocus,
 			clear: mockClear,
+			setValue: vi.fn(),
 			insertText: vi.fn(),
 			getValue: vi.fn().mockReturnValue(""),
 			addFileReference: vi.fn(),
