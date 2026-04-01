@@ -7,7 +7,6 @@ import type {
 	SlimRole,
 	User,
 } from "#/api/typesGenerated";
-import { AddUsersMenu } from "#/components/AddUsersMenu/AddUsersMenu";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -35,6 +34,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { AddUsersPopover } from "#/modules/users/AddUsersPopover";
 import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
 import { TableColumnHelpPopover } from "./UserTable/TableColumnHelpPopover";
@@ -96,7 +96,7 @@ export const OrganizationMembersPageView: FC<
 				<div className="flex flex-row flex-wrap items-start justify-between gap-4">
 					<UsersFilter {...filterProps} />
 					{canEditMembers && (
-						<AddUsersMenu
+						<AddUsersPopover
 							isLoading={isAddingMember}
 							onSubmit={addMembers}
 							existingUserIds={new Set(members?.map((m) => m.user_id) ?? [])}

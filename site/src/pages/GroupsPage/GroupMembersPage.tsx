@@ -11,7 +11,6 @@ import {
 	removeMember,
 } from "#/api/queries/groups";
 import type { Group, ReducedUser } from "#/api/typesGenerated";
-import { AddUsersMenu } from "#/components/AddUsersMenu/AddUsersMenu";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -34,6 +33,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { isEveryoneGroup } from "#/modules/groups";
+import { AddUsersPopover } from "#/modules/users/AddUsersPopover";
 import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {
@@ -58,7 +58,7 @@ const GroupMembersPage: FC = () => {
 				<UsersFilter {...filterProps} />
 
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-					<AddUsersMenu
+					<AddUsersPopover
 						isLoading={addMemberMutation.isPending}
 						existingUserIds={new Set(members.map((m) => m.id))}
 						onSubmit={async (usersToAdd) => {

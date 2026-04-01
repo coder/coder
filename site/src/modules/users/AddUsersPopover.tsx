@@ -7,6 +7,7 @@ import type { User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	Popover,
 	PopoverContent,
@@ -16,16 +17,15 @@ import { SearchField } from "#/components/SearchField/SearchField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { prepareQuery } from "#/utils/filters";
-import { EmptyState } from "../EmptyState/EmptyState";
 
-type AddUsersMenuProps = {
+type AddUsersPopoverProps = {
 	isLoading: boolean;
 	onSubmit: (users: readonly User[]) => Promise<void>;
 	onSuccess?: (users: readonly User[]) => void | Promise<void>;
 	existingUserIds: ReadonlySet<string>;
 };
 
-export const AddUsersMenu: FC<AddUsersMenuProps> = ({
+export const AddUsersPopover: FC<AddUsersPopoverProps> = ({
 	isLoading,
 	onSubmit,
 	onSuccess,
