@@ -155,14 +155,15 @@ export function usePaginatedQuery<
 	const count = query.data?.count;
 	const countIsCapped = count !== undefined && count > COUNT_CAP;
 	const totalRecords = countIsCapped ? COUNT_CAP : count;
-	let totalPages = totalRecords !== undefined
-		? Math.max(
-			Math.ceil(totalRecords / limit),
-			// True count is not known; let them navigate forward
-			// until they hit an empty page (checked below).
-			countIsCapped ? currentPage : 0,
-		)
-		: undefined;
+	let totalPages =
+		totalRecords !== undefined
+			? Math.max(
+					Math.ceil(totalRecords / limit),
+					// True count is not known; let them navigate forward
+					// until they hit an empty page (checked below).
+					countIsCapped ? currentPage : 0,
+				)
+			: undefined;
 
 	// When the true count is unknown, the user can navigate past
 	// all actual data. If that happens, we need to redirect (via
@@ -170,13 +171,9 @@ export function usePaginatedQuery<
 	// empty.
 	const pageIsEmpty =
 		query.data !== undefined &&
-		!Object.values(query.data).some(
-			(v) => Array.isArray(v) && v.length > 0,
-		);
+		!Object.values(query.data).some((v) => Array.isArray(v) && v.length > 0);
 	if (pageIsEmpty) {
-		totalPages = count !== undefined
-			? Math.ceil(count / limit)
-			: 1;
+		totalPages = count !== undefined ? Math.ceil(count / limit) : 1;
 	}
 
 	const hasNextPage =
@@ -258,7 +255,11 @@ export function usePaginatedQuery<
 	});
 
 	useEffect(() => {
-		if (!query.isFetching && totalPages !== undefined && currentPage > totalPages) {
+		if (
+			!query.isFetching &&
+			totalPages !== undefined &&
+			currentPage > totalPages
+		) {
 			void updatePageIfInvalid(totalPages);
 		}
 	}, [updatePageIfInvalid, query.isFetching, totalPages, currentPage]);
