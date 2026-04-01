@@ -112,9 +112,7 @@ export const StreamingOutput: FC<{
 								mcpServers={mcpServers}
 							/>
 						)}
-						{needsStreamingThinking && (
-							<StreamingThinkingPlaceholder />
-						)}
+						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
 						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
 							<ChatStatusCallout
 								status={liveStatus}
