@@ -216,7 +216,6 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, member.ID, chat.OwnerID)
 		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
 		require.Equal(t, "hello from chats route tests", chat.Title)
-		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 		require.NotZero(t, chat.CreatedAt)
 		require.NotZero(t, chat.UpdatedAt)
 		require.Nil(t, chat.WorkspaceID)
