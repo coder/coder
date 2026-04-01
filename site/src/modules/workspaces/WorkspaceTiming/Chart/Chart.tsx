@@ -60,15 +60,10 @@ export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
 			{...props}
 			ref={contentRef}
 			className={cn(
-				"relative flex flex-1 items-stretch overflow-auto text-xs font-medium [scrollbar-width:thin]",
+				"relative flex flex-1 items-stretch overflow-auto text-xs font-medium",
+				"[scrollbar-color:hsl(var(--border-default))_hsl(var(--surface-primary))]",
 				props.className,
 			)}
-			style={
-				{
-					scrollbarColor: "var(--border) var(--surface-primary)",
-					...props.style,
-				} as React.CSSProperties
-			}
 		>
 			{props.children}
 			<div
