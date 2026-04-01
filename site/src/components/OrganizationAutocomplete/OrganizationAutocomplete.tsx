@@ -26,7 +26,12 @@ type OrganizationAutocompleteProps = {
 	id?: string;
 	required?: boolean;
 	check?: AuthorizationCheck;
-	/** When provided, controls which organization is displayed as selected. */
+	/**
+	 * Pre-selects an organization by ID. When provided, the
+	 * displayed selection is derived from this prop. The parent
+	 * is responsible for updating this prop in response to user
+	 * selections via onChange.
+	 */
 	organizationId?: string;
 };
 
@@ -69,23 +74,17 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: [];
 	}
 
-	// Sync internal selection state from the controlled `organizationId` prop
-	// when the options finish loading. This ensures the button shows
-	// the correct org name instead of the placeholder text.
-	useEffect(() => {
-		if (organizationId === undefined || options.length === 0) {
-			return;
-		}
-		const match = options.find((o) => o.id === organizationId);
-		if (match && match.id !== selected?.id) {
-			setSelected(match);
-		}
-	}, [organizationId, options, selected?.id]);
+	// In controlled mode, derive the displayed selection from the
+	// prop so we never need to sync prop → state via an effect.
+	const displayedSelection = organizationId
+		? (options.find((o) => o.id === organizationId) ?? null)
+		: selected;
 
-	// Auto-select when only one option exists and no controlled organizationId
-	// was provided. This preserves the original single-org behavior.
+	// Auto-select when only one option exists. Only active in
+	// uncontrolled mode — when the parent controls the value via
+	// organizationId it is responsible for the initial selection.
 	useEffect(() => {
-		if (organizationId !== undefined) {
+		if (organizationId) {
 			return;
 		}
 		const org = options[0];
@@ -108,14 +107,16 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					data-testid="organization-autocomplete"
 					className="w-full justify-start gap-2 font-normal"
 				>
-					{selected ? (
+					{displayedSelection ? (
 						<>
 							<Avatar
 								size="sm"
-								src={selected.icon}
-								fallback={selected.display_name}
+								src={displayedSelection.icon}
+								fallback={displayedSelection.display_name}
 							/>
-							<span className="truncate">{selected.display_name}</span>
+							<span className="truncate">
+								{displayedSelection.display_name}
+							</span>
 						</>
 					) : (
 						<span className="text-content-secondary">
@@ -152,7 +153,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 									<span className="truncate">
 										{org.display_name || org.name}
 									</span>
-									{selected?.id === org.id && (
+									{displayedSelection?.id === org.id && (
 										<Check className="ml-auto size-icon-sm shrink-0" />
 									)}
 								</CommandItem>
