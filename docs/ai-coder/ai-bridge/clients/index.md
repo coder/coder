@@ -58,7 +58,7 @@ In both cases, users need two credentials:
 These modes can be used alongside centralized key management. When a user
 provides their own credential, AI Bridge forwards it directly. When no user
 credential is present, AI Bridge falls back to the admin-configured
-provider key. This lets organizations offer centralized keys as a default
+centralized key. This lets organizations offer centralized keys as a default
 while allowing individual users to use their own.
 
 See individual client pages for configuration details.
