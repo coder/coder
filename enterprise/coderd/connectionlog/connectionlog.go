@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +34,7 @@ const (
 	// shutdownWriteTimeout bounds how long a final write attempt
 	// can take during shutdown when the batcher context is already
 	// canceled.
+	/*  */
 	shutdownWriteTimeout = 10 * time.Second
 
 	// maxRetries is the number of times to retry a failed batch
@@ -145,10 +145,9 @@ type DBBatcher struct {
 	timer    *quartz.Timer
 	interval time.Duration
 
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	draining atomic.Bool
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewDBBatcher creates a DBBatcher that batches writes to the database
@@ -313,12 +312,11 @@ func (b *DBBatcher) run(ctx context.Context) {
 			b.addToBatch(item)
 		default:
 			if b.batchLen() > 0 {
-				b.writeBatch(b.buildParams())
+				b.shutdownBatch(b.buildParams())
 			}
 			// Signal the retry worker to skip delays and close
 			// the channel so it exits after processing any
 			// remaining items.
-			b.draining.Store(true)
 			close(b.retryCh)
 			return
 		}
@@ -367,8 +365,13 @@ func (b *DBBatcher) flush(ctx context.Context) {
 		return
 	}
 
-	b.log.Warn(ctx, "batch upsert failed, queueing for retry",
+	b.log.Error(ctx, "batch upsert failed, queueing for retry",
 		slog.Error(err), slog.F("count", count))
+
+	// Don't retry on shutdown.
+	if ctx.Err() != nil {
+		return
+	}
 
 	select {
 	case b.retryCh <- params:
@@ -455,10 +458,6 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 // when retryCh is closed by the run goroutine.
 func (b *DBBatcher) retryLoop() {
 	for params := range b.retryCh {
-		if b.draining.Load() {
-			b.writeBatch(params)
-			continue
-		}
 		b.retryBatch(params)
 	}
 }
@@ -469,19 +468,12 @@ func (b *DBBatcher) retryLoop() {
 func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) {
 	count := len(params.ID)
 	for attempt := range maxRetries {
-		// If shutting down, do one final attempt and exit.
-		if b.draining.Load() || b.ctx.Err() != nil {
-			b.writeBatch(params)
-			return
-		}
-
 		t := time.NewTimer(retryInterval)
 		select {
-		case <-t.C:
 		case <-b.ctx.Done():
-			t.Stop()
-			b.writeBatch(params)
+			b.shutdownBatch(params)
 			return
+		case <-t.C:
 		}
 
 		//nolint:gocritic // System-level batch operation for connection logs.
@@ -502,9 +494,9 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 		slog.F("dropped", count))
 }
 
-// writeBatch makes a single write attempt during shutdown with a
+// shutdownBatch makes a single write attempt during shutdown with a
 // bounded timeout so it can't hang indefinitely.
-func (b *DBBatcher) writeBatch(params database.BatchUpsertConnectionLogsParams) {
+func (b *DBBatcher) shutdownBatch(params database.BatchUpsertConnectionLogsParams) {
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownWriteTimeout)
 	defer cancel()
 	//nolint:gocritic // System-level batch operation for connection logs.
