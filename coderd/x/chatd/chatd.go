@@ -4985,8 +4985,15 @@ func (p *Server) persistInstructionFiles(
 			}
 
 			// Read instruction files from each configured
-			// instruction directory.
+			// instruction directory. Track seen paths to
+			// avoid reading the same file twice when the
+			// user duplicates entries.
+			seenDirs := make(map[string]struct{}, len(agentCfg.InstructionsDirs))
 			for _, absDir := range agentCfg.InstructionsDirs {
+				if _, ok := seenDirs[absDir]; ok {
+					continue
+				}
+				seenDirs[absDir] = struct{}{}
 				if content, source, truncated, readErr := readInstructionDirFile(instructionCtx, conn, absDir, agentCfg.InstructionsFile); readErr != nil {
 					p.logger.Debug(ctx, "failed to load instruction file from dir",
 						slog.F("chat_id", chat.ID), slog.F("dir", absDir), slog.Error(readErr))
@@ -4998,12 +5005,14 @@ func (p *Server) persistInstructionFiles(
 			// Also check the working directory for the
 			// instruction file, unless it was already
 			// covered by InstructionsDirs.
-			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" && !slices.Contains(agentCfg.InstructionsDirs, directory) {
-				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
-					p.logger.Debug(ctx, "failed to load working directory instruction file",
-						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
-				} else if content != "" {
-					sections = append(sections, instructionFileSection{content, source, truncated})
+			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" {
+				if _, alreadySeen := seenDirs[directory]; !alreadySeen {
+					if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
+						p.logger.Debug(ctx, "failed to load working directory instruction file",
+							slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
+					} else if content != "" {
+						sections = append(sections, instructionFileSection{content, source, truncated})
+					}
 				}
 			}
 		}

@@ -288,11 +288,13 @@ func pwdInstructionFilePath(directory, fileName string) string {
 }
 
 // skillMetaFileFromParts scans persisted context-file parts for
-// the stored skill meta file name. Returns the first non-empty
-// value found, or empty if none is persisted.
+// the stored skill meta file name. Uses last-wins semantics to
+// match contextFileAgentID, so after an agent change the newest
+// agent's value is returned.
 func skillMetaFileFromParts(
 	messages []database.ChatMessage,
 ) string {
+	var result string
 	for _, msg := range messages {
 		if !msg.Content.Valid ||
 			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
@@ -307,11 +309,11 @@ func skillMetaFileFromParts(
 				continue
 			}
 			if part.ContextFileSkillMetaFile != "" {
-				return part.ContextFileSkillMetaFile
+				result = part.ContextFileSkillMetaFile
 			}
 		}
 	}
-	return ""
+	return result
 }
 
 func isCodersdkStatusCode(err error, statusCode int) bool {

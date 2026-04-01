@@ -188,18 +188,20 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		t.Parallel()
 		agentID := uuid.New()
 		part := codersdk.ChatMessagePart{
-			Type:                 codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:      "/home/coder/AGENTS.md",
-			ContextFileContent:   "large content",
-			ContextFileAgentID:   uuid.NullUUID{UUID: agentID, Valid: true},
-			ContextFileOS:        "linux",
-			ContextFileDirectory: "/home/coder/project",
+			Type:                     codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:          "/home/coder/AGENTS.md",
+			ContextFileContent:       "large content",
+			ContextFileAgentID:       uuid.NullUUID{UUID: agentID, Valid: true},
+			ContextFileOS:            "linux",
+			ContextFileDirectory:     "/home/coder/project",
+			ContextFileSkillMetaFile: "CUSTOM.md",
 		}
 		part.StripInternal()
 		// Internal fields stripped.
 		assert.Empty(t, part.ContextFileContent)
 		assert.Empty(t, part.ContextFileOS)
 		assert.Empty(t, part.ContextFileDirectory)
+		assert.Empty(t, part.ContextFileSkillMetaFile)
 		// Public fields preserved.
 		assert.Equal(t, "/home/coder/AGENTS.md", part.ContextFilePath)
 		assert.Equal(t, agentID, part.ContextFileAgentID.UUID)

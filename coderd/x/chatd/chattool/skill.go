@@ -31,7 +31,7 @@ var skillNamePattern = regexp.MustCompile(
 // used by instruction.go in the parent package.
 var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 
-// SkillMeta is the frontmatter from a SKILL.md discovered in a
+// SkillMeta is the frontmatter from a skill meta file discovered in a
 // workspace. It carries just enough information to list the skill
 // in the prompt index without reading the full body.
 type SkillMeta struct {
@@ -136,7 +136,7 @@ func DiscoverSkills(
 }
 
 // parseSkillFrontmatter extracts name, description, and the
-// markdown body from a SKILL.md file. The frontmatter uses a
+// markdown body from a skill meta file. The frontmatter uses a
 // simple `key: value` format between `---` delimiters, and no
 // full YAML parser is needed.
 func parseSkillFrontmatter(
@@ -228,7 +228,7 @@ func FormatSkillIndex(skills []SkillMeta) string {
 	return b.String()
 }
 
-// LoadSkillBody reads the full SKILL.md for a discovered skill
+// LoadSkillBody reads the full skill meta file for a discovered skill
 // and lists the supporting files in its directory. The caller
 // should have already obtained the SkillMeta from DiscoverSkills.
 func LoadSkillBody(
@@ -382,7 +382,7 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_skill",
 		"Read the full instructions for a skill by name. "+
-			"Returns the SKILL.md body and a list of "+
+			"Returns the skill meta file body and a list of "+
 			"supporting files. Use read_skill before "+
 			"following a skill's instructions.",
 		func(ctx context.Context, args ReadSkillArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
