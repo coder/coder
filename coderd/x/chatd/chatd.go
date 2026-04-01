@@ -4944,7 +4944,7 @@ func (p *Server) persistInstructionFiles(
 		SkillMetaFile:    workspacesdk.DefaultSkillMetaFile,
 	}
 
-	if getWorkspaceConn != nil {
+	if getWorkspaceConn != nil { //nolint:nestif // Existing high-complexity block; config fallback logic adds unavoidable branches.
 		instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
 		defer cancel()
 
@@ -5005,14 +5005,13 @@ func (p *Server) persistInstructionFiles(
 			// Also check the working directory for the
 			// instruction file, unless it was already
 			// covered by InstructionsDirs.
-			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" {
-				if _, alreadySeen := seenDirs[directory]; !alreadySeen {
-					if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
-						p.logger.Debug(ctx, "failed to load working directory instruction file",
-							slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
-					} else if content != "" {
-						sections = append(sections, instructionFileSection{content, source, truncated})
-					}
+			_, pwdSeen := seenDirs[directory]
+			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" && !pwdSeen {
+				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
+					p.logger.Debug(ctx, "failed to load working directory instruction file",
+						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
+				} else if content != "" {
+					sections = append(sections, instructionFileSection{content, source, truncated})
 				}
 			}
 		}

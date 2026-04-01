@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 )
 
-func TestResolvePath(t *testing.T) {
+func TestResolvePath(t *testing.T) { //nolint:tparallel // subtests using t.Setenv cannot be parallel
 	t.Run("EmptyInput", func(t *testing.T) {
 		t.Parallel()
 		require.Equal(t, "", agentcontextconfig.ResolvePath("", "/base"))
@@ -70,7 +70,7 @@ func TestResolvePath_HomeUnset(t *testing.T) {
 	require.Equal(t, "", agentcontextconfig.ResolvePath("~/docs", "/base"))
 }
 
-func TestResolvePaths(t *testing.T) {
+func TestResolvePaths(t *testing.T) { //nolint:tparallel // subtests using t.Setenv cannot be parallel
 	t.Run("EmptyString", func(t *testing.T) {
 		t.Parallel()
 		require.Nil(t, agentcontextconfig.ResolvePaths("", "/base"))
