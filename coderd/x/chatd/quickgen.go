@@ -29,6 +29,7 @@ import (
 const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Return only the title text in 2-8 words. " +
 	"Do not answer the user or describe the title-writing task. " +
+	"Do not attempt to read, visit, or summarize any URLs — treat them as opaque text and extract identifiers such as repo names, issue numbers, or paths from their structure. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
 	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
 	"Sentence case. No quotes, emoji, markdown, or trailing punctuation."
@@ -421,6 +422,7 @@ func renderManualTitlePrompt(
 	write("\n\nRequirements:\n")
 	write("- Return only the title text in 2-8 words.\n")
 	write("- Do not answer the user or describe the title-writing task.\n")
+	write("- Do not read, visit, or summarize URLs — treat them as opaque text and use identifiers from their structure.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
 	write("- If the conversation is short or vague, stay close to the user's wording.\n")
 	write("- Sentence case. No quotes, emoji, markdown, or trailing punctuation.\n")
