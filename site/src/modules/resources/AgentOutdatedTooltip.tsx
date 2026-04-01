@@ -2,14 +2,14 @@ import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
-	HelpTooltip,
-	HelpTooltipAction,
-	HelpTooltipContent,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverAction,
+	HelpPopoverContent,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import { Stack } from "#/components/Stack/Stack";
 import { agentVersionStatus } from "../../utils/workspace";
 
@@ -39,17 +39,17 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	const text = `${opener} This can happen after you update Coder with running workspaces. To fix this, you can stop and start the workspace.`;
 
 	return (
-		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
-			<HelpTooltipTrigger asChild>
+		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
+			<HelpPopoverTrigger asChild>
 				<span role="status" className="cursor-pointer">
 					{status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
 				</span>
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
+			</HelpPopoverTrigger>
+			<HelpPopoverContent>
 				<Stack spacing={1}>
 					<div>
-						<HelpTooltipTitle>{title}</HelpTooltipTitle>
-						<HelpTooltipText>{text}</HelpTooltipText>
+						<HelpPopoverTitle>{title}</HelpPopoverTitle>
+						<HelpPopoverText>{text}</HelpPopoverText>
 					</div>
 
 					<Stack spacing={0.5}>
@@ -66,8 +66,8 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 						<span>{serverVersion}</span>
 					</Stack>
 
-					<HelpTooltipLinksGroup>
-						<HelpTooltipAction
+					<HelpPopoverLinksGroup>
+						<HelpPopoverAction
 							icon={RotateCcwIcon}
 							onClick={() => {
 								onUpdate();
@@ -76,10 +76,10 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 							ariaLabel="Update workspace"
 						>
 							Update workspace
-						</HelpTooltipAction>
-					</HelpTooltipLinksGroup>
+						</HelpPopoverAction>
+					</HelpPopoverLinksGroup>
 				</Stack>
-			</HelpTooltipContent>
-		</HelpTooltip>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

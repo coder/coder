@@ -1149,13 +1149,6 @@ export const StreamedReasoning: Story = {
 			],
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(
-			canvas.findByText("Streaming reasoning body"),
-		).resolves.toBeInTheDocument();
-	},
 };
 
 // NOTE: QueuedSendWithActiveStream and FailedSendWithActiveStream

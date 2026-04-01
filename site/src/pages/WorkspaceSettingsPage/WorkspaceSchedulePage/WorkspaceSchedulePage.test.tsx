@@ -14,10 +14,7 @@ import {
 } from "./formToRequest";
 import { scheduleToAutostart } from "./schedule";
 import { ttlMsToAutostop } from "./ttl";
-import {
-	Language as FormLanguage,
-	type WorkspaceScheduleFormValues,
-} from "./WorkspaceScheduleForm";
+import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 
 const validValues: WorkspaceScheduleFormValues = {
@@ -266,9 +263,7 @@ describe("WorkspaceSchedulePage", () => {
 				path: "/:username/:workspace/schedule",
 			});
 			const user = userEvent.setup();
-			const autostopToggle = await screen.findByLabelText(
-				FormLanguage.stopSwitch,
-			);
+			const autostopToggle = await screen.findByLabelText("Enable Autostop");
 			// enable autostop
 			await user.click(autostopToggle);
 			// find helper text that describes the mock template's 24 hour default
@@ -287,9 +282,7 @@ describe("WorkspaceSchedulePage", () => {
 				path: "/:username/:workspace/schedule",
 			});
 			const user = userEvent.setup();
-			const autostopToggle = await screen.findByLabelText(
-				FormLanguage.stopSwitch,
-			);
+			const autostopToggle = await screen.findByLabelText("Enable Autostop");
 			await user.click(autostopToggle);
 			const submitButton = await screen.findByRole("button", {
 				name: /save/i,
@@ -322,9 +315,7 @@ describe("WorkspaceSchedulePage", () => {
 				],
 			});
 			const user = userEvent.setup();
-			const autostopToggle = await screen.findByLabelText(
-				FormLanguage.stopSwitch,
-			);
+			const autostopToggle = await screen.findByLabelText("Enable Autostop");
 			await user.click(autostopToggle);
 			const submitButton = await screen.findByRole("button", {
 				name: /save/i,
@@ -349,9 +340,7 @@ describe("WorkspaceSchedulePage", () => {
 				],
 			});
 			const user = userEvent.setup();
-			const autostartToggle = await screen.findByLabelText(
-				FormLanguage.startSwitch,
-			);
+			const autostartToggle = await screen.findByLabelText("Enable Autostart");
 			await user.click(autostartToggle);
 			const submitButton = await screen.findByRole("button", {
 				name: /save/i,

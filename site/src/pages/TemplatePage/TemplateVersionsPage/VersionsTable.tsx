@@ -11,13 +11,6 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
 import { VersionRow } from "./VersionRow";
 
-const Language = {
-	emptyMessage: "No versions found",
-	nameLabel: "Version name",
-	createdAtLabel: "Created at",
-	createdByLabel: "Created by",
-};
-
 interface VersionsTableProps {
 	activeVersionId: string;
 	versions?: TypesGen.TemplateVersion[];
@@ -75,7 +68,7 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 					<TableRow>
 						<TableCell colSpan={999}>
 							<div className="p-8">
-								<EmptyState message={Language.emptyMessage} />
+								<EmptyState message="No versions found" />
 							</div>
 						</TableCell>
 					</TableRow>

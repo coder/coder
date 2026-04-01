@@ -45,28 +45,30 @@ export const SessionSummaryTable = ({
 	return (
 		<dl
 			className={cn(
-				"text-xs text-content-secondary m-0",
-				"grid grid-cols-[auto_1fr] gap-y-0.5 [&_dd]:ml-0 [&_dd]:text-content-primary",
+				"text-sm text-content-secondary m-0 whitespace-nowrap",
+				"grid grid-cols-[auto_1fr] gap-y-2 [&_dd]:ml-0 [&_dd]:text-content-primary",
 				"[&_dd]:h-6 [&_dd]:flex [&_dd]:min-w-0 [&_dd]:items-center [&_dd]:justify-end",
 				"[&_dt]:h-6 [&_dt]:inline-flex [&_dt]:items-center [&_dt]:font-normal",
 			)}
 		>
 			<dt>Session ID</dt>
-			<dd className="font-mono min-w-0" title={sessionId}>
+			<dd className="text-xs font-mono min-w-0" title={sessionId}>
 				<span className="truncate w-full text-right">{sessionId}</span>
 			</dd>
 
 			<dt>Start time</dt>
-			<dd className="font-mono" title={formatDateTime(startTime)}>
+			<dd className="text-xs font-mono" title={formatDateTime(startTime)}>
 				{formatDateTime(startTime)}
 			</dd>
 
 			<dt>End time</dt>
-			<dd className="font-mono">{endTime ? formatDateTime(endTime) : "—"}</dd>
+			<dd className="text-xs font-mono">
+				{endTime ? formatDateTime(endTime) : "—"}
+			</dd>
 
 			<dt>Duration</dt>
 			<dd
-				className="font-mono"
+				className="text-xs font-mono"
 				title={durationInMs !== undefined ? `${durationInMs} ms` : undefined}
 			>
 				{durationInMs !== undefined

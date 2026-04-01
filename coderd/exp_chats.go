@@ -1698,13 +1698,13 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			if api.chatDaemon != nil {
 				err = api.chatDaemon.ArchiveChat(ctx, chat)
 			} else {
-				err = api.Database.ArchiveChatByID(ctx, chat.ID)
+				_, err = api.Database.ArchiveChatByID(ctx, chat.ID)
 			}
 		} else {
 			if api.chatDaemon != nil {
 				err = api.chatDaemon.UnarchiveChat(ctx, chat)
 			} else {
-				err = api.Database.UnarchiveChatByID(ctx, chat.ID)
+				_, err = api.Database.UnarchiveChatByID(ctx, chat.ID)
 			}
 		}
 		if err != nil {

@@ -1,5 +1,5 @@
 import { FileIcon, ZapIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import {
 	Popover,
@@ -9,6 +9,7 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
@@ -73,9 +74,36 @@ const RING_STROKE = 2.5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
+// Delay before the popover closes after the mouse leaves, giving
+// the user time to move into the popover content.
+const HOVER_CLOSE_DELAY_MS = 150;
+
 export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 	usage,
 }) => {
+	const [open, setOpen] = useState(false);
+	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const cancelClose = () => {
+		if (closeTimerRef.current) {
+			clearTimeout(closeTimerRef.current);
+			closeTimerRef.current = null;
+		}
+	};
+
+	const scheduleClose = () => {
+		cancelClose();
+		closeTimerRef.current = setTimeout(() => {
+			setOpen(false);
+			closeTimerRef.current = null;
+		}, HOVER_CLOSE_DELAY_MS);
+	};
+
+	const handleMouseEnter = () => {
+		cancelClose();
+		setOpen(true);
+	};
+
 	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
 		? usage.usedTokens
 		: undefined;
@@ -107,6 +135,89 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 	const skills =
 		usage?.lastInjectedContext?.filter((p) => p.type === "skill") ?? [];
 	const hasInjectedContext = contextFiles.length > 0 || skills.length > 0;
+
+	const panelContent = (
+		<div className="text-xs text-content-primary">
+			{hasPercent
+				? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+				: "Context usage unavailable"}
+			{hasPercent &&
+				usage?.compressionThreshold !== undefined &&
+				usage.compressionThreshold > 0 && (
+					<div className="mt-1 text-content-secondary">
+						{`Compacts at ${usage.compressionThreshold}%`}
+					</div>
+				)}
+			{hasInjectedContext && (
+				<div
+					className={cn(
+						"flex flex-col gap-2 text-content-secondary",
+						hasPercent && "mt-2",
+					)}
+				>
+					{contextFiles.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">
+								Context files
+							</span>
+							{contextFiles.map((part) => {
+								if (part.type !== "context-file") return null;
+								return (
+									<div
+										key={part.context_file_path}
+										className="flex items-center gap-1.5"
+									>
+										<FileIcon className="size-3 shrink-0" />
+										<span className="truncate" title={part.context_file_path}>
+											{basename(part.context_file_path)}
+										</span>
+										{part.context_file_truncated && (
+											<span className="shrink-0 text-content-warning">
+												(truncated)
+											</span>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					)}
+					{skills.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">Skills</span>
+							<TooltipProvider delayDuration={300}>
+								{skills.map((part) => {
+									if (part.type !== "skill") return null;
+									const row = (
+										<div className="flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary">
+											<ZapIcon className="size-3 shrink-0" />
+											<span className="truncate">{part.skill_name}</span>
+										</div>
+									);
+									if (!part.skill_description) {
+										return <div key={part.skill_name}>{row}</div>;
+									}
+									return (
+										<Tooltip key={part.skill_name}>
+											<TooltipTrigger asChild>
+												<div className="cursor-default">{row}</div>
+											</TooltipTrigger>
+											<TooltipContent
+												side="right"
+												sideOffset={4}
+												className="max-w-48 text-xs"
+											>
+												{part.skill_description}
+											</TooltipContent>
+										</Tooltip>
+									);
+								})}
+							</TooltipProvider>
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	);
 
 	const triggerButton = (
 		<button
@@ -144,99 +255,38 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 		</button>
 	);
 
-	const tooltipContent = (
-		<div className="text-xs text-content-primary">
-			{hasPercent
-				? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-				: "Context usage unavailable"}
-			{hasPercent &&
-				usage?.compressionThreshold !== undefined &&
-				usage.compressionThreshold > 0 && (
-					<div className="mt-1 text-content-secondary">
-						{`Compacts at ${usage.compressionThreshold}%`}{" "}
-					</div>
-				)}
-			{hasInjectedContext && (
-				<div
-					className={cn(
-						"flex flex-col gap-2 text-content-secondary",
-						hasPercent && "mt-2",
-					)}
-				>
-					{" "}
-					{contextFiles.length > 0 && (
-						<div className="flex flex-col gap-1">
-							<span className="font-medium text-content-primary">
-								Context files
-							</span>{" "}
-							{contextFiles.map((part) => {
-								if (part.type !== "context-file") return null;
-								return (
-									<div
-										key={part.context_file_path}
-										className="flex items-center gap-1.5"
-									>
-										<FileIcon className="size-3 shrink-0" />
-										<span className="truncate" title={part.context_file_path}>
-											{basename(part.context_file_path)}
-										</span>
-										{part.context_file_truncated && (
-											<span className="shrink-0 text-content-warning">
-												(truncated)
-											</span>
-										)}
-									</div>
-								);
-							})}
-						</div>
-					)}
-					{skills.length > 0 && (
-						<div className="flex flex-col gap-1">
-							<span className="font-medium text-content-primary">Skills</span>{" "}
-							{skills.map((part) => {
-								if (part.type !== "skill") return null;
-								return (
-									<div
-										key={part.skill_name}
-										className="flex items-center gap-1.5"
-									>
-										<ZapIcon className="size-3 shrink-0" />
-										<span className="truncate">{part.skill_name}</span>
-										{part.skill_description && (
-											<span className="ml-0.5 truncate text-content-secondary/60">
-												– {part.skill_description}
-											</span>
-										)}
-									</div>
-								);
-							})}
-						</div>
-					)}
-				</div>
-			)}
-		</div>
-	);
-
-	// On mobile viewports, Radix Tooltip only opens on hover which
-	// doesn't exist on touch devices.  Use a Popover instead so a tap
-	// toggles the context-usage info.
+	// On mobile, a tap toggles the popover. On desktop, hover opens
+	// it like a dropdown menu and skill descriptions appear as
+	// nested tooltips to the right (same pattern as ModelSelector).
 	if (isMobileViewport()) {
 		return (
 			<Popover>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 				<PopoverContent side="top" className="w-auto max-w-72 px-3 py-2">
-					{tooltipContent}
+					{panelContent}
 				</PopoverContent>
 			</Popover>
 		);
 	}
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>{triggerButton}</TooltipTrigger>
-			<TooltipContent side="top" className="max-w-72">
-				{tooltipContent}
-			</TooltipContent>
-		</Tooltip>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<div onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
+					{triggerButton}
+				</div>
+			</PopoverTrigger>
+			<PopoverContent
+				side="top"
+				className="w-auto max-w-72 px-3 py-2"
+				onMouseEnter={cancelClose}
+				onMouseLeave={scheduleClose}
+				// Prevent the popover from stealing focus, which would
+				// interfere with the chat input.
+				onOpenAutoFocus={(e) => e.preventDefault()}
+			>
+				{panelContent}
+			</PopoverContent>
+		</Popover>
 	);
 };

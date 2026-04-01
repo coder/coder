@@ -10646,7 +10646,8 @@ func TestChatPinOrderQueries(t *testing.T) {
 		}
 
 		// Archive the middle pin.
-		require.NoError(t, db.ArchiveChatByID(ctx, second.ID))
+		_, err := db.ArchiveChatByID(ctx, second.ID)
+		require.NoError(t, err)
 
 		// Archived chat should have pin_order cleared. Remaining
 		// pins keep their original positions; the next mutation
