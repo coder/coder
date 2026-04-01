@@ -144,14 +144,9 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 					</Pill>
 				</div>
 				<AlertDescription>
-					{status.message}
+					{status.message}{" "}
 					{statusURL && (
-						<Link
-							href={statusURL}
-							target="_blank"
-							rel="noreferrer"
-							className="ml-1"
-						>
+						<Link href={statusURL} target="_blank" rel="noreferrer">
 							Status
 						</Link>
 					)}
