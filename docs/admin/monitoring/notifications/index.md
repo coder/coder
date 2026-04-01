@@ -28,7 +28,11 @@ These notifications are sent to users with **template admin** roles:
 - Report: Workspace builds failed for template
   - This notification is delivered as part of a weekly cron job and summarizes
     the failed builds for a given template.
-- Template deleted
+- Template deleted (excluding the initiator)
+
+These notifications are sent to the owners of workspaces using the
+template:
+
 - Template deprecated
 
 ### User Events
