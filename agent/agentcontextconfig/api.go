@@ -13,23 +13,19 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-// Env var names for context configuration.
+// Env var names for context configuration. Prefixed with EXP_
+// to indicate these are experimental and may change.
 const (
-	EnvInstructionsDir  = "CODER_AGENT_INSTRUCTIONS_DIR"
-	EnvInstructionsFile = "CODER_AGENT_INSTRUCTIONS_FILE"
-	EnvSkillsDir        = "CODER_AGENT_SKILLS_DIR"
-	EnvSkillMetaFile    = "CODER_AGENT_SKILL_META_FILE"
-	EnvMCPConfigFile    = "CODER_AGENT_MCP_CONFIG_FILE"
+	EnvInstructionsDir  = "CODER_AGENT_EXP_INSTRUCTIONS_DIR"
+	EnvInstructionsFile = "CODER_AGENT_EXP_INSTRUCTIONS_FILE"
+	EnvSkillsDir        = "CODER_AGENT_EXP_SKILLS_DIR"
+	EnvSkillMetaFile    = "CODER_AGENT_EXP_SKILL_META_FILE"
+	EnvMCPConfigFile    = "CODER_AGENT_EXP_MCP_CONFIG_FILE"
 )
 
-// Defaults used when env vars are unset.
-const (
-	DefaultInstructionsDir  = "~/.coder"
-	DefaultInstructionsFile = "AGENTS.md"
-	DefaultSkillsDir        = ".agents/skills"
-	DefaultSkillMetaFile    = "SKILL.md"
-	DefaultMCPConfigFile    = ".mcp.json"
-)
+// Defaults are defined in codersdk/workspacesdk so both
+// the agent and server can reference them without a
+// cross-layer import.
 
 // API exposes the resolved context configuration through the
 // agent's HTTP API.
@@ -44,18 +40,22 @@ type API struct {
 func NewAPI(logger slog.Logger, workingDir string) *API {
 	return &API{
 		logger: logger,
-		config: BuildConfig(workingDir),
+		config: Config(workingDir),
 	}
 }
 
-// BuildConfig reads env vars and resolves paths. Exported for
-// use by the MCP manager and tests.
-func BuildConfig(workingDir string) workspacesdk.ContextConfigResponse {
-	instructionsDir := cmp.Or(os.Getenv(EnvInstructionsDir), DefaultInstructionsDir)
-	instructionsFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsFile)), DefaultInstructionsFile)
-	skillsDir := cmp.Or(os.Getenv(EnvSkillsDir), DefaultSkillsDir)
-	skillMetaFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillMetaFile)), DefaultSkillMetaFile)
-	mcpConfigFile := cmp.Or(os.Getenv(EnvMCPConfigFile), DefaultMCPConfigFile)
+// Config reads env vars and resolves paths. Exported for use
+// by the MCP manager and tests.
+func Config(workingDir string) workspacesdk.ContextConfigResponse {
+	// TrimSpace is applied only to file-name vars (basenames)
+	// because stray whitespace would silently break lookups.
+	// Directory vars go through ResolvePaths which splits on
+	// commas and trims each element.
+	instructionsDir := cmp.Or(os.Getenv(EnvInstructionsDir), workspacesdk.DefaultInstructionsDir)
+	instructionsFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsFile)), workspacesdk.DefaultInstructionsFile)
+	skillsDir := cmp.Or(os.Getenv(EnvSkillsDir), workspacesdk.DefaultSkillsDir)
+	skillMetaFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillMetaFile)), workspacesdk.DefaultSkillMetaFile)
+	mcpConfigFile := cmp.Or(os.Getenv(EnvMCPConfigFile), workspacesdk.DefaultMCPConfigFile)
 
 	return workspacesdk.ContextConfigResponse{
 		InstructionsDirs: ResolvePaths(instructionsDir, workingDir),

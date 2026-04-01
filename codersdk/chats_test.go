@@ -231,14 +231,15 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	// If you add a new field to ChatMessagePart, either add a
 	// variants tag or add it here with a comment explaining why.
 	excludedFields := map[string]string{
-		"type":                   "discriminant, added automatically by codegen",
-		"signature":              "added in #22290, never populated by any code path",
-		"result_delta":           "added in #22290, never populated by any code path",
-		"provider_metadata":      "internal only, stripped by db2sdk before API responses",
-		"context_file_content":   "internal only, stripped before API responses (typescript:\"-\")",
-		"context_file_os":        "internal only, used during prompt expansion (typescript:\"-\")",
-		"context_file_directory": "internal only, used during prompt expansion (typescript:\"-\")",
-		"skill_dir":              "internal only, used by read_skill tools (typescript:\"-\")",
+		"type":                        "discriminant, added automatically by codegen",
+		"signature":                    "added in #22290, never populated by any code path",
+		"result_delta":                 "added in #22290, never populated by any code path",
+		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
+		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
+		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
+		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
+		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
+		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
 	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {

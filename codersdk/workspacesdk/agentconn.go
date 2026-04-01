@@ -947,6 +947,18 @@ type MCPToolInfo struct {
 	Required []string `json:"required"`
 }
 
+// Default values for context configuration. These are used
+// by the agent when env vars are unset and by the server as
+// fallbacks for older agents that don't support the
+// context-config endpoint.
+const (
+	DefaultInstructionsDir  = "~/.coder"
+	DefaultInstructionsFile = "AGENTS.md"
+	DefaultSkillsDir        = ".agents/skills"
+	DefaultSkillMetaFile    = "SKILL.md"
+	DefaultMCPConfigFile    = ".mcp.json"
+)
+
 // ContextConfigResponse is the response from the agent's
 // context configuration endpoint. Directory fields contain
 // fully resolved absolute paths. File name fields contain

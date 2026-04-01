@@ -287,6 +287,33 @@ func pwdInstructionFilePath(directory, fileName string) string {
 	return path.Join(directory, fileName)
 }
 
+// skillMetaFileFromParts scans persisted context-file parts for
+// the stored skill meta file name. Returns the first non-empty
+// value found, or empty if none is persisted.
+func skillMetaFileFromParts(
+	messages []database.ChatMessage,
+) string {
+	for _, msg := range messages {
+		if !msg.Content.Valid ||
+			!bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeContextFile {
+				continue
+			}
+			if part.ContextFileSkillMetaFile != "" {
+				return part.ContextFileSkillMetaFile
+			}
+		}
+	}
+	return ""
+}
+
 func isCodersdkStatusCode(err error, statusCode int) bool {
 	var sdkErr *codersdk.Error
 	if !xerrors.As(err, &sdkErr) {

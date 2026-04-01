@@ -50,7 +50,7 @@ type SkillContent struct {
 	// delimiters have been stripped.
 	Body string
 	// Files lists relative paths of supporting files in the
-	// skill directory (everything except SKILL.md itself).
+	// skill directory (everything except the skill meta file).
 	Files []string
 }
 

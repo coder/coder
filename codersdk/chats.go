@@ -228,6 +228,12 @@ type ChatMessagePart struct {
 	// the workspace filesystem. Internal only: used by
 	// read_skill/read_skill_file tools to locate skill files.
 	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
+	// ContextFileSkillMetaFile is the basename of the skill
+	// meta file (e.g. "SKILL.md") at the time of persistence.
+	// Internal only: restored on subsequent turns so the
+	// read_skill tool uses the correct filename even when the
+	// agent configured a non-default value.
+	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -245,6 +251,7 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
+	p.ContextFileSkillMetaFile = ""
 }
 
 // ChatMessageText builds a text chat message part.

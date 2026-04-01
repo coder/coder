@@ -24,7 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/agent/agentcontextconfig"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -3911,7 +3911,7 @@ func (p *Server) runChat(
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		skills             []chattool.SkillMeta
-		skillMetaFile      = agentcontextconfig.DefaultSkillMetaFile
+		skillMetaFile      = workspacesdk.DefaultSkillMetaFile
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -3961,6 +3961,9 @@ func (p *Server) runChat(
 		// those messages. No workspace dial needed.
 		instruction = instructionFromContextFiles(messages)
 		skills = skillsFromParts(messages)
+		if restored := skillMetaFileFromParts(messages); restored != "" {
+			skillMetaFile = restored
+		}
 	}
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
@@ -4914,12 +4917,12 @@ func (p *Server) persistInstructionFiles(
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) (string, []chattool.SkillMeta, string, error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return "", nil, agentcontextconfig.DefaultSkillMetaFile, nil
+		return "", nil, workspacesdk.DefaultSkillMetaFile, nil
 	}
 
 	agent, err := getWorkspaceAgent(ctx)
 	if err != nil {
-		return "", nil, agentcontextconfig.DefaultSkillMetaFile, nil
+		return "", nil, workspacesdk.DefaultSkillMetaFile, nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -4938,8 +4941,8 @@ func (p *Server) persistInstructionFiles(
 	// Fall back to the pre-context-config behavior for older
 	// agents that don't support the endpoint.
 	agentCfg := workspacesdk.ContextConfigResponse{
-		InstructionsFile: agentcontextconfig.DefaultInstructionsFile,
-		SkillMetaFile:    agentcontextconfig.DefaultSkillMetaFile,
+		InstructionsFile: workspacesdk.DefaultInstructionsFile,
+		SkillMetaFile:    workspacesdk.DefaultSkillMetaFile,
 	}
 
 	if getWorkspaceConn != nil {
@@ -4966,8 +4969,8 @@ func (p *Server) persistInstructionFiles(
 				// LSRelativityHome and discover skills from the
 				// working directory.
 				agentCfg = workspacesdk.ContextConfigResponse{
-					InstructionsFile: agentcontextconfig.DefaultInstructionsFile,
-					SkillMetaFile:    agentcontextconfig.DefaultSkillMetaFile,
+					InstructionsFile: workspacesdk.DefaultInstructionsFile,
+					SkillMetaFile:    workspacesdk.DefaultSkillMetaFile,
 				}
 				if content, source, truncated, readErr := readHomeInstructionFile(
 					instructionCtx, conn, ".coder", agentCfg.InstructionsFile,
@@ -4993,10 +4996,10 @@ func (p *Server) persistInstructionFiles(
 				}
 			}
 
-			// Also check the working directory for the
-			// instruction file.
-			if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" {
-				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
+				// Also check the working directory for the
+				// instruction file, unless it was already
+				// covered by InstructionsDirs.
+				if pwdPath := pwdInstructionFilePath(directory, agentCfg.InstructionsFile); pwdPath != "" && !slices.Contains(agentCfg.InstructionsDirs, directory) {				if content, source, truncated, readErr := readInstructionFile(instructionCtx, conn, pwdPath); readErr != nil {
 					p.logger.Debug(ctx, "failed to load working directory instruction file",
 						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(readErr))
 				} else if content != "" {
@@ -5030,13 +5033,13 @@ func (p *Server) persistInstructionFiles(
 		}
 		// Persist a sentinel (plus any discovered skill parts)
 		// so subsequent turns skip the workspace agent dial.
-		parts := []codersdk.ChatMessagePart{{
-			Type:               codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:    "",
-			ContextFileAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
-		}}
-		for _, s := range discoveredSkills {
-			parts = append(parts, codersdk.ChatMessagePart{
+			parts := []codersdk.ChatMessagePart{{
+				Type:                    codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:         "",
+				ContextFileAgentID:      uuid.NullUUID{UUID: agent.ID, Valid: true},
+				ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
+				}}
+				for _, s := range discoveredSkills {			parts = append(parts, codersdk.ChatMessagePart{
 				Type:               codersdk.ChatMessagePartTypeSkill,
 				SkillName:          s.Name,
 				SkillDescription:   s.Description,
@@ -5083,13 +5086,14 @@ func (p *Server) persistInstructionFiles(
 	parts := make([]codersdk.ChatMessagePart, 0, len(sections)+len(discoveredSkills))
 	for _, s := range sections {
 		parts = append(parts, codersdk.ChatMessagePart{
-			Type:                 codersdk.ChatMessagePartTypeContextFile,
-			ContextFilePath:      s.source,
-			ContextFileContent:   s.content,
-			ContextFileTruncated: s.truncated,
-			ContextFileAgentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
-			ContextFileOS:        agent.OperatingSystem,
-			ContextFileDirectory: directory,
+			Type:                    codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:         s.source,
+			ContextFileContent:      s.content,
+			ContextFileTruncated:    s.truncated,
+			ContextFileAgentID:      uuid.NullUUID{UUID: agent.ID, Valid: true},
+			ContextFileOS:           agent.OperatingSystem,
+			ContextFileDirectory:    directory,
+			ContextFileSkillMetaFile: agentCfg.SkillMetaFile,
 		})
 	}
 	for _, s := range discoveredSkills {
