@@ -1,11 +1,16 @@
 # Claude Code
 
-Claude Code can be configured using environment variables.
+Claude Code can be configured using environment variables. All modes require a **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Bridge.
 
 ## Centralized API Key
 
-* **Base URL**: `ANTHROPIC_BASE_URL` should point to `https://coder.example.com/api/v2/aibridge/anthropic`
-* **Auth Token**: `ANTHROPIC_AUTH_TOKEN` should be your [Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
+```bash
+# AI Bridge base URL.
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+
+# Your Coder session token, used for authentication with AI Bridge.
+export ANTHROPIC_AUTH_TOKEN="<your-coder-session-token>"
+```
 
 ## Personal API Key
 
