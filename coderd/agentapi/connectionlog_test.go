@@ -101,6 +101,7 @@ func TestConnectionLog(t *testing.T) {
 			reason: "because error says so",
 		},
 	}
+	//nolint:paralleltest // No longer necessary to reinitialise the variable tt.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -113,9 +114,10 @@ func TestConnectionLog(t *testing.T) {
 			api := &agentapi.ConnLogAPI{
 				ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
 				Database:         mDB,
-				AgentID:          agent.ID,
-				AgentName:        agent.Name,
-				Workspace:        &agentapi.CachedWorkspaceFields{},
+				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+					return agent, nil
+				},
+				Workspace: &agentapi.CachedWorkspaceFields{},
 			}
 			api.ReportConnection(context.Background(), &agentproto.ReportConnectionRequest{
 				Connection: &agentproto.Connection{

@@ -1,16 +1,16 @@
+import { API } from "api/api";
+import { getErrorDetail, getErrorMessage } from "api/errors";
+import {
+	templateVersions,
+	templateVersionsQueryKey,
+} from "api/queries/templates";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { linkToTemplate, useLinks } from "modules/navigation";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { API } from "#/api/api";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import {
-	templateVersions,
-	templateVersionsQueryKey,
-} from "#/api/queries/templates";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { linkToTemplate, useLinks } from "#/modules/navigation";
-import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
 

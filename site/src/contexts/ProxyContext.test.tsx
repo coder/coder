@@ -1,19 +1,19 @@
-import "#/testHelpers/localStorage";
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import type { Region } from "#/api/typesGenerated";
+import "testHelpers/localStorage";
 import {
 	MockHealthyWildWorkspaceProxy,
 	MockPrimaryWorkspaceProxy,
 	MockUnhealthyWildWorkspaceProxy,
 	MockWorkspaceProxies,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Region } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import {
 	getPreferredProxy,
 	ProxyProvider,
@@ -23,7 +23,7 @@ import {
 import type * as ProxyLatency from "./useProxyLatency";
 
 // Mock useProxyLatency to use a hard-coded latency.
-vi.mock("#/contexts/useProxyLatency", () => ({
+vi.mock("contexts/useProxyLatency", () => ({
 	useProxyLatency: () => {
 		return {
 			proxyLatencies: hardCodedLatencies,

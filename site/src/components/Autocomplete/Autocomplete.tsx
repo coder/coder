@@ -1,11 +1,4 @@
-import { Check, X } from "lucide-react";
-import {
-	type KeyboardEvent,
-	type ReactNode,
-	useCallback,
-	useState,
-} from "react";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import {
 	Command,
 	CommandEmpty,
@@ -13,14 +6,21 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
-} from "#/components/Command/Command";
+} from "components/Command/Command";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/Popover/Popover";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
+} from "components/Popover/Popover";
+import { Spinner } from "components/Spinner/Spinner";
+import { Check, X } from "lucide-react";
+import {
+	type KeyboardEvent,
+	type ReactNode,
+	useCallback,
+	useState,
+} from "react";
+import { cn } from "utils/cn";
 
 interface AutocompleteProps<TOption> {
 	value: TOption | null;
@@ -181,7 +181,7 @@ export function Autocomplete<TOption>({
 										handleClear(e);
 									}
 								}}
-								className="flex items-center justify-center size-5 rounded hover:bg-surface-secondary transition-colors cursor-pointer"
+								className="flex items-center justify-center size-5 rounded hover:bg-surface-secondary transition-colors"
 								aria-label="Clear selection"
 							>
 								<X className="size-4 text-content-secondary hover:text-content-primary" />

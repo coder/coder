@@ -1,11 +1,11 @@
+import { createOrganization } from "api/queries/organizations";
+import { useAuthenticated } from "hooks";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { createOrganization } from "#/api/queries/organizations";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const CreateOrganizationPage: FC = () => {
@@ -21,7 +21,7 @@ const CreateOrganizationPage: FC = () => {
 	const error = createOrganizationMutation.error;
 
 	return (
-		<div className="py-7">
+		<main className="py-7">
 			<RequirePermission isFeatureVisible={permissions.createOrganization}>
 				<CreateOrganizationPageView
 					error={error}
@@ -38,7 +38,7 @@ const CreateOrganizationPage: FC = () => {
 					}}
 				/>
 			</RequirePermission>
-		</div>
+		</main>
 	);
 };
 

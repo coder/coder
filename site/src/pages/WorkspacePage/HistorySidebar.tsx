@@ -1,21 +1,21 @@
-import { ArrowDownIcon } from "lucide-react";
-import type { FC } from "react";
-import { useInfiniteQuery } from "react-query";
-import { infiniteWorkspaceBuilds } from "#/api/queries/workspaceBuilds";
-import type { Workspace } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
+import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
+import type { Workspace } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	Sidebar,
 	SidebarCaption,
 	SidebarItem,
 	SidebarLink,
-} from "#/components/FullPageLayout/Sidebar";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { Spinner } from "#/components/Spinner/Spinner";
+} from "components/FullPageLayout/Sidebar";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Spinner } from "components/Spinner/Spinner";
+import { ArrowDownIcon } from "lucide-react";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
-} from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
+} from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
+import type { FC } from "react";
+import { useInfiniteQuery } from "react-query";
 
 interface HistorySidebarProps {
 	workspace: Workspace;
@@ -49,7 +49,7 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 								</SidebarItem>
 							))}
 					{buildsQuery.hasNextPage && (
-						<div className="p-4">
+						<div css={{ padding: 16 }}>
 							<Button
 								onClick={() => buildsQuery.fetchNextPage()}
 								disabled={buildsQuery.isFetchingNextPage}

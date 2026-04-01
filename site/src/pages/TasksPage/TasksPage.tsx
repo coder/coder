@@ -1,46 +1,45 @@
-import { ChevronDownIcon, TrashIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
-import { API } from "#/api/api";
+import { API } from "api/api";
 import {
 	systemNotificationTemplates,
 	userNotificationPreferences,
-} from "#/api/queries/notifications";
-import { templates } from "#/api/queries/templates";
+} from "api/queries/notifications";
+import { templates } from "api/queries/templates";
 import {
 	preferenceSettings,
 	updatePreferenceSettings,
-} from "#/api/queries/users";
-import type { TasksFilter } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
-import { Badge } from "#/components/Badge/Badge";
-import { Button, type ButtonProps } from "#/components/Button/Button";
+} from "api/queries/users";
+import type { TasksFilter } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { Badge } from "components/Badge/Badge";
+import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { Link } from "#/components/Link/Link";
-import { Margins } from "#/components/Margins/Margins";
+} from "components/DropdownMenu/DropdownMenu";
+import { Link } from "components/Link/Link";
+import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
-import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+} from "components/PageHeader/PageHeader";
+import { Spinner } from "components/Spinner/Spinner";
+import { TableToolbar } from "components/TableToolbar/TableToolbar";
+import { useAuthenticated } from "hooks";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { ChevronDownIcon, TrashIcon } from "lucide-react";
 import {
 	isTaskNotification,
 	notificationIsDisabled,
 	selectDisabledPreferences,
-} from "#/modules/notifications/utils";
-import { TaskPrompt } from "#/modules/tasks/TaskPrompt/TaskPrompt";
-import { cn } from "#/utils/cn";
-import { pageTitle } from "#/utils/page";
+} from "modules/notifications/utils";
+import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
+import { type FC, useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { cn } from "utils/cn";
+import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { useBatchTaskActions } from "./batchActions";
 import { TasksTable } from "./TasksTable";
@@ -58,6 +57,10 @@ const TasksPage: FC = () => {
 		key: "owner",
 		defaultValue: user.username,
 	});
+	const tab = useSearchParamsKey({
+		key: "tab",
+		defaultValue: "all",
+	});
 	const filter: TasksFilter = {
 		owner: ownerFilter.value,
 	};
@@ -66,15 +69,11 @@ const TasksPage: FC = () => {
 		queryFn: () => API.getTasks(filter),
 		refetchInterval: 10_000,
 	});
-	const statusFilter = useSearchParamsKey({
-		key: "status",
-		defaultValue: "",
-	});
 	const idleTasks = tasksQuery.data?.filter(
 		(task) => task.status === "active" && task.current_state?.state === "idle",
 	);
 	const displayedTasks =
-		statusFilter.value === "waiting-for-input" ? idleTasks : tasksQuery.data;
+		tab.value === "waiting-for-input" ? idleTasks : tasksQuery.data;
 
 	const [checkedTaskIds, setCheckedTaskIds] = useState<Set<string>>(new Set());
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -162,7 +161,7 @@ const TasksPage: FC = () => {
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
-				<div className="pb-8">
+				<main className="pb-8">
 					<TaskPrompt
 						templates={aiTemplatesQuery.data}
 						error={aiTemplatesQuery.error}
@@ -172,44 +171,28 @@ const TasksPage: FC = () => {
 						aiTemplatesQuery.data &&
 						aiTemplatesQuery.data.length > 0 && (
 							<section className="py-8">
-								<section
-									className="mt-6 flex justify-between"
-									aria-label="Controls"
-								>
-									<div className="flex items-center gap-x-6">
+								{permissions.viewDeploymentConfig && (
+									<section
+										className="mt-6 flex justify-between"
+										aria-label="Controls"
+									>
 										<div className="flex items-center bg-surface-secondary rounded-lg p-1">
 											<PillButton
-												active={ownerFilter.value === user.username}
+												active={tab.value === "all"}
 												onClick={() => {
-													ownerFilter.setValue(user.username);
-													setCheckedTaskIds(new Set());
-												}}
-											>
-												My tasks
-											</PillButton>
-											<PillButton
-												active={ownerFilter.value === ""}
-												onClick={() => {
-													ownerFilter.setValue("");
+													tab.setValue("all");
 													setCheckedTaskIds(new Set());
 												}}
 											>
 												All tasks
 											</PillButton>
-										</div>
-										<div className="flex items-center gap-2">
-											<Switch
-												id="waiting-for-input"
-												onCheckedChange={(checked) => {
-													statusFilter.setValue(
-														checked ? "waiting-for-input" : "",
-													);
+											<PillButton
+												disabled={!idleTasks || idleTasks.length === 0}
+												active={tab.value === "waiting-for-input"}
+												onClick={() => {
+													tab.setValue("waiting-for-input");
 													setCheckedTaskIds(new Set());
 												}}
-											/>
-											<label
-												htmlFor="waiting-for-input"
-												className="flex items-center gap-2 text-sm text-content-primary select-none cursor-pointer"
 											>
 												Waiting for input
 												{idleTasks && idleTasks.length > 0 && (
@@ -217,11 +200,9 @@ const TasksPage: FC = () => {
 														{idleTasks.length}
 													</Badge>
 												)}
-											</label>
+											</PillButton>
 										</div>
-									</div>
 
-									{permissions.viewAllUsers && (
 										<UsersCombobox
 											value={ownerFilter.value}
 											onValueChange={(username) => {
@@ -231,8 +212,8 @@ const TasksPage: FC = () => {
 												setCheckedTaskIds(new Set());
 											}}
 										/>
-									)}
-								</section>
+									</section>
+								)}
 
 								<div className="mt-6">
 									<TableToolbar>
@@ -295,7 +276,7 @@ const TasksPage: FC = () => {
 								/>
 							</section>
 						)}
-				</div>
+				</main>
 
 				<BatchDeleteConfirmation
 					open={isDeleteDialogOpen}

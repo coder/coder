@@ -1,12 +1,12 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
 import {
 	MockOwnerRole,
 	MockSiteRoles,
 	MockUserAdminRole,
 	MockWorkspaceCreationBanRole,
-} from "#/testHelpers/entities";
-import { withDesktopViewport } from "#/testHelpers/storybook";
+} from "testHelpers/entities";
+import { withDesktopViewport } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { EditRolesButton } from "./EditRolesButton";
 
 const meta: Meta<typeof EditRolesButton> = {

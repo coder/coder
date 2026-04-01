@@ -433,7 +433,7 @@ func convertDockerInspect(raw []byte) ([]codersdk.WorkspaceAgentContainer, []str
 		}
 		portKeys := maps.Keys(in.NetworkSettings.Ports)
 		// Sort the ports for deterministic output.
-		slices.Sort(portKeys)
+		sort.Strings(portKeys)
 		// If we see the same port bound to both ipv4 and ipv6 loopback or unspecified
 		// interfaces to the same container port, there is no point in adding it multiple times.
 		loopbackHostPortContainerPorts := make(map[int]uint16, 0)

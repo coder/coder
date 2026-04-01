@@ -11,6 +11,8 @@ import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
 } from "@mui/material/styles";
+import { appearanceSettings } from "api/queries/users";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -20,9 +22,7 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { appearanceSettings } from "#/api/queries/users";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, { DEFAULT_THEME, type Theme } from "#/theme";
+import themes, { DEFAULT_THEME, type Theme } from "theme";
 
 /**
  *
@@ -69,10 +69,6 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	useEffect(() => {
 		const root = document.documentElement;
-		// Embedded pages manage theme independently.
-		if (root.dataset.embedTheme) {
-			return;
-		}
 		if (themePreference === "auto") {
 			root.classList.add(preferredColorScheme);
 		} else {
@@ -80,9 +76,7 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		}
 
 		return () => {
-			if (!root.dataset.embedTheme) {
-				root.classList.remove("light", "dark");
-			}
+			root.classList.remove("light", "dark");
 		};
 	}, [themePreference, preferredColorScheme]);
 

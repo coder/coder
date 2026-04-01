@@ -1,12 +1,12 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
-import type { ProvisionerJobLog } from "#/api/typesGenerated";
-import * as Mocks from "#/testHelpers/entities";
+import * as Mocks from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
-} from "#/testHelpers/storybook";
+} from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ProvisionerJobLog } from "api/typesGenerated";
+import { action } from "storybook/actions";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { Workspace } from "./Workspace";
 import { defaultPermissions } from "./WorkspaceNotifications/WorkspaceNotifications.stories";

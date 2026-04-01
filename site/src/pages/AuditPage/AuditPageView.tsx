@@ -1,31 +1,31 @@
-import type { ComponentProps, FC } from "react";
-import type { AuditLog } from "#/api/typesGenerated";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Margins } from "#/components/Margins/Margins";
+import type { AuditLog } from "api/typesGenerated";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+} from "components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "#/components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { Stack } from "#/components/Stack/Stack";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "#/components/Table/Table";
-import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { Timeline } from "#/components/Timeline/Timeline";
-import { docs } from "#/utils/docs";
+} from "components/PaginationWidget/PaginationContainer";
+import { PaywallPremium } from "components/Paywall/PaywallPremium";
+import { Stack } from "components/Stack/Stack";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { Timeline } from "components/Timeline/Timeline";
+import type { ComponentProps, FC } from "react";
+import { docs } from "utils/docs";
 import { AuditFilter } from "./AuditFilter";
-import { AuditHelpPopover } from "./AuditHelpPopover";
+import { AuditHelpTooltip } from "./AuditHelpTooltip";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
+
+const Language = {
+	title: "Audit",
+	subtitle: "View events in your audit log.",
+};
 
 interface AuditPageViewProps {
 	auditLogs?: readonly AuditLog[];
@@ -57,11 +57,11 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>Audit</span>
-						<AuditHelpPopover />
+						<span>{Language.title}</span>
+						<AuditHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
+				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
 			</PageHeader>
 
 			<ChooseOne>

@@ -1,9 +1,6 @@
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { ComponentProps, FC } from "react";
-import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
-import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
 interface TemplateSettingsPageViewProps {
@@ -33,7 +30,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<PageHeader className="pt-0">
+			<PageHeader css={{ paddingTop: 0 }}>
 				<PageHeaderTitle>General Settings</PageHeaderTitle>
 			</PageHeader>
 

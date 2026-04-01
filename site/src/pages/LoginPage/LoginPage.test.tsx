@@ -1,14 +1,15 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import { createMemoryRouter } from "react-router";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockUserOwner } from "testHelpers/entities";
 import {
 	render,
 	renderWithRouter,
 	waitForLoaderToBeRemoved,
-} from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { createMemoryRouter } from "react-router";
+import { Language } from "./Language";
 import LoginPage from "./LoginPage";
 
 describe("LoginPage", () => {
@@ -34,12 +35,12 @@ describe("LoginPage", () => {
 		// When
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
-		const email = screen.getByLabelText(/Email/);
-		const password = screen.getByLabelText(/Password/);
+		const email = screen.getByLabelText(new RegExp(Language.emailLabel));
+		const password = screen.getByLabelText(new RegExp(Language.passwordLabel));
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
 		// Click sign-in
-		const signInButton = await screen.findByText("Sign In");
+		const signInButton = await screen.findByText(Language.passwordSignIn);
 		fireEvent.click(signInButton);
 
 		// Then
@@ -52,8 +53,10 @@ describe("LoginPage", () => {
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
 
-		const emailInput = screen.getByLabelText(/Email/);
-		const passwordInput = screen.getByLabelText(/Password/);
+		const emailInput = screen.getByLabelText(new RegExp(Language.emailLabel));
+		const passwordInput = screen.getByLabelText(
+			new RegExp(Language.passwordLabel),
+		);
 		expect(emailInput).not.toHaveAttribute("aria-invalid", "true");
 		expect(emailInput).not.toHaveAttribute(
 			"aria-describedby",
@@ -65,13 +68,11 @@ describe("LoginPage", () => {
 			"signin-password-error",
 		);
 
-		const signInButton = await screen.findByText("Sign In");
+		const signInButton = await screen.findByText(Language.passwordSignIn);
 		fireEvent.click(signInButton);
 
 		// Then
-		const emailError = await screen.findByText(
-			"Please enter an email address.",
-		);
+		const emailError = await screen.findByText(Language.emailRequired);
 		expect(emailInput).toHaveAttribute("aria-invalid", "true");
 		expect(emailInput).toHaveAttribute(
 			"aria-describedby",
@@ -80,9 +81,7 @@ describe("LoginPage", () => {
 
 		const emailErrorElement = document.getElementById("signin-email-error");
 		expect(emailErrorElement).toBe(emailError);
-		expect(emailErrorElement).toHaveTextContent(
-			"Please enter an email address.",
-		);
+		expect(emailErrorElement).toHaveTextContent(Language.emailRequired);
 
 		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
 		expect(passwordInput).not.toHaveAttribute(
@@ -241,13 +240,13 @@ describe("LoginPage", () => {
 
 		await waitForLoaderToBeRemoved();
 
-		const email = screen.getByLabelText(/Email/);
-		const password = screen.getByLabelText(/Password/);
+		const email = screen.getByLabelText(new RegExp(Language.emailLabel));
+		const password = screen.getByLabelText(new RegExp(Language.passwordLabel));
 
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
 
-		const signInButton = await screen.findByText("Sign In");
+		const signInButton = await screen.findByText(Language.passwordSignIn);
 		fireEvent.click(signInButton);
 
 		// Then - it should hard redirect to OAuth endpoint

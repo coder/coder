@@ -1,15 +1,3 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import MockServerSocket from "jest-websocket-mock";
-import { HttpResponse, http } from "msw";
-import type { FC } from "react";
-import * as apiModule from "#/api/api";
-import type { TemplateVersionParameter, Workspace } from "#/api/typesGenerated";
-import {
-	DashboardContext,
-	type DashboardProvider,
-} from "#/modules/dashboard/DashboardProvider";
-import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -28,12 +16,24 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import {
 	type RenderWithAuthOptions,
 	renderWithAuth,
-} from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import * as apiModule from "api/api";
+import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
+import MockServerSocket from "jest-websocket-mock";
+import {
+	DashboardContext,
+	type DashboardProvider,
+} from "modules/dashboard/DashboardProvider";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { HttpResponse, http } from "msw";
+import type { FC } from "react";
 import WorkspacePage from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;
@@ -421,9 +421,7 @@ describe("WorkspacePage", () => {
 		const retryDebugButtonRe = /^Debug$/i;
 
 		describe("Retries a failed 'Start' transition", () => {
-			const mockRetry = jest
-				.spyOn(API, "retryWorkspace")
-				.mockResolvedValue(MockWorkspaceBuild);
+			const mockStart = jest.spyOn(API, "startWorkspace");
 			const failedStart: Workspace = {
 				...MockFailedWorkspace,
 				latest_build: {
@@ -433,10 +431,10 @@ describe("WorkspacePage", () => {
 			};
 
 			test("Retry with no debug", async () => {
-				await testButton(failedStart, retryButtonRe, mockRetry);
+				await testButton(failedStart, retryButtonRe, mockStart);
 
-				expect(mockRetry).toBeCalledWith(
-					failedStart,
+				expect(mockStart).toBeCalledWith(
+					failedStart.id,
 					failedStart.latest_build.template_version_id,
 					undefined,
 					undefined,
@@ -444,10 +442,10 @@ describe("WorkspacePage", () => {
 			});
 
 			test("Retry with debug logs", async () => {
-				await testButton(failedStart, retryDebugButtonRe, mockRetry);
+				await testButton(failedStart, retryDebugButtonRe, mockStart);
 
-				expect(mockRetry).toBeCalledWith(
-					failedStart,
+				expect(mockStart).toBeCalledWith(
+					failedStart.id,
 					failedStart.latest_build.template_version_id,
 					"debug",
 					undefined,
@@ -524,9 +522,7 @@ describe("WorkspacePage", () => {
 				return HttpResponse.json([parameter]);
 			}),
 		);
-		const retryWorkspaceSpy = jest
-			.spyOn(API, "retryWorkspace")
-			.mockResolvedValue(MockWorkspaceBuild);
+		const startWorkspaceSpy = jest.spyOn(API, "startWorkspace");
 
 		await renderWorkspacePage(workspace);
 		const retryWithBuildParametersButton = await screen.findByRole("button", {
@@ -543,8 +539,8 @@ describe("WorkspacePage", () => {
 		await user.click(submitButton);
 
 		await waitFor(() => {
-			expect(retryWorkspaceSpy).toBeCalledWith(
-				workspace,
+			expect(startWorkspaceSpy).toBeCalledWith(
+				workspace.id,
 				workspace.latest_build.template_version_id,
 				undefined,
 				[{ name: parameter.name, value: "some-value" }],
@@ -572,9 +568,7 @@ describe("WorkspacePage", () => {
 				return HttpResponse.json([parameter]);
 			}),
 		);
-		const retryWorkspaceSpy = jest
-			.spyOn(API, "retryWorkspace")
-			.mockResolvedValue(MockWorkspaceBuild);
+		const startWorkspaceSpy = jest.spyOn(API, "startWorkspace");
 
 		await renderWorkspacePage(workspace);
 		const retryWithBuildParametersButton = await screen.findByRole("button", {
@@ -591,8 +585,8 @@ describe("WorkspacePage", () => {
 		await user.click(submitButton);
 
 		await waitFor(() => {
-			expect(retryWorkspaceSpy).toBeCalledWith(
-				workspace,
+			expect(startWorkspaceSpy).toBeCalledWith(
+				workspace.id,
 				workspace.latest_build.template_version_id,
 				"debug",
 				[{ name: parameter.name, value: "some-value" }],

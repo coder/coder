@@ -1,7 +1,7 @@
 package rbac
 
 import (
-	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -16,7 +16,7 @@ func TestExternalScopeNames(t *testing.T) {
 
 	// Ensure sorted ascending
 	sorted := append([]string(nil), names...)
-	slices.Sort(sorted)
+	sort.Strings(sorted)
 	require.Equal(t, sorted, names)
 
 	// Ensure each entry expands to site-only
@@ -62,7 +62,6 @@ func TestIsExternalScope(t *testing.T) {
 	require.True(t, IsExternalScope("template:use"))
 	require.True(t, IsExternalScope("workspace:*"))
 	require.True(t, IsExternalScope("coder:workspaces.create"))
-	require.True(t, IsExternalScope("user:read"))
 	require.False(t, IsExternalScope("debug_info:read")) // internal-only
 	require.False(t, IsExternalScope("unknown:read"))
 }

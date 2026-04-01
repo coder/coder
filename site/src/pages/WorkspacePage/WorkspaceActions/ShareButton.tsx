@@ -1,16 +1,17 @@
-import { Share2Icon } from "lucide-react";
-import type { FC } from "react";
-import type { Workspace } from "#/api/typesGenerated";
-import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+import type { Workspace } from "api/typesGenerated";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/Popover/Popover";
-import { isGroup } from "#/modules/groups";
-import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
-import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
-import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
+} from "components/Popover/Popover";
+import { Share2Icon } from "lucide-react";
+import { isGroup } from "modules/groups";
+import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
+import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
+import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
+import type { FC } from "react";
 
 interface ShareButtonProps {
 	workspace: Workspace;
@@ -33,14 +34,14 @@ export const ShareButton: FC<ShareButtonProps> = ({
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[580px] p-4">
 				<div className="flex items-center gap-2 mb-4">
-					<h3 className="text-lg font-semibold m-0">
-						{workspace.task_id ? "Task" : "Workspace"} Sharing
-					</h3>
+					<h3 className="text-lg font-semibold m-0">Workspace Sharing</h3>
+					<FeatureStageBadge contentType="beta" size="sm" />
 				</div>
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}
 					workspaceACL={sharing.workspaceACL}
 					canUpdatePermissions={canUpdatePermissions}
+					isTaskWorkspace={Boolean(workspace.task_id)}
 					error={sharing.error ?? sharing.mutationError}
 					updatingUserId={sharing.updatingUserId}
 					onUpdateUser={sharing.updateUser}

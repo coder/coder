@@ -1,7 +1,7 @@
+import { Stack } from "components/Stack/Stack";
 import type { ElementType, FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router";
-import { Stack } from "#/components/Stack/Stack";
-import { cn } from "#/utils/cn";
+import { cn } from "utils/cn";
 
 interface SidebarProps {
 	children?: ReactNode;
@@ -33,7 +33,13 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	return (
 		<Stack direction="row" spacing={1} className="mb-4">
 			{avatar}
-			<div className="overflow-hidden flex flex-col">
+			<div
+				css={{
+					overflow: "hidden",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
 				{linkTo ? (
 					<Link className={cn(titleStyles.normal, "no-underline")} to={linkTo}>
 						{title}

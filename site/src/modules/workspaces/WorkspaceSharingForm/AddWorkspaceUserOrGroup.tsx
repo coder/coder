@@ -1,19 +1,19 @@
-import { type FC, useState } from "react";
 import type {
 	Group,
 	User,
 	WorkspaceACL,
 	WorkspaceRole,
 	WorkspaceUser,
-} from "#/api/typesGenerated";
+} from "api/typesGenerated";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
-} from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
+} from "modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 import {
 	AddWorkspaceMemberForm,
 	RoleSelectField,
-} from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
+} from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
+import { type FC, useState } from "react";
 
 type AddWorkspaceUserOrGroupProps = {
 	organizationID: string;

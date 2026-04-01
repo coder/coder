@@ -1,18 +1,15 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor } from "storybook/test";
-import { getWorkspaceResolveAutostartQueryKey } from "#/api/queries/workspaceQuota";
-import type { Workspace } from "#/api/typesGenerated";
-import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockOutdatedWorkspace,
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersionWithMarkdownMessage,
 	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceResource,
-} from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+} from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
 export const defaultPermissions: WorkspacePermissions = {
@@ -115,40 +112,19 @@ export const RequiresManualUpdate: Story = {
 	},
 };
 
-/**
- * Creates a workspace with unhealthy agents using the given agent
- * overrides, for use in notification stories.
- */
-function createUnhealthyWorkspace(
-	agentOverrides: Partial<typeof MockWorkspaceAgent>,
-): Workspace {
-	const agent = { ...MockWorkspaceAgent, ...agentOverrides };
-	return {
-		...MockWorkspace,
-		health: {
-			healthy: false,
-			failing_agents: [agent.id],
+export const Unhealthy: Story = {
+	args: {
+		workspace: {
+			...MockWorkspace,
+			health: {
+				...MockWorkspace.health,
+				healthy: false,
+			},
+			latest_build: {
+				...MockWorkspace.latest_build,
+				status: "running",
+			},
 		},
-		latest_build: {
-			...MockWorkspace.latest_build,
-			status: "running",
-			resources: [
-				{
-					...MockWorkspaceResource,
-					agents: [agent],
-				},
-			],
-		},
-	};
-}
-
-export const StartupScriptFailed: Story = {
-	args: {
-		workspace: createUnhealthyWorkspace({
-			status: "connected",
-			lifecycle_state: "start_error",
-			health: { healthy: false },
-		}),
 	},
 
 	play: async ({ step }) => {
@@ -156,65 +132,23 @@ export const StartupScriptFailed: Story = {
 			await userEvent.hover(screen.getByTestId("warning-notifications"));
 			await waitFor(() =>
 				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/startup script failed/i,
+					/workspace is unhealthy/i,
 				),
 			);
 		});
 	},
 };
 
-export const AgentDisconnected: Story = {
+export const UnhealthyWithoutUpdatePermission: Story = {
 	args: {
-		workspace: createUnhealthyWorkspace({
-			status: "disconnected",
-			lifecycle_state: "ready",
-			health: { healthy: false },
-		}),
-	},
-
-	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
-			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/agent has disconnected/i,
-				),
-			);
-		});
-	},
-};
-
-export const AgentTimeout: Story = {
-	args: {
-		workspace: createUnhealthyWorkspace({
-			status: "timeout",
-			lifecycle_state: "starting",
-			health: { healthy: false },
-		}),
-	},
-
-	play: async ({ step }) => {
-		await step("activate hover trigger", async () => {
-			await userEvent.hover(screen.getByTestId("warning-notifications"));
-			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					/taking longer than expected/i,
-				),
-			);
-		});
-	},
-};
-
-export const StartupScriptFailedWithoutUpdatePermission: Story = {
-	args: {
-		...StartupScriptFailed.args,
+		...Unhealthy.args,
 		permissions: {
 			...defaultPermissions,
 			updateWorkspace: false,
 		},
 	},
 
-	play: StartupScriptFailed.play,
+	play: Unhealthy.play,
 };
 
 const DormantWorkspace = {

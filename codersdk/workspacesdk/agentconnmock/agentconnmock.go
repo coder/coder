@@ -69,21 +69,6 @@ func (mr *MockAgentConnMockRecorder) AwaitReachable(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AwaitReachable", reflect.TypeOf((*MockAgentConn)(nil).AwaitReachable), ctx)
 }
 
-// CallMCPTool mocks base method.
-func (m *MockAgentConn) CallMCPTool(ctx context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CallMCPTool", ctx, req)
-	ret0, _ := ret[0].(workspacesdk.CallMCPToolResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CallMCPTool indicates an expected call of CallMCPTool.
-func (mr *MockAgentConnMockRecorder) CallMCPTool(ctx, req any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallMCPTool", reflect.TypeOf((*MockAgentConn)(nil).CallMCPTool), ctx, req)
-}
-
 // Close mocks base method.
 func (m *MockAgentConn) Close() error {
 	m.ctrl.T.Helper()
@@ -96,21 +81,6 @@ func (m *MockAgentConn) Close() error {
 func (mr *MockAgentConnMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAgentConn)(nil).Close))
-}
-
-// ConnectDesktopVNC mocks base method.
-func (m *MockAgentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConnectDesktopVNC", ctx)
-	ret0, _ := ret[0].(net.Conn)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ConnectDesktopVNC indicates an expected call of ConnectDesktopVNC.
-func (mr *MockAgentConnMockRecorder) ConnectDesktopVNC(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectDesktopVNC", reflect.TypeOf((*MockAgentConn)(nil).ConnectDesktopVNC), ctx)
 }
 
 // DebugLogs mocks base method.
@@ -201,21 +171,6 @@ func (mr *MockAgentConnMockRecorder) EditFiles(ctx, edits any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditFiles", reflect.TypeOf((*MockAgentConn)(nil).EditFiles), ctx, edits)
 }
 
-// ExecuteDesktopAction mocks base method.
-func (m *MockAgentConn) ExecuteDesktopAction(ctx context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ExecuteDesktopAction", ctx, action)
-	ret0, _ := ret[0].(workspacesdk.DesktopActionResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ExecuteDesktopAction indicates an expected call of ExecuteDesktopAction.
-func (mr *MockAgentConnMockRecorder) ExecuteDesktopAction(ctx, action any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteDesktopAction", reflect.TypeOf((*MockAgentConn)(nil).ExecuteDesktopAction), ctx, action)
-}
-
 // GetPeerDiagnostics mocks base method.
 func (m *MockAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	m.ctrl.T.Helper()
@@ -258,21 +213,6 @@ func (m *MockAgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceA
 func (mr *MockAgentConnMockRecorder) ListContainers(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListContainers", reflect.TypeOf((*MockAgentConn)(nil).ListContainers), ctx)
-}
-
-// ListMCPTools mocks base method.
-func (m *MockAgentConn) ListMCPTools(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListMCPTools", ctx)
-	ret0, _ := ret[0].(workspacesdk.ListMCPToolsResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListMCPTools indicates an expected call of ListMCPTools.
-func (mr *MockAgentConnMockRecorder) ListMCPTools(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPTools", reflect.TypeOf((*MockAgentConn)(nil).ListMCPTools), ctx)
 }
 
 // ListProcesses mocks base method.
@@ -338,18 +278,18 @@ func (mr *MockAgentConnMockRecorder) Ping(ctx any) *gomock.Call {
 }
 
 // ProcessOutput mocks base method.
-func (m *MockAgentConn) ProcessOutput(ctx context.Context, id string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+func (m *MockAgentConn) ProcessOutput(ctx context.Context, id string) (workspacesdk.ProcessOutputResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessOutput", ctx, id, opts)
+	ret := m.ctrl.Call(m, "ProcessOutput", ctx, id)
 	ret0, _ := ret[0].(workspacesdk.ProcessOutputResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ProcessOutput indicates an expected call of ProcessOutput.
-func (mr *MockAgentConnMockRecorder) ProcessOutput(ctx, id, opts any) *gomock.Call {
+func (mr *MockAgentConnMockRecorder) ProcessOutput(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOutput", reflect.TypeOf((*MockAgentConn)(nil).ProcessOutput), ctx, id, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOutput", reflect.TypeOf((*MockAgentConn)(nil).ProcessOutput), ctx, id)
 }
 
 // PrometheusMetrics mocks base method.

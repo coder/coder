@@ -1,11 +1,11 @@
-import type { FC, ReactNode } from "react";
-import { Button } from "#/components/Button/Button";
-import { Margins } from "#/components/Margins/Margins";
+import { Button } from "components/Button/Button";
+import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+} from "components/PageHeader/PageHeader";
+import type { FC, ReactNode } from "react";
 
 interface FullPageHorizontalFormProps {
 	title: string;
@@ -35,7 +35,7 @@ export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
 				{detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
 			</PageHeader>
 
-			<div>{children}</div>
+			<main>{children}</main>
 		</Margins>
 	);
 };

@@ -18,12 +18,11 @@ import (
 func TestOAuth2ClientMetadataValidation(t *testing.T) {
 	t.Parallel()
 
-	// Single instance shared across all sub-tests. Each registers independent OAuth2 apps with unique client names.
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-
 	t.Run("RedirectURIValidation", func(t *testing.T) {
 		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		tests := []struct {
 			name          string
@@ -133,6 +132,9 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 	t.Run("ClientURIValidation", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		tests := []struct {
 			name        string
 			clientURI   string
@@ -205,6 +207,9 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 	t.Run("LogoURIValidation", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		tests := []struct {
 			name        string
 			logoURI     string
@@ -266,6 +271,9 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 	t.Run("GrantTypeValidation", func(t *testing.T) {
 		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		tests := []struct {
 			name        string
@@ -339,6 +347,9 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 	t.Run("ResponseTypeValidation", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		tests := []struct {
 			name          string
 			responseTypes []codersdk.OAuth2ProviderResponseType
@@ -395,6 +406,9 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 
 	t.Run("TokenEndpointAuthMethodValidation", func(t *testing.T) {
 		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		tests := []struct {
 			name        string
@@ -465,10 +479,6 @@ func TestOAuth2ClientMetadataValidation(t *testing.T) {
 func TestOAuth2ClientNameValidation(t *testing.T) {
 	t.Parallel()
 
-	// Single instance shared across all sub-tests. Each registers independent OAuth2 apps.
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-
 	tests := []struct {
 		name        string
 		clientName  string
@@ -520,6 +530,8 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			req := codersdk.OAuth2ClientRegistrationRequest{
@@ -541,10 +553,6 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 // TestOAuth2ClientScopeValidation tests scope parameter validation
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()
-
-	// Single instance shared across all sub-tests. Each registers independent OAuth2 apps.
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
 
 	tests := []struct {
 		name        string
@@ -607,6 +615,8 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			req := codersdk.OAuth2ClientRegistrationRequest{
@@ -672,13 +682,11 @@ func TestOAuth2ClientMetadataDefaults(t *testing.T) {
 func TestOAuth2ClientMetadataEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	// Single instance shared across all sub-tests. Each registers independent OAuth2 apps with unique client names.
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-
 	t.Run("ExtremelyLongRedirectURI", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a very long but valid HTTPS URI
@@ -701,6 +709,8 @@ func TestOAuth2ClientMetadataEdgeCases(t *testing.T) {
 	t.Run("ManyRedirectURIs", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Test with many redirect URIs
@@ -722,6 +732,8 @@ func TestOAuth2ClientMetadataEdgeCases(t *testing.T) {
 	t.Run("URIWithUnusualPort", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -736,6 +748,8 @@ func TestOAuth2ClientMetadataEdgeCases(t *testing.T) {
 	t.Run("URIWithComplexPath", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -750,6 +764,8 @@ func TestOAuth2ClientMetadataEdgeCases(t *testing.T) {
 	t.Run("URIWithEncodedCharacters", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Test with URL-encoded characters

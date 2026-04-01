@@ -166,6 +166,7 @@ func TestDockerEnvInfoer(t *testing.T) {
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
+	// nolint:paralleltest // variable recapture no longer required
 	for idx, tt := range []struct {
 		image             string
 		labels            map[string]string
@@ -222,6 +223,7 @@ func TestDockerEnvInfoer(t *testing.T) {
 			expectedUserShell: "/bin/bash",
 		},
 	} {
+		//nolint:paralleltest // variable recapture no longer required
 		t.Run(fmt.Sprintf("#%d", idx), func(t *testing.T) {
 			// Start a container with the given image
 			// and environment variables

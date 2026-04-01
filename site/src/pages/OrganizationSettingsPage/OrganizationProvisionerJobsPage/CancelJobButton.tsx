@@ -1,12 +1,12 @@
-import { BanIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import type { ProvisionerJob } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
+import type { ProvisionerJob } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+} from "components/Tooltip/Tooltip";
+import { BanIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
 
 const CANCELLABLE = ["pending", "running"];

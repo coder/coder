@@ -1,8 +1,3 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { act } from "react";
-import { API } from "#/api/api";
-import type { DynamicParametersResponse } from "#/api/typesGenerated";
 import {
 	MockDropdownParameter,
 	MockDynamicParametersResponse,
@@ -15,12 +10,17 @@ import {
 	MockUserOwner,
 	MockValidationParameter,
 	MockWorkspace,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "#/testHelpers/renderHelpers";
-import { createMockWebSocket } from "#/testHelpers/websockets";
+} from "testHelpers/renderHelpers";
+import { createMockWebSocket } from "testHelpers/websockets";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import type { DynamicParametersResponse } from "api/typesGenerated";
+import { act } from "react";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {
@@ -140,8 +140,7 @@ describe("CreateWorkspacePage", () => {
 			const instanceTypeField = screen.getByTestId(
 				"parameter-field-instance_type",
 			);
-			const instanceTypeSelect =
-				within(instanceTypeField).getByRole("combobox");
+			const instanceTypeSelect = within(instanceTypeField).getByRole("button");
 			expect(instanceTypeSelect).toBeInTheDocument();
 
 			jest.useFakeTimers();

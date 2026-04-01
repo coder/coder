@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
+import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
-	CircleHelpIcon,
 	CircleMinusIcon,
 } from "lucide-react";
 import {
@@ -13,8 +13,7 @@ import {
 	type HTMLAttributes,
 	type ReactElement,
 } from "react";
-import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
-import { docs } from "#/utils/docs";
+import { docs } from "utils/docs";
 import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;
@@ -22,8 +21,12 @@ const CONTENT_PADDING = 36;
 export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<header
-			className="flex items-center justify-between"
-			style={{ padding: `36px ${CONTENT_PADDING}px` }}
+			css={{
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "space-between",
+				padding: `36px ${CONTENT_PADDING}px`,
+			}}
 			{...props}
 		/>
 	);
@@ -32,7 +35,15 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<h2
-			className="m-0 leading-[1.2] text-xl font-medium flex items-center gap-4"
+			css={{
+				margin: 0,
+				lineHeight: "1.2",
+				fontSize: 20,
+				fontWeight: 500,
+				display: "flex",
+				alignItems: "center",
+				gap: 16,
+			}}
 			{...props}
 		/>
 	);
@@ -72,9 +83,13 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 
 export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
-		<div
-			className="flex flex-col gap-9"
-			style={{ padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px` }}
+		<main
+			css={{
+				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
+				display: "flex",
+				flexDirection: "column",
+				gap: 36,
+			}}
 			{...props}
 		/>
 	);
@@ -83,10 +98,15 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<div
-			className={`
-				leading-[1.4] w-min whitespace-nowrap
-				grid grid-cols-[auto_auto] gap-3 gap-x-12
-			`}
+			css={{
+				lineHeight: "1.4",
+				display: "grid",
+				gridTemplateColumns: "auto auto",
+				gap: 12,
+				columnGap: 48,
+				width: "min-content",
+				whiteSpace: "nowrap",
+			}}
 			{...props}
 		/>
 	);
@@ -121,7 +141,16 @@ export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 
 export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
 	return (
-		<h4 {...props} className="text-sm font-medium m-0 leading-[1.2] mb-4" />
+		<h4
+			{...props}
+			css={{
+				fontSize: 14,
+				fontWeight: 500,
+				margin: 0,
+				lineHeight: "1.2",
+				marginBottom: 16,
+			}}
+		/>
 	);
 };
 
@@ -151,21 +180,6 @@ export const Pill: React.FC<PillProps> = ({ icon, children, ...divProps }) => {
 			{cloneElement(icon, { className: "size-[14px]" })}
 			{children}
 		</div>
-	);
-};
-
-interface StatusIconProps {
-	value: boolean | null;
-}
-
-export const StatusIcon: FC<StatusIconProps> = ({ value }) => {
-	if (value === null) {
-		return <CircleHelpIcon className="size-icon-sm text-content-disabled" />;
-	}
-	return value ? (
-		<CircleCheckIcon className="size-icon-sm text-content-success" />
-	) : (
-		<CircleMinusIcon className="size-icon-sm text-content-destructive" />
 	);
 };
 
@@ -217,7 +231,7 @@ export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
 			{...divProps}
 		>
 			{lines.map((line, index) => (
-				<span className="block" key={index}>
+				<span css={{ display: "block" }} key={index}>
 					{line}
 				</span>
 			))}

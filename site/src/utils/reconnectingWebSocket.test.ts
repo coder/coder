@@ -1,12 +1,9 @@
-import {
-	createReconnectingWebSocket,
-	type ReconnectSchedule,
-} from "./reconnectingWebSocket";
+import { createReconnectingWebSocket } from "./reconnectingWebSocket";
 
 /**
- * Minimal mock that satisfies the {@link Closable} interface used by the
- * reconnection utility. Each instance records every `addEventListener`
- * call and exposes helpers to fire those events.
+ * Minimal mock that satisfies the {@link Closable} interface used by
+ * the reconnection utility. Each instance records every
+ * `addEventListener` call and exposes helpers to fire those events.
  */
 function createMockSocket() {
 	const listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
@@ -30,19 +27,8 @@ function createMockSocket() {
 	return socket;
 }
 
-const expectReconnectSchedule = (
-	event: { reconnect: ReconnectSchedule; now: number },
-	expected: { attempt: number; delayMs: number },
-) => {
-	expect(event.reconnect).toMatchObject(expected);
-	expect(Date.parse(event.reconnect.retryingAt) - event.now).toBe(
-		expected.delayMs,
-	);
-};
-
 beforeEach(() => {
 	vi.useFakeTimers();
-	vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
 });
 
 afterEach(() => {
@@ -83,11 +69,7 @@ describe("createReconnectingWebSocket", () => {
 			activeSocket = createMockSocket();
 			return activeSocket;
 		});
-		const disconnects: Array<{ reconnect: ReconnectSchedule; now: number }> =
-			[];
-		const onDisconnect = vi.fn((reconnect: ReconnectSchedule) => {
-			disconnects.push({ reconnect, now: Date.now() });
-		});
+		const onDisconnect = vi.fn();
 
 		createReconnectingWebSocket({
 			connect,
@@ -102,7 +84,7 @@ describe("createReconnectingWebSocket", () => {
 		// First disconnect — should schedule reconnect after 1000ms.
 		activeSocket.emit("close");
 		expect(onDisconnect).toHaveBeenCalledTimes(1);
-		expectReconnectSchedule(disconnects[0]!, { attempt: 1, delayMs: 1000 });
+		expect(onDisconnect).toHaveBeenLastCalledWith(0);
 
 		vi.advanceTimersByTime(999);
 		expect(connect).toHaveBeenCalledTimes(1);
@@ -112,7 +94,7 @@ describe("createReconnectingWebSocket", () => {
 		// Second disconnect — delay should be 2000ms.
 		activeSocket.emit("close");
 		expect(onDisconnect).toHaveBeenCalledTimes(2);
-		expectReconnectSchedule(disconnects[1]!, { attempt: 2, delayMs: 2000 });
+		expect(onDisconnect).toHaveBeenLastCalledWith(1);
 
 		vi.advanceTimersByTime(1999);
 		expect(connect).toHaveBeenCalledTimes(2);
@@ -121,7 +103,6 @@ describe("createReconnectingWebSocket", () => {
 
 		// Third disconnect — delay should be 4000ms.
 		activeSocket.emit("close");
-		expectReconnectSchedule(disconnects[2]!, { attempt: 3, delayMs: 4000 });
 		vi.advanceTimersByTime(3999);
 		expect(connect).toHaveBeenCalledTimes(3);
 		vi.advanceTimersByTime(1);
@@ -142,8 +123,8 @@ describe("createReconnectingWebSocket", () => {
 			factor: 2,
 		});
 
-		// Disconnect enough times that the uncapped delay would exceed
-		// maxMs: 1000, 2000, 4000, 8000 → capped at 5000.
+		// Disconnect enough times that the uncapped delay would
+		// exceed maxMs: 1000, 2000, 4000, 8000 → capped at 5000.
 		for (let i = 0; i < 3; i++) {
 			activeSocket.emit("close");
 			vi.runOnlyPendingTimers();
@@ -182,7 +163,8 @@ describe("createReconnectingWebSocket", () => {
 		activeSocket.emit("open");
 		activeSocket.emit("close");
 
-		// Next reconnect should use the base delay (1000ms), not 4000ms.
+		// Next reconnect should use the base delay (1000ms), not
+		// 4000ms.
 		vi.advanceTimersByTime(999);
 		expect(connect).toHaveBeenCalledTimes(3);
 		vi.advanceTimersByTime(1);
@@ -224,14 +206,14 @@ describe("createReconnectingWebSocket", () => {
 
 		createReconnectingWebSocket({ connect });
 
-		const firstSocket = sockets[0]!;
+		const firstSocket = sockets[0];
 		firstSocket.emit("close");
 		vi.runOnlyPendingTimers();
 
-		// The connect function creates a new socket. The old socket was
-		// already "closed" by the browser, but on a fresh reconnection
-		// the utility closes the previous one if it's still the active
-		// reference.
+		// The connect function creates a new socket. The old socket
+		// was already "closed" by the browser, but on a fresh
+		// reconnection the utility closes the previous one if it's
+		// still the active reference.
 		expect(connect).toHaveBeenCalledTimes(2);
 	});
 
@@ -283,9 +265,9 @@ describe("createReconnectingWebSocket", () => {
 		dispose();
 		dispose();
 
-		// close is idempotent on real WebSockets, so calling it multiple
-		// times is harmless. The important thing is that no reconnection is
-		// scheduled after the first dispose.
+		// close is idempotent on real WebSockets, so calling it
+		// multiple times is harmless. The important thing is that
+		// no reconnection is scheduled after the first dispose.
 		expect(connect).toHaveBeenCalledTimes(1);
 	});
 

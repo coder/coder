@@ -113,10 +113,6 @@ These options apply to all providers:
 | Top K                 | Limits token selection to the top K candidates.                                                  |
 | Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                 |
 | Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                   |
-| Input Price           | Optional USD price metadata for input tokens, recorded per 1M tokens.                            |
-| Output Price          | Optional USD price metadata for output tokens, recorded per 1M tokens.                           |
-| Cache Read Price      | Optional USD price metadata for cache read tokens, recorded per 1M tokens.                       |
-| Cache Write Price     | Optional USD price metadata for cache creation/write tokens, recorded per 1M tokens.             |
 
 ### Provider-specific options
 
@@ -132,11 +128,11 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### OpenAI
 
-| Option                | Description                                                                                       |
-|-----------------------|---------------------------------------------------------------------------------------------------|
-| Reasoning Effort      | How much effort the model spends reasoning (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`). |
-| Max Completion Tokens | Cap on completion tokens for reasoning models.                                                    |
-| Parallel Tool Calls   | Whether the model can call multiple tools at once.                                                |
+| Option                | Description                                                           |
+|-----------------------|-----------------------------------------------------------------------|
+| Reasoning Effort      | How much effort the model spends reasoning (`low`, `medium`, `high`). |
+| Max Completion Tokens | Cap on completion tokens for reasoning models.                        |
+| Parallel Tool Calls   | Whether the model can call multiple tools at once.                    |
 
 #### Google
 
@@ -144,20 +140,24 @@ fields appear dynamically in the admin UI when you select a provider.
 |------------------|-----------------------------------------------------|
 | Thinking Budget  | Maximum tokens for the model's internal reasoning.  |
 | Include Thoughts | Whether to include thinking traces in the response. |
+| Safety Settings  | Content safety thresholds by category.              |
 
 #### OpenRouter
 
-| Option            | Description                                                                   |
-|-------------------|-------------------------------------------------------------------------------|
-| Reasoning Enabled | Enable extended reasoning mode.                                               |
-| Reasoning Effort  | Reasoning effort level (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`). |
+| Option            | Description                                       |
+|-------------------|---------------------------------------------------|
+| Reasoning Enabled | Enable extended reasoning mode.                   |
+| Reasoning Effort  | Reasoning effort level (`low`, `medium`, `high`). |
+| Provider Order    | Preferred provider routing order.                 |
+| Allow Fallbacks   | Whether to fall back to alternative providers.    |
 
 #### Vercel AI Gateway
 
-| Option            | Description                     |
-|-------------------|---------------------------------|
-| Reasoning Enabled | Enable extended reasoning mode. |
-| Reasoning Effort  | Reasoning effort level.         |
+| Option            | Description                                   |
+|-------------------|-----------------------------------------------|
+| Reasoning Enabled | Enable extended reasoning mode.               |
+| Reasoning Effort  | Reasoning effort level.                       |
+| Provider Options  | Routing preferences for underlying providers. |
 
 > [!NOTE]
 > Azure OpenAI uses the same options as OpenAI. AWS Bedrock uses the same

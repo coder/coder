@@ -1,15 +1,12 @@
-import { type FC, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
-import { API } from "#/api/api";
+import { API } from "api/api";
 import {
 	type ApiError,
 	getErrorDetail,
 	getErrorMessage,
 	isApiError,
-} from "#/api/errors";
-import { templateVersion } from "#/api/queries/templates";
-import { workspaceBuildTimings } from "#/api/queries/workspaceBuilds";
+} from "api/errors";
+import { templateVersion } from "api/queries/templates";
+import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
 	activate,
 	cancelBuild,
@@ -17,22 +14,25 @@ import {
 	startWorkspace,
 	stopWorkspace,
 	toggleFavorite,
-} from "#/api/queries/workspaces";
-import type * as TypesGen from "#/api/typesGenerated";
+} from "api/queries/workspaces";
+import type * as TypesGen from "api/typesGenerated";
 import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
-} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
-import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
-import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
-import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
-import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
+} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
+import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
-} from "#/modules/workspaces/WorkspaceUpdateDialogs";
-import { pageTitle } from "#/utils/page";
+} from "modules/workspaces/WorkspaceUpdateDialogs";
+import { type FC, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { pageTitle } from "utils/page";
 import { Workspace } from "./Workspace";
 
 interface WorkspaceReadyPageProps {
@@ -159,28 +159,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		},
 	});
 
-	// Retry workspace (stop-before-start for failed workspaces)
-	const retryWorkspaceMutation = useMutation({
-		...startWorkspace(workspace, queryClient),
-		mutationFn: ({
-			buildParameters,
-			logLevel,
-		}: {
-			buildParameters?: TypesGen.WorkspaceBuildParameter[];
-			logLevel?: TypesGen.ProvisionerLogLevel;
-		}) => {
-			return API.retryWorkspace(
-				workspace,
-				workspace.latest_build.template_version_id,
-				logLevel,
-				buildParameters,
-			);
-		},
-		onError: (error: unknown) => {
-			handleError(error);
-		},
-	});
-
 	// Toggle workspace favorite
 	const toggleFavoriteMutation = useMutation({
 		...toggleFavorite(workspace, queryClient),
@@ -268,7 +246,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		} else {
 			switch (workspace.latest_build.transition) {
 				case "start":
-					retryWorkspaceMutation.mutate({
+					startWorkspaceMutation.mutate({
 						logLevel,
 						buildParameters,
 					});

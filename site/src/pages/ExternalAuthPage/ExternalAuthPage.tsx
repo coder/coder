@@ -1,22 +1,22 @@
-import { isAxiosError } from "axios";
-import type { FC } from "react";
-import { useMemo } from "react";
-import { useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router";
-import type { ApiErrorResponse } from "#/api/errors";
+import type { ApiErrorResponse } from "api/errors";
 import {
 	exchangeExternalAuthDevice,
 	externalAuthDevice,
 	externalAuthProvider,
-} from "#/api/queries/externalAuth";
-import { Button } from "#/components/Button/Button";
+} from "api/queries/externalAuth";
+import { isAxiosError } from "axios";
+import { Button } from "components/Button/Button";
 import {
 	isExchangeErrorRetryable,
 	newRetryDelay,
-} from "#/components/GitDeviceAuth/GitDeviceAuth";
-import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
-import { Welcome } from "#/components/Welcome/Welcome";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+} from "components/GitDeviceAuth/GitDeviceAuth";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Welcome } from "components/Welcome/Welcome";
+import { useAuthenticated } from "hooks";
+import type { FC } from "react";
+import { useMemo } from "react";
+import { useQuery, useQueryClient } from "react-query";
+import { useParams, useSearchParams } from "react-router";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {
@@ -83,7 +83,7 @@ const ExternalAuthPage: FC = () => {
 				<SignInLayout>
 					<Welcome>Failed to validate oauth access token</Welcome>
 
-					<p className="text-center">
+					<p css={{ textAlign: "center" }}>
 						Attempted to validate the user&apos;s oauth access token from the
 						authentication flow. This situation may occur as a result of an
 						external authentication provider misconfiguration. Verify the

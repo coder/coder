@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -37,7 +37,7 @@ func main() {
 			missing = append(missing, k)
 		}
 	}
-	slices.Sort(missing)
+	sort.Strings(missing)
 
 	if len(missing) == 0 {
 		_, _ = fmt.Println("check-scopes: OK — all RBAC <resource>:<action> values exist in api_key_scope enum")

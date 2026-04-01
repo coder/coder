@@ -1,6 +1,6 @@
+import type { Workspace } from "api/typesGenerated";
 import type { FC } from "react";
-import type { Workspace } from "#/api/typesGenerated";
-import { lastUsedMessage } from "#/utils/workspace";
+import { lastUsedMessage } from "utils/workspace";
 import { WorkspaceDormantBadge } from "../WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceStatusIndicator } from "../WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 

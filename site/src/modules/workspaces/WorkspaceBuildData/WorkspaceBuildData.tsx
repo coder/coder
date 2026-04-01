@@ -1,20 +1,20 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { InfoIcon } from "lucide-react";
-import type { WorkspaceBuild } from "#/api/typesGenerated";
-import { BuildIcon } from "#/components/BuildIcon/BuildIcon";
+import type { WorkspaceBuild } from "api/typesGenerated";
+import { BuildIcon } from "components/BuildIcon/BuildIcon";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { createDayString } from "#/utils/createDayString";
+} from "components/Tooltip/Tooltip";
+import { InfoIcon } from "lucide-react";
+import { createDayString } from "utils/createDayString";
 import {
 	buildReasonLabels,
 	getDisplayWorkspaceBuildInitiatedBy,
 	getDisplayWorkspaceBuildStatus,
 	systemBuildReasons,
-} from "#/utils/workspace";
+} from "utils/workspace";
 
 export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 	const theme = useTheme();
@@ -30,7 +30,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 					color: theme.roles[statusType].fill.solid,
 				}}
 			/>
-			<div className="overflow-hidden">
+			<div css={{ overflow: "hidden" }}>
 				<div
 					css={{
 						color: theme.palette.text.primary,
@@ -42,8 +42,9 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 						gap: 4,
 					}}
 				>
-					<span className="capitalize">{build.transition}</span> by{" "}
-					<span className="font-medium">
+					<span css={{ textTransform: "capitalize" }}>{build.transition}</span>{" "}
+					by{" "}
+					<span css={{ fontWeight: 500 }}>
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
 					{!systemBuildReasons.includes(build.reason) &&
@@ -82,7 +83,12 @@ export const WorkspaceBuildDataSkeleton = () => {
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
-				<Skeleton variant="text" width={60} height={14} className="mt-0.5" />
+				<Skeleton
+					variant="text"
+					width={60}
+					height={14}
+					css={{ marginTop: 2 }}
+				/>
 			</div>
 		</div>
 	);

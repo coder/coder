@@ -1,10 +1,10 @@
-import type { FC } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorProps,
-} from "#/components/StatusIndicator/StatusIndicator";
+} from "components/StatusIndicator/StatusIndicator";
+import type { FC } from "react";
 
 type TaskStatusProps = {
 	status: TypesGen.TaskStatus;

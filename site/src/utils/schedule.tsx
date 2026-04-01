@@ -1,4 +1,6 @@
 import Link from "@mui/material/Link";
+import type { Template, Workspace } from "api/typesGenerated";
+import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import cronParser from "cron-parser";
 import cronstrue from "cronstrue";
 import dayjs, { type Dayjs } from "dayjs";
@@ -6,11 +8,9 @@ import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
+import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
 import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
-import type { Template, Workspace } from "#/api/typesGenerated";
-import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
-import type { WorkspaceActivityStatus } from "#/modules/workspaces/activity";
 import { isWorkspaceOn } from "./workspace";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
@@ -54,6 +54,15 @@ export const extractTimezone = (
 	return defaultTZ;
 };
 
+/** Language used in the schedule components */
+const Language = {
+	manual: "Manual",
+	workspaceShuttingDownLabel: "Workspace is shutting down",
+	afterStart: "after start",
+	autostartLabel: "Starts at",
+	autostopLabel: "Stops at",
+};
+
 export const autostartDisplay = (schedule: string | undefined): string => {
 	if (schedule) {
 		return (
@@ -65,7 +74,7 @@ export const autostartDisplay = (schedule: string | undefined): string => {
 				.replace("At", "")
 		);
 	}
-	return "Manual";
+	return Language.manual;
 };
 
 const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
@@ -110,7 +119,7 @@ export const autostopDisplay = (
 					message: "Required to stop soon",
 					tooltip: (
 						<>
-							<HelpPopoverTitle>Upcoming stop required</HelpPopoverTitle>
+							<HelpTooltipTitle>Upcoming stop required</HelpTooltipTitle>
 							This workspace will be required to stop by{" "}
 							{dayjs(workspace.latest_build.max_deadline).format(
 								"MMMM D [at] h:mm A",
@@ -126,15 +135,15 @@ export const autostopDisplay = (
 
 		if (isShuttingDown(workspace, deadline)) {
 			return {
-				message: "Workspace is shutting down",
+				message: Language.workspaceShuttingDownLabel,
 			};
 		}
 		let title = (
-			<HelpPopoverTitle>Template Autostop requirement</HelpPopoverTitle>
+			<HelpTooltipTitle>Template Autostop requirement</HelpTooltipTitle>
 		);
 		let reason: ReactNode = ` because the ${template.display_name} template has an autostop requirement.`;
 		if (template.autostop_requirement && template.allow_user_autostop) {
-			title = <HelpPopoverTitle>Autostop schedule</HelpPopoverTitle>;
+			title = <HelpTooltipTitle>Autostop schedule</HelpTooltipTitle>;
 			reason = (
 				<span data-chromatic="ignore">
 					{" "}
@@ -164,14 +173,14 @@ export const autostopDisplay = (
 		// If the workspace is not on, and the ttl is 0 or undefined, then the
 		// workspace is set to manually shutdown.
 		return {
-			message: "Manual",
+			message: Language.manual,
 		};
 	}
 	// The workspace has a ttl set, but is either in an unknown state or is
 	// not running. Therefore, we derive from workspace.ttl.
 	const duration = dayjs.duration(ttl, "milliseconds");
 	return {
-		message: `Stop ${duration.humanize()} after start`,
+		message: `Stop ${duration.humanize()} ${Language.afterStart}`,
 	};
 };
 

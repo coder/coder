@@ -1430,7 +1430,7 @@ func (c *Controller) Run(ctx context.Context) {
 
 			tailnetClients, err := c.Dialer.Dial(c.ctx, c.ResumeTokenCtrl)
 			if err != nil {
-				if c.ctx.Err() != nil {
+				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 					return
 				}
 

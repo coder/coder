@@ -1,9 +1,9 @@
-import type { FC } from "react";
 import {
 	EmptyState,
 	type EmptyStateProps,
-} from "#/components/EmptyState/EmptyState";
-import { TableCell, TableRow } from "#/components/Table/Table";
+} from "components/EmptyState/EmptyState";
+import { TableCell, TableRow } from "components/Table/Table";
+import type { FC } from "react";
 
 type TableEmptyProps = EmptyStateProps;
 

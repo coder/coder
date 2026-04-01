@@ -1,13 +1,9 @@
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { useId } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { API } from "#/api/api";
-import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
-import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
-import type { Task, Workspace } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
+import { API } from "api/api";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type { Task, Workspace } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import {
 	Dialog,
 	DialogClose,
@@ -16,9 +12,13 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/Dialog/Dialog";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Textarea } from "#/components/Textarea/Textarea";
+} from "components/Dialog/Dialog";
+import { Spinner } from "components/Spinner/Spinner";
+import { Textarea } from "components/Textarea/Textarea";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import { useId } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 
 type ModifyPromptDialogProps = {
 	task: Task;

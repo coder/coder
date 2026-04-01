@@ -1,15 +1,15 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
-import {
-	customNotificationTemplatesKey,
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-} from "#/api/queries/notifications";
 import {
 	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockSystemNotificationTemplates,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	customNotificationTemplatesKey,
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+} from "api/queries/notifications";
+import { userEvent, within } from "storybook/test";
 import NotificationsPage from "./NotificationsPage";
 import { baseMeta } from "./storybookUtils";
 

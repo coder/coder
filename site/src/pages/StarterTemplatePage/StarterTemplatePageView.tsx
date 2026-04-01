@@ -1,20 +1,20 @@
 import { useTheme } from "@emotion/react";
-import { ExternalLinkIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link } from "react-router";
-import type { TemplateExample } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Loader } from "#/components/Loader/Loader";
-import { Margins } from "#/components/Margins/Margins";
-import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import type { TemplateExample } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
-import { Stack } from "#/components/Stack/Stack";
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import { ExternalLinkIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link } from "react-router";
 
 interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;
@@ -60,7 +60,19 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 				}
 			>
 				<Stack direction="row" spacing={3} alignItems="center">
-					<div className="h-12 w-12 flex items-center justify-center [&_img]:w-full">
+					<div
+						css={{
+							height: 48,
+							width: 48,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+
+							"& img": {
+								width: "100%",
+							},
+						}}
+					>
 						<ExternalImage src={starterTemplate.icon} />
 					</div>
 					<div>
@@ -80,7 +92,13 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 				}}
 				id="readme"
 			>
-				<div className="px-10 pt-10 pb-16 max-w-[800px] mx-auto">
+				<div
+					css={{
+						padding: "40px 40px 64px",
+						maxWidth: 800,
+						margin: "auto",
+					}}
+				>
 					<MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
 				</div>
 			</div>

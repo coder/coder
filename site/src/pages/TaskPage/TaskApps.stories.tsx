@@ -1,7 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import kebabCase from "lodash/kebabCase";
-import type { Task, Workspace, WorkspaceApp } from "#/api/typesGenerated";
-import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockTask,
@@ -10,8 +6,12 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
-} from "#/testHelpers/entities";
-import { withAuthProvider, withProxyProvider } from "#/testHelpers/storybook";
+} from "testHelpers/entities";
+import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Task, Workspace, WorkspaceApp } from "api/typesGenerated";
+import { getPreferredProxy } from "contexts/ProxyContext";
+import kebabCase from "lodash/kebabCase";
 import { TaskApps } from "./TaskApps";
 
 const mockExternalApp: WorkspaceApp = {

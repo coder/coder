@@ -1,7 +1,7 @@
+import { API } from "api/api";
+import type { Region } from "api/typesGenerated";
 import { useEffect, useReducer, useState } from "react";
-import { API } from "#/api/api";
-import type { Region } from "#/api/typesGenerated";
-import { generateRandomString } from "#/utils/random";
+import { generateRandomString } from "utils/random";
 
 const proxyIntervalSeconds = 30; // seconds
 

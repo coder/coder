@@ -21,8 +21,9 @@ type storedCredentials map[string]struct {
 	APIToken string `json:"api_token"`
 }
 
-//nolint:paralleltest, tparallel // OS keyring is flaky under concurrent access
 func TestKeyring(t *testing.T) {
+	t.Parallel()
+
 	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
 		t.Skip("linux is not supported yet")
 	}
@@ -36,6 +37,8 @@ func TestKeyring(t *testing.T) {
 	)
 
 	t.Run("ReadNonExistent", func(t *testing.T) {
+		t.Parallel()
+
 		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
@@ -47,6 +50,8 @@ func TestKeyring(t *testing.T) {
 	})
 
 	t.Run("DeleteNonExistent", func(t *testing.T) {
+		t.Parallel()
+
 		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
@@ -58,6 +63,8 @@ func TestKeyring(t *testing.T) {
 	})
 
 	t.Run("WriteAndRead", func(t *testing.T) {
+		t.Parallel()
+
 		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
@@ -84,6 +91,8 @@ func TestKeyring(t *testing.T) {
 	})
 
 	t.Run("WriteAndDelete", func(t *testing.T) {
+		t.Parallel()
+
 		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
@@ -106,6 +115,8 @@ func TestKeyring(t *testing.T) {
 	})
 
 	t.Run("OverwriteToken", func(t *testing.T) {
+		t.Parallel()
+
 		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
@@ -135,6 +146,8 @@ func TestKeyring(t *testing.T) {
 	})
 
 	t.Run("MultipleServers", func(t *testing.T) {
+		t.Parallel()
+
 		backend := sessionstore.NewKeyringWithService(testhelpers.KeyringServiceName(t))
 		srvURL, err := url.Parse(testURL)
 		require.NoError(t, err)
@@ -186,6 +199,7 @@ func TestKeyring(t *testing.T) {
 	})
 
 	t.Run("StorageFormat", func(t *testing.T) {
+		t.Parallel()
 		// The storage format must remain consistent to ensure we don't break
 		// compatibility with other Coder related applications that may read
 		// or decode the same credential.

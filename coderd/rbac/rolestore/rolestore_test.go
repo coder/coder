@@ -42,84 +42,68 @@ func TestExpandCustomRoleRoles(t *testing.T) {
 	require.Len(t, roles, 1, "role found")
 }
 
-func TestReconcileSystemRole(t *testing.T) {
+func TestReconcileOrgMemberRole(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		roleName  string
-		permsFunc func(rbac.OrgSettings) rbac.OrgRolePermissions
-	}{
-		{"OrgMember", rbac.RoleOrgMember(), rbac.OrgMemberPermissions},
-		{"ServiceAccount", rbac.RoleOrgServiceAccount(), rbac.OrgServiceAccountPermissions},
-	}
+	db, _ := dbtestutil.NewDB(t)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	org := dbgen.Organization(t, db, database.Organization{})
 
-			db, _ := dbtestutil.NewDB(t)
-			org := dbgen.Organization(t, db, database.Organization{})
-			ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-			existing, err := database.ExpectOne(db.CustomRoles(ctx, database.CustomRolesParams{
-				LookupRoles: []database.NameOrganizationPair{
-					{
-						Name:           tt.roleName,
-						OrganizationID: org.ID,
-					},
-				},
-				IncludeSystemRoles: true,
-			}))
-			require.NoError(t, err)
+	existing, err := database.ExpectOne(db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           rbac.RoleOrgMember(),
+				OrganizationID: org.ID,
+			},
+		},
+		IncludeSystemRoles: true,
+	}))
+	require.NoError(t, err)
 
-			// Zero out permissions to simulate stale state.
-			_, err = db.UpdateCustomRole(ctx, database.UpdateCustomRoleParams{
-				Name: existing.Name,
-				OrganizationID: uuid.NullUUID{
-					UUID:  org.ID,
-					Valid: true,
-				},
-				DisplayName:       "",
-				SitePermissions:   database.CustomRolePermissions{},
-				UserPermissions:   database.CustomRolePermissions{},
-				OrgPermissions:    database.CustomRolePermissions{},
-				MemberPermissions: database.CustomRolePermissions{},
-			})
-			require.NoError(t, err)
+	_, err = db.UpdateCustomRole(ctx, database.UpdateCustomRoleParams{
+		Name: existing.Name,
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+		DisplayName:       "",
+		SitePermissions:   database.CustomRolePermissions{},
+		UserPermissions:   database.CustomRolePermissions{},
+		OrgPermissions:    database.CustomRolePermissions{},
+		MemberPermissions: database.CustomRolePermissions{},
+	})
+	require.NoError(t, err)
 
-			stale := existing
-			stale.OrgPermissions = database.CustomRolePermissions{}
-			stale.MemberPermissions = database.CustomRolePermissions{}
+	stale := existing
+	stale.OrgPermissions = database.CustomRolePermissions{}
+	stale.MemberPermissions = database.CustomRolePermissions{}
 
-			reconciled, didUpdate, err := rolestore.ReconcileSystemRole(ctx, db, stale, org)
-			require.NoError(t, err)
-			require.True(t, didUpdate, "expected reconciliation to update stale permissions")
+	reconciled, didUpdate, err := rolestore.ReconcileOrgMemberRole(ctx, db, stale, org.WorkspaceSharingDisabled)
+	require.NoError(t, err)
+	require.True(t, didUpdate, "expected reconciliation to update stale permissions")
 
-			dbstored, err := database.ExpectOne(db.CustomRoles(ctx, database.CustomRolesParams{
-				LookupRoles: []database.NameOrganizationPair{
-					{
-						Name:           tt.roleName,
-						OrganizationID: org.ID,
-					},
-				},
-				IncludeSystemRoles: true,
-			}))
-			require.NoError(t, err)
+	got, err := database.ExpectOne(db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           rbac.RoleOrgMember(),
+				OrganizationID: org.ID,
+			},
+		},
+		IncludeSystemRoles: true,
+	}))
+	require.NoError(t, err)
 
-			want := tt.permsFunc(rbac.OrgSettings{
-				ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners),
-			})
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.OrgPermissions), want.Org))
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.MemberPermissions), want.Member))
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.OrgPermissions), want.Org))
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.MemberPermissions), want.Member))
+	wantOrg, wantMember := rbac.OrgMemberPermissions(org.WorkspaceSharingDisabled)
+	require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.OrgPermissions), wantOrg))
+	require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.MemberPermissions), wantMember))
+	require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.OrgPermissions), wantOrg))
+	require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.MemberPermissions), wantMember))
 
-			_, didUpdate, err = rolestore.ReconcileSystemRole(ctx, db, reconciled, org)
-			require.NoError(t, err)
-			require.False(t, didUpdate, "expected no-op reconciliation when permissions are already current")
-		})
-	}
+	_, didUpdate, err = rolestore.ReconcileOrgMemberRole(ctx, db, reconciled, org.WorkspaceSharingDisabled)
+	require.NoError(t, err)
+	require.False(t, didUpdate, "expected no-op reconciliation when permissions are already current")
 }
 
 func TestReconcileSystemRoles(t *testing.T) {
@@ -134,7 +118,7 @@ func TestReconcileSystemRoles(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET shareable_workspace_owners = 'none' WHERE id = $1", org2.ID)
+	_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET workspace_sharing_disabled = true WHERE id = $1", org2.ID)
 	require.NoError(t, err)
 
 	// Simulate a missing system role by bypassing the application's
@@ -179,9 +163,9 @@ func TestReconcileSystemRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, got.IsSystem)
 
-		want := rbac.OrgMemberPermissions(rbac.OrgSettings{ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners)})
-		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.OrgPermissions), want.Org))
-		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.MemberPermissions), want.Member))
+		wantOrg, wantMember := rbac.OrgMemberPermissions(org.WorkspaceSharingDisabled)
+		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.OrgPermissions), wantOrg))
+		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.MemberPermissions), wantMember))
 	}
 
 	assertOrgMemberRole(t, org1.ID)

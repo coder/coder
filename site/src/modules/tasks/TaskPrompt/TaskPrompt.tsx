@@ -1,3 +1,33 @@
+import { API } from "api/api";
+import { getErrorDetail, getErrorMessage } from "api/errors";
+import { templateVersionPresets } from "api/queries/templates";
+import type {
+	Preset,
+	Task,
+	Template,
+	TemplateVersionExternalAuth,
+} from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Kbd, KbdGroup } from "components/Kbd/Kbd";
+import { Link } from "components/Link/Link";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectValue,
+} from "components/Select/Select";
+import { Skeleton } from "components/Skeleton/Skeleton";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { useAuthenticated } from "hooks/useAuthenticated";
+import { useExternalAuth } from "hooks/useExternalAuth";
 import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -6,38 +36,8 @@ import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
 import { toast } from "sonner";
-import { API } from "#/api/api";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { templateVersionPresets } from "#/api/queries/templates";
-import type {
-	Preset,
-	Task,
-	Template,
-	TemplateVersionExternalAuth,
-} from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Badge } from "#/components/Badge/Badge";
-import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
-import { Link } from "#/components/Link/Link";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectValue,
-} from "#/components/Select/Select";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useExternalAuth } from "#/hooks/useExternalAuth";
-import { docs } from "#/utils/docs";
-import { getOSKey } from "#/utils/platform";
+import { docs } from "utils/docs";
+import { getOSKey } from "utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
@@ -284,7 +284,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 											<SelectItem value={template.id} key={template.id}>
 												<div className="flex items-center gap-2">
 													{template.icon && (
-														<ExternalImage
+														<img
 															src={template.icon}
 															alt={template.name}
 															className="size-icon-sm flex-shrink-0"
@@ -343,7 +343,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 												<SelectItem value={preset.ID} key={preset.ID}>
 													<div className="flex items-center gap-2">
 														{preset.Icon && (
-															<ExternalImage
+															<img
 																data-slot="preset-icon"
 																src={preset.Icon}
 																alt={preset.Name}

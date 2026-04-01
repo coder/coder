@@ -262,9 +262,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
           "avatar_url": "http://example.com",
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
-          "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -404,7 +402,6 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -446,7 +443,6 @@ Status Code **200**
 | `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
-| `»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
@@ -487,10 +483,9 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 ### Parameters
 
-| Name              | In    | Type    | Required | Description                       |
-|-------------------|-------|---------|----------|-----------------------------------|
-| `group`           | path  | string  | true     | Group id                          |
-| `exclude_members` | query | boolean | false    | Exclude members from the response |
+| Name    | In   | Type   | Required | Description |
+|---------|------|--------|----------|-------------|
+| `group` | path | string | true     | Group id    |
 
 ### Example responses
 
@@ -507,7 +502,6 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -569,7 +563,6 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -650,7 +643,6 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -675,63 +667,6 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 | Status | Meaning                                                 | Description | Schema                                     |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get group members by group ID
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /groups/{group}/members`
-
-### Parameters
-
-| Name       | In    | Type         | Required | Description         |
-|------------|-------|--------------|----------|---------------------|
-| `group`    | path  | string       | true     | Group id            |
-| `q`        | query | string       | false    | Member search query |
-| `after_id` | query | string(uuid) | false    | After ID            |
-| `limit`    | query | integer      | false    | Page limit          |
-| `offset`   | query | integer      | false    | Page offset         |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "count": 0,
-  "users": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersResponse](schemas.md#codersdkgroupmembersresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1806,7 +1741,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -1848,7 +1782,6 @@ Status Code **200**
 | `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
-| `»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
@@ -1921,7 +1854,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -1984,7 +1916,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -2009,64 +1940,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 | Status | Meaning                                                 | Description | Schema                                     |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get group members by organization and group name
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/{groupName}/members \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /organizations/{organization}/groups/{groupName}/members`
-
-### Parameters
-
-| Name           | In    | Type         | Required | Description         |
-|----------------|-------|--------------|----------|---------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID     |
-| `groupName`    | path  | string       | true     | Group name          |
-| `q`            | query | string       | false    | Member search query |
-| `after_id`     | query | string(uuid) | false    | After ID            |
-| `limit`        | query | integer      | false    | Page limit          |
-| `offset`       | query | integer      | false    | Page offset         |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "count": 0,
-  "users": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersResponse](schemas.md#codersdkgroupmembersresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2978,7 +2851,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 ```json
 {
-  "shareable_workspace_owners": "none",
   "sharing_disabled": true,
   "sharing_globally_disabled": true
 }
@@ -3010,17 +2882,17 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ```json
 {
-  "shareable_workspace_owners": "none",
-  "sharing_disabled": true
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
 ### Parameters
 
-| Name           | In   | Type                                                                                                       | Required | Description                |
-|----------------|------|------------------------------------------------------------------------------------------------------------|----------|----------------------------|
-| `organization` | path | string(uuid)                                                                                               | true     | Organization ID            |
-| `body`         | body | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) | true     | Workspace sharing settings |
+| Name           | In   | Type                                                                             | Required | Description                |
+|----------------|------|----------------------------------------------------------------------------------|----------|----------------------------|
+| `organization` | path | string(uuid)                                                                     | true     | Organization ID            |
+| `body`         | body | [codersdk.WorkspaceSharingSettings](schemas.md#codersdkworkspacesharingsettings) | true     | Workspace sharing settings |
 
 ### Example responses
 
@@ -3028,17 +2900,15 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ```json
 {
-  "shareable_workspace_owners": "none",
-  "sharing_disabled": true,
-  "sharing_globally_disabled": true
+  "sharing_disabled": true
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                           |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceSharingSettings](schemas.md#codersdkworkspacesharingsettings) |
+| Status | Meaning                                                 | Description | Schema                                                                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3356,9 +3226,7 @@ curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
-  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -3448,9 +3316,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
-  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -3820,7 +3686,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -3845,9 +3710,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
-      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -3977,7 +3840,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "created_at": "2019-08-24T14:15:22Z",
             "email": "user@example.com",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "is_service_account": true,
             "last_seen_at": "2019-08-24T14:15:22Z",
             "login_type": "",
             "name": "string",
@@ -4002,7 +3864,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -4038,7 +3899,6 @@ Status Code **200**
 | `»»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
-| `»»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |

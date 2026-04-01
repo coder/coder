@@ -50,7 +50,7 @@ Only pause to ask for confirmation when:
 | **Format**      | `make fmt`               | Auto-format code                    |
 | **Clean**       | `make clean`             | Clean build artifacts               |
 | **Pre-commit**  | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
-| **Pre-push**    | `make pre-push`          | Heavier CI checks (allowlisted)     |
+| **Pre-push**    | `make pre-push`          | All CI checks including tests       |
 
 ### Documentation Commands
 
@@ -100,31 +100,6 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestrict
 app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 ```
 
-### API Design
-
-- Add swagger annotations when introducing new HTTP endpoints. Do this in
-  the same change as the handler so the docs do not get missed before
-  release.
-- For user-scoped or resource-scoped routes, prefer path parameters over
-  query parameters when that matches existing route patterns.
-- For experimental or unstable API paths, skip public doc generation with
-  `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
-  keeps them out of the published API reference until they stabilize.
-
-### Database Query Naming
-
-- Use `ByX` when `X` is the lookup or filter column.
-- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
-  dimension.
-- Avoid `ByX` names for grouped queries.
-
-### Database-to-SDK Conversions
-
-- Extract explicit db-to-SDK conversion helpers instead of inlining large
-  conversion blocks inside handlers.
-- Keep nullable-field handling, type coercion, and response shaping in the
-  converter so handlers stay focused on request flow and authorization.
-
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md
@@ -146,20 +121,11 @@ git config core.hooksPath scripts/githooks
 
 Two hooks run automatically:
 
-- **pre-commit**: Classifies staged files by type and runs either
-  the full `make pre-commit` or the lightweight `make pre-commit-light`
-  depending on whether Go, TypeScript, SQL, proto, or Makefile
-  changes are present. Falls back to the full target when
-  `CODER_HOOK_RUN_ALL=1` is set. A markdown-only commit takes
-  seconds; a Go change takes several minutes.
-- **pre-push**: Classifies changed files (vs remote branch or
-  merge-base) and runs `make pre-push` when Go, TypeScript, SQL,
-  proto, or Makefile changes are detected. Skips tests entirely
-  for lightweight changes. Allowlisted in
-  `scripts/githooks/pre-push`. Runs only for developers who opt
-  in. Falls back to `make pre-push` when the diff range can't
-  be determined or `CODER_HOOK_RUN_ALL=1` is set. Allow at least
-  15 minutes for a full run.
+- **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
+  Fast checks that catch most CI failures. Allow at least 5 minutes.
+- **pre-push**: `make pre-push` (full CI suite including tests).
+  Runs before pushing to catch everything CI would. Allow at least
+  15 minutes (race tests are slow without cache).
 
 `git commit` and `git push` will appear to hang while hooks run.
 This is normal. Do not interrupt, retry, or reduce the timeout.
@@ -217,26 +183,6 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
-- PR titles follow the same `type(scope): message` format.
-- When you use a scope, it must be a real filesystem path containing every
-  changed file.
-- Use a broader path scope, or omit the scope, for cross-cutting changes.
-- Example: `fix(coderd/chatd): ...` for changes only in `coderd/chatd/`.
-
-### Frontend Patterns
-
-- Prefer existing shared UI components and utilities over custom
-  implementations. Reuse common primitives such as loading, table, and error
-  handling components when they fit the use case.
-- Use Storybook stories for all component and page testing, including
-  visual presentation, user interactions, keyboard navigation, focus
-  management, and accessibility behavior. Do not create standalone
-  vitest/RTL test files for components or pages. Stories double as living
-  documentation, visual regression coverage, and interaction test suites
-  via `play` functions. Reserve plain vitest files for pure logic only:
-  utility functions, data transformations, hooks tested via
-  `renderHook()` that do not require DOM assertions, and query/cache
-  operations with no rendered output.
 
 ### Writing Comments
 
@@ -296,27 +242,6 @@ comments preserve important context about why code works a certain way.
 @.claude/docs/DATABASE.md
 @.claude/docs/PR_STYLE_GUIDE.md
 @.claude/docs/DOCS_STYLE_GUIDE.md
-
-If your agent tool does not auto-load `@`-referenced files, read these
-manually before starting work:
-
-**Always read:**
-
-- `.claude/docs/WORKFLOWS.md` — dev server, git workflow, hooks
-
-**Read when relevant to your task:**
-
-- `.claude/docs/GO.md` — Go patterns and modern Go usage (any Go changes)
-- `.claude/docs/TESTING.md` — testing patterns, race conditions (any test changes)
-- `.claude/docs/DATABASE.md` — migrations, SQLC, audit table (any DB changes)
-- `.claude/docs/ARCHITECTURE.md` — system overview (orientation or architecture work)
-- `.claude/docs/PR_STYLE_GUIDE.md` — PR description format (when writing PRs)
-- `.claude/docs/OAUTH2.md` — OAuth2 and RFC compliance (when touching auth)
-- `.claude/docs/TROUBLESHOOTING.md` — common failures and fixes (when stuck)
-- `.claude/docs/DOCS_STYLE_GUIDE.md` — docs conventions (when writing `docs/`)
-
-**For frontend work**, also read `site/AGENTS.md` before making any changes
-in `site/`.
 
 ## Local Configuration
 

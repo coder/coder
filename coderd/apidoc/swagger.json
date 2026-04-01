@@ -65,32 +65,13 @@
 				}
 			}
 		},
-		"/aibridge/clients": {
+		"/aibridge/interceptions": {
 			"get": {
-				"produces": ["application/json"],
-				"tags": ["AI Bridge"],
-				"summary": "List AI Bridge clients",
-				"operationId": "list-ai-bridge-clients",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"type": "array",
-							"items": {
-								"type": "string"
-							}
-						}
-					}
-				},
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			}
-		},
-		"/aibridge/interceptions": {
-			"get": {
+				],
 				"produces": ["application/json"],
 				"tags": ["AI Bridge"],
 				"summary": "List AI Bridge interceptions",
@@ -128,16 +109,16 @@
 							"$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/aibridge/models": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["AI Bridge"],
 				"summary": "List AI Bridge models",
@@ -152,111 +133,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/aibridge/sessions": {
-			"get": {
-				"produces": ["application/json"],
-				"tags": ["AI Bridge"],
-				"summary": "List AI Bridge sessions",
-				"operationId": "list-ai-bridge-sessions",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Search query in the format `key:value`. Available keys are: initiator, provider, model, client, session_id, started_after, started_before.",
-						"name": "q",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Page limit",
-						"name": "limit",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "Cursor pagination after session ID (cannot be used with offset)",
-						"name": "after_session_id",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Offset pagination (cannot be used with after_session_id)",
-						"name": "offset",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/aibridge/sessions/{session_id}": {
-			"get": {
-				"produces": ["application/json"],
-				"tags": ["AI Bridge"],
-				"summary": "Get AI Bridge session threads",
-				"operationId": "get-ai-bridge-session-threads",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Session ID (client_session_id or interception UUID)",
-						"name": "session_id",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "Thread pagination cursor (forward/older)",
-						"name": "after_id",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"description": "Thread pagination cursor (backward/newer)",
-						"name": "before_id",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Number of threads per page (default 50)",
-						"name": "limit",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.AIBridgeSessionThreadsResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/appearance": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get appearance",
@@ -268,14 +154,14 @@
 							"$ref": "#/definitions/codersdk.AppearanceConfig"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -299,16 +185,16 @@
 							"$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/applications/auth-redirect": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Applications"],
 				"summary": "Redirect to URI with encrypted API key",
 				"operationId": "redirect-to-uri-with-encrypted-api-key",
@@ -324,16 +210,16 @@
 					"307": {
 						"description": "Temporary Redirect"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/applications/host": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Applications"],
 				"summary": "Get applications host",
@@ -346,16 +232,16 @@
 							"$ref": "#/definitions/codersdk.AppHostResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/applications/reconnecting-pty-signed-token": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -380,11 +266,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -392,6 +273,11 @@
 		},
 		"/audit": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Audit"],
 				"summary": "Get audit logs",
@@ -424,16 +310,16 @@
 							"$ref": "#/definitions/codersdk.AuditLogResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/audit/testgenerate": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Audit"],
 				"summary": "Generate fake audit log",
@@ -454,11 +340,6 @@
 						"description": "No Content"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -482,6 +363,11 @@
 		},
 		"/authcheck": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Authorization"],
@@ -505,12 +391,7 @@
 							"$ref": "#/definitions/codersdk.AuthorizationResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/buildinfo": {
@@ -529,48 +410,13 @@
 				}
 			}
 		},
-		"/chats/insights/pull-requests": {
+		"/connectionlog": {
 			"get": {
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Get PR insights",
-				"operationId": "get-pr-insights",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Start date (RFC3339)",
-						"name": "start_date",
-						"in": "query",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "End date (RFC3339)",
-						"name": "end_date",
-						"in": "query",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.PRInsightsResponse"
-						}
-					}
-				},
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
 				],
-				"x-apidocgen": {
-					"skip": true
-				}
-			}
-		},
-		"/connectionlog": {
-			"get": {
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get connection logs",
@@ -603,16 +449,16 @@
 							"$ref": "#/definitions/codersdk.ConnectionLogResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/csp/reports": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["General"],
 				"summary": "Report CSP violations",
@@ -632,16 +478,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/debug/coordinator": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["text/html"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Wireguard Coordinator",
@@ -650,16 +496,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/debug/derp/traffic": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Debug DERP traffic",
@@ -675,11 +521,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -687,6 +528,11 @@
 		},
 		"/debug/expvar": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Debug expvar",
@@ -700,11 +546,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -712,6 +553,11 @@
 		},
 		"/debug/health": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Deployment Health",
@@ -731,16 +577,16 @@
 							"$ref": "#/definitions/healthsdk.HealthcheckReport"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/debug/health/settings": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Get health settings",
@@ -752,14 +598,14 @@
 							"$ref": "#/definitions/healthsdk.HealthSettings"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
@@ -783,16 +629,16 @@
 							"$ref": "#/definitions/healthsdk.UpdateHealthSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/debug/metrics": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Debug"],
 				"summary": "Debug metrics",
 				"operationId": "debug-metrics",
@@ -801,11 +647,6 @@
 						"description": "OK"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -813,6 +654,11 @@
 		},
 		"/debug/pprof": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Debug"],
 				"summary": "Debug pprof index",
 				"operationId": "debug-pprof-index",
@@ -821,11 +667,6 @@
 						"description": "OK"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -833,6 +674,11 @@
 		},
 		"/debug/pprof/cmdline": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Debug"],
 				"summary": "Debug pprof cmdline",
 				"operationId": "debug-pprof-cmdline",
@@ -841,11 +687,6 @@
 						"description": "OK"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -853,6 +694,11 @@
 		},
 		"/debug/pprof/profile": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Debug"],
 				"summary": "Debug pprof profile",
 				"operationId": "debug-pprof-profile",
@@ -861,11 +707,6 @@
 						"description": "OK"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -873,6 +714,11 @@
 		},
 		"/debug/pprof/symbol": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Debug"],
 				"summary": "Debug pprof symbol",
 				"operationId": "debug-pprof-symbol",
@@ -881,11 +727,6 @@
 						"description": "OK"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -893,6 +734,11 @@
 		},
 		"/debug/pprof/trace": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Debug"],
 				"summary": "Debug pprof trace",
 				"operationId": "debug-pprof-trace",
@@ -901,31 +747,6 @@
 						"description": "OK"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
-			}
-		},
-		"/debug/profile": {
-			"post": {
-				"tags": ["Debug"],
-				"summary": "Collect debug profiles",
-				"operationId": "collect-debug-profiles",
-				"responses": {
-					"200": {
-						"description": "OK"
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -933,6 +754,11 @@
 		},
 		"/debug/tailnet": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["text/html"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Tailnet",
@@ -941,16 +767,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/debug/ws": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Websocket Test",
@@ -963,11 +789,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -975,6 +796,11 @@
 		},
 		"/debug/{user}/debug-link": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "Debug OIDC context for a user",
 				"operationId": "debug-oidc-context-for-a-user",
@@ -992,11 +818,6 @@
 						"description": "Success"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -1004,6 +825,11 @@
 		},
 		"/deployment/config": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get deployment config",
@@ -1015,16 +841,16 @@
 							"$ref": "#/definitions/codersdk.DeploymentConfig"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/deployment/ssh": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "SSH Config",
@@ -1036,16 +862,16 @@
 							"$ref": "#/definitions/codersdk.SSHConfigResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/deployment/stats": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get deployment stats",
@@ -1057,16 +883,16 @@
 							"$ref": "#/definitions/codersdk.DeploymentStats"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/derp-map": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "Get DERP map updates",
 				"operationId": "get-derp-map-updates",
@@ -1074,16 +900,16 @@
 					"101": {
 						"description": "Switching Protocols"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/entitlements": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get entitlements",
@@ -1095,37 +921,16 @@
 							"$ref": "#/definitions/codersdk.Entitlements"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/experimental/watch-all-workspacebuilds": {
-			"get": {
-				"produces": ["application/json"],
-				"tags": ["Workspaces"],
-				"summary": "Watch all workspace builds",
-				"operationId": "watch-all-workspace-builds",
-				"responses": {
-					"101": {
-						"description": "Switching Protocols"
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
-				"x-apidocgen": {
-					"skip": true
 				}
 			}
 		},
 		"/experiments": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get enabled experiments",
@@ -1140,16 +945,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/experiments/available": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get safe experiments",
@@ -1164,16 +969,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/external-auth": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Get user external auths",
@@ -1185,16 +990,16 @@
 							"$ref": "#/definitions/codersdk.ExternalAuthLink"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/external-auth/{externalauth}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Get external auth by ID",
@@ -1216,14 +1021,14 @@
 							"$ref": "#/definitions/codersdk.ExternalAuth"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Delete external auth user link by ID",
@@ -1245,16 +1050,16 @@
 							"$ref": "#/definitions/codersdk.DeleteExternalAuthByIDResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/external-auth/{externalauth}/device": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Get external auth device by ID.",
@@ -1276,14 +1081,14 @@
 							"$ref": "#/definitions/codersdk.ExternalAuthDevice"
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"tags": ["Git"],
 				"summary": "Post external auth device by ID",
 				"operationId": "post-external-auth-device-by-id",
@@ -1301,16 +1106,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/files": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"description": "Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.",
 				"consumes": ["application/x-tar"],
 				"produces": ["application/json"],
@@ -1347,16 +1152,16 @@
 							"$ref": "#/definitions/codersdk.UploadResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/files/{fileID}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Files"],
 				"summary": "Get file by ID",
 				"operationId": "get-file-by-id",
@@ -1374,16 +1179,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/groups": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get groups",
@@ -1421,16 +1226,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/groups/{group}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get group by ID",
@@ -1442,12 +1247,6 @@
 						"name": "group",
 						"in": "path",
 						"required": true
-					},
-					{
-						"type": "boolean",
-						"description": "Exclude members from the response",
-						"name": "exclude_members",
-						"in": "query"
 					}
 				],
 				"responses": {
@@ -1457,14 +1256,14 @@
 							"$ref": "#/definitions/codersdk.Group"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Delete group by name",
@@ -1485,14 +1284,14 @@
 							"$ref": "#/definitions/codersdk.Group"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -1523,67 +1322,7 @@
 							"$ref": "#/definitions/codersdk.Group"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/groups/{group}/members": {
-			"get": {
-				"produces": ["application/json"],
-				"tags": ["Enterprise"],
-				"summary": "Get group members by group ID",
-				"operationId": "get-group-members-by-group-id",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Group id",
-						"name": "group",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "Member search query",
-						"name": "q",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "After ID",
-						"name": "after_id",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Page limit",
-						"name": "limit",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Page offset",
-						"name": "offset",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.GroupMembersResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/init-script/{os}/{arch}": {
@@ -1617,6 +1356,11 @@
 		},
 		"/insights/daus": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get deployment DAUs",
@@ -1637,16 +1381,16 @@
 							"$ref": "#/definitions/codersdk.DAUsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/insights/templates": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about templates",
@@ -1694,16 +1438,16 @@
 							"$ref": "#/definitions/codersdk.TemplateInsightsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/insights/user-activity": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about user activity",
@@ -1743,16 +1487,16 @@
 							"$ref": "#/definitions/codersdk.UserActivityInsightsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/insights/user-latency": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about user latency",
@@ -1792,16 +1536,16 @@
 							"$ref": "#/definitions/codersdk.UserLatencyInsightsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/insights/user-status-counts": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Insights"],
 				"summary": "Get insights about user status counts",
@@ -1827,16 +1571,16 @@
 							"$ref": "#/definitions/codersdk.GetUserStatusCountsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/licenses": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get licenses",
@@ -1851,14 +1595,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -1882,16 +1626,16 @@
 							"$ref": "#/definitions/codersdk.License"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/licenses/refresh-entitlements": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Update license entitlements",
@@ -1903,16 +1647,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/licenses/{id}": {
 			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Delete license",
@@ -1931,16 +1675,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/custom": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
@@ -1979,16 +1723,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/dispatch-methods": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Get notification dispatch methods",
@@ -2003,16 +1747,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/inbox": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "List inbox notifications",
@@ -2051,16 +1795,16 @@
 							"$ref": "#/definitions/codersdk.ListInboxNotificationsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/inbox/mark-all-as-read": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Notifications"],
 				"summary": "Mark all unread notifications as read",
 				"operationId": "mark-all-unread-notifications-as-read",
@@ -2068,16 +1812,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/inbox/watch": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Watch for new inbox notifications",
@@ -2116,16 +1860,16 @@
 							"$ref": "#/definitions/codersdk.GetInboxNotificationResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/inbox/{id}/read-status": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Update read status of a notification",
@@ -2146,16 +1890,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/settings": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Get notifications settings",
@@ -2167,14 +1911,14 @@
 							"$ref": "#/definitions/codersdk.NotificationsSettings"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
@@ -2201,16 +1945,16 @@
 					"304": {
 						"description": "Not Modified"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/templates/custom": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Get custom notification templates",
@@ -2231,16 +1975,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/templates/system": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Get system notification templates",
@@ -2261,16 +2005,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/templates/{notification_template}/method": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Update notification template dispatch method",
@@ -2291,16 +2035,16 @@
 					"304": {
 						"description": "Not modified"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/notifications/test": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Notifications"],
 				"summary": "Send a test notification",
 				"operationId": "send-a-test-notification",
@@ -2308,16 +2052,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/oauth2-provider/apps": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get OAuth2 applications.",
@@ -2340,14 +2084,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -2371,16 +2115,16 @@
 							"$ref": "#/definitions/codersdk.OAuth2ProviderApp"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/oauth2-provider/apps/{app}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get OAuth2 application.",
@@ -2401,14 +2145,14 @@
 							"$ref": "#/definitions/codersdk.OAuth2ProviderApp"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -2439,14 +2183,14 @@
 							"$ref": "#/definitions/codersdk.OAuth2ProviderApp"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 application.",
 				"operationId": "delete-oauth2-application",
@@ -2463,16 +2207,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/oauth2-provider/apps/{app}/secrets": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get OAuth2 application secrets.",
@@ -2496,14 +2240,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Create OAuth2 application secret.",
@@ -2527,16 +2271,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/oauth2-provider/apps/{app}/secrets/{secretID}": {
 			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 application secret.",
 				"operationId": "delete-oauth2-application-secret",
@@ -2560,16 +2304,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/oauth2/authorize": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Enterprise"],
 				"summary": "OAuth2 authorization request (GET - show authorization page).",
 				"operationId": "oauth2-authorization-request-get",
@@ -2613,14 +2357,14 @@
 					"200": {
 						"description": "Returns HTML authorization page"
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"tags": ["Enterprise"],
 				"summary": "OAuth2 authorization request (POST - process authorization).",
 				"operationId": "oauth2-authorization-request-post",
@@ -2664,12 +2408,7 @@
 					"302": {
 						"description": "Returns redirect with authorization code"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/oauth2/clients/{client_id}": {
@@ -2869,6 +2608,11 @@
 				}
 			},
 			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Enterprise"],
 				"summary": "Delete OAuth2 application tokens.",
 				"operationId": "delete-oauth2-application-tokens",
@@ -2885,16 +2629,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Get organizations",
@@ -2909,14 +2653,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
@@ -2940,16 +2684,16 @@
 							"$ref": "#/definitions/codersdk.Organization"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Get organization by ID",
@@ -2971,14 +2715,14 @@
 							"$ref": "#/definitions/codersdk.Organization"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Delete organization",
@@ -2999,14 +2743,14 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
@@ -3037,16 +2781,16 @@
 							"$ref": "#/definitions/codersdk.Organization"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/groups": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get groups by organization",
@@ -3071,14 +2815,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -3109,16 +2853,16 @@
 							"$ref": "#/definitions/codersdk.Group"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/groups/{groupName}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get group by organization and group name",
@@ -3147,79 +2891,16 @@
 							"$ref": "#/definitions/codersdk.Group"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/organizations/{organization}/groups/{groupName}/members": {
-			"get": {
-				"produces": ["application/json"],
-				"tags": ["Enterprise"],
-				"summary": "Get group members by organization and group name",
-				"operationId": "get-group-members-by-organization-and-group-name",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Organization ID",
-						"name": "organization",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "Group name",
-						"name": "groupName",
-						"in": "path",
-						"required": true
-					},
-					{
-						"type": "string",
-						"description": "Member search query",
-						"name": "q",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "After ID",
-						"name": "after_id",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Page limit",
-						"name": "limit",
-						"in": "query"
-					},
-					{
-						"type": "integer",
-						"description": "Page offset",
-						"name": "offset",
-						"in": "query"
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.GroupMembersResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "List organization members",
@@ -3244,16 +2925,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members/roles": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Get member roles by organization",
@@ -3278,14 +2959,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Members"],
@@ -3320,14 +3001,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Members"],
@@ -3362,16 +3043,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members/roles/{roleName}": {
 			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Delete a custom organization role",
@@ -3403,16 +3084,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members/{user}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Get organization member",
@@ -3440,14 +3121,14 @@
 							"$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Add organization member",
@@ -3475,14 +3156,14 @@
 							"$ref": "#/definitions/codersdk.OrganizationMember"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"tags": ["Members"],
 				"summary": "Remove organization member",
 				"operationId": "remove-organization-member",
@@ -3506,16 +3187,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members/{user}/roles": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Members"],
@@ -3553,16 +3234,16 @@
 							"$ref": "#/definitions/codersdk.OrganizationMember"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members/{user}/workspace-quota": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace quota by user",
@@ -3591,16 +3272,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceQuota"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members/{user}/workspaces": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
@@ -3641,16 +3322,16 @@
 							"$ref": "#/definitions/codersdk.Workspace"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/members/{user}/workspaces/available-users": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Get users available for workspace creation",
@@ -3700,16 +3381,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/paginated-members": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Paginated organization members",
@@ -3721,19 +3402,6 @@
 						"name": "organization",
 						"in": "path",
 						"required": true
-					},
-					{
-						"type": "string",
-						"description": "Member search query",
-						"name": "q",
-						"in": "query"
-					},
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "After ID",
-						"name": "after_id",
-						"in": "query"
 					},
 					{
 						"type": "integer",
@@ -3758,16 +3426,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/provisionerdaemons": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Provisioning"],
 				"summary": "Get provisioner daemons",
@@ -3836,16 +3504,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/provisionerdaemons/serve": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Enterprise"],
 				"summary": "Serve provisioner daemon",
 				"operationId": "serve-provisioner-daemon",
@@ -3863,16 +3531,16 @@
 					"101": {
 						"description": "Switching Protocols"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/provisionerjobs": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Get provisioner jobs",
@@ -3948,16 +3616,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/provisionerjobs/{job}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Organizations"],
 				"summary": "Get provisioner job",
@@ -3987,16 +3655,16 @@
 							"$ref": "#/definitions/codersdk.ProvisionerJob"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/provisionerkeys": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "List provisioner key",
@@ -4020,14 +3688,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Create provisioner key",
@@ -4048,16 +3716,16 @@
 							"$ref": "#/definitions/codersdk.CreateProvisionerKeyResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/provisionerkeys/daemons": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "List provisioner key daemons",
@@ -4081,16 +3749,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/provisionerkeys/{provisionerkey}": {
 			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Enterprise"],
 				"summary": "Delete provisioner key",
 				"operationId": "delete-provisioner-key",
@@ -4114,16 +3782,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/available-fields": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the available organization idp sync claim fields",
@@ -4148,16 +3816,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/field-values": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the organization idp sync claim field values",
@@ -4190,16 +3858,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/groups": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get group IdP Sync settings by organization",
@@ -4221,14 +3889,14 @@
 							"$ref": "#/definitions/codersdk.GroupSyncSettings"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -4260,16 +3928,16 @@
 							"$ref": "#/definitions/codersdk.GroupSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/groups/config": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -4301,16 +3969,16 @@
 							"$ref": "#/definitions/codersdk.GroupSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/groups/mapping": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -4342,16 +4010,16 @@
 							"$ref": "#/definitions/codersdk.GroupSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/roles": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get role IdP Sync settings by organization",
@@ -4373,14 +4041,14 @@
 							"$ref": "#/definitions/codersdk.RoleSyncSettings"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -4412,16 +4080,16 @@
 							"$ref": "#/definitions/codersdk.RoleSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/roles/config": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -4453,16 +4121,16 @@
 							"$ref": "#/definitions/codersdk.RoleSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/idpsync/roles/mapping": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -4494,16 +4162,16 @@
 							"$ref": "#/definitions/codersdk.RoleSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/settings/workspace-sharing": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace sharing settings for organization",
@@ -4525,14 +4193,14 @@
 							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -4553,7 +4221,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
+							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
 						}
 					}
 				],
@@ -4561,19 +4229,19 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+							"$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/templates": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"description": "Returns a list of templates for the specified organization.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify `deprecated:true` in the search query.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -4599,14 +4267,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -4637,16 +4305,16 @@
 							"$ref": "#/definitions/codersdk.Template"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/templates/examples": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template examples by organization",
@@ -4672,16 +4340,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/templates/{templatename}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get templates by organization and template name",
@@ -4710,16 +4378,16 @@
 							"$ref": "#/definitions/codersdk.Template"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version by organization, template, and name",
@@ -4755,16 +4423,16 @@
 							"$ref": "#/definitions/codersdk.TemplateVersion"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get previous template version by organization, template, and name",
@@ -4800,16 +4468,16 @@
 							"$ref": "#/definitions/codersdk.TemplateVersion"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/organizations/{organization}/templateversions": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -4841,16 +4509,16 @@
 							"$ref": "#/definitions/codersdk.TemplateVersion"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/prebuilds/settings": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Prebuilds"],
 				"summary": "Get prebuilds settings",
@@ -4862,14 +4530,14 @@
 							"$ref": "#/definitions/codersdk.PrebuildsSettings"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Prebuilds"],
@@ -4896,16 +4564,16 @@
 					"304": {
 						"description": "Not Modified"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/provisionerkeys/{provisionerkey}": {
 			"get": {
+				"security": [
+					{
+						"CoderProvisionerKey": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Fetch provisioner key details",
@@ -4926,16 +4594,16 @@
 							"$ref": "#/definitions/codersdk.ProvisionerKey"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderProvisionerKey": []
-					}
-				]
+				}
 			}
 		},
 		"/regions": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["WorkspaceProxies"],
 				"summary": "Get site-wide regions for workspace connections",
@@ -4947,16 +4615,16 @@
 							"$ref": "#/definitions/codersdk.RegionsResponse-codersdk_Region"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/replicas": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get active replicas",
@@ -4971,12 +4639,7 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/scim/v2/ServiceProviderConfig": {
@@ -4994,6 +4657,11 @@
 		},
 		"/scim/v2/Users": {
 			"get": {
+				"security": [
+					{
+						"Authorization": []
+					}
+				],
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Get users",
@@ -5002,14 +4670,14 @@
 					"200": {
 						"description": "OK"
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"Authorization": []
 					}
-				]
-			},
-			"post": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Create new user",
@@ -5032,16 +4700,16 @@
 							"$ref": "#/definitions/coderd.SCIMUser"
 						}
 					}
-				},
-				"security": [
-					{
-						"Authorization": []
-					}
-				]
+				}
 			}
 		},
 		"/scim/v2/Users/{id}": {
 			"get": {
+				"security": [
+					{
+						"Authorization": []
+					}
+				],
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Get user by ID",
@@ -5060,14 +4728,14 @@
 					"404": {
 						"description": "Not Found"
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"Authorization": []
 					}
-				]
-			},
-			"put": {
+				],
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Replace user account",
@@ -5098,14 +4766,14 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"Authorization": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"produces": ["application/scim+json"],
 				"tags": ["Enterprise"],
 				"summary": "SCIM 2.0: Update user account",
@@ -5136,16 +4804,16 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
-				"security": [
-					{
-						"Authorization": []
-					}
-				]
+				}
 			}
 		},
 		"/settings/idpsync/available-fields": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the available idp sync claim fields",
@@ -5170,16 +4838,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/settings/idpsync/field-values": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get the idp sync claim field values",
@@ -5212,16 +4880,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/settings/idpsync/organization": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get organization IdP Sync settings",
@@ -5233,14 +4901,14 @@
 							"$ref": "#/definitions/codersdk.OrganizationSyncSettings"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -5264,16 +4932,16 @@
 							"$ref": "#/definitions/codersdk.OrganizationSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/settings/idpsync/organization/config": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -5297,16 +4965,16 @@
 							"$ref": "#/definitions/codersdk.OrganizationSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/settings/idpsync/organization/mapping": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -5330,16 +4998,16 @@
 							"$ref": "#/definitions/codersdk.OrganizationSyncSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tailnet": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "User-scoped tailnet RPC connection",
 				"operationId": "user-scoped-tailnet-rpc-connection",
@@ -5347,16 +5015,16 @@
 					"101": {
 						"description": "Switching Protocols"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "List AI tasks",
@@ -5376,16 +5044,16 @@
 							"$ref": "#/definitions/codersdk.TasksListResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks/{user}": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Tasks"],
@@ -5416,16 +5084,16 @@
 							"$ref": "#/definitions/codersdk.Task"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks/{user}/{task}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Get AI task by ID or name",
@@ -5453,14 +5121,14 @@
 							"$ref": "#/definitions/codersdk.Task"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"tags": ["Tasks"],
 				"summary": "Delete AI task",
 				"operationId": "delete-ai-task",
@@ -5484,16 +5152,16 @@
 					"202": {
 						"description": "Accepted"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks/{user}/{task}/input": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Update AI task input",
@@ -5527,16 +5195,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks/{user}/{task}/logs": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Get AI task logs",
@@ -5564,16 +5232,16 @@
 							"$ref": "#/definitions/codersdk.TaskLogsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks/{user}/{task}/pause": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Pause task",
@@ -5602,16 +5270,16 @@
 							"$ref": "#/definitions/codersdk.PauseTaskResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks/{user}/{task}/resume": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Resume task",
@@ -5640,16 +5308,16 @@
 							"$ref": "#/definitions/codersdk.ResumeTaskResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/tasks/{user}/{task}/send": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Send input to AI task",
@@ -5683,16 +5351,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"description": "Returns a list of templates.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify `deprecated:true` in the search query.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -5708,16 +5376,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/examples": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template examples",
@@ -5732,16 +5400,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template settings by ID",
@@ -5763,14 +5431,14 @@
 							"$ref": "#/definitions/codersdk.Template"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Delete template by ID",
@@ -5792,14 +5460,14 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -5831,16 +5499,16 @@
 							"$ref": "#/definitions/codersdk.Template"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}/acl": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get template ACLs",
@@ -5862,14 +5530,14 @@
 							"$ref": "#/definitions/codersdk.TemplateACL"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -5901,16 +5569,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}/acl/available": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get template available acl users/groups",
@@ -5935,16 +5603,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}/daus": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template DAUs by ID",
@@ -5966,16 +5634,16 @@
 							"$ref": "#/definitions/codersdk.DAUsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}/prebuilds/invalidate": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Invalidate presets for template",
@@ -5997,16 +5665,16 @@
 							"$ref": "#/definitions/codersdk.InvalidatePresetsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}/versions": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "List template versions by template ID",
@@ -6056,14 +5724,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -6095,16 +5763,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}/versions/archive": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -6136,16 +5804,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templates/{template}/versions/{templateversionname}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version by template ID and name",
@@ -6177,16 +5845,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version by ID",
@@ -6208,14 +5876,14 @@
 							"$ref": "#/definitions/codersdk.TemplateVersion"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -6247,16 +5915,16 @@
 							"$ref": "#/definitions/codersdk.TemplateVersion"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/archive": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Archive template version",
@@ -6278,16 +5946,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/cancel": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Cancel template version by ID",
@@ -6309,16 +5977,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dry-run": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -6350,16 +6018,16 @@
 							"$ref": "#/definitions/codersdk.ProvisionerJob"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dry-run/{jobID}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version dry-run by job ID",
@@ -6389,16 +6057,16 @@
 							"$ref": "#/definitions/codersdk.ProvisionerJob"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Cancel template version dry-run by job ID",
@@ -6428,16 +6096,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dry-run/{jobID}/logs": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version dry-run logs by job ID",
@@ -6495,16 +6163,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version dry-run matched provisioners",
@@ -6534,16 +6202,16 @@
 							"$ref": "#/definitions/codersdk.MatchedProvisioners"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dry-run/{jobID}/resources": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version dry-run resources by job ID",
@@ -6576,16 +6244,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dynamic-parameters": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Templates"],
 				"summary": "Open dynamic parameters WebSocket by template version",
 				"operationId": "open-dynamic-parameters-websocket-by-template-version",
@@ -6603,16 +6271,16 @@
 					"101": {
 						"description": "Switching Protocols"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/dynamic-parameters/evaluate": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -6644,16 +6312,16 @@
 							"$ref": "#/definitions/codersdk.DynamicParametersResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/external-auth": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get external auth by template version",
@@ -6678,16 +6346,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/logs": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get logs by template version",
@@ -6737,16 +6405,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/parameters": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Templates"],
 				"summary": "Removed: Get parameters by template version",
 				"operationId": "removed-get-parameters-by-template-version",
@@ -6764,16 +6432,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/presets": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template version presets",
@@ -6798,16 +6466,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/resources": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get resources by template version",
@@ -6832,16 +6500,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/rich-parameters": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get rich parameters by template version",
@@ -6866,16 +6534,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/schema": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Templates"],
 				"summary": "Removed: Get schema by template version",
 				"operationId": "removed-get-schema-by-template-version",
@@ -6893,16 +6561,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/unarchive": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Unarchive template version",
@@ -6924,16 +6592,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/templateversions/{templateversion}/variables": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Get template variables by template version",
@@ -6958,12 +6626,7 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/updatecheck": {
@@ -6984,6 +6647,11 @@
 		},
 		"/users": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get users",
@@ -7022,14 +6690,14 @@
 							"$ref": "#/definitions/codersdk.GetUsersResponse"
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -7053,16 +6721,16 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/authmethods": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get authentication methods",
@@ -7074,16 +6742,16 @@
 							"$ref": "#/definitions/codersdk.AuthMethods"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/first": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Check initial user created",
@@ -7095,14 +6763,14 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -7126,12 +6794,7 @@
 							"$ref": "#/definitions/codersdk.CreateFirstUserResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/login": {
@@ -7164,6 +6827,11 @@
 		},
 		"/users/logout": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Log out user",
@@ -7175,16 +6843,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/oauth2/github/callback": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Users"],
 				"summary": "OAuth 2.0 GitHub Callback",
 				"operationId": "oauth-20-github-callback",
@@ -7192,16 +6860,16 @@
 					"307": {
 						"description": "Temporary Redirect"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/oauth2/github/device": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get Github device auth.",
@@ -7213,37 +6881,16 @@
 							"$ref": "#/definitions/codersdk.ExternalAuthDevice"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/users/oidc-claims": {
-			"get": {
-				"produces": ["application/json"],
-				"tags": ["Users"],
-				"summary": "Get OIDC claims for the authenticated user",
-				"operationId": "get-oidc-claims-for-the-authenticated-user",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.OIDCClaimsResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/oidc/callback": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Users"],
 				"summary": "OpenID Connect Callback",
 				"operationId": "openid-connect-callback",
@@ -7251,12 +6898,7 @@
 					"307": {
 						"description": "Temporary Redirect"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/otp/change-password": {
@@ -7309,6 +6951,11 @@
 		},
 		"/users/roles": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Get site member roles",
@@ -7323,16 +6970,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/validate-password": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Authorization"],
@@ -7356,16 +7003,16 @@
 							"$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user by name",
@@ -7386,14 +7033,14 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"tags": ["Users"],
 				"summary": "Delete user",
 				"operationId": "delete-user",
@@ -7410,16 +7057,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/appearance": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user appearance settings",
@@ -7440,14 +7087,14 @@
 							"$ref": "#/definitions/codersdk.UserAppearanceSettings"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -7478,16 +7125,16 @@
 							"$ref": "#/definitions/codersdk.UserAppearanceSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/autofill-parameters": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get autofill build parameters for user",
@@ -7518,16 +7165,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/convert-login": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Authorization"],
@@ -7558,16 +7205,16 @@
 							"$ref": "#/definitions/codersdk.OAuthConversionResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/gitsshkey": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user Git SSH key",
@@ -7588,14 +7235,14 @@
 							"$ref": "#/definitions/codersdk.GitSSHKey"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Regenerate user SSH key",
@@ -7616,16 +7263,16 @@
 							"$ref": "#/definitions/codersdk.GitSSHKey"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/keys": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Create new session key",
@@ -7646,16 +7293,16 @@
 							"$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/keys/tokens": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user tokens",
@@ -7685,14 +7332,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -7723,16 +7370,16 @@
 							"$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/keys/tokens/tokenconfig": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["General"],
 				"summary": "Get token config",
@@ -7753,16 +7400,16 @@
 							"$ref": "#/definitions/codersdk.TokenConfig"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/keys/tokens/{keyname}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get API key by token name",
@@ -7791,16 +7438,16 @@
 							"$ref": "#/definitions/codersdk.APIKey"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/keys/{keyid}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get API key by ID",
@@ -7829,14 +7476,14 @@
 							"$ref": "#/definitions/codersdk.APIKey"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"tags": ["Users"],
 				"summary": "Delete API key",
 				"operationId": "delete-api-key",
@@ -7861,16 +7508,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/keys/{keyid}/expire": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Users"],
 				"summary": "Expire API key",
 				"operationId": "expire-api-key",
@@ -7907,16 +7554,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/login-type": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user login type",
@@ -7937,16 +7584,16 @@
 							"$ref": "#/definitions/codersdk.UserLoginType"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/notifications/preferences": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Get user notification preferences",
@@ -7970,14 +7617,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Notifications"],
@@ -8011,16 +7658,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/organizations": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get organizations by user",
@@ -8044,16 +7691,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/organizations/{organizationname}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get organization by user and organization name",
@@ -8081,16 +7728,16 @@
 							"$ref": "#/definitions/codersdk.Organization"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/password": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Update user password",
@@ -8117,16 +7764,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/preferences": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user preference settings",
@@ -8147,14 +7794,14 @@
 							"$ref": "#/definitions/codersdk.UserPreferenceSettings"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -8185,16 +7832,16 @@
 							"$ref": "#/definitions/codersdk.UserPreferenceSettings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/profile": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -8225,16 +7872,16 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/quiet-hours": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get user quiet hours schedule",
@@ -8259,14 +7906,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -8301,16 +7948,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/roles": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Get user roles",
@@ -8331,14 +7978,14 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Users"],
@@ -8369,16 +8016,16 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/status/activate": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Activate user account",
@@ -8399,16 +8046,16 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/status/suspend": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Users"],
 				"summary": "Suspend user account",
@@ -8429,16 +8076,16 @@
 							"$ref": "#/definitions/codersdk.User"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/webpush/subscription": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Create user webpush subscription",
@@ -8466,16 +8113,16 @@
 						"description": "No Content"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
 			},
 			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Notifications"],
 				"summary": "Delete user webpush subscription",
@@ -8503,11 +8150,6 @@
 						"description": "No Content"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -8515,6 +8157,11 @@
 		},
 		"/users/{user}/webpush/test": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Notifications"],
 				"summary": "Send a test push notification",
 				"operationId": "send-a-test-push-notification",
@@ -8532,11 +8179,6 @@
 						"description": "No Content"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -8544,6 +8186,11 @@
 		},
 		"/users/{user}/workspace/{workspacename}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Get workspace metadata by user and workspace name",
@@ -8577,16 +8224,16 @@
 							"$ref": "#/definitions/codersdk.Workspace"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get workspace build by user, workspace name, and build number",
@@ -8622,16 +8269,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceBuild"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/users/{user}/workspaces": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
@@ -8663,16 +8310,16 @@
 							"$ref": "#/definitions/codersdk.Workspace"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspace-quota/{user}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace quota by user deprecated",
@@ -8694,16 +8341,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceQuota"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/aws-instance-identity": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -8727,16 +8374,16 @@
 							"$ref": "#/definitions/agentsdk.AuthenticateResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/azure-instance-identity": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -8760,16 +8407,16 @@
 							"$ref": "#/definitions/agentsdk.AuthenticateResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/connection": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get connection info for workspace agent generic",
@@ -8782,11 +8429,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -8794,6 +8436,11 @@
 		},
 		"/workspaceagents/google-instance-identity": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -8817,16 +8464,16 @@
 							"$ref": "#/definitions/agentsdk.AuthenticateResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/app-status": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -8851,16 +8498,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/external-auth": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get workspace agent external auth",
@@ -8894,16 +8541,16 @@
 							"$ref": "#/definitions/agentsdk.ExternalAuthResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/gitauth": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Removed: Get workspace agent git auth",
@@ -8937,16 +8584,16 @@
 							"$ref": "#/definitions/agentsdk.ExternalAuthResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/gitsshkey": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get workspace agent Git SSH key",
@@ -8958,16 +8605,16 @@
 							"$ref": "#/definitions/agentsdk.GitSSHKey"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/log-source": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -8991,16 +8638,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/logs": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
@@ -9024,16 +8671,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/reinit": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get workspace agent reinitialization",
@@ -9045,16 +8692,16 @@
 							"$ref": "#/definitions/agentsdk.ReinitializationEvent"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/me/rpc": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "Workspace agent RPC API",
 				"operationId": "workspace-agent-rpc-api",
@@ -9063,11 +8710,6 @@
 						"description": "Switching Protocols"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -9075,6 +8717,11 @@
 		},
 		"/workspaceagents/me/tasks/{task}/log-snapshot": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Upload task log snapshot",
@@ -9110,16 +8757,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get workspace agent by ID",
@@ -9141,16 +8788,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceAgent"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/connection": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get connection info for workspace agent",
@@ -9172,16 +8819,16 @@
 							"$ref": "#/definitions/workspacesdk.AgentConnectionInfo"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/containers": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get running containers for workspace agent",
@@ -9211,16 +8858,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
 			"delete": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "Delete devcontainer for workspace agent",
 				"operationId": "delete-devcontainer-for-workspace-agent",
@@ -9245,16 +8892,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Recreate devcontainer for workspace agent",
@@ -9283,16 +8930,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/containers/watch": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Watch workspace agent for container updates.",
@@ -9314,16 +8961,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/coordinate": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "Coordinate workspace agent",
 				"operationId": "coordinate-workspace-agent",
@@ -9341,16 +8988,16 @@
 					"101": {
 						"description": "Switching Protocols"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/listening-ports": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get listening ports for workspace agent",
@@ -9372,16 +9019,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceAgentListeningPortsResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/logs": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Get logs by workspace agent",
@@ -9437,16 +9084,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/pty": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "Open PTY to workspace agent",
 				"operationId": "open-pty-to-workspace-agent",
@@ -9464,16 +9111,16 @@
 					"101": {
 						"description": "Switching Protocols"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/startup-logs": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Removed: Get logs by workspace agent",
@@ -9522,16 +9169,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceagents/{workspaceagent}/watch-metadata": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Agents"],
 				"summary": "Watch for workspace agent metadata updates",
 				"operationId": "watch-for-workspace-agent-metadata-updates",
@@ -9551,11 +9198,6 @@
 						"description": "Success"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -9563,6 +9205,11 @@
 		},
 		"/workspaceagents/{workspaceagent}/watch-metadata-ws": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Watch for workspace agent metadata updates via WebSockets",
@@ -9585,11 +9232,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -9597,6 +9239,11 @@
 		},
 		"/workspacebuilds/{workspacebuild}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get workspace build",
@@ -9617,16 +9264,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceBuild"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspacebuilds/{workspacebuild}/cancel": {
 			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Cancel workspace build",
@@ -9654,16 +9301,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspacebuilds/{workspacebuild}/logs": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get workspace build logs",
@@ -9712,16 +9359,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspacebuilds/{workspacebuild}/parameters": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get build parameters for workspace build",
@@ -9745,16 +9392,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspacebuilds/{workspacebuild}/resources": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Removed: Get workspace resources for workspace build",
@@ -9779,16 +9426,16 @@
 							}
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspacebuilds/{workspacebuild}/state": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get provisioner state for workspace build",
@@ -9809,14 +9456,14 @@
 							"$ref": "#/definitions/codersdk.WorkspaceBuild"
 						}
 					}
-				},
+				}
+			},
+			"put": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"put": {
+				],
 				"consumes": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Update workspace build state",
@@ -9844,16 +9491,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspacebuilds/{workspacebuild}/timings": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get workspace build timings by ID",
@@ -9875,16 +9522,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceproxies": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace proxies",
@@ -9899,14 +9546,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -9930,16 +9577,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceProxy"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaceproxies/me/app-stats": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Report workspace app stats",
@@ -9960,11 +9607,6 @@
 						"description": "No Content"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -9972,6 +9614,11 @@
 		},
 		"/workspaceproxies/me/coordinate": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Enterprise"],
 				"summary": "Workspace Proxy Coordinate",
 				"operationId": "workspace-proxy-coordinate",
@@ -9980,11 +9627,6 @@
 						"description": "Switching Protocols"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -9992,6 +9634,11 @@
 		},
 		"/workspaceproxies/me/crypto-keys": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace proxy crypto keys",
@@ -10013,11 +9660,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -10025,6 +9667,11 @@
 		},
 		"/workspaceproxies/me/deregister": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Deregister workspace proxy",
@@ -10045,11 +9692,6 @@
 						"description": "No Content"
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -10057,6 +9699,11 @@
 		},
 		"/workspaceproxies/me/issue-signed-app-token": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10081,11 +9728,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -10093,6 +9735,11 @@
 		},
 		"/workspaceproxies/me/register": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10117,11 +9764,6 @@
 						}
 					}
 				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
 				"x-apidocgen": {
 					"skip": true
 				}
@@ -10129,6 +9771,11 @@
 		},
 		"/workspaceproxies/{workspaceproxy}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace proxy",
@@ -10150,14 +9797,14 @@
 							"$ref": "#/definitions/codersdk.WorkspaceProxy"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Delete workspace proxy",
@@ -10179,14 +9826,14 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
@@ -10218,16 +9865,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceProxy"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "List workspaces",
@@ -10259,16 +9906,16 @@
 							"$ref": "#/definitions/codersdk.WorkspacesResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Get workspace metadata by ID",
@@ -10296,14 +9943,14 @@
 							"$ref": "#/definitions/codersdk.Workspace"
 						}
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace metadata by ID",
@@ -10331,16 +9978,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/acl": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Get workspace ACLs",
@@ -10362,14 +10009,14 @@
 							"$ref": "#/definitions/codersdk.WorkspaceACL"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"tags": ["Workspaces"],
 				"summary": "Completely clears the workspace's user and group ACLs.",
 				"operationId": "completely-clears-the-workspaces-user-and-group-acls",
@@ -10387,14 +10034,14 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
+				}
+			},
+			"patch": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"patch": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
@@ -10423,16 +10070,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/autostart": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace autostart schedule by ID",
@@ -10460,16 +10107,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/autoupdates": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace automatic updates by ID",
@@ -10497,16 +10144,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/builds": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
 				"summary": "Get workspace builds by workspace ID",
@@ -10557,14 +10204,14 @@
 							}
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Builds"],
@@ -10596,16 +10243,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceBuild"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/dormant": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
@@ -10637,16 +10284,16 @@
 							"$ref": "#/definitions/codersdk.Workspace"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/extend": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
@@ -10678,16 +10325,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/external-agent/{agent}/credentials": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Get workspace external agent credentials",
@@ -10716,16 +10363,16 @@
 							"$ref": "#/definitions/codersdk.ExternalAgentCredentials"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/favorite": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"tags": ["Workspaces"],
 				"summary": "Favorite workspace by ID.",
 				"operationId": "favorite-workspace-by-id",
@@ -10743,14 +10390,14 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"tags": ["Workspaces"],
 				"summary": "Unfavorite workspace by ID.",
 				"operationId": "unfavorite-workspace-by-id",
@@ -10768,16 +10415,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/port-share": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["PortSharing"],
 				"summary": "Get workspace agent port shares",
@@ -10799,14 +10446,14 @@
 							"$ref": "#/definitions/codersdk.WorkspaceAgentPortShares"
 						}
 					}
-				},
+				}
+			},
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"post": {
+				],
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["PortSharing"],
@@ -10838,14 +10485,14 @@
 							"$ref": "#/definitions/codersdk.WorkspaceAgentPortShare"
 						}
 					}
-				},
+				}
+			},
+			"delete": {
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				]
-			},
-			"delete": {
+				],
 				"consumes": ["application/json"],
 				"tags": ["PortSharing"],
 				"summary": "Delete workspace agent port share",
@@ -10873,16 +10520,16 @@
 					"200": {
 						"description": "OK"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/resolve-autostart": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Resolve workspace autostart by id.",
@@ -10904,16 +10551,16 @@
 							"$ref": "#/definitions/codersdk.ResolveAutostartResponse"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/timings": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Get workspace timings by ID",
@@ -10935,16 +10582,16 @@
 							"$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/ttl": {
 			"put": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Update workspace TTL by ID",
@@ -10972,16 +10619,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/usage": {
 			"post": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"consumes": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Post Workspace Usage by ID",
@@ -11008,16 +10655,16 @@
 					"204": {
 						"description": "No Content"
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/watch": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["text/event-stream"],
 				"tags": ["Workspaces"],
 				"summary": "Watch workspace by ID",
@@ -11040,16 +10687,16 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		},
 		"/workspaces/{workspace}/watch-ws": {
 			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
 				"produces": ["application/json"],
 				"tags": ["Workspaces"],
 				"summary": "Watch workspace by ID via WebSockets",
@@ -11071,12 +10718,7 @@
 							"$ref": "#/definitions/codersdk.ServerSentEvent"
 						}
 					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
+				}
 			}
 		}
 	},
@@ -11333,29 +10975,6 @@
 				}
 			}
 		},
-		"codersdk.AIBridgeAgenticAction": {
-			"type": "object",
-			"properties": {
-				"model": {
-					"type": "string"
-				},
-				"thinking": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.AIBridgeModelThought"
-					}
-				},
-				"token_usage": {
-					"$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
-				},
-				"tool_calls": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.AIBridgeToolCall"
-					}
-				}
-			}
-		},
 		"codersdk.AIBridgeAnthropicConfig": {
 			"type": "object",
 			"properties": {
@@ -11419,7 +11038,6 @@
 					"type": "boolean"
 				},
 				"inject_coder_mcp_tools": {
-					"description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
 					"type": "boolean"
 				},
 				"max_concurrency": {
@@ -11510,28 +11128,6 @@
 				}
 			}
 		},
-		"codersdk.AIBridgeListSessionsResponse": {
-			"type": "object",
-			"properties": {
-				"count": {
-					"type": "integer"
-				},
-				"sessions": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.AIBridgeSession"
-					}
-				}
-			}
-		},
-		"codersdk.AIBridgeModelThought": {
-			"type": "object",
-			"properties": {
-				"text": {
-					"type": "string"
-				}
-			}
-		},
 		"codersdk.AIBridgeOpenAIConfig": {
 			"type": "object",
 			"properties": {
@@ -11546,12 +11142,6 @@
 		"codersdk.AIBridgeProxyConfig": {
 			"type": "object",
 			"properties": {
-				"allowed_private_cidrs": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
 				"cert_file": {
 					"type": "string"
 				},
@@ -11584,169 +11174,6 @@
 				}
 			}
 		},
-		"codersdk.AIBridgeSession": {
-			"type": "object",
-			"properties": {
-				"client": {
-					"type": "string"
-				},
-				"ended_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"id": {
-					"type": "string"
-				},
-				"initiator": {
-					"$ref": "#/definitions/codersdk.MinimalUser"
-				},
-				"last_prompt": {
-					"type": "string"
-				},
-				"metadata": {
-					"type": "object",
-					"additionalProperties": {}
-				},
-				"models": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"providers": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"started_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"threads": {
-					"type": "integer"
-				},
-				"token_usage_summary": {
-					"$ref": "#/definitions/codersdk.AIBridgeSessionTokenUsageSummary"
-				}
-			}
-		},
-		"codersdk.AIBridgeSessionThreadsResponse": {
-			"type": "object",
-			"properties": {
-				"client": {
-					"type": "string"
-				},
-				"ended_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"id": {
-					"type": "string"
-				},
-				"initiator": {
-					"$ref": "#/definitions/codersdk.MinimalUser"
-				},
-				"metadata": {
-					"type": "object",
-					"additionalProperties": {}
-				},
-				"models": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"page_ended_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"page_started_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"providers": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"started_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"threads": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.AIBridgeThread"
-					}
-				},
-				"token_usage_summary": {
-					"$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
-				}
-			}
-		},
-		"codersdk.AIBridgeSessionThreadsTokenUsage": {
-			"type": "object",
-			"properties": {
-				"input_tokens": {
-					"type": "integer"
-				},
-				"metadata": {
-					"type": "object",
-					"additionalProperties": {}
-				},
-				"output_tokens": {
-					"type": "integer"
-				}
-			}
-		},
-		"codersdk.AIBridgeSessionTokenUsageSummary": {
-			"type": "object",
-			"properties": {
-				"input_tokens": {
-					"type": "integer"
-				},
-				"output_tokens": {
-					"type": "integer"
-				}
-			}
-		},
-		"codersdk.AIBridgeThread": {
-			"type": "object",
-			"properties": {
-				"agentic_actions": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.AIBridgeAgenticAction"
-					}
-				},
-				"ended_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"model": {
-					"type": "string"
-				},
-				"prompt": {
-					"type": "string"
-				},
-				"provider": {
-					"type": "string"
-				},
-				"started_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"token_usage": {
-					"$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
-				}
-			}
-		},
 		"codersdk.AIBridgeTokenUsage": {
 			"type": "object",
 			"properties": {
@@ -11773,42 +11200,6 @@
 					"type": "integer"
 				},
 				"provider_response_id": {
-					"type": "string"
-				}
-			}
-		},
-		"codersdk.AIBridgeToolCall": {
-			"type": "object",
-			"properties": {
-				"created_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"injected": {
-					"type": "boolean"
-				},
-				"input": {
-					"type": "string"
-				},
-				"interception_id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"metadata": {
-					"type": "object",
-					"additionalProperties": {}
-				},
-				"provider_response_id": {
-					"type": "string"
-				},
-				"server_url": {
-					"type": "string"
-				},
-				"tool": {
 					"type": "string"
 				}
 			}
@@ -11887,9 +11278,6 @@
 				},
 				"bridge": {
 					"$ref": "#/definitions/codersdk.AIBridgeConfig"
-				},
-				"chat": {
-					"$ref": "#/definitions/codersdk.ChatConfig"
 				}
 			}
 		},
@@ -12912,14 +12300,6 @@
 				}
 			}
 		},
-		"codersdk.ChatConfig": {
-			"type": "object",
-			"properties": {
-				"acquire_batch_size": {
-					"type": "integer"
-				}
-			}
-		},
 		"codersdk.ConnectionLatency": {
 			"type": "object",
 			"properties": {
@@ -13476,7 +12856,7 @@
 		},
 		"codersdk.CreateUserRequestWithOrgs": {
 			"type": "object",
-			"required": ["username"],
+			"required": ["email", "username"],
 			"properties": {
 				"email": {
 					"type": "string",
@@ -13503,10 +12883,6 @@
 				},
 				"password": {
 					"type": "string"
-				},
-				"service_account": {
-					"description": "Service accounts are admin-managed accounts that cannot login.",
-					"type": "boolean"
 				},
 				"user_status": {
 					"description": "UserStatus defaults to UserStatusDormant.",
@@ -14304,8 +13680,7 @@
 				"web-push",
 				"oauth2",
 				"agents",
-				"mcp-server-http",
-				"workspace-build-updates"
+				"mcp-server-http"
 			],
 			"x-enum-comments": {
 				"ExperimentAgents": "Enables agent-powered chat functionality.",
@@ -14315,7 +13690,6 @@
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
 				"ExperimentOAuth2": "Enables OAuth2 provider functionality.",
 				"ExperimentWebPush": "Enables web push notifications through the browser.",
-				"ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
 				"ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
 			},
 			"x-enum-descriptions": [
@@ -14326,8 +13700,7 @@
 				"Enables web push notifications through the browser.",
 				"Enables OAuth2 provider functionality.",
 				"Enables agent-powered chat functionality.",
-				"Enables the MCP HTTP server functionality.",
-				"Enables publishing workspace build updates to the all builds pubsub channel."
+				"Enables the MCP HTTP server functionality."
 			],
 			"x-enum-varnames": [
 				"ExperimentExample",
@@ -14337,8 +13710,7 @@
 				"ExperimentWebPush",
 				"ExperimentOAuth2",
 				"ExperimentAgents",
-				"ExperimentMCPServerHTTP",
-				"ExperimentWorkspaceBuildUpdates"
+				"ExperimentMCPServerHTTP"
 			]
 		},
 		"codersdk.ExternalAPIKeyScopes": {
@@ -14420,10 +13792,6 @@
 		"codersdk.ExternalAuthConfig": {
 			"type": "object",
 			"properties": {
-				"api_base_url": {
-					"description": "APIBaseURL is the base URL for provider REST API calls\n(e.g., \"https://api.github.com\" for GitHub). Derived from\ndefaults when not explicitly configured.",
-					"type": "string"
-				},
 				"app_install_url": {
 					"type": "string"
 				},
@@ -14462,15 +13830,12 @@
 					"type": "string"
 				},
 				"mcp_tool_allow_regex": {
-					"description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
 					"type": "string"
 				},
 				"mcp_tool_deny_regex": {
-					"description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
 					"type": "string"
 				},
 				"mcp_url": {
-					"description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
 					"type": "string"
 				},
 				"no_refresh": {
@@ -14733,20 +14098,6 @@
 				"total_member_count": {
 					"description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than `len(Group.Members)`.",
 					"type": "integer"
-				}
-			}
-		},
-		"codersdk.GroupMembersResponse": {
-			"type": "object",
-			"properties": {
-				"count": {
-					"type": "integer"
-				},
-				"users": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.ReducedUser"
-					}
 				}
 			}
 		},
@@ -15878,16 +15229,6 @@
 				}
 			}
 		},
-		"codersdk.OIDCClaimsResponse": {
-			"type": "object",
-			"properties": {
-				"claims": {
-					"description": "Claims are the merged claims from the OIDC provider. These\nare the union of the ID token claims and the userinfo claims,\nwhere userinfo claims take precedence on conflict.",
-					"type": "object",
-					"additionalProperties": true
-				}
-			}
-		},
 		"codersdk.OIDCConfig": {
 			"type": "object",
 			"properties": {
@@ -16095,20 +15436,6 @@
 						"$ref": "#/definitions/codersdk.SlimRole"
 					}
 				},
-				"has_ai_seat": {
-					"description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
-					"type": "boolean"
-				},
-				"is_service_account": {
-					"type": "boolean"
-				},
-				"last_seen_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"login_type": {
-					"$ref": "#/definitions/codersdk.LoginType"
-				},
 				"name": {
 					"type": "string"
 				},
@@ -16122,29 +15449,13 @@
 						"$ref": "#/definitions/codersdk.SlimRole"
 					}
 				},
-				"status": {
-					"enum": ["active", "suspended"],
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.UserStatus"
-						}
-					]
-				},
 				"updated_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"user_created_at": {
 					"type": "string",
 					"format": "date-time"
 				},
 				"user_id": {
 					"type": "string",
 					"format": "uuid"
-				},
-				"user_updated_at": {
-					"type": "string",
-					"format": "date-time"
 				},
 				"username": {
 					"type": "string"
@@ -16171,191 +15482,6 @@
 				"organization_assign_default": {
 					"description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
 					"type": "boolean"
-				}
-			}
-		},
-		"codersdk.PRInsightsModelBreakdown": {
-			"type": "object",
-			"properties": {
-				"cost_per_merged_pr_micros": {
-					"type": "integer"
-				},
-				"display_name": {
-					"type": "string"
-				},
-				"merge_rate": {
-					"type": "number"
-				},
-				"merged_prs": {
-					"type": "integer"
-				},
-				"model_config_id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"provider": {
-					"type": "string"
-				},
-				"total_additions": {
-					"type": "integer"
-				},
-				"total_cost_micros": {
-					"type": "integer"
-				},
-				"total_deletions": {
-					"type": "integer"
-				},
-				"total_prs": {
-					"type": "integer"
-				}
-			}
-		},
-		"codersdk.PRInsightsPullRequest": {
-			"type": "object",
-			"properties": {
-				"additions": {
-					"type": "integer"
-				},
-				"approved": {
-					"type": "boolean"
-				},
-				"author_avatar_url": {
-					"type": "string"
-				},
-				"author_login": {
-					"type": "string"
-				},
-				"base_branch": {
-					"type": "string"
-				},
-				"changed_files": {
-					"type": "integer"
-				},
-				"changes_requested": {
-					"type": "boolean"
-				},
-				"chat_id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"commits": {
-					"type": "integer"
-				},
-				"cost_micros": {
-					"type": "integer"
-				},
-				"created_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"deletions": {
-					"type": "integer"
-				},
-				"draft": {
-					"type": "boolean"
-				},
-				"model_display_name": {
-					"type": "string"
-				},
-				"pr_number": {
-					"type": "integer"
-				},
-				"pr_title": {
-					"type": "string"
-				},
-				"pr_url": {
-					"type": "string"
-				},
-				"reviewer_count": {
-					"type": "integer"
-				},
-				"state": {
-					"type": "string"
-				}
-			}
-		},
-		"codersdk.PRInsightsResponse": {
-			"type": "object",
-			"properties": {
-				"by_model": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.PRInsightsModelBreakdown"
-					}
-				},
-				"recent_prs": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.PRInsightsPullRequest"
-					}
-				},
-				"summary": {
-					"$ref": "#/definitions/codersdk.PRInsightsSummary"
-				},
-				"time_series": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.PRInsightsTimeSeriesEntry"
-					}
-				}
-			}
-		},
-		"codersdk.PRInsightsSummary": {
-			"type": "object",
-			"properties": {
-				"approval_rate": {
-					"type": "number"
-				},
-				"cost_per_merged_pr_micros": {
-					"type": "integer"
-				},
-				"merge_rate": {
-					"type": "number"
-				},
-				"prev_cost_per_merged_pr_micros": {
-					"type": "integer"
-				},
-				"prev_merge_rate": {
-					"type": "number"
-				},
-				"prev_total_prs_created": {
-					"type": "integer"
-				},
-				"prev_total_prs_merged": {
-					"type": "integer"
-				},
-				"total_additions": {
-					"type": "integer"
-				},
-				"total_cost_micros": {
-					"type": "integer"
-				},
-				"total_deletions": {
-					"type": "integer"
-				},
-				"total_prs_created": {
-					"type": "integer"
-				},
-				"total_prs_merged": {
-					"type": "integer"
-				}
-			}
-		},
-		"codersdk.PRInsightsTimeSeriesEntry": {
-			"type": "object",
-			"properties": {
-				"date": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"prs_closed": {
-					"type": "integer"
-				},
-				"prs_created": {
-					"type": "integer"
-				},
-				"prs_merged": {
-					"type": "integer"
 				}
 			}
 		},
@@ -17525,9 +16651,6 @@
 					"type": "string",
 					"format": "uuid"
 				},
-				"is_service_account": {
-					"type": "boolean"
-				},
 				"last_seen_at": {
 					"type": "string",
 					"format": "date-time"
@@ -17691,8 +16814,7 @@
 				"idp_sync_settings_role",
 				"workspace_agent",
 				"workspace_app",
-				"task",
-				"ai_seat"
+				"task"
 			],
 			"x-enum-varnames": [
 				"ResourceTypeTemplate",
@@ -17720,8 +16842,7 @@
 				"ResourceTypeIdpSyncSettingsRole",
 				"ResourceTypeWorkspaceAgent",
 				"ResourceTypeWorkspaceApp",
-				"ResourceTypeTask",
-				"ResourceTypeAISeat"
+				"ResourceTypeTask"
 			]
 		},
 		"codersdk.Response": {
@@ -17928,15 +17049,6 @@
 					"type": "integer"
 				}
 			}
-		},
-		"codersdk.ShareableWorkspaceOwners": {
-			"type": "string",
-			"enum": ["none", "everyone", "service_accounts"],
-			"x-enum-varnames": [
-				"ShareableWorkspaceOwnersNone",
-				"ShareableWorkspaceOwnersEveryone",
-				"ShareableWorkspaceOwnersServiceAccounts"
-			]
 		},
 		"codersdk.SharedWorkspaceActor": {
 			"type": "object",
@@ -18795,16 +17907,9 @@
 					"type": "string",
 					"format": "email"
 				},
-				"has_ai_seat": {
-					"description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
-					"type": "boolean"
-				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
-				},
-				"is_service_account": {
-					"type": "boolean"
 				},
 				"last_seen_at": {
 					"type": "string",
@@ -19481,17 +18586,7 @@
 		"codersdk.UpdateWorkspaceSharingSettingsRequest": {
 			"type": "object",
 			"properties": {
-				"shareable_workspace_owners": {
-					"description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-					"enum": ["none", "everyone", "service_accounts"],
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
-						}
-					]
-				},
 				"sharing_disabled": {
-					"description": "SharingDisabled is deprecated and left for backward compatibility\npurposes.\nDeprecated: use `ShareableWorkspaceOwners` instead",
 					"type": "boolean"
 				}
 			}
@@ -19591,16 +18686,9 @@
 					"type": "string",
 					"format": "email"
 				},
-				"has_ai_seat": {
-					"description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
-					"type": "boolean"
-				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
-				},
-				"is_service_account": {
-					"type": "boolean"
 				},
 				"last_seen_at": {
 					"type": "string",
@@ -21237,17 +20325,7 @@
 		"codersdk.WorkspaceSharingSettings": {
 			"type": "object",
 			"properties": {
-				"shareable_workspace_owners": {
-					"description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-					"enum": ["none", "everyone", "service_accounts"],
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
-						}
-					]
-				},
 				"sharing_disabled": {
-					"description": "SharingDisabled is deprecated and left for backward compatibility\npurposes.\nDeprecated: use `ShareableWorkspaceOwners` instead",
 					"type": "boolean"
 				},
 				"sharing_globally_disabled": {

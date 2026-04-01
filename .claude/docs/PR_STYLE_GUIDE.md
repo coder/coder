@@ -4,13 +4,22 @@ This guide documents the PR description style used in the Coder repository, base
 
 ## PR Title Format
 
-Format: `type(scope): description`. See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) format:
 
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
-- Scopes must be a real path (directory or file stem) containing all changed files
-- Omit scope if changes span multiple top-level directories
+```text
+type(scope): brief description
+```
 
-Examples:
+**Common types:**
+
+- `feat`: New features
+- `fix`: Bug fixes
+- `refactor`: Code refactoring without behavior change
+- `perf`: Performance improvements
+- `docs`: Documentation changes
+- `chore`: Dependency updates, tooling changes
+
+**Examples:**
 
 - `feat: add tracing to aibridge`
 - `fix: move contexts to appropriate locations`
@@ -177,6 +186,16 @@ Dependabot PRs are auto-generated - don't try to match their verbose style for m
 Changes from https://github.com/upstream/repo/pull/XXX/
 ```
 
+## Attribution Footer
+
+For AI-generated PRs, end with:
+
+```markdown
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+```
+
 ## Creating PRs as Draft
 
 **IMPORTANT**: Unless explicitly told otherwise, always create PRs as drafts using the `--draft` flag:
@@ -187,12 +206,11 @@ gh pr create --draft --title "..." --body "..."
 
 After creating the PR, encourage the user to review it before marking as ready:
 
-```text
+```
 I've created draft PR #XXXX. Please review the changes and mark it as ready for review when you're satisfied.
 ```
 
 This allows the user to:
-
 - Review the code changes before requesting reviews from maintainers
 - Make additional adjustments if needed
 - Ensure CI passes before notifying reviewers

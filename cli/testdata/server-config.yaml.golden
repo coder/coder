@@ -752,11 +752,6 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
-# Configure the background chat processing daemon.
-chat:
-  # How many pending chats a worker should acquire per polling cycle.
-  # (default: 10, type: int)
-  acquireBatchSize: 10
 aibridge:
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)
@@ -783,10 +778,8 @@ aibridge:
   # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
   # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
   bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
-  # Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a
-  # future release. Whether to inject Coder's MCP tools into intercepted AI Bridge
-  # requests (requires the "oauth2" and "mcp-server-http" experiments to be
-  # enabled).
+  # Whether to inject Coder's MCP tools into intercepted AI Bridge requests
+  # (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
   # (default: false, type: bool)
   inject_coder_mcp_tools: false
   # Length of time to retain data such as interceptions and all related records
@@ -857,18 +850,13 @@ aibridgeproxy:
   # Comma-separated list of AI provider domains for which HTTPS traffic will be
   # decrypted and routed through AI Bridge. Requests to other domains will be
   # tunneled directly without decryption. Supported domains: api.anthropic.com,
-  # api.openai.com, api.individual.githubcopilot.com,
-  # api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.
-  # (default:
-  # api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com,
+  # api.openai.com, api.individual.githubcopilot.com.
+  # (default: api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,
   # type: string-array)
   domain_allowlist:
     - api.anthropic.com
     - api.openai.com
     - api.individual.githubcopilot.com
-    - api.business.githubcopilot.com
-    - api.enterprise.githubcopilot.com
-    - chatgpt.com
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
   # through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
   # (default: <unset>, type: string)
@@ -878,12 +866,6 @@ aibridgeproxy:
   # by the system. If not provided, the system certificate pool is used.
   # (default: <unset>, type: string)
   upstream_proxy_ca: ""
-  # Comma-separated list of CIDR ranges that are permitted even though they fall
-  # within blocked private/reserved IP ranges. By default all private ranges are
-  # blocked to prevent SSRF attacks. Use this to allow access to specific internal
-  # networks.
-  # (default: <unset>, type: string-array)
-  allowed_private_cidrs: []
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

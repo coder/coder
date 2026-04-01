@@ -21,11 +21,6 @@ shell execution — and works with any LLM provider you configure.
 It is not a wrapper around third-party agent tools like Claude Code
 or Codex.
 
-Coder Agents is not a replacement for your text editor or IDE. It is the
-primary interface where developers work with and orchestrate coding agents.
-Developers still connect to workspaces via VS Code, Cursor, JetBrains, or any
-other editor to review, refine, and complete work that the agent produces.
-
 ## Who Coder Agents is for
 
 Coder Agents is designed for organizations that need to self-host their AI
@@ -44,6 +39,11 @@ strong fit for:
 
 Coder Agents runs entirely self-hosted. There is no SaaS or managed component — the agent
 loop, chat history, and all tool execution happen within your Coder deployment.
+
+Coder Agents is not a replacement for your text editor or IDE. It is the
+primary interface where developers work with and orchestrate coding agents.
+Developers still connect to workspaces via VS Code, Cursor, JetBrains, or any
+other editor to review, refine, and complete work that the agent produces.
 
 ## How it works
 
@@ -83,9 +83,9 @@ This means:
 - **Lower infrastructure cost** — workspaces are only created when the agent
   needs to do real development work.
 
-When a workspace _is_ needed, the agent reads the templates available to that user —
+When a workspace _is_ needed, the agent reads the available templates —
 including their descriptions and parameters — selects the appropriate one, and
-creates a workspace automatically. Template visibility is scoped to the user's role and permissions, so the agent can only select templates the user is authorized to use. Users can also manually choose which workspace is used when starting a new chat.
+creates a workspace automatically. Users can also manually choose which workspace is used when starting a new chat.
 
 Platform teams control template routing by writing clear template descriptions.
 For example, a description like "Use this template for Python backend services
@@ -174,32 +174,12 @@ entirely:
 - **User identity is always attached.** Every action the agent takes — PRs
   opened, code pushed, commands run — is tied to the user who submitted the
   prompt. There is no shared bot identity or anonymous execution.
-- **No privilege escalation.** The agent operates with the exact same
-  permissions as the user who submitted the prompt. If a developer cannot
-  access a template, workspace, or resource through the Coder dashboard,
-  the agent cannot access it either. There is no escalation of privileges
-  and no shared service account.
-- **Workspace isolation is preserved.** The agent can only access workspaces
-  owned by the user who submitted the prompt. There is no cross-user
-  workspace access — an agent running on behalf of one developer cannot
-  read files, execute commands, or interact with another developer's
-  workspaces.
 
 > [!TIP]
 > For highly sensitive environments, create a dedicated set of templates for
 > agent workloads with stricter network policies than your standard developer
 > templates. Because the AI comes from the control plane, these templates don't
 > need any outbound access to LLM providers.
-
-<!-- break between callouts -->
-
-> [!WARNING]
-> By default, agent workspaces have the same network access and permissions
-> as any workspace the user creates manually. If your templates do not
-> restrict outbound network access, the agent has full internet access from
-> the workspace. See [Template Optimization](./platform-controls/template-optimization.md)
-> for guidance on configuring network boundaries and scoping credentials for
-> agent workloads.
 
 ## LLM provider support
 
@@ -237,30 +217,18 @@ tasks:
 | `list_templates`   | Browse available workspace templates                    |
 | `read_template`    | Get template details and configurable parameters        |
 | `create_workspace` | Create a workspace from a template                      |
-| `start_workspace`  | Start a stopped workspace for the current chat          |
-| `propose_plan`     | Present a Markdown plan file for user review            |
 | `read_file`        | Read file contents from the workspace                   |
 | `write_file`       | Write a file to the workspace                           |
 | `edit_files`       | Perform search-and-replace edits across files           |
 | `execute`          | Run shell commands in the workspace                     |
-| `process_output`   | Retrieve output from a background process               |
-| `process_list`     | List all tracked processes in the workspace             |
-| `process_signal`   | Send a signal (terminate/kill) to a tracked process     |
 | `spawn_agent`      | Delegate a task to a sub-agent running in parallel      |
 | `wait_agent`       | Wait for a sub-agent to complete and collect its result |
 | `message_agent`    | Send a follow-up message to a running sub-agent         |
 | `close_agent`      | Stop a running sub-agent                                |
-| `web_search`       | Search the internet (provider-native, when enabled)     |
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
 the workspace.
-
-Platform tools (`list_templates`, `read_template`, `create_workspace`,
-`start_workspace`, `propose_plan`) and orchestration tools (`spawn_agent`)
-are only available to root chats. Sub-agents do
-not have access to these tools and cannot create workspaces or spawn further
-sub-agents.
 
 ## Comparison to Coder Tasks
 
@@ -279,6 +247,8 @@ Coder Agents is a new approach that differs from
 
 ## Product status
 
-Coder Agents is in Early Access. The feature is under active development and
-available for evaluation. See [Early Access](./early-access.md) for
-enablement instructions and program details.
+Coder Agents is currently in internal preview. We are actively developing the
+feature and demoing it with customers for feedback.
+
+Our next step is to offer an early access program for interested customers. If
+you would like to participate, [contact us](https://coder.com/contact).

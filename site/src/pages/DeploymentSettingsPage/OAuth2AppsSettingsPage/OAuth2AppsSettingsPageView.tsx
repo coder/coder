@@ -1,18 +1,15 @@
 import { useTheme } from "@emotion/react";
-import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link, useNavigate } from "react-router";
-import type * as TypesGen from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Avatar } from "#/components/Avatar/Avatar";
-import { AvatarData } from "#/components/Avatar/AvatarData";
-import { Button } from "#/components/Button/Button";
+import type * as TypesGen from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
+} from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -20,9 +17,12 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/components/Table/Table";
-import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+} from "components/Table/Table";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link, useNavigate } from "react-router";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
@@ -80,7 +80,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					{apps?.length === 0 && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div className="text-center">
+								<div css={{ textAlign: "center" }}>
 									No OAuth2 applications have been configured.
 								</div>
 							</TableCell>
@@ -113,7 +113,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 			</TableCell>
 
 			<TableCell>
-				<div className="flex pl-4">
+				<div css={{ display: "flex", paddingLeft: 16 }}>
 					<ChevronRightIcon className="size-icon-sm" />
 				</div>
 			</TableCell>

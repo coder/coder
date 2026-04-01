@@ -1,15 +1,17 @@
+import type * as TypesGen from "api/typesGenerated";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { Timeline } from "components/Timeline/Timeline";
 import type { FC } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "#/components/Table/Table";
-import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { Timeline } from "#/components/Timeline/Timeline";
 import { VersionRow } from "./VersionRow";
+
+const Language = {
+	emptyMessage: "No versions found",
+	nameLabel: "Version name",
+	createdAtLabel: "Created at",
+	createdByLabel: "Created by",
+};
 
 interface VersionsTableProps {
 	activeVersionId: string;
@@ -67,8 +69,8 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 				{versions && versions.length === 0 && (
 					<TableRow>
 						<TableCell colSpan={999}>
-							<div className="p-8">
-								<EmptyState message="No versions found" />
+							<div css={{ padding: 32 }}>
+								<EmptyState message={Language.emptyMessage} />
 							</div>
 						</TableCell>
 					</TableRow>

@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
+	"sort"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
@@ -31,7 +31,7 @@ func (*RootCmd) templateInit() *serpent.Command {
 	for _, ex := range exampleList {
 		templateIDs = append(templateIDs, ex.ID)
 	}
-	slices.Sort(templateIDs)
+	sort.Strings(templateIDs)
 	cmd := &serpent.Command{
 		Use:        "init [directory]",
 		Short:      "Get started with a templated template.",
@@ -50,7 +50,7 @@ func (*RootCmd) templateInit() *serpent.Command {
 					optsToID[name] = example.ID
 				}
 				opts := maps.Keys(optsToID)
-				slices.Sort(opts)
+				sort.Strings(opts)
 				_, _ = fmt.Fprintln(
 					inv.Stdout,
 					pretty.Sprint(

@@ -6,7 +6,7 @@
 		"isolatedModules": true,
 		"jsx": "react-jsx",
 		"jsxImportSource": "@emotion/react",
-		"lib": ["dom", "esnext"],
+		"lib": ["dom", "dom.iterable", "esnext"],
 		"module": "preserve",
 		"moduleResolution": "bundler",
 		"noEmit": true,
@@ -15,19 +15,10 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"target": "esnext",
-		"types": [
-			"node",
-			"react",
-			"react-dom",
-			"vite/client",
-			"vitest/globals",
-			"novnc__novnc"
-		],
-		"paths": {
-			"#/*": ["./src/*"]
-		}
+		"target": "es2020",
+		"types": ["node", "react", "react-dom", "vite/client", "vitest/globals"],
+		"baseUrl": "src/"
 	},
-	"include": ["**/*"],
+	"include": ["**/*.ts", "**/*.tsx"],
 	"exclude": ["node_modules/"]
 }

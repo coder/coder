@@ -9,13 +9,12 @@ deployment.
 
 ## Release channels
 
-We support four primary release channels, as well as ad-hoc release candidates:
+We support four release channels:
 
 - **Mainline:** The bleeding edge version of Coder
 - **Stable:** N-1 of the mainline release
 - **Security Support:** N-2 of the mainline release
 - **Extended Support Release:** Biannually released version of Coder
-- **Release Candidates:** Ad-hoc builds to validate in-development features
 
 We field our mainline releases publicly for one month before promoting them to stable. The security support version, so n-2 from mainline, receives patches
 only for security issues or CVEs.
@@ -50,15 +49,6 @@ ESR releases will be updated with critical bugfixes and security patches that ar
 
 For more information, see the [Coder ESR announcement](https://coder.com/blog/esr) or our [ESR Upgrade Guide](./esr-2.24-2.29-upgrade.md).
 
-### Release Candidates
-
-- Ad-hoc builds that Coder releases to validate in-development features with select customers
-- Not guaranteed to be stable or free of bugs
-- Features introduced in an RC are not guaranteed to be included in a mainline or stable release
-- Not intended for production use
-
-Release candidates give Coder a way to push out builds for customers and other users to try out new, under-development functionality without cutting a new minor version. Unlike mainline and stable releases, RCs do not follow a fixed schedule and carry no guarantees around stability or long-term support. They exist purely as a feedback mechanism: Coder can ship targeted builds, gather real-world input, and iterate before committing changes to the standard release channels.
-
 ## Installing stable
 
 When installing Coder, we generally advise specifying the desired version from
@@ -80,13 +70,13 @@ pages.
 | Release name                                   | Release Date       | Status                   | Latest Release                                                   |
 |------------------------------------------------|--------------------|--------------------------|------------------------------------------------------------------|
 | [2.24](https://coder.com/changelog/coder-2-24) | July 01, 2025      | Extended Support Release | [v2.24.4](https://github.com/coder/coder/releases/tag/v2.24.4)   |
+| [2.25](https://coder.com/changelog/coder-2-25) | August 05, 2025    | Not Supported            | [v2.25.3](https://github.com/coder/coder/releases/tag/v2.25.3)   |
 | [2.26](https://coder.com/changelog/coder-2-26) | September 03, 2025 | Not Supported            | [v2.26.6](https://github.com/coder/coder/releases/tag/v2.26.6)   |
 | [2.27](https://coder.com/changelog/coder-2-27) | October 02, 2025   | Not Supported            | [v2.27.11](https://github.com/coder/coder/releases/tag/v2.27.11) |
-| [2.28](https://coder.com/changelog/coder-2-28) | November 04, 2025  | Not Supported            | [v2.28.11](https://github.com/coder/coder/releases/tag/v2.28.11) |
-| [2.29](https://coder.com/changelog/coder-2-29) | December 02, 2025  | Security Support + ESR   | [v2.29.8](https://github.com/coder/coder/releases/tag/v2.29.8)   |
-| [2.30](https://coder.com/changelog/coder-2-30) | February 03, 2026  | Stable                   | [v2.30.3](https://github.com/coder/coder/releases/tag/v2.30.3)   |
-| [2.31](https://coder.com/changelog/coder-2-31) | February 23, 2026  | Mainline                 | [v2.31.5](https://github.com/coder/coder/releases/tag/v2.31.5)   |
-| 2.32                                           |                    | Not Released             | N/A                                                              |
+| [2.28](https://coder.com/changelog/coder-2-28) | November 04, 2025  | Security Support         | [v2.28.10](https://github.com/coder/coder/releases/tag/v2.28.10) |
+| [2.29](https://coder.com/changelog/coder-2-29) | December 02, 2025  | Stable + ESR             | [v2.29.5](https://github.com/coder/coder/releases/tag/v2.29.5)   |
+| [2.30](https://coder.com/changelog/coder-2-30) | February 03, 2026  | Mainline                 | [v2.30.0](https://github.com/coder/coder/releases/tag/v2.30.0)   |
+| 2.31                                           |                    | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
 
 > [!TIP]

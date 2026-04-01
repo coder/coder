@@ -30,3 +30,8 @@ WHERE
 RETURNING
 	*;
 
+-- name: DeleteGitSSHKey :exec
+DELETE FROM
+	gitsshkeys
+WHERE
+	user_id = $1;

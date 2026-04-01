@@ -1,9 +1,0 @@
-paths:
-  # The triage workflow uses a quoted heredoc (<<'EOF') with ${VAR}
-  # placeholders that envsubst expands later. Shellcheck's SC2016
-  # warns about unexpanded variables in single-quoted strings, but
-  # the non-expansion is intentional here. Actionlint doesn't honor
-  # inline shellcheck disable directives inside heredocs.
-  .github/workflows/triage-via-chat-api.yaml:
-    ignore:
-      - 'SC2016'

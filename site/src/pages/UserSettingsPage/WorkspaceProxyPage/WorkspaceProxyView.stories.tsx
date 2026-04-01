@@ -1,11 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockHealthyWildWorkspaceProxy,
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
 	MockWorkspaceProxies,
 	mockApiError,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
 const meta: Meta<typeof WorkspaceProxyView> = {

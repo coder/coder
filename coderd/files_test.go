@@ -21,14 +21,11 @@ import (
 
 func TestPostFiles(t *testing.T) {
 	t.Parallel()
-
-	// Single instance shared across all sub-tests. Each sub-test
-	// creates independent resources with unique IDs so parallel
-	// execution is safe.
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
 	t.Run("BadContentType", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -38,6 +35,9 @@ func TestPostFiles(t *testing.T) {
 
 	t.Run("Insert", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -47,6 +47,9 @@ func TestPostFiles(t *testing.T) {
 
 	t.Run("InsertWindowsZip", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -56,6 +59,9 @@ func TestPostFiles(t *testing.T) {
 
 	t.Run("InsertAlreadyExists", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -67,6 +73,9 @@ func TestPostFiles(t *testing.T) {
 	})
 	t.Run("InsertConcurrent", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -90,12 +99,11 @@ func TestPostFiles(t *testing.T) {
 
 func TestDownload(t *testing.T) {
 	t.Parallel()
-
-	// Shared instance — see TestPostFiles for rationale.
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -107,6 +115,9 @@ func TestDownload(t *testing.T) {
 
 	t.Run("InsertTar_DownloadTar", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		// given
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -128,6 +139,9 @@ func TestDownload(t *testing.T) {
 
 	t.Run("InsertZip_DownloadTar", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		// given
 		zipContent := archivetest.TestZipFileBytes()
 
@@ -150,6 +164,9 @@ func TestDownload(t *testing.T) {
 
 	t.Run("InsertTar_DownloadZip", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
 		// given
 		tarball := archivetest.TestTarFileBytes()
 

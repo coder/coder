@@ -1,6 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
-import { chromatic } from "#/testHelpers/chromatic";
+import { chromatic } from "testHelpers/chromatic";
 import {
 	MockFailedProvisionerJob,
 	MockRunningProvisionerJob,
@@ -15,8 +13,10 @@ import {
 	MockWorkspaceResourceMultipleAgents,
 	MockWorkspaceResourceSensitive,
 	MockWorkspaceVolumeResource,
-} from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+} from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const meta: Meta<typeof TemplateVersionEditor> = {

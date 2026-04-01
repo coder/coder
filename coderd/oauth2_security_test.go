@@ -104,14 +104,11 @@ func TestOAuth2ClientIsolation(t *testing.T) {
 func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	t.Parallel()
 
-	// Single instance shared across all sub-tests. Each registers
-	// independent OAuth2 apps with unique client names.
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-
 	t.Run("InvalidTokenFormats", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := t.Context()
 
 		// Register a client to use for testing
@@ -148,6 +145,8 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	t.Run("TokenNotReusableAcrossClients", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := t.Context()
 
 		// Register first client
@@ -180,6 +179,8 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	t.Run("TokenNotExposedInGETResponse", func(t *testing.T) {
 		t.Parallel()
 
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := t.Context()
 
 		// Register a client

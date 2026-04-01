@@ -1,12 +1,13 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "#/api/api";
-import type { OAuthConversionResponse } from "#/api/typesGenerated";
-import { MockAuthMethodsAll, mockApiError } from "#/testHelpers/entities";
+import { MockAuthMethodsAll, mockApiError } from "testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "#/testHelpers/renderHelpers";
+} from "testHelpers/renderHelpers";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import type { OAuthConversionResponse } from "api/typesGenerated";
+import { Language } from "./SecurityForm";
 import SecurityPage from "./SecurityPage";
 import * as SSO from "./SingleSignOnSection";
 
@@ -32,7 +33,7 @@ const fillAndSubmitSecurityForm = () => {
 	fireEvent.change(screen.getByLabelText("Confirm Password"), {
 		target: { value: newSecurityFormValues.confirm_password },
 	});
-	fireEvent.click(screen.getByText("Update password"));
+	fireEvent.click(screen.getByText(Language.updatePassword));
 };
 
 beforeEach(() => {

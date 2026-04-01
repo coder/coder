@@ -1,5 +1,5 @@
-import { PremiumBadge } from "#/components/Badges/Badges";
-import { docs } from "#/utils/docs";
+import { PremiumBadge } from "components/Badges/Badges";
+import { docs } from "utils/docs";
 import {
 	Paywall,
 	PaywallContent,
@@ -44,7 +44,7 @@ const PaywallAIGovernance = () => {
 						<span>
 							Visit{" "}
 							<a
-								href={docs("/ai-coder/ai-bridge")}
+								href="https://coder.com/docs/ai-coder/ai-bridge"
 								target="_blank"
 								rel="noreferrer"
 								className="text-content-link"
@@ -54,9 +54,7 @@ const PaywallAIGovernance = () => {
 						</span>
 					</PaywallFeature>
 				</PaywallFeatures>
-				<PaywallCTA href="https://coder.com/contact/sales">
-					Contact Sales
-				</PaywallCTA>
+				<PaywallCTA href="https://coder.com/contact">Contact Sales</PaywallCTA>
 			</PaywallStack>
 		</Paywall>
 	);

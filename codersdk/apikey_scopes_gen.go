@@ -247,7 +247,6 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeTemplateRead,
 	APIKeyScopeTemplateUpdate,
 	APIKeyScopeTemplateUse,
-	APIKeyScopeUserRead,
 	APIKeyScopeUserReadPersonal,
 	APIKeyScopeUserUpdatePersonal,
 	APIKeyScopeUserSecretAll,

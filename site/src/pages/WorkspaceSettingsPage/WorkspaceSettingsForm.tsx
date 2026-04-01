@@ -1,28 +1,28 @@
 import type { Theme } from "@emotion/react";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import upperFirst from "lodash/upperFirst";
-import type { FC } from "react";
-import * as Yup from "yup";
 import {
 	type AutomaticUpdates,
 	AutomaticUpdateses,
 	type Workspace,
-} from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
+} from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "#/components/Form/Form";
-import { Spinner } from "#/components/Spinner/Spinner";
+} from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
+import { useFormik } from "formik";
+import upperFirst from "lodash/upperFirst";
+import type { FC } from "react";
 import {
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "#/utils/formUtils";
+} from "utils/formUtils";
+import * as Yup from "yup";
 
 export type WorkspaceSettingsFormValues = {
 	name: string;

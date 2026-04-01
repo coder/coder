@@ -1,16 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	fireEvent,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
-import { API } from "#/api/api";
-import { getTemplatesQueryKey } from "#/api/queries/templates";
-import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
@@ -21,12 +8,25 @@ import {
 	MockUserOwner,
 	MockWorkspaceBuildStop,
 	mockApiError,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
-} from "#/testHelpers/storybook";
+} from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { getTemplatesQueryKey } from "api/queries/templates";
+import { MockUsers } from "pages/UsersPage/storybookData/users";
+import {
+	expect,
+	fireEvent,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -195,7 +195,7 @@ export const LoadedTasksWaitingForInputTab: Story = {
 		const canvas = within(canvasElement);
 
 		await step("Switch to 'Waiting for input' tab", async () => {
-			const waitingForInputTab = await canvas.findByRole("switch", {
+			const waitingForInputTab = await canvas.findByRole("button", {
 				name: /waiting for input/i,
 			});
 			await userEvent.click(waitingForInputTab);

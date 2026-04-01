@@ -955,13 +955,7 @@ SET
 	group_acl = '{}'::jsonb,
 	user_acl = '{}'::jsonb
 WHERE
-	organization_id = @organization_id
-	AND (
-		NOT @exclude_service_accounts::boolean
-		OR owner_id NOT IN (
-			SELECT id FROM users WHERE is_service_account = true
-		)
-	);
+	organization_id = @organization_id;
 
 -- name: GetRegularWorkspaceCreateMetrics :many
 -- Count regular workspaces: only those whose first successful 'start' build

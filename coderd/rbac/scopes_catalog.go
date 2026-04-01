@@ -40,8 +40,7 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"file:create": {},
 	"file:*":      {},
 
-	// Users
-	"user:read":            {},
+	// Users (personal profile only)
 	"user:read_personal":   {},
 	"user:update_personal": {},
 	"user.*":               {},

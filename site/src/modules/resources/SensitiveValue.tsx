@@ -1,12 +1,17 @@
 import IconButton from "@mui/material/IconButton";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
+import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+} from "components/Tooltip/Tooltip";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type FC, useState } from "react";
+
+const Language = {
+	showLabel: "Show value",
+	hideLabel: "Hide value",
+};
 
 interface SensitiveValueProps {
 	value: string;
@@ -15,7 +20,7 @@ interface SensitiveValueProps {
 export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 	const [shouldDisplay, setShouldDisplay] = useState(false);
 	const displayValue = shouldDisplay ? value : "••••••••";
-	const buttonLabel = shouldDisplay ? "Hide value" : "Show value";
+	const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel;
 	const icon = shouldDisplay ? (
 		<EyeOffIcon className="size-icon-xs" />
 	) : (

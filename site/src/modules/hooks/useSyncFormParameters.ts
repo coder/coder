@@ -1,6 +1,6 @@
+import type * as TypesGen from "api/typesGenerated";
+import type { PreviewParameter } from "api/typesGenerated";
 import { useEffect, useRef } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
-import type { PreviewParameter } from "#/api/typesGenerated";
 
 type UseSyncFormParametersProps = {
 	parameters: readonly PreviewParameter[];
@@ -20,7 +20,9 @@ export function useSyncFormParameters({
 	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
 	const formValuesRef = useRef(formValues);
 
-	formValuesRef.current = formValues;
+	useEffect(() => {
+		formValuesRef.current = formValues;
+	}, [formValues]);
 
 	useEffect(() => {
 		if (!parameters) return;

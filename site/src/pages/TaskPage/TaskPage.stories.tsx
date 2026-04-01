@@ -1,21 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { API } from "#/api/api";
-import { taskLogsKey } from "#/api/queries/tasks";
-import type {
-	Task,
-	TaskLogsResponse,
-	Workspace,
-	WorkspaceApp,
-} from "#/api/typesGenerated";
 import {
 	MockCanceledWorkspace,
 	MockCancelingWorkspace,
@@ -39,14 +21,32 @@ import {
 	MockWorkspaceBuildStop,
 	MockWorkspaceResource,
 	mockApiError,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 	withToaster,
 	withWebSocket,
-} from "#/testHelpers/storybook";
+} from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { taskLogsKey } from "api/queries/tasks";
+import type {
+	Task,
+	TaskLogsResponse,
+	Workspace,
+	WorkspaceApp,
+} from "api/typesGenerated";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage from "./TaskPage";
 
 const MockClaudeCodeApp: WorkspaceApp = {
@@ -376,9 +376,9 @@ export const TaskPausedSnapshotTooltip: Story = {
 		const tooltipTrigger = await canvas.findByRole("button", {
 			name: /info/i,
 		});
-		await userEvent.click(tooltipTrigger);
+		await userEvent.hover(tooltipTrigger);
 		await waitFor(() =>
-			expect(screen.getByRole("dialog")).toHaveTextContent(
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
 				/This log snapshot was taken/,
 			),
 		);

@@ -1,8 +1,8 @@
+import { templateExamples } from "api/queries/templates";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
-import { templateExamples } from "#/api/queries/templates";
-import { pageTitle } from "#/utils/page";
+import { pageTitle } from "utils/page";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 const StarterTemplatePage: FC = () => {

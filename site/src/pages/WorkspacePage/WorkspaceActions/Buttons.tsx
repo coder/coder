@@ -1,3 +1,10 @@
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	BanIcon,
 	CloudIcon,
@@ -9,13 +16,6 @@ import {
 	StarOffIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
-import { TopbarButton } from "#/components/FullPageLayout/Topbar";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 
 export interface ActionButtonProps {

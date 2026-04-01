@@ -1,8 +1,8 @@
+import { Button } from "components/Button/Button";
 import { CircleCheckBigIcon } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
-import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
+import { cn } from "utils/cn";
 
 export const Paywall = ({
 	className,

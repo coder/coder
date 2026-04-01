@@ -35,42 +35,31 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	_, anotherMember := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	var handlerCalls atomic.Int32
+	handlerCalled := make(chan bool, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		handlerCalls.Add(1)
+		handlerCalled <- true
 	}))
 	defer server.Close()
 
-	// Seed the dispatcher cache with an empty subscription set. Creating the
-	// subscription should invalidate that entry so the next dispatch sees the new
-	// subscription immediately.
-	err := memberClient.PostTestWebpushMessage(ctx)
-	require.NoError(t, err, "test webpush message without a subscription")
-	require.Zero(t, handlerCalls.Load(), "a user without subscriptions should not receive a push")
-
-	err = memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
+	err := memberClient.PostWebpushSubscription(ctx, "me", codersdk.WebpushSubscription{
 		Endpoint:  server.URL,
 		AuthKey:   validEndpointAuthKey,
 		P256DHKey: validEndpointP256dhKey,
 	})
 	require.NoError(t, err, "create webpush subscription")
-	require.Equal(t, int32(1), handlerCalls.Load(), "subscription validation should hit the endpoint once")
+	require.True(t, <-handlerCalled, "handler should have been called")
 
 	err = memberClient.PostTestWebpushMessage(ctx)
-	require.NoError(t, err, "test webpush message after subscribing")
-	require.Equal(t, int32(2), handlerCalls.Load(), "the dispatcher should invalidate empty cache entries after subscribing")
+	require.NoError(t, err, "test webpush message")
+	require.True(t, <-handlerCalled, "handler should have been called again")
 
 	err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
 		Endpoint: server.URL,
 	})
 	require.NoError(t, err, "delete webpush subscription")
 
-	err = memberClient.PostTestWebpushMessage(ctx)
-	require.NoError(t, err, "test webpush message after unsubscribing")
-	require.Equal(t, int32(2), handlerCalls.Load(), "the dispatcher should invalidate cached subscriptions after unsubscribing")
-
-	// Deleting the subscription for a non-existent endpoint should return a 404.
+	// Deleting the subscription for a non-existent endpoint should return a 404
 	err = memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
 		Endpoint: server.URL,
 	})

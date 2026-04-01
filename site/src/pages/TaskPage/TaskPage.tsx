@@ -1,10 +1,40 @@
+import { API } from "api/api";
+import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
+import { pauseTask, resumeTask, taskLogs } from "api/queries/tasks";
+import { template as templateQueryOptions } from "api/queries/templates";
+import {
+	workspaceByOwnerAndName,
+	workspaceByOwnerAndNameKey,
+} from "api/queries/workspaces";
+import type {
+	Task,
+	TaskLogEntry,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceStatus,
+} from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
+import { Button } from "components/Button/Button";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Spinner } from "components/Spinner/Spinner";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
 	PauseIcon,
 	RotateCcwIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
+import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
+import { useAgentLogs } from "modules/resources/useAgentLogs";
+import { getAllAppsWithAgent } from "modules/tasks/apps";
+import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
+import { isPauseDisabled } from "modules/tasks/taskActions";
+import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -20,40 +50,9 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
 import type { FixedSizeList } from "react-window";
 import { toast } from "sonner";
-import { API } from "#/api/api";
-import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
-import { pauseTask, resumeTask, taskLogs } from "#/api/queries/tasks";
-import { template as templateQueryOptions } from "#/api/queries/templates";
-import {
-	workspaceByOwnerAndName,
-	workspaceByOwnerAndNameKey,
-	workspacePermissions,
-} from "#/api/queries/workspaces";
-import type {
-	Task,
-	TaskLogEntry,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceStatus,
-} from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
-import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
-import { Loader } from "#/components/Loader/Loader";
-import { Margins } from "#/components/Margins/Margins";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
-import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
-import { useAgentLogs } from "#/modules/resources/useAgentLogs";
-import { getAllAppsWithAgent } from "#/modules/tasks/apps";
-import { TasksSidebar } from "#/modules/tasks/TasksSidebar/TasksSidebar";
-import { isPauseDisabled } from "#/modules/tasks/taskActions";
-import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
-import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { cn } from "#/utils/cn";
-import { pageTitle } from "#/utils/page";
-import { relativeTime } from "#/utils/time";
+import { cn } from "utils/cn";
+import { pageTitle } from "utils/page";
+import { relativeTime } from "utils/time";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
@@ -119,7 +118,6 @@ const TaskPage = () => {
 			return state.error ? false : 5_000;
 		},
 	});
-	const { data: permissions } = useQuery(workspacePermissions(workspace));
 	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
 	const error = taskQuery.error ?? workspaceQuery.error;
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
@@ -363,11 +361,7 @@ const TaskPage = () => {
 		<TaskPageLayout>
 			<title>{pageTitle(task.display_name)}</title>
 
-			<TaskTopbar
-				task={task}
-				workspace={workspace}
-				canUpdatePermissions={permissions?.updateWorkspace ?? false}
-			/>
+			<TaskTopbar task={task} workspace={workspace} />
 			{content}
 
 			<ModifyPromptDialog

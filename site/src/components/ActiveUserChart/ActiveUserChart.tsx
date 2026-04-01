@@ -1,19 +1,19 @@
-import type { FC } from "react";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
 	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
-} from "#/components/Chart/Chart";
+} from "components/Chart/Chart";
 import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
-import { formatDate } from "#/utils/time";
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import type { FC } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { formatDate } from "utils/time";
 
 const chartConfig = {
 	amount: {
@@ -120,18 +120,18 @@ export const ActiveUsersTitle: FC<ActiveUsersTitleProps> = ({ interval }) => {
 	return (
 		<div className="flex items-center gap-2">
 			{interval === "day" ? "Daily" : "Weekly"} Active Users
-			<HelpPopover>
-				<HelpPopoverIconTrigger size="small" />
-				<HelpPopoverContent>
-					<HelpPopoverTitle>How do we calculate active users?</HelpPopoverTitle>
-					<HelpPopoverText>
+			<HelpTooltip>
+				<HelpTooltipIconTrigger size="small" />
+				<HelpTooltipContent>
+					<HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
+					<HelpTooltipText>
 						When a connection is initiated to a user&apos;s workspace they are
 						considered an active user. e.g. apps, web terminal, SSH. This is for
 						measuring user activity and has no connection to license
 						consumption.
-					</HelpPopoverText>
-				</HelpPopoverContent>
-			</HelpPopover>
+					</HelpTooltipText>
+				</HelpTooltipContent>
+			</HelpTooltip>
 		</div>
 	);
 };

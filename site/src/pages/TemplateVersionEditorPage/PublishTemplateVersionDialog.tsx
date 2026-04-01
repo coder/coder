@@ -1,26 +1,35 @@
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { DialogProps } from "components/Dialogs/Dialog";
+import { FormFields } from "components/Form/Form";
+import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
+import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import type { FC } from "react";
+import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
-import { EnterpriseBadge } from "#/components/Badges/Badges";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
-import { FormFields } from "#/components/Form/Form";
 import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
-import { Stack } from "#/components/Stack/Stack";
-import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import { docs } from "#/utils/docs";
-import { getFormHelpers } from "#/utils/formUtils";
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "../../components/HelpTooltip/HelpTooltip";
+import { docs } from "../../utils/docs";
+
+export const Language = {
+	versionNameLabel: "Version name",
+	messagePlaceholder: "Write a short message about the changes you made...",
+	defaultCheckboxLabel: "Promote to active version",
+	activeVersionHelpTitle: "Active versions",
+	activeVersionHelpText:
+		"Templates can enforce that the active version be used for all workspaces (enterprise-only)",
+	activeVersionHelpBody: "Review the documentation",
+};
 
 type PublishTemplateVersionDialogProps = DialogProps & {
 	defaultName: string;
@@ -79,7 +88,7 @@ export const PublishTemplateVersionDialog: FC<
 						<FormFields>
 							<TextField
 								{...getFieldHelpers("name")}
-								label="Version name"
+								label={Language.versionNameLabel}
 								autoFocus
 								disabled={isPublishing}
 							/>
@@ -87,7 +96,7 @@ export const PublishTemplateVersionDialog: FC<
 							<TextField
 								{...getFieldHelpers("message")}
 								label="Message"
-								placeholder="Write a short message about the changes you made..."
+								placeholder={Language.messagePlaceholder}
 								disabled={isPublishing}
 								multiline
 								rows={5}
@@ -95,7 +104,7 @@ export const PublishTemplateVersionDialog: FC<
 
 							<Stack direction="row">
 								<FormControlLabel
-									label="Promote to active version"
+									label={Language.defaultCheckboxLabel}
 									control={
 										<Checkbox
 											size="small"
@@ -111,30 +120,31 @@ export const PublishTemplateVersionDialog: FC<
 									}
 								/>
 
-								<HelpPopover>
-									<HelpPopoverIconTrigger />
+								<HelpTooltip>
+									<HelpTooltipIconTrigger />
 
 									{/**
 									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
 									 * this prop may not need to be set when we switch away from MuiDialog
 									 */}
-									<HelpPopoverContent disablePortal>
-										<HelpPopoverTitle>Active versions</HelpPopoverTitle>
-										<HelpPopoverText>
-											Templates can enforce that the active version be used for
-											all workspaces <EnterpriseBadge />
-										</HelpPopoverText>
-										<HelpPopoverLinksGroup>
-											<HelpPopoverLink
+									<HelpTooltipContent disablePortal>
+										<HelpTooltipTitle>
+											{Language.activeVersionHelpTitle}
+										</HelpTooltipTitle>
+										<HelpTooltipText>
+											{Language.activeVersionHelpText}
+										</HelpTooltipText>
+										<HelpTooltipLinksGroup>
+											<HelpTooltipLink
 												href={docs(
 													"/admin/templates/managing-templates#template-update-policies",
 												)}
 											>
-												Review the documentation
-											</HelpPopoverLink>
-										</HelpPopoverLinksGroup>
-									</HelpPopoverContent>
-								</HelpPopover>
+												{Language.activeVersionHelpBody}
+											</HelpTooltipLink>
+										</HelpTooltipLinksGroup>
+									</HelpTooltipContent>
+								</HelpTooltip>
 							</Stack>
 						</FormFields>
 					</Stack>

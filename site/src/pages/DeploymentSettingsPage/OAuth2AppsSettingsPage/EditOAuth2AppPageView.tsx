@@ -1,24 +1,21 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Divider from "@mui/material/Divider";
-import { ChevronLeftIcon, CopyIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { Link as RouterLink, useSearchParams } from "react-router";
-import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
-import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
-import { Loader } from "#/components/Loader/Loader";
+import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { Loader } from "components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
+} from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
+import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -26,9 +23,12 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/components/Table/Table";
-import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { createDayString } from "#/utils/createDayString";
+} from "components/Table/Table";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { ChevronLeftIcon, CopyIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Link as RouterLink, useSearchParams } from "react-router";
+import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type MutatingResource = {
@@ -117,7 +117,12 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							</p>
 							<CodeExample
 								code={fullNewSecret.client_secret_full}
-								className="min-h-auto select-all w-full mt-6"
+								css={{
+									minHeight: "auto",
+									userSelect: "all",
+									width: "100%",
+									marginTop: 24,
+								}}
 							/>
 						</>
 					}
@@ -255,7 +260,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 					{!isLoadingSecrets && (!secrets || secrets.length === 0) && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div className="text-center">
+								<div css={{ textAlign: "center" }}>
 									No client secrets have been generated.
 								</div>
 							</TableCell>

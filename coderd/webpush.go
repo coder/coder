@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -54,9 +53,6 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 			Detail:  err.Error(),
 		})
 		return
-	}
-	if invalidator, ok := api.WebpushDispatcher.(webpush.SubscriptionCacheInvalidator); ok {
-		invalidator.InvalidateUser(user.ID)
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -114,9 +110,6 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 			Detail:  err.Error(),
 		})
 		return
-	}
-	if invalidator, ok := api.WebpushDispatcher.(webpush.SubscriptionCacheInvalidator); ok {
-		invalidator.InvalidateUser(user.ID)
 	}
 
 	rw.WriteHeader(http.StatusNoContent)

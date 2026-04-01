@@ -1,3 +1,16 @@
+import { API } from "api/api";
+import { checkAuthorization } from "api/queries/authCheck";
+import type { AuthorizationRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useAuthenticated } from "hooks";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import {
+	type WorkspacePermissions,
+	workspacePermissionChecks,
+} from "modules/permissions/workspaces";
 import {
 	createContext,
 	type FC,
@@ -7,19 +20,6 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
-import { API } from "#/api/api";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import type { AuthorizationRequest } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Loader } from "#/components/Loader/Loader";
-import { Margins } from "#/components/Margins/Margins";
-import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import {
-	type WorkspacePermissions,
-	workspacePermissionChecks,
-} from "#/modules/permissions/workspaces";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (

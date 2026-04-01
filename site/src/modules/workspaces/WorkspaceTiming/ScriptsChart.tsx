@@ -1,10 +1,10 @@
 import { type Theme, useTheme } from "@emotion/react";
-import { type FC, useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+} from "components/Tooltip/Tooltip";
+import { type FC, useState } from "react";
 import { Bar } from "./Chart/Bar";
 import {
 	Chart,

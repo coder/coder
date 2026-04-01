@@ -1,14 +1,14 @@
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	updateUserQuietHoursSchedule,
 	userQuietHoursSchedule,
-} from "#/api/queries/settings";
-import type { UserQuietHoursScheduleResponse } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Loader } from "#/components/Loader/Loader";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+} from "api/queries/settings";
+import type { UserQuietHoursScheduleResponse } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
+import { useAuthenticated } from "hooks";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
 

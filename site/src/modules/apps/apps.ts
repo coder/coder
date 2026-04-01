@@ -1,9 +1,9 @@
-import { toast } from "sonner";
 import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "#/api/typesGenerated";
+} from "api/typesGenerated";
+import { toast } from "sonner";
 
 // This is a magic undocumented string that is replaced
 // with a brand-new session token from the backend.
@@ -34,12 +34,11 @@ type GetVSCodeHrefParams = {
 	token: string;
 	agent?: string;
 	folder?: string;
-	chatId?: string;
 };
 
 export const getVSCodeHref = (
 	app: "vscode" | "vscode-insiders" | "cursor",
-	{ owner, workspace, token, agent, folder, chatId }: GetVSCodeHrefParams,
+	{ owner, workspace, token, agent, folder }: GetVSCodeHrefParams,
 ) => {
 	const query = new URLSearchParams({
 		owner,
@@ -53,9 +52,6 @@ export const getVSCodeHref = (
 	}
 	if (folder) {
 		query.set("folder", folder);
-	}
-	if (chatId) {
-		query.set("chatId", chatId);
 	}
 	return `${app}://coder.coder-remote/open?${query}`;
 };
@@ -83,25 +79,13 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
-// Open `about:blank` first to detect a popup blocker. If it opens, we
-// null out `opener` (durable on the opened window); and navigate `popup`
-// to the target URL. The Coder UI keeps access to `popup`s handle
 export const openAppInNewWindow = (href: string) => {
-	const popup = window.open("about:blank", "_blank", "width=900,height=600");
+	const popup = window.open(href, "_blank", "width=900,height=600");
 	if (!popup) {
 		toast.error("Failed to open app in new window.", {
 			description: "Popup blocked. Allow popups to open this app.",
 		});
-		return;
 	}
-	try {
-		// Setting the opener to null persists in the `popup` window over refresh
-		// and navigation. The opening window retains its connection to `popup`
-		popup.opener = null;
-	} catch {
-		// Electron can throw
-	}
-	popup.location.href = href;
 };
 
 type GetAppHrefParams = {

@@ -299,7 +299,6 @@ List workspaces with multiple filters - running workspaces owned by "alice".
 			Required: []string{"query"},
 		},
 	},
-	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args SearchArgs) (SearchResult, error) {
 		query, err := parseSearchQuery(args.Query)
 		if err != nil {
@@ -420,7 +419,6 @@ var ChatGPTFetch = Tool[FetchArgs, FetchResult]{
 			Required: []string{"id"},
 		},
 	},
-	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args FetchArgs) (FetchResult, error) {
 		objectID, err := parseObjectID(args.ID)
 		if err != nil {

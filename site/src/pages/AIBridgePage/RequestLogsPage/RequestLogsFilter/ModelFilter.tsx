@@ -1,11 +1,11 @@
-import type { FC } from "react";
-import { API } from "#/api/api";
-import { ComboboxInput } from "#/components/Combobox/Combobox";
+import { API } from "api/api";
+import { ComboboxInput } from "components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "#/components/Filter/menu";
-import { SelectFilter } from "#/components/Filter/SelectFilter";
+} from "components/Filter/menu";
+import { SelectFilter } from "components/Filter/SelectFilter";
+import type { FC } from "react";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
 export const useModelFilterMenu = ({

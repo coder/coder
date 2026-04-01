@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
 import {
 	MockCanceledProvisionerJob,
 	MockCancelingProvisionerJob,
@@ -7,7 +5,9 @@ import {
 	MockPendingProvisionerJob,
 	MockRunningProvisionerJob,
 	MockTemplateVersion,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import { VersionsTable } from "./VersionsTable";
 
 const meta: Meta<typeof VersionsTable> = {

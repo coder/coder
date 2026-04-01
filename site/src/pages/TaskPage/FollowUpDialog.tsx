@@ -1,8 +1,5 @@
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { useId } from "react";
-import type { Task } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
+import type { Task } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	Dialog,
 	DialogClose,
@@ -11,8 +8,11 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/Dialog/Dialog";
-import { Textarea } from "#/components/Textarea/Textarea";
+} from "components/Dialog/Dialog";
+import { Textarea } from "components/Textarea/Textarea";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import { useId } from "react";
 
 type FollowUpDialogProps = {
 	task: Task;

@@ -1,17 +1,17 @@
-import { SearchIcon, XIcon } from "lucide-react";
-import { type Ref, useLayoutEffect, useRef } from "react";
 import {
 	InputGroup,
 	InputGroupAddon,
 	InputGroupButton,
 	InputGroupInput,
-} from "#/components/InputGroup/InputGroup";
+} from "components/InputGroup/InputGroup";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
+} from "components/Tooltip/Tooltip";
+import { useEffectEvent } from "hooks/hookPolyfills";
+import { SearchIcon, XIcon } from "lucide-react";
+import { type Ref, useLayoutEffect, useRef } from "react";
 
 export type SearchFieldProps = {
 	value: string;

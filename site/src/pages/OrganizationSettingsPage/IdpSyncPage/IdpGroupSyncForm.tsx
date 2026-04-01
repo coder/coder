@@ -1,13 +1,9 @@
-import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import * as Yup from "yup";
 import type {
 	Group,
 	GroupSyncSettings,
 	Organization,
-} from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
+} from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	Combobox,
 	ComboboxButton,
@@ -16,32 +12,36 @@ import {
 	ComboboxItem,
 	ComboboxList,
 	ComboboxTrigger,
-} from "#/components/Combobox/Combobox";
+} from "components/Combobox/Combobox";
 import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
-import { Link } from "#/components/Link/Link";
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
-} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
-import { TableCell, TableRow } from "#/components/Table/Table";
+} from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "components/Spinner/Spinner";
+import { Switch } from "components/Switch/Switch";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { isEveryoneGroup } from "#/modules/groups";
-import { docs } from "#/utils/docs";
-import { isUUID } from "#/utils/uuid";
+} from "components/Tooltip/Tooltip";
+import { useFormik } from "formik";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { isEveryoneGroup } from "modules/groups";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { docs } from "utils/docs";
+import { isUUID } from "utils/uuid";
+import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
@@ -222,7 +222,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 						<Label htmlFor={`${id}-auto-create-missing-groups`}>
 							Auto create missing groups
 						</Label>
-						<AutoCreateMissingGroupsHelpPopover />
+						<AutoCreateMissingGroupsHelpTooltip />
 					</span>
 				</div>
 				<div className="flex flex-row gap-2 justify-between items-start">
@@ -445,17 +445,17 @@ const GroupRow: FC<GroupRowProps> = ({
 	);
 };
 
-const AutoCreateMissingGroupsHelpPopover: FC = () => {
+const AutoCreateMissingGroupsHelpTooltip: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverText>
+		<HelpTooltip>
+			<HelpTooltipIconTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipText>
 					Enabling auto create missing groups will automatically create groups
 					returned by the OIDC provider if they do not exist in Coder.
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
+				</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };
 
@@ -464,11 +464,11 @@ const LegacyGroupSyncHeader: FC = () => {
 		<h4 className="text-xl font-medium">
 			<div className="flex items-end gap-2">
 				<span>Legacy group sync settings</span>
-				<HelpPopover>
-					<HelpPopoverIconTrigger />
-					<HelpPopoverContent>
-						<HelpPopoverTitle>Legacy group sync settings</HelpPopoverTitle>
-						<HelpPopoverText>
+				<HelpTooltip>
+					<HelpTooltipIconTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Legacy group sync settings</HelpTooltipTitle>
+						<HelpTooltipText>
 							These settings were configured using environment variables, and
 							only apply to the default organization. It is now recommended to
 							configure IdP sync via the CLI or the UI, which enables sync to be
@@ -477,9 +477,9 @@ const LegacyGroupSyncHeader: FC = () => {
 							<Link href={docs("/admin/users/idp-sync")}>
 								Learn more&hellip;
 							</Link>
-						</HelpPopoverText>
-					</HelpPopoverContent>
-				</HelpPopover>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
 			</div>
 		</h4>
 	);

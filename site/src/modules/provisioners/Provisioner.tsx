@@ -1,14 +1,14 @@
 import { useTheme } from "@emotion/react";
-import { Building2Icon, UserIcon } from "lucide-react";
-import type { FC } from "react";
-import type { HealthMessage, ProvisionerDaemon } from "#/api/typesGenerated";
-import { Pill } from "#/components/Pill/Pill";
+import type { HealthMessage, ProvisionerDaemon } from "api/typesGenerated";
+import { Pill } from "components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { createDayString } from "#/utils/createDayString";
+} from "components/Tooltip/Tooltip";
+import { Building2Icon, UserIcon } from "lucide-react";
+import type { FC } from "react";
+import { createDayString } from "utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
 
 interface ProvisionerProps {
@@ -45,20 +45,47 @@ export const Provisioner: FC<ProvisionerProps> = ({
 				isWarning && { borderColor: theme.palette.warning.light },
 			]}
 		>
-			<header className="p-6 flex items-center justify-between gap-6">
-				<div className="flex items-center gap-6 object-fill">
-					<div className="leading-[160%]">
-						<h4 className="font-medium m-0">{provisioner.name}</h4>
+			<header
+				css={{
+					padding: 24,
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "space-between",
+					gap: 24,
+				}}
+			>
+				<div
+					css={{
+						display: "flex",
+						alignItems: "center",
+						gap: 24,
+						objectFit: "fill",
+					}}
+				>
+					<div css={{ lineHeight: "160%" }}>
+						<h4 css={{ fontWeight: 500, margin: 0 }}>{provisioner.name}</h4>
 						<span css={{ color: theme.palette.text.secondary }}>
 							<code>{provisioner.version}</code>
 						</span>
 					</div>
 				</div>
-				<div className="ml-auto flex flex-wrap gap-3 justify-end">
+				<div
+					css={{
+						marginLeft: "auto",
+						display: "flex",
+						flexWrap: "wrap",
+						gap: 12,
+						justifyContent: "right",
+					}}
+				>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Pill size="lg" icon={iconScope}>
-								<span className="[&::first-letter]:uppercase">
+								<span
+									css={{
+										":first-letter": { textTransform: "uppercase" },
+									}}
+								>
 									{daemonScope}
 								</span>
 							</Pill>
@@ -83,7 +110,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 				}}
 			>
 				{warnings && warnings.length > 0 ? (
-					<div className="flex flex-col">
+					<div css={{ display: "flex", flexDirection: "column" }}>
 						{warnings.map((warning) => (
 							<span key={warning.code}>{warning.message}</span>
 						))}

@@ -438,7 +438,7 @@ func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r 
 		}
 		go HeartbeatClose(ctx, log, cancel, socket)
 
-		eventC := make(chan codersdk.ServerSentEvent, 64)
+		eventC := make(chan codersdk.ServerSentEvent)
 		socketErrC := make(chan websocket.CloseError, 1)
 		closed := make(chan struct{})
 		go func() {
@@ -488,16 +488,6 @@ func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r 
 		}()
 
 		sendEvent := func(event codersdk.ServerSentEvent) error {
-			// Prioritize context cancellation over sending to the
-			// buffered channel. Without this check, both cases in
-			// the select below can fire simultaneously when the
-			// context is already done and the channel has capacity,
-			// making the result nondeterministic.
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
 			select {
 			case eventC <- event:
 			case <-ctx.Done():

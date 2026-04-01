@@ -1,22 +1,22 @@
-import type { Meta } from "@storybook/react-vite";
-import {
-	customNotificationTemplatesKey,
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-} from "#/api/queries/notifications";
-import type { DeploymentValues, SerpentOption } from "#/api/typesGenerated";
 import {
 	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockSystemNotificationTemplates,
 	MockUserOwner,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withOrganizationSettingsProvider,
 	withToaster,
-} from "#/testHelpers/storybook";
+} from "testHelpers/storybook";
+import type { Meta } from "@storybook/react-vite";
+import {
+	customNotificationTemplatesKey,
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+} from "api/queries/notifications";
+import type { DeploymentValues, SerpentOption } from "api/typesGenerated";
 import type NotificationsPage from "./NotificationsPage";
 
 // Extracted from a real API response

@@ -1,8 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, spyOn, userEvent, within } from "storybook/test";
-import { API } from "#/api/api";
-import { getPreferredProxy } from "#/contexts/ProxyContext";
-import { chromatic } from "#/testHelpers/chromatic";
+import { chromatic } from "testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
 	MockPrimaryWorkspaceProxy,
@@ -16,11 +12,15 @@ import {
 	MockWorkspaceProxies,
 	MockWorkspaceSubAgent,
 	mockApiError,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import {
 	withDashboardProvider,
 	withProxyProvider,
-} from "#/testHelpers/storybook";
+} from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { getPreferredProxy } from "contexts/ProxyContext";
+import { screen, spyOn, userEvent, within } from "storybook/test";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
@@ -211,8 +211,8 @@ export const TerraformManagedDirty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const outdatedStatus = canvas.getByText("Outdated");
-		await userEvent.click(outdatedStatus);
-		await screen.findByRole("dialog");
+		await userEvent.hover(outdatedStatus);
+		await screen.findByRole("tooltip");
 	},
 };
 

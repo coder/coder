@@ -1,3 +1,4 @@
+import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors";
 import { type FormikContextType, type FormikErrors, getIn } from "formik";
 import type {
 	ChangeEvent,
@@ -6,7 +7,21 @@ import type {
 	ReactNode,
 } from "react";
 import * as Yup from "yup";
-import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
+
+const Language = {
+	nameRequired: (name: string): string => {
+		return name ? `Please enter a ${name.toLowerCase()}.` : "Required";
+	},
+	nameInvalidChars: (): string => {
+		return "Special characters (e.g.: !, @, #) are not supported";
+	},
+	nameTooLong: (name: string, len: number): string => {
+		return `${name} cannot be longer than ${len} characters`;
+	},
+	displayNameInvalidChars: (name: string): string => {
+		return `${name} must start and end with non-whitespace character`;
+	},
+};
 
 interface GetFormHelperOptions {
 	helperText?: ReactNode;
@@ -103,19 +118,16 @@ const displayNameRE = /^[^\s](.*[^\s])?$/;
 // REMARK: see #1756 for name/username semantics
 export const nameValidator = (name: string): Yup.StringSchema =>
 	Yup.string()
-		.required(`Please enter a ${name.toLowerCase()}.`)
-		.matches(usernameRE, "Special characters (e.g.: !, @, #) are not supported")
-		.max(maxLenName, `${name} cannot be longer than ${maxLenName} characters`);
+		.required(Language.nameRequired(name))
+		.matches(usernameRE, Language.nameInvalidChars())
+		.max(maxLenName, Language.nameTooLong(name, maxLenName));
 
 export const displayNameValidator = (displayName: string): Yup.StringSchema =>
 	Yup.string()
-		.matches(
-			displayNameRE,
-			`${displayName} must start and end with non-whitespace character`,
-		)
+		.matches(displayNameRE, Language.displayNameInvalidChars(displayName))
 		.max(
 			displayNameMaxLength,
-			`${displayName} cannot be longer than ${displayNameMaxLength} characters`,
+			Language.nameTooLong(displayName, displayNameMaxLength),
 		)
 		.optional();
 

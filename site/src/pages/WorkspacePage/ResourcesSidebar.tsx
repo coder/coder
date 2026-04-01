@@ -1,13 +1,13 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { FC } from "react";
-import type { WorkspaceResource } from "#/api/typesGenerated";
+import type { WorkspaceResource } from "api/typesGenerated";
 import {
 	Sidebar,
 	SidebarCaption,
 	SidebarItem,
-} from "#/components/FullPageLayout/Sidebar";
-import { getResourceIconPath } from "#/utils/workspace";
+} from "components/FullPageLayout/Sidebar";
+import type { FC } from "react";
+import { getResourceIconPath } from "utils/workspace";
 
 type ResourcesSidebarProps = {
 	failed: boolean;
@@ -55,14 +55,26 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					key={r.id}
 					css={styles.root}
 				>
-					<div className="flex items-center justify-center leading-none w-4 h-4 p-0.5">
+					<div
+						css={{
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							lineHeight: 0,
+							width: 16,
+							height: 16,
+							padding: 2,
+						}}
+					>
 						<img
-							className="w-full h-full object-contain"
+							css={{ width: "100%", height: "100%", objectFit: "contain" }}
 							src={getResourceIconPath(r.type)}
 							alt=""
 						/>
 					</div>
-					<div className="flex flex-col font-medium">
+					<div
+						css={{ display: "flex", flexDirection: "column", fontWeight: 500 }}
+					>
 						<span>{r.name}</span>
 						<span css={{ fontSize: 12, color: theme.palette.text.secondary }}>
 							{r.type}
@@ -80,7 +92,12 @@ const ResourceSidebarItemSkeleton: FC = () => {
 			<Skeleton variant="circular" width={16} height={16} />
 			<div>
 				<Skeleton variant="text" width={94} height={16} />
-				<Skeleton variant="text" width={60} height={14} className="mt-0.5" />
+				<Skeleton
+					variant="text"
+					width={60}
+					height={14}
+					css={{ marginTop: 2 }}
+				/>
 			</div>
 		</div>
 	);

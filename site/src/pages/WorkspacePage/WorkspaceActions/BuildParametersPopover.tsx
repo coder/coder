@@ -1,37 +1,37 @@
-import { useFormik } from "formik";
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
-import { richParameters } from "#/api/queries/templates";
-import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
+import { richParameters } from "api/queries/templates";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type {
 	TemplateVersionParameter,
 	Workspace,
 	WorkspaceBuildParameter,
-} from "#/api/typesGenerated";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
-import { FormFields } from "#/components/Form/Form";
-import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+} from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Button } from "components/Button/Button";
+import { FormFields } from "components/Form/Form";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
-import { Link } from "#/components/Link/Link";
-import { Loader } from "#/components/Loader/Loader";
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import { Link } from "components/Link/Link";
+import { Loader } from "components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/Popover/Popover";
-import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
-import { docs } from "#/utils/docs";
-import { getFormHelpers } from "#/utils/formUtils";
+} from "components/Popover/Popover";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useFormik } from "formik";
+import { type FC, useState } from "react";
+import { useQuery } from "react-query";
+import { docs } from "utils/docs";
+import { getFormHelpers } from "utils/formUtils";
 import {
 	type AutofillBuildParameter,
 	getInitialRichParameterValues,
-} from "#/utils/richParameters";
+} from "utils/richParameters";
 
 interface BuildParametersPopoverProps {
 	workspace: Workspace;
@@ -147,10 +147,10 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 				ephemeralParameters.length > 0 ? (
 					<div className="divide-y">
 						<div className="p-5 text-content-secondary">
-							<HelpPopoverTitle>Build Options</HelpPopoverTitle>
-							<HelpPopoverText>
+							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
+							<HelpTooltipText>
 								These parameters only apply for a single workspace start.
-							</HelpPopoverText>
+							</HelpTooltipText>
 						</div>
 						<div className="border-0 border-solid p-5">
 							<Form
@@ -170,19 +170,19 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 					</div>
 				) : (
 					<div className="p-5 text-content-secondary">
-						<HelpPopoverTitle>Build Options</HelpPopoverTitle>
-						<HelpPopoverText>
+						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
+						<HelpTooltipText>
 							This template has no ephemeral build options.
-						</HelpPopoverText>
-						<HelpPopoverLinksGroup>
-							<HelpPopoverLink
+						</HelpTooltipText>
+						<HelpTooltipLinksGroup>
+							<HelpTooltipLink
 								href={docs(
 									"/admin/templates/extending-templates/parameters#ephemeral-parameters",
 								)}
 							>
 								Read the docs
-							</HelpPopoverLink>
-						</HelpPopoverLinksGroup>
+							</HelpTooltipLink>
+						</HelpTooltipLinksGroup>
 					</div>
 				)
 			) : (

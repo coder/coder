@@ -1,13 +1,13 @@
-import { screen, waitFor } from "@testing-library/react";
-import WS from "jest-websocket-mock";
-import { API } from "#/api/api";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceAgentLogs,
 	MockWorkspaceBuild,
-} from "#/testHelpers/entities";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
+} from "testHelpers/entities";
+import { renderWithAuth } from "testHelpers/renderHelpers";
+import { screen, waitFor } from "@testing-library/react";
+import { API } from "api/api";
+import WS from "jest-websocket-mock";
 import WorkspaceBuildPage from "./WorkspaceBuildPage";
 import { LOGS_TAB_KEY } from "./WorkspaceBuildPageView";
 

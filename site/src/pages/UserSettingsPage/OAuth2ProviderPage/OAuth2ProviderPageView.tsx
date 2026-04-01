@@ -1,9 +1,8 @@
-import type { FC } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Avatar } from "#/components/Avatar/Avatar";
-import { Button } from "#/components/Button/Button";
-import { Stack } from "#/components/Stack/Stack";
+import type * as TypesGen from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
+import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -11,8 +10,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/components/Table/Table";
-import { TableLoader } from "#/components/TableLoader/TableLoader";
+} from "components/Table/Table";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import type { FC } from "react";
 
 type OAuth2ProviderPageViewProps = {
 	isLoading: boolean;
@@ -46,7 +46,7 @@ const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
 					{apps?.length === 0 && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div className="text-center">
+								<div css={{ textAlign: "center" }}>
 									No OAuth2 applications have been authorized.
 								</div>
 							</TableCell>

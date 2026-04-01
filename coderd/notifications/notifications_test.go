@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -548,8 +549,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		leasedIDs = append(leasedIDs, msg.ID.String())
 	}
 
-	slices.Sort(msgs)
-	slices.Sort(leasedIDs)
+	sort.Strings(msgs)
+	sort.Strings(leasedIDs)
 	require.EqualValues(t, msgs, leasedIDs)
 
 	// Wait out the lease period; all messages should be eligible to be re-acquired.

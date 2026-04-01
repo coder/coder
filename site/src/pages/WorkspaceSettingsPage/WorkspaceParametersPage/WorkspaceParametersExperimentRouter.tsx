@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { useWorkspaceSettings } from "../useWorkspaceSettings";
+import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import WorkspaceParametersPage from "./WorkspaceParametersPage";
 import WorkspaceParametersPageExperimental from "./WorkspaceParametersPageExperimental";
 

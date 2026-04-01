@@ -1,3 +1,5 @@
+import type { WorkspaceAppStatusState } from "api/typesGenerated";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	BanIcon,
 	CircleAlertIcon,
@@ -7,9 +9,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import type { WorkspaceAppStatusState } from "#/api/typesGenerated";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
+import { cn } from "utils/cn";
 
 type AppStatusStateIconProps = {
 	state: WorkspaceAppStatusState;
@@ -36,10 +36,11 @@ export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
 			// remove the stroke so it is not overly thick.
 			return (
 				<PauseIcon
+					css={{ strokeWidth: 0 }}
 					className={cn([
-						"text-content-secondary stroke-0",
-						disabled ? "fill-content-disabled" : "fill-content-secondary",
+						"text-content-secondary",
 						className,
+						disabled ? "fill-content-disabled" : "fill-content-secondary",
 					])}
 				/>
 			);

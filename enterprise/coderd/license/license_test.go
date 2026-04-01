@@ -852,9 +852,6 @@ func TestEntitlements(t *testing.T) {
 			GetActiveUserCount(gomock.Any(), false).
 			Return(int64(1), nil)
 		mDB.EXPECT().
-			GetActiveAISeatCount(gomock.Any()).
-			Return(int64(27), nil)
-		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Cond(func(params database.GetTotalUsageDCManagedAgentsV1Params) bool {
 				// gomock doesn't seem to compare times very nicely, so check
 				// them manually.
@@ -888,264 +885,9 @@ func TestEntitlements(t *testing.T) {
 		require.NotNil(t, managedAgentLimit.Actual)
 		require.EqualValues(t, 175, *managedAgentLimit.Actual)
 
-		aiGovernanceSeatLimit, ok := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
-		require.True(t, ok)
-		require.NotNil(t, aiGovernanceSeatLimit.Actual)
-		require.EqualValues(t, 27, *aiGovernanceSeatLimit.Actual)
-		require.NotNil(t, aiGovernanceSeatLimit.Limit)
-		require.EqualValues(t, 100, *aiGovernanceSeatLimit.Limit)
-
 		// Usage exceeds the limit, so an exceeded warning should be present.
 		require.Len(t, entitlements.Warnings, 1)
 		require.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
-	})
-
-	t.Run("AIGovernanceSeatWarnings", func(t *testing.T) {
-		t.Parallel()
-
-		testCases := []struct {
-			name            string
-			limit           int64
-			activeSeatCount int64
-			expectedWarning string
-		}{
-			{
-				name:            "At90Percent",
-				limit:           100,
-				activeSeatCount: 90,
-				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, 90),
-			},
-			{
-				name:            "Below90Percent",
-				limit:           100,
-				activeSeatCount: 89,
-			},
-			{
-				name:            "OverLimit",
-				limit:           100,
-				activeSeatCount: 110,
-				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernanceOverLimitWarningText, 110, 100, 10),
-			},
-			{
-				name:            "AtLimit",
-				limit:           100,
-				activeSeatCount: 100,
-				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, 100),
-			},
-			{
-				name:            "OverLimitRoundingDown",
-				limit:           101,
-				activeSeatCount: 106,
-				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernanceOverLimitWarningText, 106, 101, 5),
-			},
-			{
-				name:            "TinyOverage",
-				limit:           1000,
-				activeSeatCount: 1001,
-				expectedWarning: fmt.Sprintf(codersdk.LicenseAIGovernanceOverLimitWarningText, 1001, 1000, 1),
-			},
-			{
-				name:            "ZeroLimitGuard",
-				limit:           0,
-				activeSeatCount: 5,
-			},
-		}
-
-		for _, tc := range testCases {
-			tc := tc
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				ctrl := gomock.NewController(t)
-				mDB := dbmock.NewMockStore(ctrl)
-
-				licenseOpts := (&coderdenttest.LicenseOptions{
-					FeatureSet: codersdk.FeatureSetPremium,
-					NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-					GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
-					ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
-					Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
-					Features: license.Features{
-						codersdk.FeatureAIGovernanceUserLimit: tc.limit,
-					},
-				}).
-					UserLimit(100)
-
-				lic := database.License{
-					ID:  1,
-					JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-					Exp: licenseOpts.ExpiresAt,
-				}
-
-				mDB.EXPECT().
-					GetUnexpiredLicenses(gomock.Any()).
-					Return([]database.License{lic}, nil)
-				mDB.EXPECT().
-					GetActiveUserCount(gomock.Any(), false).
-					Return(int64(1), nil)
-				mDB.EXPECT().
-					GetActiveAISeatCount(gomock.Any()).
-					Return(tc.activeSeatCount, nil)
-				mDB.EXPECT().
-					GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
-					Return(int64(0), nil)
-				mDB.EXPECT().
-					GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
-					Return([]database.Template{}, nil)
-
-				entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
-				require.NoError(t, err)
-				require.True(t, entitlements.HasLicense)
-
-				aiGovernanceSeatLimit, ok := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
-				require.True(t, ok)
-
-				if tc.limit > 0 {
-					require.NotNil(t, aiGovernanceSeatLimit.Actual)
-					require.EqualValues(t, tc.activeSeatCount, *aiGovernanceSeatLimit.Actual)
-					require.NotNil(t, aiGovernanceSeatLimit.Limit)
-					require.EqualValues(t, tc.limit, *aiGovernanceSeatLimit.Limit)
-				} else {
-					require.Nil(t, aiGovernanceSeatLimit.Actual)
-					require.Nil(t, aiGovernanceSeatLimit.Limit)
-				}
-
-				if tc.expectedWarning == "" {
-					require.Len(t, entitlements.Warnings, 0)
-				} else {
-					require.Len(t, entitlements.Warnings, 1)
-					require.Equal(t, tc.expectedWarning, entitlements.Warnings[0])
-				}
-			})
-		}
-
-		t.Run("GracePeriodOverLimit", func(t *testing.T) {
-			t.Parallel()
-
-			const (
-				limit           int64 = 100
-				activeSeatCount int64 = 127
-			)
-
-			ctrl := gomock.NewController(t)
-			mDB := dbmock.NewMockStore(ctrl)
-
-			licenseOpts := &coderdenttest.LicenseOptions{
-				NotBefore: dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-				GraceAt:   dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-				ExpiresAt: dbtime.Now().Add(24 * time.Hour).Truncate(time.Second),
-				Addons:    []codersdk.Addon{codersdk.AddonAIGovernance},
-				Features: license.Features{
-					codersdk.FeatureAIGovernanceUserLimit: limit,
-				},
-			}
-
-			lic := database.License{
-				ID:  1,
-				JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-				Exp: licenseOpts.ExpiresAt,
-			}
-
-			mDB.EXPECT().
-				GetUnexpiredLicenses(gomock.Any()).
-				Return([]database.License{lic}, nil)
-			mDB.EXPECT().
-				GetActiveUserCount(gomock.Any(), false).
-				Return(int64(1), nil)
-			mDB.EXPECT().
-				GetActiveAISeatCount(gomock.Any()).
-				Return(activeSeatCount, nil)
-			mDB.EXPECT().
-				GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
-				Return([]database.Template{}, nil)
-
-			enablements := map[codersdk.FeatureName]bool{
-				codersdk.FeatureAIGovernanceUserLimit: true,
-			}
-
-			entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, enablements)
-			require.NoError(t, err)
-			require.True(t, entitlements.HasLicense)
-
-			feature, ok := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
-			require.True(t, ok)
-			require.Equal(t, codersdk.EntitlementGracePeriod, feature.Entitlement)
-
-			require.Contains(t, entitlements.Warnings,
-				fmt.Sprintf(
-					"Your deployment has %d active AI Governance seats but the license with the limit %d is expired.",
-					activeSeatCount, limit,
-				),
-			)
-			require.Contains(t, entitlements.Warnings,
-				fmt.Sprintf(codersdk.LicenseAIGovernanceOverLimitWarningText, activeSeatCount, limit, 27),
-			)
-		})
-
-		t.Run("GracePeriod90Percent", func(t *testing.T) {
-			t.Parallel()
-
-			const (
-				limit           int64 = 100
-				activeSeatCount int64 = 95
-			)
-
-			ctrl := gomock.NewController(t)
-			mDB := dbmock.NewMockStore(ctrl)
-
-			licenseOpts := &coderdenttest.LicenseOptions{
-				NotBefore: dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
-				GraceAt:   dbtime.Now().Add(-time.Hour).Truncate(time.Second),
-				ExpiresAt: dbtime.Now().Add(24 * time.Hour).Truncate(time.Second),
-				Addons:    []codersdk.Addon{codersdk.AddonAIGovernance},
-				Features: license.Features{
-					codersdk.FeatureAIGovernanceUserLimit: limit,
-				},
-			}
-
-			lic := database.License{
-				ID:  1,
-				JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
-				Exp: licenseOpts.ExpiresAt,
-			}
-
-			mDB.EXPECT().
-				GetUnexpiredLicenses(gomock.Any()).
-				Return([]database.License{lic}, nil)
-			mDB.EXPECT().
-				GetActiveUserCount(gomock.Any(), false).
-				Return(int64(1), nil)
-			mDB.EXPECT().
-				GetActiveAISeatCount(gomock.Any()).
-				Return(activeSeatCount, nil)
-			mDB.EXPECT().
-				GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
-				Return([]database.Template{}, nil)
-
-			enablements := map[codersdk.FeatureName]bool{
-				codersdk.FeatureAIGovernanceUserLimit: true,
-			}
-
-			entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, enablements)
-			require.NoError(t, err)
-			require.True(t, entitlements.HasLicense)
-
-			feature, ok := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
-			require.True(t, ok)
-			require.Equal(t, codersdk.EntitlementGracePeriod, feature.Entitlement)
-
-			expiryWarning := fmt.Sprintf(
-				"Your deployment has %d active AI Governance seats but the license with the limit %d is expired.",
-				activeSeatCount,
-				limit,
-			)
-			require.Contains(t, entitlements.Warnings, expiryWarning)
-			require.Contains(t, entitlements.Warnings,
-				fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, 95))
-			for _, warning := range entitlements.Warnings {
-				require.NotContains(t, warning, "over the limit")
-			}
-		})
 	})
 }
 
@@ -1537,7 +1279,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 		codersdk.FeatureAIBridge: false,
 	}
 
-	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Bridge. Please reach out to your account team or sales@coder.com to learn more."
+	aiBridgeWarningMessage := "AI Bridge is now Generally Available in v2.30. In a future Coder version, your deployment will require the AI Governance Add-On to continue using this feature. Please reach out to your account team or sales@coder.com to learn more."
 
 	t.Run("NoAddon_AIBridgeOff", func(t *testing.T) {
 		t.Parallel()
@@ -2090,7 +1832,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 
 	empty := map[codersdk.FeatureName]bool{}
 
-	t.Run("AIGovernanceAddon enables AI Governance features when enablements are set", func(t *testing.T) {
+	t.Run("AIGovernanceAddon enables AI governance features when enablements are set", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -2105,7 +1847,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 			Exp: dbtime.Now().Add(time.Hour),
 		})
 
-		// Enable AI Governance features in enablements.
+		// Enable AI governance features in enablements.
 		enablements := map[codersdk.FeatureName]bool{
 			codersdk.FeatureAIBridge: true,
 			codersdk.FeatureBoundary: true,
@@ -2117,7 +1859,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// AI Bridge should be enabled without warning when addon is present.
 		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
-		aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Bridge. Please reach out to your account team or sales@coder.com to learn more."
+		aiBridgeWarningMessage := "AI Bridge is now Generally Available in v2.30. In a future Coder version, your deployment will require the AI Governance Add-On to continue using this feature. Please reach out to your account team or sales@coder.com to learn more."
 		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage, "AI Bridge warning should not appear when AI Governance addon is present")
 
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
@@ -2128,7 +1870,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled when addon is present")
 	})
 
-	t.Run("AIGovernanceAddon not present disables AI Governance features", func(t *testing.T) {
+	t.Run("AIGovernanceAddon not present disables AI governance features", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -2185,7 +1927,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 
 		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
-		// AI Governance features should be enabled but in grace period.
+		// AI governance features should be enabled but in grace period.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled during grace period")
 		// require.Equal(t, codersdk.EntitlementGracePeriod, aibridgeFeature.Entitlement, "AI Bridge should be in grace period")
@@ -2253,7 +1995,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.Equal(t, "Feature AI Governance User Limit must be set when using the AI Governance addon.", entitlements.Errors[0])
 
 		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
-		// AI Governance features should not be entitled when validation fails.
+		// AI governance features should not be entitled when validation fails.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon validation fails")
 		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon validation fails")

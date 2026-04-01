@@ -3,6 +3,7 @@ package rbac
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -135,25 +136,16 @@ func BuiltinScopeNames() []ScopeName {
 var compositePerms = map[ScopeName]map[string][]policy.Action{
 	"coder:workspaces.create": {
 		ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
-		ResourceWorkspace.Type: {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
-		// When creating a workspace, users need to be able to read the org member the
-		// workspace will be owned by. Even if that owner is "yourself".
-		ResourceOrganizationMember.Type: {policy.ActionRead},
+		ResourceWorkspace.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
 	},
 	"coder:workspaces.operate": {
-		ResourceTemplate.Type:           {policy.ActionRead},
-		ResourceWorkspace.Type:          {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionRead, policy.ActionUpdate},
-		ResourceOrganizationMember.Type: {policy.ActionRead},
+		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
 	},
 	"coder:workspaces.delete": {
-		ResourceTemplate.Type:           {policy.ActionRead, policy.ActionUse},
-		ResourceWorkspace.Type:          {policy.ActionRead, policy.ActionDelete},
-		ResourceOrganizationMember.Type: {policy.ActionRead},
+		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionDelete},
 	},
 	"coder:workspaces.access": {
-		ResourceTemplate.Type:           {policy.ActionRead},
-		ResourceOrganizationMember.Type: {policy.ActionRead},
-		ResourceWorkspace.Type:          {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
+		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
 	},
 	"coder:templates.build": {
 		ResourceTemplate.Type: {policy.ActionRead},
@@ -184,7 +176,7 @@ func CompositeScopeNames() []string {
 	for k := range compositePerms {
 		out = append(out, string(k))
 	}
-	slices.Sort(out)
+	sort.Strings(out)
 	return out
 }
 

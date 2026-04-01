@@ -1,15 +1,13 @@
+import { groupsByOrganization } from "api/queries/groups";
+import { organizationMembers } from "api/queries/organizations";
+import type { Group, OrganizationMemberWithUserData } from "api/typesGenerated";
+import { Autocomplete } from "components/Autocomplete/Autocomplete";
+import { AvatarData } from "components/Avatar/AvatarData";
+
 import { Check } from "lucide-react";
+import { getGroupSubtitle, isGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
-import { groupsByOrganization } from "#/api/queries/groups";
-import { organizationMembers } from "#/api/queries/organizations";
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-} from "#/api/typesGenerated";
-import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
-import { AvatarData } from "#/components/Avatar/AvatarData";
-import { getGroupSubtitle, isGroup } from "#/modules/groups";
 
 type OrganizationMember = OrganizationMemberWithUserData & { id: string };
 type AutocompleteOption = OrganizationMember | Group;
@@ -51,7 +49,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	// This allows regular org members to see other members in their org
 	// for workspace sharing, without needing site-wide user:read permission.
 	const membersQuery = useQuery({
-		...organizationMembers(organizationId, { limit: 0 }),
+		...organizationMembers(organizationId),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});

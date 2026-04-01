@@ -1,13 +1,14 @@
+import { Button } from "components/Button/Button";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
-import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
-import { Link } from "#/components/Link/Link";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
+import { Language } from "./Language";
 
 type PasswordSignInFormProps = {
 	onSubmit: (credentials: { email: string; password: string }) => void;
@@ -23,8 +24,8 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 	const validationSchema = Yup.object({
 		email: Yup.string()
 			.trim()
-			.email("Please enter a valid email address.")
-			.required("Please enter an email address."),
+			.email(Language.emailInvalid)
+			.required(Language.emailRequired),
 		password: Yup.string(),
 	});
 
@@ -47,7 +48,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 		<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
 			<div className="flex flex-col items-start gap-2">
 				<Label htmlFor={emailField.id}>
-					Email{" "}
+					{Language.emailLabel}{" "}
 					<span className="text-xs text-content-destructive font-bold">*</span>
 				</Label>
 				<Input
@@ -74,7 +75,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 
 			<div className="flex flex-col items-start gap-2">
 				<Label htmlFor={passwordField.id}>
-					Password{" "}
+					{Language.passwordLabel}{" "}
 					<span className="text-xs text-content-destructive font-bold">*</span>
 				</Label>
 				<Input
@@ -100,7 +101,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 
 			<Button size="lg" disabled={isSigningIn} className="w-full" type="submit">
 				<Spinner loading={isSigningIn} />
-				Sign In
+				{Language.passwordSignIn}
 			</Button>
 
 			<Link

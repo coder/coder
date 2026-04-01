@@ -1,15 +1,16 @@
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import { createMemoryRouter } from "react-router";
-import type { Response, User } from "#/api/typesGenerated";
-import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
+import { MockBuildInfo, MockUserOwner } from "testHelpers/entities";
 import {
 	renderWithRouter,
 	waitForLoaderToBeRemoved,
-} from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Response, User } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
+import { createMemoryRouter } from "react-router";
 import { SetupPage } from "./SetupPage";
+import { Language as PageViewLanguage } from "./SetupPageView";
 
 const fillForm = async ({
 	email = "someone@coder.com",
@@ -19,12 +20,12 @@ const fillForm = async ({
 	email?: string;
 	password?: string;
 } = {}) => {
-	const emailField = screen.getByLabelText("Email");
-	const passwordField = screen.getByLabelText("Password");
+	const emailField = screen.getByLabelText(PageViewLanguage.emailLabel);
+	const passwordField = screen.getByLabelText(PageViewLanguage.passwordLabel);
 	await userEvent.type(emailField, email);
 	await userEvent.type(passwordField, password);
 	const submitButton = screen.getByRole("button", {
-		name: "Continue with email",
+		name: PageViewLanguage.create,
 	});
 	await userEvent.click(submitButton);
 };

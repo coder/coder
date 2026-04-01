@@ -1,14 +1,14 @@
-import type { FC } from "react";
-import { Link } from "react-router";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { linkToAuditing } from "#/modules/navigation";
+} from "components/DropdownMenu/DropdownMenu";
+import { linkToAuditing } from "modules/navigation";
+import type { FC } from "react";
+import { Link } from "react-router";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
@@ -92,14 +92,9 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 				</DropdownMenuItem>
 			)}
 			{canViewAIBridge && (
-				<>
-					<DropdownMenuItem asChild>
-						<Link to="/aibridge">AI Bridge Logs</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/aibridge/sessions">AI Bridge Sessions</Link>
-					</DropdownMenuItem>
-				</>
+				<DropdownMenuItem asChild>
+					<Link to="/aibridge">AI Bridge Logs</Link>
+				</DropdownMenuItem>
 			)}
 			{canViewHealth && (
 				<DropdownMenuItem asChild>

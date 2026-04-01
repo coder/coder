@@ -21,7 +21,7 @@ jobs:
       pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
         with:
           egress-policy: audit
 
@@ -30,30 +30,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Rewrite same-repo links for PR branch
-        if: github.event_name == 'pull_request'
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          # Rewrite same-repo blob/tree main links to the PR head SHA
-          # so that files or directories introduced in the PR are
-          # reachable during link checking.
-          {
-            echo 'replacementPatterns:'
-            echo "  - pattern: \"https://github.com/coder/coder/blob/main/\""
-            echo "    replacement: \"https://github.com/coder/coder/blob/${HEAD_SHA}/\""
-            echo "  - pattern: \"https://github.com/coder/coder/tree/main/\""
-            echo "    replacement: \"https://github.com/coder/coder/tree/${HEAD_SHA}/\""
-          } >> .github/.linkspector.yml
-
-      # TODO: Remove this workaround once action-linkspector sets
-      # package-manager-cache: false in its internal setup-node step.
-      # See: https://github.com/UmbrellaDocs/action-linkspector/issues/54
-      - name: Enable corepack
-        run: corepack enable pnpm
-
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@37c85bcde51b30bf929936502bac6bfb7e8f0a4d # v1.4.1
+        uses: umbrelladocs/action-linkspector@652f85bc57bb1e7d4327260decc10aa68f7694c3 # v1.4.0
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         with:

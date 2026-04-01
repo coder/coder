@@ -1,14 +1,14 @@
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { templateVersions } from "#/api/queries/templates";
-import { Badge } from "#/components/Badge/Badge";
+import { templateVersions } from "api/queries/templates";
+import { Badge } from "components/Badge/Badge";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectValue,
-} from "#/components/Select/Select";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
+} from "components/Select/Select";
+import { Skeleton } from "components/Skeleton/Skeleton";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 
 type TemplateVersionSelectProps = {

@@ -1,7 +1,7 @@
+import { Alert } from "components/Alert/Alert";
+import { Link } from "components/Link/Link";
 import type { FC } from "react";
-import { Alert } from "#/components/Alert/Alert";
-import { Link } from "#/components/Link/Link";
-import { docs } from "#/utils/docs";
+import { docs } from "utils/docs";
 
 interface ClassicParameterFlowDeprecationWarningProps {
 	templateSettingsLink: string;

@@ -178,10 +178,6 @@ func (c Chat) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String())
 }
 
-func (r GetChatsRow) RBACObject() rbac.Object {
-	return r.Chat.RBACObject()
-}
-
 func (c ChatFile) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
@@ -394,10 +390,6 @@ func (g GetGroupsRow) RBACObject() rbac.Object {
 }
 
 func (gm GroupMember) RBACObject() rbac.Object {
-	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
-}
-
-func (gm GetGroupMembersByGroupIDPaginatedRow) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
@@ -671,21 +663,20 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	users := make([]User, len(rows))
 	for i, r := range rows {
 		users[i] = User{
-			ID:               r.ID,
-			Email:            r.Email,
-			Username:         r.Username,
-			Name:             r.Name,
-			HashedPassword:   r.HashedPassword,
-			CreatedAt:        r.CreatedAt,
-			UpdatedAt:        r.UpdatedAt,
-			Status:           r.Status,
-			RBACRoles:        r.RBACRoles,
-			LoginType:        r.LoginType,
-			AvatarURL:        r.AvatarURL,
-			Deleted:          r.Deleted,
-			LastSeenAt:       r.LastSeenAt,
-			IsSystem:         r.IsSystem,
-			IsServiceAccount: r.IsServiceAccount,
+			ID:             r.ID,
+			Email:          r.Email,
+			Username:       r.Username,
+			Name:           r.Name,
+			HashedPassword: r.HashedPassword,
+			CreatedAt:      r.CreatedAt,
+			UpdatedAt:      r.UpdatedAt,
+			Status:         r.Status,
+			RBACRoles:      r.RBACRoles,
+			LoginType:      r.LoginType,
+			AvatarURL:      r.AvatarURL,
+			Deleted:        r.Deleted,
+			LastSeenAt:     r.LastSeenAt,
+			IsSystem:       r.IsSystem,
 		}
 	}
 

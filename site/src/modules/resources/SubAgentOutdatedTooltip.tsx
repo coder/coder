@@ -1,18 +1,18 @@
-import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
-} from "#/api/typesGenerated";
+} from "api/typesGenerated";
 import {
-	HelpPopover,
-	HelpPopoverAction,
-	HelpPopoverContent,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-	HelpPopoverTrigger,
-} from "#/components/HelpPopover/HelpPopover";
+	HelpTooltip,
+	HelpTooltipAction,
+	HelpTooltipContent,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import { TooltipTrigger } from "components/Tooltip/Tooltip";
+import { RotateCcwIcon } from "lucide-react";
+import type { FC } from "react";
 
 type SubAgentOutdatedTooltipProps = {
 	devcontainer: WorkspaceAgentDevcontainer;
@@ -33,34 +33,34 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 	}
 
 	return (
-		<HelpPopover>
-			<HelpPopoverTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
+		<HelpTooltip>
+			<TooltipTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
 				<span role="status" className="cursor-pointer">
 					Outdated
 				</span>
-			</HelpPopoverTrigger>
-			<HelpPopoverContent>
+			</TooltipTrigger>
+			<HelpTooltipContent>
 				<div className="flex flex-col gap-2">
 					<div>
-						<HelpPopoverTitle>Dev Container Outdated</HelpPopoverTitle>
-						<HelpPopoverText>
+						<HelpTooltipTitle>Dev Container Outdated</HelpTooltipTitle>
+						<HelpTooltipText>
 							This Dev Container is outdated. This can happen if you modify your
 							devcontainer.json file after the Dev Container has been created.
 							To fix this, you can rebuild the Dev Container.
-						</HelpPopoverText>
+						</HelpTooltipText>
 					</div>
 
-					<HelpPopoverLinksGroup>
-						<HelpPopoverAction
+					<HelpTooltipLinksGroup>
+						<HelpTooltipAction
 							icon={RotateCcwIcon}
 							onClick={onUpdate}
 							ariaLabel="Rebuild Dev Container"
 						>
 							Rebuild Dev Container
-						</HelpPopoverAction>
-					</HelpPopoverLinksGroup>
+						</HelpTooltipAction>
+					</HelpTooltipLinksGroup>
 				</div>
-			</HelpPopoverContent>
-		</HelpPopover>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };

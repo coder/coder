@@ -1,4 +1,16 @@
 import Skeleton from "@mui/material/Skeleton";
+import { watchAgentMetadata } from "api/api";
+import type {
+	ServerSentEvent,
+	WorkspaceAgent,
+	WorkspaceAgentMetadata,
+} from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -9,20 +21,8 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
-import { watchAgentMetadata } from "#/api/api";
-import type {
-	ServerSentEvent,
-	WorkspaceAgent,
-	WorkspaceAgentMetadata,
-} from "#/api/typesGenerated";
-import { Stack } from "#/components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
-import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
+import { cn } from "utils/cn";
+import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 

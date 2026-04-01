@@ -1,2 +1,0 @@
-ALTER TABLE chats DROP COLUMN mode;
-DROP TYPE IF EXISTS chat_mode;

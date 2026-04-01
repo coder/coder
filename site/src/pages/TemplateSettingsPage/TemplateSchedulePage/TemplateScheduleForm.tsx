@@ -1,29 +1,29 @@
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { type FormikTouched, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
-import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
-import { Checkbox } from "#/components/Checkbox/Checkbox";
-import { DurationField } from "#/components/DurationField/DurationField";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
+import { DurationField } from "components/DurationField/DurationField";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "#/components/Form/Form";
-import { Label } from "#/components/Label/Label";
-import { Spinner } from "#/components/Spinner/Spinner";
+} from "components/Form/Form";
+import { Label } from "components/Label/Label";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	StackLabel,
 	StackLabelHelperText,
-} from "#/components/StackLabel/StackLabel";
-import { Switch } from "#/components/Switch/Switch";
-import { getFormHelpers } from "#/utils/formUtils";
+} from "components/StackLabel/StackLabel";
+import { Switch } from "components/Switch/Switch";
+import { type FormikTouched, useFormik } from "formik";
+import { type FC, useEffect, useState } from "react";
+import { getFormHelpers } from "utils/formUtils";
 import {
 	calculateAutostopRequirementDaysValue,
 	type TemplateAutostartRequirementDaysValue,
-} from "#/utils/schedule";
+} from "utils/schedule";
 import {
 	AutostopRequirementDaysHelperText,
 	AutostopRequirementWeeksHelperText,

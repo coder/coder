@@ -1,6 +1,6 @@
 # Monitoring
 
-AI Bridge records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+AI Bridge records the last `user` prompt, token usage, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
@@ -16,10 +16,10 @@ AI Bridge interception data can be exported for external analysis, compliance re
 
 ### REST API
 
-You can retrieve AI Bridge sessions via the Coder API, with filtering and pagination support.
+You can retrieve AI Bridge interceptions via the Coder API with filtering and pagination support.
 
 ```sh
-curl -X GET "https://coder.example.com/api/v2/aibridge/sessions" \
+curl -X GET "https://coder.example.com/api/v2/aibridge/interceptions?q=initiator:me" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -540,18 +541,19 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 	go func() {
 		defer close(ch)
 		var workspace codersdk.Workspace
-		if !assert.Eventually(t, func() bool {
+		for {
 			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-			if err != nil {
-				return false
+			if !assert.NoError(t, err) {
+				return
 			}
-			if len(res.Workspaces) == 1 {
-				workspace = res.Workspaces[0]
-				return true
+			workspaces := res.Workspaces
+
+			if len(workspaces) == 1 {
+				workspace = workspaces[0]
+				break
 			}
-			return false
-		}, testutil.WaitShort, testutil.IntervalMedium) {
-			return
+
+			time.Sleep(testutil.IntervalMedium)
 		}
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)

@@ -1,14 +1,14 @@
-import { renderHook, screen } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
-import type { FC, PropsWithChildren } from "react";
-import { QueryClientProvider } from "react-query";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { MockPermissions, MockUserOwner } from "#/testHelpers/entities";
+import { MockPermissions, MockUserOwner } from "testHelpers/entities";
 import {
 	createTestQueryClient,
 	renderWithAuth,
-} from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
+import { renderHook, screen } from "@testing-library/react";
+import { useAuthenticated } from "hooks";
+import { HttpResponse, http } from "msw";
+import type { FC, PropsWithChildren } from "react";
+import { QueryClientProvider } from "react-query";
 import { AuthContext, type AuthContextValue } from "./AuthProvider";
 
 describe("RequireAuth", () => {

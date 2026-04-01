@@ -1,27 +1,12 @@
 import * as path from "node:path";
-import babel from "@rolldown/plugin-babel";
-import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
-import react, { reactCompilerPreset } from "@vitejs/plugin-react";
-import { playwright } from "@vitest/browser-playwright";
+import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
-// We enable profiling and source maps for internal deployments (e.g. dogfood).
-// The profiling build uses react-dom/profiling, which keeps optimizations but
-// preserves performance instrumentation.
-const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
-
-const compilerPreset = reactCompilerPreset();
-compilerPreset.rolldown.filter = {
-	...compilerPreset.rolldown.filter,
-	id: { include: [/src\/pages\/AgentsPage\//] },
-};
-
 const plugins: PluginOption[] = [
 	react(),
-	babel({ presets: [compilerPreset] }),
 	checker({
 		typescript: true,
 	}),
@@ -45,8 +30,8 @@ export default defineConfig({
 	build: {
 		outDir: path.resolve(__dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
-		sourcemap: isProfilingBuild ? true : "hidden",
-		rolldownOptions: {
+		sourcemap: "hidden",
+		rollupOptions: {
 			input: {
 				index: path.resolve(__dirname, "./index.html"),
 				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
@@ -57,15 +42,17 @@ export default defineConfig({
 						? "[name].js"
 						: "assets/[name]-[hash].js";
 				},
-				codeSplitting: {
-					groups: [
-						{ name: "mui", test: /@mui/ },
-						{ name: "emotion", test: /@emotion/ },
-						{ name: "monaco", test: /monaco-editor/ },
-						{ name: "xterm", test: /@xterm/ },
-						{ name: "emoji-mart", test: /emoji-mart/ },
-						{ name: "radix-ui", test: /radix-ui/ },
-					],
+				manualChunks(id) {
+					if (!id.includes("node_modules")) {
+						return;
+					}
+
+					if (id.includes("@mui")) return "mui";
+					if (id.includes("@emotion")) return "emotion";
+					if (id.includes("monaco-editor")) return "monaco";
+					if (id.includes("@xterm")) return "xterm";
+					if (id.includes("emoji-mart")) return "emoji-mart";
+					if (id.includes("radix-ui")) return "radix-ui";
 				},
 			},
 		},
@@ -210,53 +197,23 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			// In profiling builds, swap the usual reconciler for the profiling
-			// variant so that <Profiler> receives actual timing data.
-			...(isProfilingBuild
-				? { "react-dom/client": "react-dom/profiling" }
-				: {}),
+			App: path.resolve(__dirname, "./src/App"),
+			api: path.resolve(__dirname, "./src/api"),
+			components: path.resolve(__dirname, "./src/components"),
+			contexts: path.resolve(__dirname, "./src/contexts"),
+			hooks: path.resolve(__dirname, "./src/hooks"),
+			modules: path.resolve(__dirname, "./src/modules"),
+			pages: path.resolve(__dirname, "./src/pages"),
+			testHelpers: path.resolve(__dirname, "./src/testHelpers"),
+			theme: path.resolve(__dirname, "./src/theme"),
+			utils: path.resolve(__dirname, "./src/utils"),
 		},
 	},
 	test: {
+		include: ["src/**/*.test.?(m)ts?(x)"],
+		globals: true,
+		environment: "jsdom",
+		setupFiles: ["@testing-library/jest-dom/vitest", "./test/vitestSetup.ts"],
 		silent: "passed-only",
-		projects: [
-			{
-				extends: true,
-				test: {
-					name: "unit",
-					include: [
-						"src/**/*.test.?(m)ts?(x)",
-						"scripts/**/*.test.?(m)[jt]s?(x)",
-					],
-					globals: true,
-					environment: "jsdom",
-					setupFiles: [
-						"@testing-library/jest-dom/vitest",
-						"./test/vitestSetup.ts",
-					],
-				},
-			},
-			// Storybook story tests via Playwright browser mode.
-			// Discovery handled by the storybookTest plugin via
-			// .storybook/main.ts `stories` config.
-			{
-				extends: true,
-				plugins: [
-					storybookTest({
-						configDir: path.join(__dirname, ".storybook"),
-					}),
-				],
-				test: {
-					name: "storybook",
-					browser: {
-						enabled: true,
-						headless: true,
-						provider: playwright(),
-						instances: [{ browser: "chromium" }],
-					},
-					setupFiles: [".storybook/vitest.setup.ts"],
-				},
-			},
-		],
 	},
 });

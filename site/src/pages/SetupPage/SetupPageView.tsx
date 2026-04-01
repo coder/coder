@@ -3,28 +3,54 @@ import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { countries } from "api/countriesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { FormFields, VerticalForm } from "components/Form/Form";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { PasswordField } from "components/PasswordField/PasswordField";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Spinner } from "components/Spinner/Spinner";
+import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
-import * as Yup from "yup";
-import { countries } from "#/api/countriesGenerated";
-import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
-import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { FormFields, VerticalForm } from "#/components/Form/Form";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
-import { PasswordField } from "#/components/PasswordField/PasswordField";
-import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "#/utils/formUtils";
+} from "utils/formUtils";
+import * as Yup from "yup";
 
-const usernameValidator = nameValidator("Username");
+export const Language = {
+	emailLabel: "Email",
+	passwordLabel: "Password",
+	nameLabel: "Full Name",
+	usernameLabel: "Username",
+	emailInvalid: "Please enter a valid email address.",
+	emailRequired: "Please enter an email address.",
+	passwordRequired: "Please enter a password.",
+	create: "Continue with email",
+	githubCreate: "Continue with GitHub",
+	welcomeMessage: <>Welcome to Coder</>,
+	firstNameLabel: "First name",
+	lastNameLabel: "Last name",
+	companyLabel: "Company",
+	jobTitleLabel: "Job title",
+	phoneNumberLabel: "Phone number",
+	countryLabel: "Country",
+	developersLabel: "Number of developers",
+	firstNameRequired: "Please enter your first name.",
+	phoneNumberRequired: "Please enter your phone number.",
+	jobTitleRequired: "Please enter your job title.",
+	companyNameRequired: "Please enter your company name.",
+	countryRequired: "Please select your country.",
+	developersRequired: "Please select the number of developers in your company.",
+};
+
+const usernameValidator = nameValidator(Language.usernameLabel);
 const usernameFromEmail = (email: string): string => {
 	try {
 		const emailPrefix = email.split("@")[0];
@@ -43,24 +69,22 @@ const usernameFromEmail = (email: string): string => {
 const validationSchema = Yup.object({
 	email: Yup.string()
 		.trim()
-		.email("Please enter a valid email address.")
-		.required("Please enter an email address."),
-	password: Yup.string().required("Please enter a password."),
+		.email(Language.emailInvalid)
+		.required(Language.emailRequired),
+	password: Yup.string().required(Language.passwordRequired),
 	username: usernameValidator,
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
 		is: true,
 		then: (schema) =>
 			schema.shape({
-				first_name: Yup.string().required("Please enter your first name."),
-				last_name: Yup.string().required("Please enter your last name."),
-				phone_number: Yup.string().required("Please enter your phone number."),
-				job_title: Yup.string().required("Please enter your job title."),
-				company_name: Yup.string().required("Please enter your company name."),
-				country: Yup.string().required("Please select your country."),
-				developers: Yup.string().required(
-					"Please select the number of developers in your company.",
-				),
+				first_name: Yup.string().required(Language.firstNameRequired),
+				last_name: Yup.string().required(Language.firstNameRequired),
+				phone_number: Yup.string().required(Language.phoneNumberRequired),
+				job_title: Yup.string().required(Language.jobTitleRequired),
+				company_name: Yup.string().required(Language.companyNameRequired),
+				country: Yup.string().required(Language.countryRequired),
+				developers: Yup.string().required(Language.developersRequired),
 			}),
 	}),
 });
@@ -118,9 +142,15 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 	return (
 		<SignInLayout>
-			<header className="text-center mb-8">
+			<header css={{ textAlign: "center", marginBottom: 32 }}>
 				<CoderIcon className="w-12 h-12" />
-				<h1 className="font-normal m-0 mt-4">
+				<h1
+					css={{
+						fontWeight: 400,
+						margin: 0,
+						marginTop: 16,
+					}}
+				>
 					Welcome to <strong>Coder</strong>
 				</h1>
 				<div
@@ -139,7 +169,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a href="/api/v2/users/oauth2/github/callback">
 									<ExternalImage src="/icon/github.svg" />
-									Continue with GitHub
+									{Language.githubCreate}
 								</a>
 							</Button>
 							<div className="flex items-center gap-4">
@@ -161,17 +191,24 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						}}
 						autoComplete="email"
 						fullWidth
-						label="Email"
+						label={Language.emailLabel}
 					/>
 					<PasswordField
 						{...getFieldHelpers("password")}
 						autoComplete="current-password"
 						fullWidth
-						label="Password"
+						label={Language.passwordLabel}
 					/>
 					<label
 						htmlFor="trial"
-						className="flex cursor-pointer items-start gap-1 -mt-1 mb-2"
+						css={{
+							display: "flex",
+							cursor: "pointer",
+							alignItems: "flex-start",
+							gap: 4,
+							marginTop: -4,
+							marginBottom: 8,
+						}}
 					>
 						<Checkbox
 							id="trial"
@@ -182,8 +219,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							size="small"
 						/>
 
-						<div className="text-sm pt-1">
-							<span className="block font-semibold">
+						<div css={{ fontSize: 14, paddingTop: 4 }}>
+							<span css={{ display: "block", fontWeight: 600 }}>
 								Start a free trial of Enterprise
 							</span>
 							<span
@@ -200,7 +237,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Link
 								href="https://coder.com/pricing"
 								target="_blank"
-								className="mt-1 inline-block text-[13px]"
+								css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
 							>
 								Read more
 							</Link>
@@ -215,14 +252,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									id="trial_info.first_name"
 									name="trial_info.first_name"
 									fullWidth
-									label="First name"
+									label={Language.firstNameLabel}
 								/>
 								<TextField
 									{...getFieldHelpers("trial_info.last_name")}
 									id="trial_info.last_name"
 									name="trial_info.last_name"
 									fullWidth
-									label="Last name"
+									label={Language.lastNameLabel}
 								/>
 							</Stack>
 							<TextField
@@ -230,21 +267,21 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								id="trial_info.company_name"
 								name="trial_info.company_name"
 								fullWidth
-								label="Company"
+								label={Language.companyLabel}
 							/>
 							<TextField
 								{...getFieldHelpers("trial_info.job_title")}
 								id="trial_info.job_title"
 								name="trial_info.job_title"
 								fullWidth
-								label="Job title"
+								label={Language.jobTitleLabel}
 							/>
 							<TextField
 								{...getFieldHelpers("trial_info.phone_number")}
 								id="trial_info.phone_number"
 								name="trial_info.phone_number"
 								fullWidth
-								label="Phone number"
+								label={Language.phoneNumberLabel}
 							/>
 							<Autocomplete
 								autoHighlight
@@ -256,14 +293,18 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								onChange={(_, newValue) =>
 									form.setFieldValue("trial_info.country", newValue?.name)
 								}
-								className="[&:not(:has(label))]:m-0"
+								css={{
+									"&:not(:has(label))": {
+										margin: 0,
+									},
+								}}
 								renderInput={(params) => (
 									<TextField
 										{...params}
 										{...getFieldHelpers("trial_info.country")}
 										id="trial_info.country"
 										name="trial_info.country"
-										label="Country"
+										label={Language.countryLabel}
 										fullWidth
 										inputProps={{
 											...params.inputProps,
@@ -277,7 +318,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								id="trial_info.developers"
 								name="trial_info.developers"
 								fullWidth
-								label="Number of developers"
+								label={Language.developersLabel}
 								select
 							>
 								{numberOfDevelopersOptions.map((opt) => (
@@ -332,7 +373,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						size="lg"
 					>
 						<Spinner loading={isLoading} />
-						Continue with email
+						{Language.create}
 					</Button>
 				</FormFields>
 			</VerticalForm>

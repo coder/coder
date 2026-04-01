@@ -1,16 +1,16 @@
 import { useTheme } from "@emotion/react";
-import { GlobeIcon, HashIcon } from "lucide-react";
-import type { FC } from "react";
-import { useOutletContext } from "react-router";
-import type { HealthcheckReport } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { createDayString } from "#/utils/createDayString";
-import { pageTitle } from "#/utils/page";
+} from "components/Tooltip/Tooltip";
+import { GlobeIcon, HashIcon } from "lucide-react";
+import type { FC } from "react";
+import { useOutletContext } from "react-router";
+import { createDayString } from "utils/createDayString";
+import { pageTitle } from "utils/page";
 import {
 	BooleanPill,
 	Header,
@@ -76,24 +76,42 @@ const WorkspaceProxyPage: FC = () => {
 								fontSize: 14,
 							}}
 						>
-							<header className="p-6 flex items-center justify-between gap-6">
-								<div className="flex items-center gap-6">
-									<div className="w-9 h-9 flex items-center justify-center">
+							<header
+								css={{
+									padding: 24,
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "space-between",
+									gap: 24,
+								}}
+							>
+								<div css={{ display: "flex", alignItems: "center", gap: 24 }}>
+									<div
+										css={{
+											width: 36,
+											height: 36,
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "center",
+										}}
+									>
 										<img
 											src={region.icon_url}
-											className="object-fill w-full h-full"
+											css={{ objectFit: "fill", width: "100%", height: "100%" }}
 											alt=""
 										/>
 									</div>
-									<div className="leading-[160%]">
-										<h4 className="font-medium m-0">{region.display_name}</h4>
+									<div css={{ lineHeight: "160%" }}>
+										<h4 css={{ fontWeight: 500, margin: 0 }}>
+											{region.display_name}
+										</h4>
 										<span css={{ color: theme.palette.text.secondary }}>
 											{region.version}
 										</span>
 									</div>
 								</div>
 
-								<div className="flex flex-wrap gap-3">
+								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 									{region.wildcard_hostname && (
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -148,9 +166,14 @@ const WorkspaceProxyPage: FC = () => {
 								) : warnings.length === 0 && errors.length === 0 ? (
 									<span>OK</span>
 								) : (
-									<div className="flex flex-col">
+									<div css={{ display: "flex", flexDirection: "column" }}>
 										{[...errors, ...warnings].map((msg) => (
-											<span key={msg} className="[&::first-letter]:uppercase">
+											<span
+												key={msg}
+												css={{
+													":first-letter": { textTransform: "uppercase" },
+												}}
+											>
 												{msg}
 											</span>
 										))}

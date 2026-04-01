@@ -43,7 +43,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/promoauth"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -122,14 +121,10 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 
 func TestUserLogin(t *testing.T) {
 	t.Parallel()
-
-	// Single instance shared across all sub-tests. Each sub-test
-	// creates its own separate user for isolation.
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    anotherUser.Email,
@@ -139,6 +134,8 @@ func TestUserLogin(t *testing.T) {
 	})
 	t.Run("UserDeleted", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		client.DeleteUser(context.Background(), anotherUser.ID)
 		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -153,6 +150,8 @@ func TestUserLogin(t *testing.T) {
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = ""
 			r.UserLoginType = codersdk.LoginTypeNone
@@ -406,7 +405,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(ctx context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
 						AvatarURL: github.String("/hello-world"),
-						ID:        ptr.Ref[int64](1234),
+						ID:        i64ptr(1234),
 						Login:     github.String("kyle"),
 						Name:      github.String("Kylium Carbonate"),
 					}, nil
@@ -474,7 +473,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
 						AvatarURL: github.String("/hello-world"),
-						ID:        ptr.Ref[int64](1234),
+						ID:        i64ptr(1234),
 						Login:     github.String("kyle"),
 						Name:      github.String(" " + strings.Repeat("a", 129) + " "),
 					}, nil
@@ -1108,21 +1107,10 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusForbidden,
-			AssertResponse: func(t testing.TB, resp *http.Response) {
-				data, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				body := string(data)
-				// Should be an HTML error page, not JSON.
-				require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
-				require.Contains(t, body, "<!doctype html>")
-				require.Contains(t, body, "Email not verified")
-				require.Contains(t, body, "Verify the")
-				require.Contains(t, body, "Back to login")
-				require.NotContains(t, body, `"message"`)
-			},
 		},
 		{
-			Name: "EmailNotAString", IDTokenClaims: jwt.MapClaims{
+			Name: "EmailNotAString",
+			IDTokenClaims: jwt.MapClaims{
 				"email":          3.14159,
 				"email_verified": false,
 				"sub":            uuid.NewString(),
@@ -1156,18 +1144,6 @@ func TestUserOIDC(t *testing.T) {
 				"coder.com",
 			},
 			StatusCode: http.StatusForbidden,
-			AssertResponse: func(t testing.TB, resp *http.Response) {
-				data, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				body := string(data)
-				// Should be an HTML error page, not JSON.
-				require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
-				require.Contains(t, body, "<!doctype html>")
-				require.Contains(t, body, "Unauthorized email")
-				require.Contains(t, body, "is not from an authorized domain")
-				require.Contains(t, body, "Back to login")
-				require.NotContains(t, body, `"message"`)
-			},
 		},
 		{
 			Name: "EmailDomainWithLeadingAt",
@@ -1194,18 +1170,6 @@ func TestUserOIDC(t *testing.T) {
 				"@coder.com",
 			},
 			StatusCode: http.StatusForbidden,
-			AssertResponse: func(t testing.TB, resp *http.Response) {
-				data, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				body := string(data)
-				// Should be an HTML error page, not JSON.
-				require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
-				require.Contains(t, body, "<!doctype html>")
-				require.Contains(t, body, "Unauthorized email")
-				require.Contains(t, body, "is not from an authorized domain")
-				require.Contains(t, body, "Back to login")
-				require.NotContains(t, body, `"message"`)
-			},
 		},
 		{
 			Name: "EmailDomainCaseInsensitive",
@@ -2098,12 +2062,6 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 
 		require.Contains(t, string(data), "is not from an authorized domain")
 		require.Contains(t, string(data), "Please contact your administrator")
-		// Verify the response is a rendered HTML error page, not raw JSON.
-		require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
-		require.Contains(t, string(data), "<!doctype html>")
-		require.Contains(t, string(data), "Unauthorized email")
-		require.Contains(t, string(data), "Back to login")
-		require.NotContains(t, string(data), `"message"`)
 
 		for _, domain := range allowedDomains {
 			require.NotContains(t, string(data), domain)
@@ -2133,12 +2091,7 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 
 		require.Contains(t, string(data), "is not from an authorized domain")
 		require.Contains(t, string(data), "Please contact your administrator")
-		// Verify the response is a rendered HTML error page, not raw JSON.
-		require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
-		require.Contains(t, string(data), "<!doctype html>")
-		require.Contains(t, string(data), "Unauthorized email")
-		require.Contains(t, string(data), "Back to login")
-		require.NotContains(t, string(data), `"message"`)
+
 		for _, domain := range allowedDomains {
 			require.NotContains(t, string(data), domain)
 		}
@@ -2524,6 +2477,10 @@ func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Re
 		_ = res.Body.Close()
 	})
 	return res
+}
+
+func i64ptr(i int64) *int64 {
+	return &i
 }
 
 func authCookieValue(cookies []*http.Cookie) string {

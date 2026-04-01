@@ -57,6 +57,7 @@ func TestConvertRouterConfig(t *testing.T) {
 			},
 		},
 	}
+	//nolint:paralleltest // outdated rule
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

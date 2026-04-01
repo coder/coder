@@ -5,6 +5,40 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
+import { API } from "api/api";
+import {
+	deleteWorkspacePortShare,
+	upsertWorkspacePortShare,
+	workspacePortShares,
+} from "api/queries/workspaceportsharing";
+import {
+	type Template,
+	type Workspace,
+	type WorkspaceAgent,
+	type WorkspaceAgentListeningPort,
+	type WorkspaceAgentPortShare,
+	type WorkspaceAgentPortShareLevel,
+	type WorkspaceAgentPortShareProtocol,
+	WorkspaceAppSharingLevels,
+} from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Button } from "components/Button/Button";
+import {
+	HelpTooltipLink,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import {
 	BuildingIcon,
@@ -15,51 +49,17 @@ import {
 	ShareIcon,
 	X as XIcon,
 } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
-import * as Yup from "yup";
-import { API } from "#/api/api";
-import {
-	deleteWorkspacePortShare,
-	upsertWorkspacePortShare,
-	workspacePortShares,
-} from "#/api/queries/workspaceportsharing";
-import {
-	type Template,
-	type Workspace,
-	type WorkspaceAgent,
-	type WorkspaceAgentListeningPort,
-	type WorkspaceAgentPortShare,
-	type WorkspaceAgentPortShareLevel,
-	type WorkspaceAgentPortShareProtocol,
-	WorkspaceAppSharingLevels,
-} from "#/api/typesGenerated";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
-import {
-	HelpPopoverLink,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
-import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { docs } from "#/utils/docs";
-import { getFormHelpers } from "#/utils/formUtils";
+import { docs } from "utils/docs";
+import { getFormHelpers } from "utils/formUtils";
 import {
 	getWorkspaceListeningPortsProtocol,
 	portForwardURL,
 	saveWorkspaceListeningPortsProtocol,
-} from "#/utils/portForward";
+} from "utils/portForward";
+import * as Yup from "yup";
 
 interface PortForwardButtonProps {
 	host: string;
@@ -251,26 +251,42 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 	return (
 		<>
-			<div className="max-h-80 overflow-y-auto">
-				<Stack direction="column" className="p-5">
+			<div
+				css={{
+					maxHeight: 320,
+					overflowY: "auto",
+				}}
+			>
+				<Stack
+					direction="column"
+					css={{
+						padding: 20,
+					}}
+				>
 					<Stack
 						direction="row"
 						justifyContent="space-between"
 						alignItems="start"
 					>
-						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
-						<HelpPopoverLink
+						<HelpTooltipTitle>Listening Ports</HelpTooltipTitle>
+						<HelpTooltipLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
 						>
 							Learn more
-						</HelpPopoverLink>
+						</HelpTooltipLink>
 					</Stack>
 					<Stack direction="column" gap={1}>
-						<HelpPopoverText css={{ color: theme.palette.text.secondary }}>
+						<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
-						</HelpPopoverText>
-						<Stack direction="row" gap={2} className="pb-2">
+						</HelpTooltipText>
+						<Stack
+							direction="row"
+							gap={2}
+							css={{
+								paddingBottom: 8,
+							}}
+						>
 							<FormControl size="small" css={styles.protocolFormControl}>
 								<Select
 									css={styles.listeningPortProtocol}
@@ -330,9 +346,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 						</Stack>
 					</Stack>
 					{filteredListeningPorts.length === 0 && (
-						<HelpPopoverText css={styles.noPortText}>
+						<HelpTooltipText css={styles.noPortText}>
 							No open ports were detected.
-						</HelpPopoverText>
+						</HelpTooltipText>
 					)}
 					{filteredListeningPorts.map((port) => {
 						const url = portForwardURL(
@@ -415,12 +431,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 					borderTop: `1px solid ${theme.palette.divider}`,
 				}}
 			>
-				<HelpPopoverTitle>Shared Ports</HelpPopoverTitle>
-				<HelpPopoverText css={{ color: theme.palette.text.secondary }}>
+				<HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
+				<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
 					{canSharePorts
 						? "Ports can be shared with organization members, other Coder users, or with the public."
 						: "This workspace template does not allow sharing ports. Contact a template administrator to enable port sharing."}
-				</HelpPopoverText>
+				</HelpTooltipText>
 				{canSharePorts && (
 					<div>
 						{filteredSharedPorts?.map((share) => {

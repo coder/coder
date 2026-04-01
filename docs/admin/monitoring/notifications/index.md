@@ -28,7 +28,11 @@ These notifications are sent to users with **template admin** roles:
 - Report: Workspace builds failed for template
   - This notification is delivered as part of a weekly cron job and summarizes
     the failed builds for a given template.
-- Template deleted
+- Template deleted (excluding the initiator)
+
+These notifications are sent to the owners of workspaces using the
+template:
+
 - Template deprecated
 
 ### User Events
@@ -48,18 +52,27 @@ These notifications are sent to users themselves:
 
 ### Workspace Events
 
-These notifications are sent to the workspace owner:
+These notifications are sent to the **workspace owner**:
 
 - Workspace automatic build failure
-- Workspace created
 - Workspace deleted
-- Workspace manual build failure
-- Workspace manually updated
+  - If the workspace owner initiated the deletion, no notification is sent.
 - Workspace marked as dormant
 - Workspace marked for deletion
 - Out of memory (OOM) / Out of disk (OOD)
   - Template admins can [configure OOM/OOD](#configure-oomood-notifications) notifications in the template `main.tf`.
 - Workspace automatically updated
+
+These notifications are sent to users with **template admin** or **owner** roles
+(excluding the user who initiated the action):
+
+- Workspace created
+- Workspace manually updated
+
+These notifications are sent to users with **template admin** roles in the same
+organization as the workspace:
+
+- Workspace manual build failure
 
 ## Delivery Methods
 

@@ -398,11 +398,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				},
 			})
 			if err != nil {
-				logger.Warn(ctx, "reporting script completed", slog.Error(err))
+				logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
 			}
 		})
 		if err != nil {
-			logger.Warn(ctx, "reporting script completed: track command goroutine", slog.Error(err))
+			logger.Error(ctx, fmt.Sprintf("reporting script completed: track command goroutine: %s", err.Error()))
 		}
 	}()
 

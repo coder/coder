@@ -1,15 +1,15 @@
+import {
+	MockProvisioner,
+	MockProvisionerKey,
+	mockApiError,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
-} from "#/api/typesGenerated";
-import {
-	MockProvisioner,
-	MockProvisionerKey,
-	mockApiError,
-} from "#/testHelpers/entities";
+} from "api/typesGenerated";
 import { OrganizationProvisionerKeysPageView } from "./OrganizationProvisionerKeysPageView";
 
 const mockProvisionerKeyDaemons: ProvisionerKeyDaemons[] = [

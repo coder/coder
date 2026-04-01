@@ -1,14 +1,14 @@
-import type { FC } from "react";
 import type {
 	Group,
 	GroupSyncSettings,
 	Organization,
 	Role,
 	RoleSyncSettings,
-} from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Loader } from "#/components/Loader/Loader";
-import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+} from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
+import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import type { FC } from "react";
 import { IdpGroupSyncForm } from "./IdpGroupSyncForm";
 import { IdpRoleSyncForm } from "./IdpRoleSyncForm";
 

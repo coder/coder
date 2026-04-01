@@ -1,7 +1,7 @@
 package agentgit
 
 import (
-	"slices"
+	"sort"
 	"sync"
 
 	"github.com/google/uuid"
@@ -99,7 +99,7 @@ func (ps *PathStore) GetPaths(chatID uuid.UUID) []string {
 	for p := range m {
 		out = append(out, p)
 	}
-	slices.Sort(out)
+	sort.Strings(out)
 	return out
 }
 

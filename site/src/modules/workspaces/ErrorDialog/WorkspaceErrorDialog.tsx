@@ -1,7 +1,5 @@
-import type { FC } from "react";
-import { useNavigate } from "react-router";
-import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
-import { Button } from "#/components/Button/Button";
+import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
+import { Button } from "components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
@@ -9,7 +7,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/Dialog/Dialog";
+} from "components/Dialog/Dialog";
+import type { FC } from "react";
+import { useNavigate } from "react-router";
 
 interface WorkspaceErrorDialogProps {
 	open: boolean;

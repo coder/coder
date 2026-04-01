@@ -1,12 +1,12 @@
+import { MockUserOwner } from "testHelpers/entities";
+import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { MockUserOwner } from "#/testHelpers/entities";
-import { render, waitForLoaderToBeRemoved } from "#/testHelpers/renderHelpers";
-import { UserDropdownContent } from "./UserDropdownContent";
+} from "components/DropdownMenu/DropdownMenu";
+import { Language, UserDropdownContent } from "./UserDropdownContent";
 
 const renderUserDropdownContent = (props: { onSignOut: () => void }) => {
 	return render(
@@ -28,7 +28,7 @@ describe("UserDropdownContent", () => {
 		renderUserDropdownContent({ onSignOut: vi.fn() });
 		await waitForLoaderToBeRemoved();
 
-		const link = screen.getByText("Account").closest("a");
+		const link = screen.getByText(Language.accountLabel).closest("a");
 		if (!link) {
 			throw new Error("Anchor tag not found for the account menu item");
 		}
@@ -40,7 +40,7 @@ describe("UserDropdownContent", () => {
 		const onSignOut = vi.fn();
 		renderUserDropdownContent({ onSignOut });
 		await waitForLoaderToBeRemoved();
-		screen.getByText("Sign Out").click();
+		screen.getByText(Language.signOutLabel).click();
 		expect(onSignOut).toBeCalledTimes(1);
 	});
 });

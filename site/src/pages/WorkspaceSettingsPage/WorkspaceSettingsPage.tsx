@@ -1,11 +1,11 @@
+import { API } from "api/api";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { API } from "#/api/api";
-import { pageTitle } from "#/utils/page";
-import { useWorkspaceSettings } from "./useWorkspaceSettings";
+import { pageTitle } from "utils/page";
 import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
+import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
 const WorkspaceSettingsPage: FC = () => {

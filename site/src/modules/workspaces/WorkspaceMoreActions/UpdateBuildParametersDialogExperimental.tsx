@@ -1,7 +1,5 @@
-import type { FC } from "react";
-import { useNavigate } from "react-router";
-import type { FieldError } from "#/api/errors";
-import { Button } from "#/components/Button/Button";
+import type { FieldError } from "api/errors";
+import { Button } from "components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
@@ -9,7 +7,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/Dialog/Dialog";
+} from "components/Dialog/Dialog";
+import type { FC } from "react";
+import { useNavigate } from "react-router";
 
 type UpdateBuildParametersDialogExperimentalProps = {
 	open: boolean;

@@ -9,7 +9,7 @@ import {
 	durationInHours,
 	suggestedTimeUnit,
 	type TimeUnit,
-} from "#/utils/time";
+} from "utils/time";
 
 type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
 	valueMs: number;
@@ -77,7 +77,12 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 
 	return (
 		<div>
-			<div className="flex gap-2">
+			<div
+				css={{
+					display: "flex",
+					gap: 8,
+				}}
+			>
 				<TextField
 					{...textFieldProps}
 					fullWidth

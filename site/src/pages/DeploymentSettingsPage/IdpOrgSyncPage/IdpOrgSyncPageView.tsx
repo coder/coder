@@ -1,13 +1,9 @@
-import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import * as Yup from "yup";
 import type {
 	Organization,
 	OrganizationSyncSettings,
-} from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
+} from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import {
 	Combobox,
 	ComboboxButton,
@@ -16,8 +12,8 @@ import {
 	ComboboxItem,
 	ComboboxList,
 	ComboboxTrigger,
-} from "#/components/Combobox/Combobox";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+} from "components/Combobox/Combobox";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	Dialog,
 	DialogContent,
@@ -25,23 +21,23 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/Dialog/Dialog";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
+} from "components/Dialog/Dialog";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-} from "#/components/HelpPopover/HelpPopover";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
-import { Link } from "#/components/Link/Link";
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+} from "components/HelpTooltip/HelpTooltip";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
-} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
+} from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "components/Spinner/Spinner";
+import { Switch } from "components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -49,14 +45,18 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/components/Table/Table";
+} from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { docs } from "#/utils/docs";
-import { isUUID } from "#/utils/uuid";
+} from "components/Tooltip/Tooltip";
+import { useFormik } from "formik";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { docs } from "utils/docs";
+import { isUUID } from "utils/uuid";
+import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
@@ -206,7 +206,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
-										<AssignDefaultOrgHelpPopover />
+										<AssignDefaultOrgHelpTooltip />
 									</span>
 								</div>
 							</div>
@@ -490,16 +490,16 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-const AssignDefaultOrgHelpPopover: FC = () => {
+const AssignDefaultOrgHelpTooltip: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverText>
+		<HelpTooltip>
+			<HelpTooltipIconTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipText>
 					Disabling will remove all users from the default organization if a
 					mapping for the default organization is not defined.
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
+				</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };

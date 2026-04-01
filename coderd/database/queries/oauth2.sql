@@ -115,6 +115,11 @@ INSERT INTO oauth2_provider_app_secrets (
     $6
 ) RETURNING *;
 
+-- name: UpdateOAuth2ProviderAppSecretByID :one
+UPDATE oauth2_provider_app_secrets SET
+    last_used_at = $2
+WHERE id = $1 RETURNING *;
+
 -- name: DeleteOAuth2ProviderAppSecretByID :exec
 DELETE FROM oauth2_provider_app_secrets WHERE id = $1;
 
@@ -244,3 +249,5 @@ WHERE id = $1 RETURNING *;
 -- name: DeleteOAuth2ProviderAppByClientID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1;
 
+-- name: GetOAuth2ProviderAppByRegistrationToken :one
+SELECT * FROM oauth2_provider_apps WHERE registration_access_token = $1;

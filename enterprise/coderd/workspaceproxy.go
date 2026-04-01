@@ -204,7 +204,7 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 
 	args := database.UpsertDefaultProxyParams{
 		DisplayName: req.DisplayName,
-		IconURL:     req.Icon,
+		IconUrl:     req.Icon,
 	}
 	if req.DisplayName == "" || req.Icon == "" {
 		// If the user has not specified an update value, use the existing value.
@@ -217,7 +217,7 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 			args.DisplayName = existing.DisplayName
 		}
 		if req.Icon == "" {
-			args.IconURL = existing.IconURL
+			args.IconUrl = existing.IconUrl
 		}
 	}
 

@@ -141,7 +141,7 @@
             python312Packages.setuptools # Needed for node-gyp
           ]
           ++ (lib.optionals stdenv.targetPlatform.isDarwin [
-            darwin.apple_sdk_12_3.frameworks.Foundation
+            darwin.apple_sdk.frameworks.Foundation
             xcbuild
           ]);
 
@@ -292,13 +292,7 @@
         inherit formatter;
 
         devShells = {
-          default =
-            (pkgs.mkShell.override (
-              pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
-                stdenv = pkgs.overrideSDK pkgs.stdenv "12.3";
-              }
-            ))
-            {
+          default = pkgs.mkShell {
             buildInputs = devShellPackages;
 
             PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;

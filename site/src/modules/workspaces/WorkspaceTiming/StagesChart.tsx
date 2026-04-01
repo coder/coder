@@ -1,11 +1,12 @@
-import { CircleAlertIcon, InfoIcon } from "lucide-react";
-import type { FC } from "react";
-import type { TimingStage } from "#/api/typesGenerated";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { TimingStage } from "api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+} from "components/Tooltip/Tooltip";
+import { CircleAlertIcon, InfoIcon } from "lucide-react";
+import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
@@ -109,11 +110,14 @@ export const StagesChart: FC<StagesChartProps> = ({
 											key={stage.name}
 											id={encodeURIComponent(stage.name)}
 										>
-											<span className="flex items-center justify-end gap-0.5">
+											<span css={styles.stageLabel}>
 												{stage.label}
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<InfoIcon className="size-icon-xs cursor-pointer text-content-secondary" />
+														<InfoIcon
+															className="size-icon-xs"
+															css={styles.info}
+														/>
 													</TooltipTrigger>
 													<TooltipContent
 														side="bottom"
@@ -173,7 +177,13 @@ export const StagesChart: FC<StagesChartProps> = ({
 													}}
 												>
 													{t.error && (
-														<CircleAlertIcon className="size-icon-sm text-[#F87171] mr-1" />
+														<CircleAlertIcon
+															className="size-icon-sm"
+															css={{
+																color: "#F87171",
+																marginRight: 4,
+															}}
+														/>
 													)}
 													<Blocks count={t.visibleResources} />
 												</ClickableBar>
@@ -183,7 +193,11 @@ export const StagesChart: FC<StagesChartProps> = ({
 											{validDuration ? (
 												<span>{formatTime(value)}</span>
 											) : (
-												<span className="text-content-destructive">
+												<span
+													css={(theme) => ({
+														color: theme.palette.error.main,
+													})}
+												>
 													Invalid
 												</span>
 											)}
@@ -198,6 +212,24 @@ export const StagesChart: FC<StagesChartProps> = ({
 		</Chart>
 	);
 };
+
+const styles = {
+	stageLabel: {
+		display: "flex",
+		alignItems: "center",
+		gap: 2,
+		justifyContent: "flex-end",
+	},
+	stageDescription: {
+		maxWidth: 300,
+	},
+	info: (theme) => ({
+		width: 12,
+		height: 12,
+		color: theme.palette.text.secondary,
+		cursor: "pointer",
+	}),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export const provisioningStages: Stage[] = [
 	{

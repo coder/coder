@@ -214,7 +214,7 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 			} else {
 				updated, err = client.CreateOrganizationRole(ctx, customRole)
 				if err != nil {
-					return xerrors.Errorf("create role: %w", err)
+					return xerrors.Errorf("patch role: %w", err)
 				}
 			}
 
@@ -524,7 +524,7 @@ type roleTableRow struct {
 	Name            string `table:"name,default_sort"`
 	DisplayName     string `table:"display name"`
 	OrganizationID  string `table:"organization id"`
-	SitePermissions string `table:"site permissions"`
+	SitePermissions string ` table:"site permissions"`
 	// map[<org_id>] -> Permissions
 	OrganizationPermissions string `table:"organization permissions"`
 	UserPermissions         string `table:"user permissions"`

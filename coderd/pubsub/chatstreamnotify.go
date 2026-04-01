@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // ChatStreamNotifyChannel returns the pubsub channel for per-chat
@@ -16,9 +14,8 @@ func ChatStreamNotifyChannel(chatID uuid.UUID) string {
 }
 
 // ChatStreamNotifyMessage is the payload published on the per-chat
-// stream notification channel. Durable message content is still read
-// from the database, while transient control events can be carried
-// inline for cross-replica delivery.
+// stream notification channel. The actual message content is read
+// from the database by subscribers.
 type ChatStreamNotifyMessage struct {
 	// AfterMessageID tells subscribers to query messages after this
 	// ID. Set when a new message is persisted.
@@ -32,18 +29,7 @@ type ChatStreamNotifyMessage struct {
 	// by enterprise relay to know where to connect.
 	WorkerID string `json:"worker_id,omitempty"`
 
-	// Retry carries a structured retry event for cross-replica live
-	// delivery. This is transient stream state and is not read back
-	// from the database.
-	Retry *codersdk.ChatStreamRetry `json:"retry,omitempty"`
-
-	// ErrorPayload carries a structured error event for cross-replica
-	// live delivery. Keep Error for backward compatibility with older
-	// replicas during rolling deploys.
-	ErrorPayload *codersdk.ChatStreamError `json:"error_payload,omitempty"`
-
-	// Error is the legacy string-only error payload kept for mixed-
-	// version compatibility during rollout.
+	// Error is set when a processing error occurs.
 	Error string `json:"error,omitempty"`
 
 	// QueueUpdate is set when the queued messages change.

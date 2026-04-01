@@ -1,16 +1,16 @@
+import { API } from "api/api";
+import { getErrorDetail } from "api/errors";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
+import { Loader } from "components/Loader/Loader";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { API } from "#/api/api";
-import { getErrorDetail } from "#/api/errors";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizontalForm";
-import { Loader } from "#/components/Loader/Loader";
-import { pageTitle } from "#/utils/page";
+import { pageTitle } from "utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
 import { type CreateTokenData, NANO_HOUR } from "./utils";
 
@@ -19,11 +19,7 @@ const initialValues: CreateTokenData = {
 	lifetime: 30,
 };
 
-type CreateTokenPageProps = {
-	now?: Date;
-};
-
-const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
+const CreateTokenPage: FC = () => {
 	const navigate = useNavigate();
 
 	const {
@@ -79,7 +75,12 @@ const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
 			<CodeExample
 				secret={false}
 				code={newToken?.key ?? ""}
-				className="min-h-0 select-all w-full mt-6"
+				css={{
+					minHeight: "auto",
+					userSelect: "all",
+					width: "100%",
+					marginTop: 24,
+				}}
 			/>
 		</>
 	);
@@ -104,7 +105,6 @@ const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
 					setFormError={setFormError}
 					isCreating={isCreating}
 					creationFailed={creationFailed}
-					now={now}
 				/>
 
 				<ConfirmDialog

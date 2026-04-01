@@ -1,10 +1,10 @@
-import type { FC, ReactNode } from "react";
-import { Margins } from "#/components/Margins/Margins";
+import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+} from "components/PageHeader/PageHeader";
+import type { FC, ReactNode } from "react";
 export interface FullPageFormProps {
 	title: string;
 	detail?: ReactNode;
@@ -23,7 +23,7 @@ export const FullPageForm: FC<FullPageFormProps> = ({
 				{detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
 			</PageHeader>
 
-			<div>{children}</div>
+			<main>{children}</main>
 		</Margins>
 	);
 };

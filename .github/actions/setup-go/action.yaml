@@ -4,7 +4,7 @@ description: |
 inputs:
   version:
     description: "The Go version to use."
-    default: "1.25.8"
+    default: "1.25.7"
   use-cache:
     description: "Whether to use the cache."
     default: "true"

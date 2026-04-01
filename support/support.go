@@ -1,18 +1,15 @@
 package support
 
 import (
-	"archive/tar"
 	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path"
 	"strings"
 	"time"
 
@@ -163,11 +160,6 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	eg.Go(func() error {
 		dc, err := client.DeploymentConfig(ctx)
 		if err != nil {
-			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
-				log.Warn(ctx, "unable to fetch deployment config",
-					slog.F("status", cerr.StatusCode()))
-				return nil
-			}
 			return xerrors.Errorf("fetch deployment config: %w", err)
 		}
 		d.Config = dc
@@ -177,11 +169,6 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	eg.Go(func() error {
 		hr, err := healthsdk.New(client).DebugHealth(ctx)
 		if err != nil {
-			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
-				log.Warn(ctx, "unable to fetch health report",
-					slog.F("status", cerr.StatusCode()))
-				return nil
-			}
 			return xerrors.Errorf("fetch health report: %w", err)
 		}
 		d.HealthReport = &hr
@@ -375,12 +362,6 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 			return xerrors.Errorf("fetch coordinator debug page: %w", err)
 		}
 		defer coordResp.Body.Close()
-		if coordResp.StatusCode == http.StatusForbidden || coordResp.StatusCode == http.StatusUnauthorized {
-			_, _ = io.Copy(io.Discard, coordResp.Body)
-			log.Warn(ctx, "unable to fetch coordinator debug page",
-				slog.F("status", coordResp.StatusCode))
-			return nil
-		}
 		bs, err := io.ReadAll(coordResp.Body)
 		if err != nil {
 			return xerrors.Errorf("read coordinator debug page: %w", err)
@@ -395,12 +376,6 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 			return xerrors.Errorf("fetch tailnet debug page: %w", err)
 		}
 		defer tailResp.Body.Close()
-		if tailResp.StatusCode == http.StatusForbidden || tailResp.StatusCode == http.StatusUnauthorized {
-			_, _ = io.Copy(io.Discard, tailResp.Body)
-			log.Warn(ctx, "unable to fetch tailnet debug page",
-				slog.F("status", tailResp.StatusCode))
-			return nil
-		}
 		bs, err := io.ReadAll(tailResp.Body)
 		if err != nil {
 			return xerrors.Errorf("read tailnet debug page: %w", err)
@@ -797,93 +772,6 @@ func compressData(data []byte) []byte {
 	return buf.Bytes()
 }
 
-// PprofInfoFromArchive uses the consolidated /api/v2/debug/profile endpoint
-// to collect pprof data in a single request. The server temporarily enables
-// block/mutex profiling, runs time-based profiles for the given duration,
-// takes snapshots, and returns a tar.gz archive.
-func PprofInfoFromArchive(ctx context.Context, client *codersdk.Client, log slog.Logger, duration time.Duration) (*PprofCollection, error) {
-	if client == nil {
-		return nil, xerrors.New("client is nil")
-	}
-
-	body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
-		Duration: duration,
-		// Use the server defaults plus trace.
-		Profiles: []string{"cpu", "heap", "allocs", "block", "mutex", "goroutine", "threadcreate", "trace"},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("fetch consolidated profile: %w", err)
-	}
-	defer body.Close()
-
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return nil, xerrors.Errorf("read profile archive: %w", err)
-	}
-
-	var p PprofCollection
-	if client.URL != nil {
-		if u, err := client.URL.Parse("/api/v2/debug/profile"); err == nil {
-			p.EndpointURL = u.String()
-		}
-	}
-	if p.EndpointURL == "" {
-		p.EndpointURL = "/api/v2/debug/profile"
-	}
-	p.CollectedAt = time.Now()
-
-	// Parse the tar.gz archive and populate the PprofCollection.
-	gr, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, xerrors.Errorf("open gzip reader: %w", err)
-	}
-	defer gr.Close()
-
-	tr := tar.NewReader(gr)
-	for {
-		hdr, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, xerrors.Errorf("read tar entry %q: %w", hdr.Name, err)
-		}
-
-		content, err := io.ReadAll(tr)
-		if err != nil {
-			log.Warn(ctx, "failed to read tar entry", slog.F("name", hdr.Name), slog.Error(err))
-			continue
-		}
-
-		// Files in the archive are named like "cpu.prof", "heap.prof",
-		// "trace.out", etc. Compress binary profile data for storage in
-		// the bundle, matching what PprofInfo() does.
-		base := path.Base(hdr.Name)
-		switch base {
-		case "cpu.prof":
-			p.Profile = compressData(content)
-		case "heap.prof":
-			p.Heap = compressData(content)
-		case "allocs.prof":
-			p.Allocs = compressData(content)
-		case "block.prof":
-			p.Block = compressData(content)
-		case "mutex.prof":
-			p.Mutex = compressData(content)
-		case "goroutine.prof":
-			p.Goroutine = compressData(content)
-		case "threadcreate.prof":
-			p.Threadcreate = compressData(content)
-		case "trace.out":
-			p.Trace = compressData(content)
-		default:
-			log.Debug(ctx, "unknown profile in archive", slog.F("name", hdr.Name))
-		}
-	}
-
-	return &p, nil
-}
-
 func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log slog.Logger) *PprofCollection {
 	if conn == nil {
 		return nil
@@ -998,11 +886,11 @@ func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log sl
 	return &p
 }
 
-// CanGenerateFull checks if the user can generate a 'full' support bundle or
-// only has permissions to generate a 'partial' bundle.
-func CanGenerateFull(ctx context.Context, client *codersdk.Client) (bool, error) {
-	if client == nil {
-		return false, xerrors.Errorf("developer error: missing client!")
+// Run generates a support bundle with the given dependencies.
+func Run(ctx context.Context, d *Deps) (*Bundle, error) {
+	var b Bundle
+	if d.Client == nil {
+		return nil, xerrors.Errorf("developer error: missing client!")
 	}
 
 	authChecks := map[string]codersdk.AuthorizationCheck{
@@ -1014,28 +902,6 @@ func CanGenerateFull(ctx context.Context, client *codersdk.Client) (bool, error)
 		},
 	}
 
-	authResp, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
-	if err != nil {
-		// If the auth check itself fails (e.g., 401 Unauthorized
-		// because there is no valid session), this is a hard error.
-		return false, xerrors.Errorf("check authorization: %w", err)
-	}
-	for _, v := range authResp {
-		if !v { // all checks must pass
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-// Run generates a support bundle with the given dependencies.
-func Run(ctx context.Context, d *Deps) (*Bundle, error) {
-	var b Bundle
-	if d.Client == nil {
-		return nil, xerrors.Errorf("developer error: missing client!")
-	}
-
 	// Ensure we capture logs from the client.
 	var logw strings.Builder
 	d.Log = d.Log.AppendSinks(sloghuman.Sink(&logw))
@@ -1044,12 +910,15 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		b.Logs = strings.Split(logw.String(), "\n")
 	}()
 
-	// No point running without auth as minimal information available.
-	me, err := d.Client.User(ctx, codersdk.Me)
+	authResp, err := d.Client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
 	if err != nil {
-		return nil, err
+		return &b, xerrors.Errorf("check authorization: %w", err)
 	}
-	d.Log.Info(ctx, "running as user", slog.F("me", me))
+	for k, v := range authResp {
+		if !v {
+			return &b, xerrors.Errorf("failed authorization check: cannot %s", k)
+		}
+	}
 
 	totalCap := d.WorkspacesTotalCap
 
@@ -1180,16 +1049,7 @@ func collectPprof(ctx context.Context, d *Deps, b *Bundle) Pprof {
 		return pprof
 	}
 
-	// Try the consolidated /debug/profile endpoint first. It
-	// temporarily enables block/mutex profiling on the server and
-	// returns a single tar.gz archive.
-	serverPprof, err := PprofInfoFromArchive(ctx, d.Client, d.Log, 30*time.Second)
-	if err != nil {
-		d.Log.Warn(ctx, "consolidated profile endpoint unavailable, falling back to individual endpoints",
-			slog.Error(err))
-		// Fall back to the legacy per-profile endpoint approach.
-		serverPprof = PprofInfo(ctx, d.Client, d.Log)
-	}
+	serverPprof := PprofInfo(ctx, d.Client, d.Log)
 	if serverPprof != nil {
 		pprof.Server = serverPprof
 	}

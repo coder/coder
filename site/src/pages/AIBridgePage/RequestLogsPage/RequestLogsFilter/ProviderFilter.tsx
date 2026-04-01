@@ -1,12 +1,12 @@
-import type { FC } from "react";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "#/components/Filter/menu";
+} from "components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-} from "#/components/Filter/SelectFilter";
+} from "components/Filter/SelectFilter";
+import type { FC } from "react";
 import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
 
 const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [

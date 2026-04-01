@@ -1,3 +1,20 @@
+import type * as TypesGen from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { Latency } from "components/Latency/Latency";
+import type { ProxyContextValue } from "contexts/ProxyContext";
 import {
 	ChevronRightIcon,
 	CircleHelpIcon,
@@ -7,24 +24,7 @@ import {
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import type * as TypesGen from "#/api/typesGenerated";
-import { Avatar } from "#/components/Avatar/Avatar";
-import { Button } from "#/components/Button/Button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/Collapsible/Collapsible";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { Latency } from "#/components/Latency/Latency";
-import type { ProxyContextValue } from "#/contexts/ProxyContext";
-import { cn } from "#/utils/cn";
+import { cn } from "utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 const itemStyles = {

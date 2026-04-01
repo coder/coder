@@ -1,18 +1,18 @@
+import { API } from "api/api";
+import { cachedQuery } from "api/queries/util";
+import type { Region, WorkspaceProxy } from "api/typesGenerated";
+import { useAuthenticated } from "hooks";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	createContext,
 	type FC,
 	type PropsWithChildren,
+	useCallback,
 	useContext,
 	useEffect,
-	useMemo,
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { API } from "#/api/api";
-import { cachedQuery } from "#/api/queries/util";
-import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
@@ -95,6 +95,11 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// proxy.
 	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());
 
+	// Load the initial state from local storage.
+	const [proxy, setProxy] = useState<PreferredProxy>(
+		computeUsableURLS(userSavedProxy),
+	);
+
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
 
@@ -126,30 +131,43 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		loaded: latenciesLoaded,
 	} = useProxyLatency(proxiesResp);
 
-	const proxy = useMemo(
-		() =>
+	// updateProxy is a helper function that when called will
+	// update the proxy being used.
+	const updateProxy = useCallback(() => {
+		// Update the saved user proxy for the caller.
+		setUserSavedProxy(loadUserSelectedProxy());
+		setProxy(
 			getPreferredProxy(
 				proxiesResp ?? [],
-				userSavedProxy,
+				loadUserSelectedProxy(),
 				proxyLatencies,
-				// Do not auto select based on latencies, as inconsistent
-				// latencies can cause this to change on each call. The proxy
-				// value should be stable to prevent flickering.
+				// Do not auto select based on latencies, as inconsistent latencies can cause this
+				// to change on each call. updateProxy should be stable when selecting a proxy to
+				// prevent flickering.
 				false,
 			),
-		[proxiesResp, userSavedProxy, proxyLatencies],
-	);
+		);
+	}, [proxiesResp, proxyLatencies]);
+
+	// This useEffect ensures the proxy to be used is updated whenever the state changes.
+	// This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
+	useEffect(() => {
+		updateProxy();
+	}, [proxiesResp, proxyLatencies]);
 
 	// This useEffect will auto select the best proxy if the user has not selected one.
 	// It must wait until all latencies are loaded to select based on latency. This does mean
 	// the first time a user loads the page, the proxy will "flicker" to the best proxy.
 	//
 	// Once the page is loaded, or the user selects a proxy, this will not run again.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
 		if (loadUserSelectedProxy() !== undefined) {
 			return; // User has selected a proxy, do not auto select.
 		}
 		if (!latenciesLoaded) {
+			// Wait until the latencies are loaded first.
 			return;
 		}
 
@@ -162,7 +180,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 		if (best?.proxy) {
 			saveUserSelectedProxy(best.proxy);
-			setUserSavedProxy(best.proxy);
+			updateProxy();
 		}
 	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
 
@@ -181,12 +199,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 				// These functions are exposed to allow the user to select a proxy.
 				setProxy: (proxy: Region) => {
+					// Save to local storage to persist the user's preference across reloads
 					saveUserSelectedProxy(proxy);
-					setUserSavedProxy(proxy);
+					// Update the selected proxy
+					updateProxy();
 				},
 				clearProxy: () => {
+					// Clear the user's selection from local storage.
 					clearUserSelectedProxy();
-					setUserSavedProxy(undefined);
+					updateProxy();
 				},
 			}}
 		>

@@ -1,0 +1,709 @@
+import type { ChatQueuedMessage } from "api/typesGenerated";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "components/ai-elements";
+import { Button } from "components/Button/Button";
+import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "components/ChatMessageInput/ChatMessageInput";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import {
+	AlertTriangleIcon,
+	ArrowUpIcon,
+	ImageIcon,
+	Square,
+	XIcon,
+} from "lucide-react";
+import type React from "react";
+import { memo, type ReactNode, useCallback, useRef, useState } from "react";
+import { cn } from "utils/cn";
+import { ImageLightbox } from "./ImageLightbox";
+import { formatProviderLabel } from "./modelOptions";
+import { QueuedMessagesList } from "./QueuedMessagesList";
+
+export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+
+export type UploadState = {
+	status: "uploading" | "uploaded" | "error";
+	fileId?: string;
+	error?: string;
+};
+
+export interface AgentContextUsage {
+	readonly usedTokens?: number;
+	readonly contextLimitTokens?: number;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cacheReadTokens?: number;
+	readonly cacheCreationTokens?: number;
+	readonly reasoningTokens?: number;
+	// Percentage (0–100) at which the context will be compacted.
+	readonly compressionThreshold?: number;
+}
+
+interface AgentChatInputProps {
+	onSend: (message: string) => void;
+	placeholder?: string;
+	isDisabled: boolean;
+	isLoading: boolean;
+	// Ref for the Lexical editor, exposed for imperative access.
+	inputRef?: React.Ref<ChatMessageInputRef>;
+	// Initial text to seed the editor with.
+	initialValue?: string;
+	// Called on every text change inside the editor.
+	onContentChange?: (content: string) => void;
+	// Model selector.
+	selectedModel: string;
+	onModelChange: (value: string) => void;
+	modelOptions: readonly ModelSelectorOption[];
+	modelSelectorPlaceholder: string;
+	hasModelOptions: boolean;
+	// Status messages.
+	inputStatusText: string | null;
+	modelCatalogStatusMessage: string | null;
+	// Streaming controls (optional, for the detail page).
+	isStreaming?: boolean;
+	onInterrupt?: () => void;
+	isInterruptPending?: boolean;
+	// Extra controls rendered in the left action area (e.g. workspace
+	// selector on the create page).
+	leftActions?: ReactNode;
+	// Queued user messages rendered above the textarea.
+	queuedMessages?: readonly ChatQueuedMessage[];
+	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
+	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	// Queue editing state, owned by the parent.
+	editingQueuedMessageID?: number | null;
+	onStartQueueEdit?: (id: number, text: string) => void;
+	onCancelQueueEdit?: () => void;
+	// History editing state, owned by the parent.
+	isEditingHistoryMessage?: boolean;
+	onCancelHistoryEdit?: () => void;
+
+	// Optional context-usage summary shown to the left of the send button.
+	// Pass `null` to render fallback values (e.g. when limit is unknown).
+	// Omit entirely to hide the indicator.
+	contextUsage?: AgentContextUsage | null;
+	attachments?: readonly File[];
+	onAttach?: (files: File[]) => void;
+	onRemoveAttachment?: (index: number) => void;
+	uploadStates?: Map<File, UploadState>;
+	previewUrls?: Map<File, string>;
+}
+const hasFiniteTokenValue = (value: number | undefined): value is number =>
+	typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+const formatTokenCount = (value: number | undefined): string =>
+	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
+
+const formatTokenCountCompact = (value: number | undefined): string => {
+	if (!hasFiniteTokenValue(value)) {
+		return "--";
+	}
+	if (value >= 1_000_000) {
+		const m = value / 1_000_000;
+		return `${Number.isInteger(m) ? m : m.toFixed(1).replace(/\.0$/, "")}M`;
+	}
+	if (value >= 1_000) {
+		const k = value / 1_000;
+		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
+	}
+	return String(value);
+};
+
+const getIndicatorToneClassName = (percentUsed: number | null): string => {
+	if (percentUsed === null) {
+		return "text-content-secondary/60";
+	}
+	if (percentUsed >= 95) {
+		return "text-content-destructive";
+	}
+	if (percentUsed >= 85) {
+		return "text-content-warning";
+	}
+	return "text-content-secondary/60";
+};
+
+const RING_SIZE = 18;
+const RING_STROKE = 2.5;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
+	({ usage }) => {
+		const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
+			? usage.usedTokens
+			: undefined;
+		const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
+			? usage.contextLimitTokens
+			: undefined;
+		const percentUsed =
+			usedTokens !== undefined &&
+			contextLimitTokens !== undefined &&
+			contextLimitTokens > 0
+				? (usedTokens / contextLimitTokens) * 100
+				: null;
+		const hasPercent = percentUsed !== null;
+		const percentLabel =
+			percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+		const clampedPercent = hasPercent
+			? Math.min(Math.max(percentUsed, 0), 100)
+			: 100;
+		const dashOffset =
+			RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
+		const toneClassName = getIndicatorToneClassName(percentUsed);
+		const ariaLabel = hasPercent
+			? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
+			: "Context usage";
+
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						aria-label={ariaLabel}
+						className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+					>
+						<svg
+							className={cn("size-icon-sm -rotate-90", toneClassName)}
+							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+							aria-hidden
+						>
+							<circle
+								cx={RING_SIZE / 2}
+								cy={RING_SIZE / 2}
+								r={RING_RADIUS}
+								fill="none"
+								strokeWidth={RING_STROKE}
+								className="stroke-content-secondary/25"
+							/>
+							<circle
+								cx={RING_SIZE / 2}
+								cy={RING_SIZE / 2}
+								r={RING_RADIUS}
+								fill="none"
+								strokeWidth={RING_STROKE}
+								strokeLinecap="round"
+								className="stroke-current transition-all duration-300 ease-out"
+								style={{
+									strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
+									strokeDashoffset: dashOffset,
+								}}
+							/>
+						</svg>
+					</button>
+				</TooltipTrigger>
+				<TooltipContent side="top">
+					<div className="text-xs text-content-primary">
+						{hasPercent
+							? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+							: "Context usage unavailable"}
+						{hasPercent &&
+							usage?.compressionThreshold !== undefined &&
+							usage.compressionThreshold > 0 && (
+								<div className="mt-1 text-content-secondary">
+									Compacts at {usage.compressionThreshold}%
+								</div>
+							)}
+					</div>
+				</TooltipContent>
+			</Tooltip>
+		);
+	},
+);
+ContextUsageIndicator.displayName = "ContextUsageIndicator";
+
+/** Renders an image thumbnail from a pre-created preview URL. */
+export const ImageThumbnail = memo<{
+	previewUrl: string;
+	name: string;
+	className?: string;
+}>(({ previewUrl, name, className }) => (
+	<img
+		src={previewUrl}
+		alt={name}
+		className={cn(
+			"h-16 w-16 rounded-md border border-border-default object-cover",
+			className,
+		)}
+	/>
+));
+ImageThumbnail.displayName = "ImageThumbnail";
+
+/** Renders a horizontal strip of attachment thumbnails above the input. */
+export const AttachmentPreview = memo<{
+	attachments: readonly File[];
+	onRemove: (index: number) => void;
+	uploadStates?: Map<File, UploadState>;
+	previewUrls?: Map<File, string>;
+	onPreview?: (url: string) => void;
+}>(({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
+	if (attachments.length === 0) return null;
+
+	return (
+		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
+			{attachments.map((file, index) => {
+				const uploadState = uploadStates?.get(file);
+				const previewUrl = previewUrls?.get(file) ?? "";
+				return (
+					<div
+						// Key combines file metadata with index as a fallback for
+						// duplicate names. Acceptable for a small, append-only list.
+						key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+						className="group relative"
+					>
+						{file.type.startsWith("image/") && previewUrl ? (
+							<button
+								type="button"
+								className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
+								onClick={() => onPreview?.(previewUrl)}
+							>
+								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
+							</button>
+						) : (
+							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
+								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
+							</div>
+						)}
+						{uploadState?.status === "uploading" && (
+							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
+								<Spinner className="h-5 w-5 text-white" loading />
+							</div>
+						)}
+						{uploadState?.status === "error" && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div
+										className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
+										role="img"
+										aria-label="Upload error"
+									>
+										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
+									</div>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									<p className="max-w-xs text-xs">
+										{uploadState.error ?? "Upload failed"}
+									</p>
+								</TooltipContent>
+							</Tooltip>
+						)}
+						<button
+							type="button"
+							onClick={() => onRemove(index)}
+							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-border-default bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+							aria-label={`Remove ${file.name}`}
+						>
+							<XIcon className="h-3.5 w-3.5" />
+						</button>
+					</div>
+				);
+			})}
+		</div>
+	);
+});
+AttachmentPreview.displayName = "AttachmentPreview";
+
+export const AgentChatInput = memo<AgentChatInputProps>(
+	({
+		onSend,
+		placeholder = "Type a message...",
+		isDisabled,
+		isLoading,
+		inputRef,
+		initialValue,
+		onContentChange,
+		selectedModel,
+		onModelChange,
+		modelOptions,
+		modelSelectorPlaceholder,
+		hasModelOptions,
+		inputStatusText,
+		modelCatalogStatusMessage,
+		isStreaming = false,
+		onInterrupt,
+		isInterruptPending = false,
+		leftActions,
+		queuedMessages = [],
+		onDeleteQueuedMessage,
+		onPromoteQueuedMessage,
+		editingQueuedMessageID = null,
+		onStartQueueEdit,
+		onCancelQueueEdit,
+		isEditingHistoryMessage = false,
+		onCancelHistoryEdit,
+		contextUsage,
+		attachments = [],
+		onAttach,
+		onRemoveAttachment,
+		uploadStates,
+		previewUrls,
+	}) => {
+		const internalRef = useRef<ChatMessageInputRef>(null);
+		const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+		const [hasFileReferences, setHasFileReferences] = useState(false);
+
+		// Merge the external inputRef with our internal ref so both
+		// point to the same ChatMessageInputRef instance.
+		const setRef = useCallback(
+			(instance: ChatMessageInputRef | null) => {
+				(
+					internalRef as React.MutableRefObject<ChatMessageInputRef | null>
+				).current = instance;
+				if (typeof inputRef === "function") {
+					inputRef(instance);
+				} else if (inputRef && typeof inputRef === "object") {
+					(
+						inputRef as React.MutableRefObject<ChatMessageInputRef | null>
+					).current = instance;
+				}
+			},
+			[inputRef],
+		);
+
+		const fileInputRef = useRef<HTMLInputElement>(null);
+
+		const handleFileSelect = useCallback(
+			(e: React.ChangeEvent<HTMLInputElement>) => {
+				if (e.target.files && onAttach) {
+					onAttach(Array.from(e.target.files));
+				}
+				// Reset so the same file can be selected again.
+				e.target.value = "";
+			},
+			[onAttach],
+		);
+
+		const handleFilePaste = useCallback(
+			(file: File) => {
+				onAttach?.([file]);
+			},
+			[onAttach],
+		);
+
+		// Drag-and-drop support for image files.
+		const [isDragging, setIsDragging] = useState(false);
+
+		const handleDragOver = useCallback((e: React.DragEvent) => {
+			e.preventDefault();
+			if (e.dataTransfer.types.includes("Files")) {
+				setIsDragging(true);
+			}
+		}, []);
+
+		const handleDragLeave = useCallback((e: React.DragEvent) => {
+			if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+				setIsDragging(false);
+			}
+		}, []);
+
+		const handleDrop = useCallback(
+			(e: React.DragEvent) => {
+				e.preventDefault();
+				setIsDragging(false);
+				if (!onAttach || !e.dataTransfer.files.length) return;
+				const images = Array.from(e.dataTransfer.files).filter((f) =>
+					f.type.startsWith("image/"),
+				);
+				if (images.length > 0) {
+					onAttach(images);
+				}
+			},
+			[onAttach],
+		);
+
+		// Track whether the editor has content so we can gate the
+		// send button without a controlled value prop.
+		const [hasContent, setHasContent] = useState(() =>
+			Boolean(initialValue?.trim()),
+		);
+
+		const handleContentChange = useCallback(
+			(content: string, hasRefs: boolean) => {
+				setHasContent(Boolean(content.trim()));
+				setHasFileReferences(hasRefs);
+				onContentChange?.(content);
+			},
+			[onContentChange],
+		);
+
+		// Re-focus the editor after a send completes (isLoading goes
+		// from true → false) so the user can immediately type again.
+		// Uses the "store previous value in state" pattern recommended
+		// by React for responding to prop changes during render.
+		const [prevIsLoading, setPrevIsLoading] = useState(isLoading);
+		if (prevIsLoading !== isLoading) {
+			setPrevIsLoading(isLoading);
+			if (prevIsLoading && !isLoading) {
+				internalRef.current?.focus();
+			}
+		}
+
+		const isUploading = attachments.some(
+			(f) => uploadStates?.get(f)?.status === "uploading",
+		);
+		const hasUploadedAttachments = attachments.some(
+			(f) => uploadStates?.get(f)?.status === "uploaded",
+		);
+		const canSend =
+			!isDisabled &&
+			!isLoading &&
+			hasModelOptions &&
+			(hasContent || hasUploadedAttachments || hasFileReferences) &&
+			!isUploading;
+		const handleSubmit = useCallback(() => {
+			const text = internalRef.current?.getValue()?.trim() ?? "";
+
+			// If the input is empty and there are queued messages,
+			// promote the first one instead of submitting.
+			if (
+				!text &&
+				!hasUploadedAttachments &&
+				!hasFileReferences &&
+				!isDisabled &&
+				!isLoading &&
+				queuedMessages.length > 0 &&
+				onPromoteQueuedMessage
+			) {
+				void onPromoteQueuedMessage(queuedMessages[0].id);
+				return;
+			}
+
+			if (
+				(!text && !hasUploadedAttachments && !hasFileReferences) ||
+				isDisabled ||
+				isLoading ||
+				!hasModelOptions
+			) {
+				return;
+			}
+			onSend(text);
+			internalRef.current?.focus();
+		}, [
+			isDisabled,
+			isLoading,
+			hasModelOptions,
+			hasUploadedAttachments,
+			hasFileReferences,
+			onSend,
+			queuedMessages,
+			onPromoteQueuedMessage,
+		]);
+		const handleKeyDown = (e: React.KeyboardEvent) => {
+			if (e.key === "Escape") {
+				if (editingQueuedMessageID !== null) {
+					e.preventDefault();
+					onCancelQueueEdit?.();
+				} else if (isEditingHistoryMessage) {
+					e.preventDefault();
+					onCancelHistoryEdit?.();
+				} else if (isStreaming && onInterrupt && !isInterruptPending) {
+					e.preventDefault();
+					onInterrupt();
+				}
+			}
+		};
+
+		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
+
+		const content = (
+			<div className="mx-auto w-full max-w-3xl pb-4">
+				{queuedMessages.length > 0 && (
+					<QueuedMessagesList
+						messages={queuedMessages}
+						onDelete={(id) => {
+							if (id === editingQueuedMessageID) {
+								onCancelQueueEdit?.();
+							}
+							void onDeleteQueuedMessage?.(id);
+						}}
+						onPromote={(id) => {
+							if (id === editingQueuedMessageID) {
+								onCancelQueueEdit?.();
+							}
+							void onPromoteQueuedMessage?.(id);
+						}}
+						onEdit={onStartQueueEdit}
+						editingMessageID={editingQueuedMessageID}
+						className="mb-2"
+					/>
+				)}
+				<div
+					className={cn(
+						"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+						isDragging && "ring-2 ring-content-link/40",
+					)}
+					onKeyDown={handleKeyDown}
+					onDragOver={onAttach ? handleDragOver : undefined}
+					onDragLeave={onAttach ? handleDragLeave : undefined}
+					onDrop={onAttach ? handleDrop : undefined}
+				>
+					{editingQueuedMessageID !== null && (
+						<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
+							<span className="text-sm text-content-secondary">
+								Editing queued message
+							</span>
+							<Button
+								type="button"
+								variant="subtle"
+								size="sm"
+								onClick={onCancelQueueEdit}
+								className="h-7 px-2 text-content-secondary hover:text-content-primary"
+							>
+								Cancel
+							</Button>
+						</div>
+					)}
+					{isEditingHistoryMessage && editingQueuedMessageID === null && (
+						<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
+							<span className="flex items-center gap-1.5 text-sm text-content-secondary">
+								{isLoading && <Spinner className="h-3.5 w-3.5" loading />}
+								{isLoading ? "Saving edit..." : "Editing message"}
+							</span>
+							<Button
+								type="button"
+								variant="subtle"
+								size="icon"
+								aria-label="Cancel editing"
+								onClick={onCancelHistoryEdit}
+								disabled={isLoading}
+								className="size-6 rounded text-content-secondary hover:text-content-primary"
+							>
+								<XIcon className="h-3.5 w-3.5" />
+							</Button>
+						</div>
+					)}
+					{onRemoveAttachment && (
+						<AttachmentPreview
+							attachments={attachments}
+							onRemove={onRemoveAttachment}
+							uploadStates={uploadStates}
+							previewUrls={previewUrls}
+							onPreview={setPreviewImage}
+						/>
+					)}
+					<ChatMessageInput
+						ref={setRef}
+						onFilePaste={onAttach ? handleFilePaste : undefined}
+						aria-label="Chat message"
+						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						placeholder={placeholder}
+						initialValue={initialValue}
+						onChange={handleContentChange}
+						onEnter={handleSubmit}
+						disabled={isDisabled || isLoading}
+						rows={4}
+						autoFocus
+					/>{" "}
+					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+						<div className="flex min-w-0 items-center gap-2">
+							<ModelSelector
+								value={selectedModel}
+								onValueChange={onModelChange}
+								options={modelOptions}
+								disabled={isDisabled}
+								placeholder={modelSelectorPlaceholder}
+								formatProviderLabel={formatProviderLabel}
+								dropdownSide="top"
+								dropdownAlign="center"
+							/>
+							{leftActions}
+							{inputStatusText && (
+								<span className="hidden text-xs text-content-secondary sm:inline">
+									{inputStatusText}
+								</span>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							{onAttach && (
+								<>
+									<input
+										ref={fileInputRef}
+										type="file"
+										multiple
+										accept="image/*"
+										onChange={handleFileSelect}
+										className="hidden"
+									/>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+										onClick={() => fileInputRef.current?.click()}
+										disabled={isDisabled}
+										aria-label="Attach files"
+									>
+										<ImageIcon />
+									</Button>
+								</>
+							)}
+							{contextUsage !== undefined && (
+								<ContextUsageIndicator usage={contextUsage} />
+							)}{" "}
+							{isStreaming && onInterrupt && (
+								<Button
+									size="icon"
+									variant="default"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+									onClick={onInterrupt}
+									disabled={isInterruptPending}
+								>
+									<Square className="fill-current" />
+									<span className="sr-only">Stop</span>
+								</Button>
+							)}
+							{!(isStreaming && editingQueuedMessageID === null) && (
+								<Button
+									size="icon"
+									variant="default"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+									onClick={handleSubmit}
+									disabled={!canSend}
+								>
+									{isLoading ? (
+										<Spinner size="sm" loading aria-hidden="true" />
+									) : (
+										<ArrowUpIcon />
+									)}
+									<span className="sr-only">{sendButtonLabel}</span>
+								</Button>
+							)}
+						</div>
+					</div>
+					{inputStatusText && (
+						<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
+							{inputStatusText}
+						</div>
+					)}
+					{modelCatalogStatusMessage && (
+						<div className="px-2.5 pb-1 text-2xs text-content-secondary">
+							{modelCatalogStatusMessage}
+						</div>
+					)}
+				</div>
+			</div>
+		);
+
+		return (
+			<>
+				{content}
+				{previewImage && (
+					<ImageLightbox
+						src={previewImage}
+						onClose={() => setPreviewImage(null)}
+					/>
+				)}
+			</>
+		);
+	},
+);
+AgentChatInput.displayName = "AgentChatInput";

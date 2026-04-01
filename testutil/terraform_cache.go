@@ -10,7 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -34,7 +34,7 @@ func hashTemplateFilesAndTestName(t *testing.T, testName string, templateFiles m
 	for fileName := range templateFiles {
 		sortedFileNames = append(sortedFileNames, fileName)
 	}
-	slices.Sort(sortedFileNames)
+	sort.Strings(sortedFileNames)
 
 	// Inserting a delimiter between the file name and the file content
 	// ensures that a file named `ab` with content `cd`

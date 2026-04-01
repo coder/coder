@@ -1,13 +1,13 @@
-import { EllipsisVertical } from "lucide-react";
-import { type FC, useId, useState } from "react";
-import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Button } from "components/Button/Button";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
+} from "components/DropdownMenu/DropdownMenu";
+import { EllipsisVertical } from "lucide-react";
+import { type FC, useId, useState } from "react";
 
 type AgentDevcontainerMoreActionsProps = {
 	deleteDevContainer: () => void;

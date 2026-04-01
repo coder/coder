@@ -1,25 +1,24 @@
-import { InfoIcon, NetworkIcon } from "lucide-react";
-import { type FC, type KeyboardEvent, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import userAgentParser from "ua-parser-js";
-import type { AuditLog, BuildReason } from "#/api/typesGenerated";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Avatar } from "#/components/Avatar/Avatar";
+import type { AuditLog, BuildReason } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Collapsible,
 	CollapsibleContent,
-} from "#/components/Collapsible/Collapsible";
-import { Link } from "#/components/Link/Link";
-import { StatusPill } from "#/components/StatusPill/StatusPill";
-import { TableCell } from "#/components/Table/Table";
-import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
+} from "components/Collapsible/Collapsible";
+import { Link } from "components/Link/Link";
+import { StatusPill } from "components/StatusPill/StatusPill";
+import { TableCell } from "components/Table/Table";
+import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
-import { buildReasonLabels } from "#/utils/workspace";
+} from "components/Tooltip/Tooltip";
+import { InfoIcon, NetworkIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router";
+import userAgentParser from "ua-parser-js";
+import { buildReasonLabels } from "utils/workspace";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import {
@@ -76,22 +75,16 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 			<TableCell className="!p-0 border-0 border-b text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
 					<div
-						className={cn(
-							"flex flex-row items-center gap-4 py-4 px-8",
-							shouldDisplayDiff && "cursor-pointer",
-						)}
-						{...(shouldDisplayDiff && {
-							tabIndex: 0,
-							role: "button",
-							"aria-expanded": isDiffOpen,
-							onClick: toggle,
-							onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
-								if (event.key === "Enter" || event.key === " ") {
-									event.preventDefault();
-									toggle();
-								}
-							},
-						})}
+						className="flex flex-row items-center gap-4 py-4 px-8"
+						tabIndex={0}
+						role="button"
+						onClick={toggle}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" || event.key === " ") {
+								event.preventDefault();
+								toggle();
+							}
+						}}
 					>
 						<div className="flex flex-row items-center gap-4 flex-1">
 							<div className="flex flex-row items-center gap-4 w-full">

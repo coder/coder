@@ -26,7 +26,6 @@ func TestCustomQueriesSyncedRowScan(t *testing.T) {
 		"GetTemplatesWithFilter": "GetAuthorizedTemplates",
 		"GetWorkspaces":          "GetAuthorizedWorkspaces",
 		"GetUsers":               "GetAuthorizedUsers",
-		"GetChats":               "GetAuthorizedChats",
 	}
 
 	// Scan custom

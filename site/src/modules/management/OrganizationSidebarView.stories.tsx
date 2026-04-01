@@ -1,6 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
-import type { Organization } from "#/api/typesGenerated";
 import {
 	MockNoOrganizationPermissions,
 	MockNoPermissions,
@@ -8,8 +5,11 @@ import {
 	MockOrganization2,
 	MockOrganizationPermissions,
 	MockPermissions,
-} from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+} from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Organization } from "api/typesGenerated";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { OrganizationSidebarView } from "./OrganizationSidebarView";
 
 const meta: Meta<typeof OrganizationSidebarView> = {

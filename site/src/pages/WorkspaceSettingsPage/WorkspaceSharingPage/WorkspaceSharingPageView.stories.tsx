@@ -1,10 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getWorkspaceSharingSettingsKey } from "#/api/queries/organizations";
-import type {
-	WorkspaceACL,
-	WorkspaceGroup,
-	WorkspaceUser,
-} from "#/api/typesGenerated";
 import {
 	MockGroup,
 	MockGroup2,
@@ -12,7 +5,14 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	mockApiError,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getWorkspaceSharingSettingsKey } from "api/queries/organizations";
+import type {
+	WorkspaceACL,
+	WorkspaceGroup,
+	WorkspaceUser,
+} from "api/typesGenerated";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const mockWorkspaceUser: WorkspaceUser = {

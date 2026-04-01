@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
+import { permissionChecks } from "modules/permissions";
 import { HttpResponse, http } from "msw";
-import type { CreateWorkspaceBuildRequest } from "#/api/typesGenerated";
-import { permissionChecks } from "#/modules/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 
@@ -343,7 +343,7 @@ export const handlers = [
 			path.resolve(__dirname, "./templateFiles.tar"),
 		);
 
-		return new HttpResponse(fileBuffer);
+		return HttpResponse.arrayBuffer(fileBuffer);
 	}),
 
 	http.get("/api/v2/templateversions/:templateVersionId/parameters", () => {

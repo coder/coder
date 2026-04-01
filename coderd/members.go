@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -180,17 +179,7 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var aiSeatSet map[uuid.UUID]struct{}
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
-		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, []uuid.UUID{member.UserID})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-	}
-
-	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows, aiSeatSet)
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -238,21 +227,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDs := make([]uuid.UUID, 0, len(members))
-	for _, member := range members {
-		userIDs = append(userIDs, member.OrganizationMember.UserID)
-	}
-	var aiSeatSet map[uuid.UUID]struct{}
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
-		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-	}
-
-	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members, aiSeatSet)
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -267,52 +242,27 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
-// @Param q query string false "Member search query"
-// @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit, if 0 returns all members"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
 // @Router /organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx          = r.Context()
-		organization = httpmw.OrganizationParam(r)
+		ctx                  = r.Context()
+		organization         = httpmw.OrganizationParam(r)
+		paginationParams, ok = ParsePagination(rw, r)
 	)
-
-	filterQuery := r.URL.Query().Get("q")
-	userFilterParams, filterErrs := searchquery.Users(filterQuery)
-	if len(filterErrs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid member search query.",
-			Validations: filterErrs,
-		})
-		return
-	}
-
-	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
 
 	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
-		AfterID:          paginationParams.AfterID,
-		OrganizationID:   organization.ID,
-		IncludeSystem:    false,
-		Search:           userFilterParams.Search,
-		Name:             userFilterParams.Name,
-		Status:           userFilterParams.Status,
-		IsServiceAccount: userFilterParams.IsServiceAccount,
-		RbacRole:         userFilterParams.RbacRole,
-		LastSeenBefore:   userFilterParams.LastSeenBefore,
-		LastSeenAfter:    userFilterParams.LastSeenAfter,
-		CreatedAfter:     userFilterParams.CreatedAfter,
-		CreatedBefore:    userFilterParams.CreatedBefore,
-		GithubComUserID:  userFilterParams.GithubComUserID,
-		LoginType:        userFilterParams.LoginType,
-		// #nosec G115 - Pagination offsets are small and fit in int32
-		OffsetOpt: int32(paginationParams.Offset),
+		OrganizationID: organization.ID,
+		IncludeSystem:  false,
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -323,50 +273,23 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberRows := make([]database.OrganizationMembersRow, len(paginatedMemberRows))
-	for i, pRow := range paginatedMemberRows {
-		memberRows[i] = database.OrganizationMembersRow{
+	memberRows := make([]database.OrganizationMembersRow, 0)
+	for _, pRow := range paginatedMemberRows {
+		row := database.OrganizationMembersRow{
 			OrganizationMember: pRow.OrganizationMember,
 			Username:           pRow.Username,
 			AvatarURL:          pRow.AvatarURL,
 			Name:               pRow.Name,
 			Email:              pRow.Email,
 			GlobalRoles:        pRow.GlobalRoles,
-			LastSeenAt:         pRow.LastSeenAt,
-			Status:             pRow.Status,
-			IsServiceAccount:   pRow.IsServiceAccount,
-			LoginType:          pRow.LoginType,
-			UserCreatedAt:      pRow.UserCreatedAt,
-			UserUpdatedAt:      pRow.UserUpdatedAt,
 		}
+
+		memberRows = append(memberRows, row)
 	}
 
-	if len(paginatedMemberRows) == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.PaginatedMembersResponse{
-			Members: []codersdk.OrganizationMemberWithUserData{},
-			Count:   0,
-		})
-		return
-	}
-
-	userIDs := make([]uuid.UUID, 0, len(memberRows))
-	for _, member := range memberRows {
-		userIDs = append(userIDs, member.OrganizationMember.UserID)
-	}
-	var aiSeatSet map[uuid.UUID]struct{}
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
-		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-	}
-
-	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows, aiSeatSet)
+	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
-		return
 	}
 
 	resp := codersdk.PaginatedMembersResponse{
@@ -374,23 +297,6 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		Count:   int(paginatedMemberRows[0].Count),
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
-func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
-	aiSeatUserIDs, err := db.GetUserAISeatStates(ctx, userIDs)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
-	for _, uid := range aiSeatUserIDs {
-		aiSeatSet[uid] = struct{}{}
-	}
-
-	return aiSeatSet, nil
 }
 
 // @Summary Assign role to organization member
@@ -564,7 +470,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	return converted, nil
 }
 
-func convertOrganizationMembersWithUserData(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow, aiSeatSet map[uuid.UUID]struct{}) ([]codersdk.OrganizationMemberWithUserData, error) {
+func convertOrganizationMembersWithUserData(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow) ([]codersdk.OrganizationMemberWithUserData, error) {
 	members := make([]database.OrganizationMember, 0)
 	for _, row := range rows {
 		members = append(members, row.OrganizationMember)
@@ -580,20 +486,12 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 
 	converted := make([]codersdk.OrganizationMemberWithUserData, 0)
 	for i := range convertedMembers {
-		_, hasAISeat := aiSeatSet[rows[i].OrganizationMember.UserID]
 		converted = append(converted, codersdk.OrganizationMemberWithUserData{
 			Username:           rows[i].Username,
 			AvatarURL:          rows[i].AvatarURL,
 			Name:               rows[i].Name,
 			Email:              rows[i].Email,
 			GlobalRoles:        db2sdk.SlimRolesFromNames(rows[i].GlobalRoles),
-			HasAISeat:          hasAISeat,
-			LastSeenAt:         rows[i].LastSeenAt,
-			Status:             codersdk.UserStatus(rows[i].Status),
-			IsServiceAccount:   rows[i].IsServiceAccount,
-			LoginType:          codersdk.LoginType(rows[i].LoginType),
-			UserCreatedAt:      rows[i].UserCreatedAt,
-			UserUpdatedAt:      rows[i].UserUpdatedAt,
 			OrganizationMember: convertedMembers[i],
 		})
 	}

@@ -1,26 +1,19 @@
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
-import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	deleteOrganization,
 	patchWorkspaceSharingSettings,
 	updateOrganization,
 	workspaceSharingSettings,
-} from "#/api/queries/organizations";
-import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { pageTitle } from "#/utils/page";
+} from "api/queries/organizations";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "modules/permissions/RequirePermission";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { pageTitle } from "utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
-
-const sharingUpdatedToastLabels: Record<ShareableWorkspaceOwners, string> = {
-	none: "Workspace sharing disabled.",
-	service_accounts: "Workspace sharing restricted to service accounts.",
-	everyone: "Workspace sharing enabled for all users.",
-};
 
 const OrganizationSettingsPage: FC = () => {
 	const navigate = useNavigate();
@@ -65,18 +58,19 @@ const OrganizationSettingsPage: FC = () => {
 	const error =
 		updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
-	const handleChangeShareableOwners = async (
-		value: ShareableWorkspaceOwners,
-	) => {
+	const handleToggleWorkspaceSharing = async (enabled: boolean) => {
 		const mutation = patchSharingSettingsMutation.mutateAsync({
-			shareable_workspace_owners: value,
+			sharing_disabled: !enabled,
 		});
-
 		toast.promise(mutation, {
-			loading: "Updating workspace sharing settings...",
-			success: sharingUpdatedToastLabels[value],
+			loading: "Toggling workspace sharing...",
+			success: enabled
+				? "Workspace sharing enabled."
+				: "Workspace sharing disabled.",
 			error: (error) => ({
-				message: "Failed to update workspace sharing settings.",
+				message: enabled
+					? "Failed to enable workspace sharing."
+					: "Failed to disable workspace sharing.",
 				description: getErrorDetail(error),
 			}),
 		});
@@ -121,10 +115,10 @@ const OrganizationSettingsPage: FC = () => {
 				workspaceSharingGloballyDisabled={
 					sharingSettingsQuery.data?.sharing_globally_disabled
 				}
-				shareableWorkspaceOwners={
-					sharingSettingsQuery.data?.shareable_workspace_owners ?? "none"
+				workspaceSharingEnabled={
+					!(sharingSettingsQuery.data?.sharing_disabled ?? false)
 				}
-				onChangeShareableOwners={handleChangeShareableOwners}
+				onToggleWorkspaceSharing={handleToggleWorkspaceSharing}
 				isTogglingWorkspaceSharing={patchSharingSettingsMutation.isPending}
 			/>
 		</>

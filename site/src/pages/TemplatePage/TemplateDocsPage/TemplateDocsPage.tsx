@@ -1,8 +1,9 @@
 import { useTheme } from "@emotion/react";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import frontMatter from "front-matter";
-import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
-import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
-import { pageTitle } from "#/utils/page";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+
+import { pageTitle } from "utils/page";
 
 export default function TemplateDocsPage() {
 	const { template, activeVersion } = useTemplateLayoutContext();
@@ -32,7 +33,13 @@ export default function TemplateDocsPage() {
 				>
 					README.md
 				</div>
-				<div className="px-6 pb-10 max-w-[800px] mx-auto">
+				<div
+					css={{
+						padding: "0 24px 40px",
+						maxWidth: 800,
+						margin: "auto",
+					}}
+				>
 					<MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
 				</div>
 			</div>

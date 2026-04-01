@@ -1,11 +1,11 @@
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
+import type { GitSSHKey } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import type { GitSSHKey } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
-import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { Stack } from "#/components/Stack/Stack";
 
 interface SSHKeysPageViewProps {
 	isLoading: boolean;
@@ -24,7 +24,7 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 
 	if (isLoading) {
 		return (
-			<div className="p-8">
+			<div css={{ padding: 32 }}>
 				<CircularProgress size={26} />
 			</div>
 		);

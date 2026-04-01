@@ -17,8 +17,4 @@ const meta: Meta<typeof CreateTokenPage> = {
 export default meta;
 type Story = StoryObj<typeof CreateTokenPage>;
 
-export const Default: Story = {
-	args: {
-		now: new Date("2026-03-12T12:00:00Z"),
-	},
-};
+export const Default: Story = {};

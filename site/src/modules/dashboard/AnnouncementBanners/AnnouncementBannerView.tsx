@@ -1,6 +1,6 @@
+import { InlineMarkdown } from "components/Markdown/Markdown";
 import type { FC } from "react";
-import { InlineMarkdown } from "#/components/Markdown/Markdown";
-import { readableForegroundColor } from "#/utils/colors";
+import { readableForegroundColor } from "utils/colors";
 
 interface AnnouncementBannerViewProps {
 	message: string;

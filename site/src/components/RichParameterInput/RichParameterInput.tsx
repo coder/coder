@@ -5,23 +5,23 @@ import type { InputBaseComponentProps } from "@mui/material/InputBase";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { CircleAlertIcon, SettingsIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
-import type { TemplateVersionParameter } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
-import { Pill } from "#/components/Pill/Pill";
-import { Stack } from "#/components/Stack/Stack";
+import type { TemplateVersionParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { Pill } from "components/Pill/Pill";
+import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+} from "components/Tooltip/Tooltip";
+import { CircleAlertIcon, SettingsIcon } from "lucide-react";
+import { type FC, type ReactNode, useState } from "react";
 import type {
 	AutofillBuildParameter,
 	AutofillSource,
-} from "#/utils/richParameters";
+} from "utils/richParameters";
 import { TagInput } from "../TagInput/TagInput";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
@@ -242,7 +242,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 			data-testid={`parameter-field-${parameter.name}`}
 		>
 			<ParameterLabel parameter={parameter} isPreset={isPreset} />
-			<div className="flex flex-col">
+			<div css={{ display: "flex", flexDirection: "column" }}>
 				<RichParameterField
 					{...fieldProps}
 					onChange={onChange}
@@ -271,7 +271,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 						</FormHelperText>
 					)}
 				{autofillSource && autofillDescription[autofillSource] && (
-					<div className="mt-1 text-xs">
+					<div css={{ marginTop: 4, fontSize: 12 }}>
 						🪄 Autofilled {autofillDescription[autofillSource]}
 					</div>
 				)}
@@ -345,7 +345,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 										spacing={small ? 1 : 0}
 										alignItems={small ? "center" : undefined}
 										direction={small ? "row" : "column"}
-										className={small ? undefined : "py-1"}
+										css={{ padding: small ? undefined : "4px 0" }}
 									>
 										{small ? (
 											<Tooltip>

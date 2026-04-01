@@ -18,9 +18,11 @@ type Story = StoryObj<typeof InfoTooltip>;
 export const Example: Story = {
 	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(meta.args.message),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					meta.args.message,
+				),
 			);
 		});
 	},
@@ -33,9 +35,9 @@ export const Notice = {
 	},
 	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
 					Notice.args.message,
 				),
 			);
@@ -50,9 +52,9 @@ export const Warning = {
 	},
 	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
-			await userEvent.click(screen.getByRole("button"));
+			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("dialog")).toHaveTextContent(
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
 					Warning.args.message,
 				),
 			);

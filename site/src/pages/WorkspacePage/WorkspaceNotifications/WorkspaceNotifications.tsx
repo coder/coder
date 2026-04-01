@@ -1,24 +1,23 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
-import { workspaceResolveAutostart } from "#/api/queries/workspaceQuota";
+import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
 	Template,
 	TemplateVersion,
 	Workspace,
 	WorkspaceBuild,
-} from "#/api/typesGenerated";
-import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
-import { getAgentHealthIssue } from "#/modules/workspaces/health";
+} from "api/typesGenerated";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import { type FC, useEffect, useState } from "react";
 
 dayjs.extend(relativeTime);
 
 import { useQuery } from "react-query";
-import { formatDate } from "#/utils/time";
+import { formatDate } from "utils/time";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	NotificationActionButton,
@@ -93,12 +92,19 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	) {
 		const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
 		const hasActions = permissions.updateWorkspace || troubleshootingURL;
-		const healthIssue = getAgentHealthIssue(workspace);
 
 		notifications.push({
-			title: healthIssue.title,
-			severity: healthIssue.severity,
-			detail: healthIssue.detail,
+			title: "Workspace is unhealthy",
+			severity: "warning",
+			detail: (
+				<>
+					Your workspace is running but{" "}
+					{workspace.health.failing_agents.length > 1
+						? `${workspace.health.failing_agents.length} agents are unhealthy`
+						: "1 agent is unhealthy"}
+					.
+				</>
+			),
 			actions: hasActions ? (
 				<>
 					{permissions.updateWorkspace && (
@@ -208,7 +214,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 					This workspace build job is waiting for a provisioner to become
 					available. If you have been waiting for an extended period of time,
 					please contact your administrator for assistance.
-					<span className="block mt-3">
+					<span css={{ display: "block", marginTop: 12 }}>
 						Position in queue:{" "}
 						<strong>{workspace.latest_build.job.queue_position}</strong>
 					</span>

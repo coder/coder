@@ -46,7 +46,7 @@ type OneWayEventCallback<TData, TEvent extends WebSocketEventType> = (
 	payload: OneWayEventPayloadMap<TData>[TEvent],
 ) => void;
 
-export interface OneWayWebSocketApi<TData> {
+interface OneWayWebSocketApi<TData> {
 	get url(): string;
 
 	addEventListener: <TEvent extends WebSocketEventType>(

@@ -1,5 +1,11 @@
 import { type AxiosError, type AxiosResponse, isAxiosError } from "axios";
 
+const Language = {
+	errorsByCode: {
+		defaultErrorCode: "Invalid value",
+	},
+};
+
 export interface FieldError {
 	field: string;
 	detail: string;
@@ -58,7 +64,8 @@ export const mapApiErrorToFieldErrors = (
 
 	if (apiErrorResponse.validations) {
 		for (const error of apiErrorResponse.validations) {
-			result[error.field] = error.detail || "Invalid value";
+			result[error.field] =
+				error.detail || Language.errorsByCode.defaultErrorCode;
 		}
 	}
 

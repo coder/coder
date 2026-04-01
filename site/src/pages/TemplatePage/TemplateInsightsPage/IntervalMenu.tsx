@@ -1,13 +1,13 @@
-import type { FC } from "react";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
+} from "components/DropdownMenu/DropdownMenu";
+import type { FC } from "react";
 
 const insightsIntervals = {
 	day: {

@@ -1,5 +1,3 @@
-export const pageTitle = (
-	...crumbs: Array<string | boolean | undefined | null>
-): string => {
-	return [...crumbs, "Coder"].filter(Boolean).join(" - ");
+export const pageTitle = (...crumbs: string[]): string => {
+	return [...crumbs, "Coder"].join(" - ");
 };

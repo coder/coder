@@ -20,7 +20,6 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/term"
 	"golang.org/x/xerrors"
 )
 
@@ -81,26 +80,6 @@ type declarations struct {
 // constants from later directories won't be available when scanning earlier ones.
 var packageDeclarations = make(map[string]map[string]string)
 
-// verbose controls whether informational messages are printed to
-// stderr. It is true when stdout is a terminal (interactive use)
-// and false when stdout is piped (e.g. via atomic_write in make).
-var verbose = term.IsTerminal(int(os.Stdout.Fd()))
-
-// logf prints an informational message to stderr only when running
-// interactively. Use this for progress and debug output that is
-// not actionable.
-func logf(format string, args ...any) {
-	if verbose {
-		log.Printf(format, args...)
-	}
-}
-
-// warnf prints a warning to stderr unconditionally. Use this for
-// messages about real problems that a developer should investigate.
-func warnf(format string, args ...any) {
-	log.Printf("WARNING: "+format, args...)
-}
-
 func main() {
 	metrics, err := scanAllDirs()
 	if err != nil {
@@ -124,7 +103,7 @@ func main() {
 
 	writeMetrics(metrics, os.Stdout)
 
-	logf("Successfully parsed %d metrics", len(metrics))
+	log.Printf("Successfully parsed %d metrics", len(metrics))
 }
 
 // scanAllDirs scans all configured directories for metric definitions.
@@ -137,7 +116,7 @@ func scanAllDirs() ([]Metric, error) {
 			return nil, xerrors.Errorf("scanning %s: %w", dir, err)
 		}
 
-		logf("scanning %s: found %d metrics", dir, len(metrics))
+		log.Printf("scanning %s: found %d metrics", dir, len(metrics))
 		allMetrics = append(allMetrics, metrics...)
 	}
 
@@ -176,7 +155,7 @@ func scanDirectory(root string) ([]Metric, error) {
 		}
 
 		if len(fileMetrics) > 0 {
-			logf("scanning %s: found %d metrics", path, len(fileMetrics))
+			log.Printf("scanning %s: found %d metrics", path, len(fileMetrics))
 		}
 		metrics = append(metrics, fileMetrics...)
 
@@ -212,7 +191,7 @@ func scanFile(path string) ([]Metric, error) {
 		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
 			if metric.Help == "" {
-				warnf("metric %q has no HELP description, skipping", metric.Name)
+				log.Printf("WARNING: metric %q has no HELP description, skipping", metric.Name)
 				// Skip metrics without descriptions, they should be fixed in the source code
 				// or added to the static metrics file with a manual description.
 				return true
@@ -413,7 +392,7 @@ func extractNewDescMetric(call *ast.CallExpr, decls declarations) (Metric, bool)
 	// Extract name (first argument).
 	name := resolveStringExpr(call.Args[0], decls)
 	if name == "" {
-		warnf("extractNewDescMetric: skipping prometheus.NewDesc() call: could not resolve metric name")
+		log.Printf("extractNewDescMetric: skipping prometheus.NewDesc() call: could not resolve metric name")
 		return Metric{}, false
 	}
 
@@ -563,7 +542,7 @@ func extractOptsMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
 	// Extract metric info from the Opts struct.
 	opts, ok := extractOpts(call.Args[0], decls)
 	if !ok {
-		warnf("extractOptsMetric: skipping prometheus.%s() call: could not extract opts", funcName)
+		log.Printf("extractOptsMetric: skipping prometheus.%s() call: could not extract opts", funcName)
 		return Metric{}, false
 	}
 
@@ -576,7 +555,7 @@ func extractOptsMetric(call *ast.CallExpr, decls declarations) (Metric, bool) {
 	// Build the full metric name.
 	name := buildMetricName(opts.Namespace, opts.Subsystem, opts.Name)
 	if name == "" {
-		warnf("extractOptsMetric: skipping prometheus.%s() call: could not build metric name", funcName)
+		log.Printf("extractOptsMetric: skipping prometheus.%s() call: could not build metric name", funcName)
 		return Metric{}, false
 	}
 
@@ -648,7 +627,7 @@ func extractPromautoMetric(call *ast.CallExpr, decls declarations) (Metric, bool
 	// Extract metric info from the Opts struct.
 	opts, ok := extractOpts(call.Args[0], decls)
 	if !ok {
-		warnf("extractPromautoMetric: skipping promauto.%s() call: could not extract opts", funcName)
+		log.Printf("extractPromautoMetric: skipping promauto.%s() call: could not extract opts", funcName)
 		return Metric{}, false
 	}
 
@@ -661,7 +640,7 @@ func extractPromautoMetric(call *ast.CallExpr, decls declarations) (Metric, bool
 	// Build the full metric name.
 	name := buildMetricName(opts.Namespace, opts.Subsystem, opts.Name)
 	if name == "" {
-		warnf("extractPromautoMetric: skipping promauto.%s() call: could not build metric name", funcName)
+		log.Printf("extractPromautoMetric: skipping promauto.%s() call: could not build metric name", funcName)
 		return Metric{}, false
 	}
 

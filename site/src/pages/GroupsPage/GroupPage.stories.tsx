@@ -1,23 +1,18 @@
+import {
+	MockDefaultOrganization,
+	MockGroup,
+	MockOrganizationMember,
+	MockOrganizationMember2,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { getGroupQueryKey, groupPermissionsKey } from "api/queries/groups";
+import { organizationMembersKey } from "api/queries/organizations";
 import { spyOn, userEvent, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import { API } from "#/api/api";
-import {
-	getGroupMembersQueryKey,
-	getGroupQueryKey,
-	groupPermissionsKey,
-} from "#/api/queries/groups";
-import { organizationMembersKey } from "#/api/queries/organizations";
-import {
-	MockDefaultOrganization,
-	MockGroup,
-	MockGroupWithoutMembers,
-	MockOrganizationMember,
-	MockOrganizationMember2,
-} from "#/testHelpers/entities";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 
@@ -29,7 +24,7 @@ const meta: Meta<typeof GroupPage> = {
 			location: {
 				pathParams: {
 					organization: MockDefaultOrganization.name,
-					groupName: MockGroupWithoutMembers.name,
+					groupName: MockGroup.name,
 				},
 			},
 			routing: reactRouterOutlet(
@@ -41,39 +36,17 @@ const meta: Meta<typeof GroupPage> = {
 };
 
 const groupQuery = (data: unknown) => ({
-	key: getGroupQueryKey(
-		MockDefaultOrganization.name,
-		MockGroupWithoutMembers.name,
-		{
-			exclude_members: true,
-		},
-	),
-	data,
-});
-
-const groupMembersQuery = (data: unknown) => ({
-	key: getGroupMembersQueryKey(
-		MockDefaultOrganization.name,
-		MockGroupWithoutMembers.name,
-		{
-			limit: 25,
-			offset: 0,
-			q: "",
-		},
-	),
+	key: getGroupQueryKey(MockDefaultOrganization.name, MockGroup.name),
 	data,
 });
 
 const permissionsQuery = (data: unknown, id?: string) => ({
-	key: groupPermissionsKey(id ?? MockGroupWithoutMembers.id),
+	key: groupPermissionsKey(id ?? MockGroup.id),
 	data,
 });
 
 const membersQuery = (data: unknown) => ({
-	key: organizationMembersKey(MockDefaultOrganization.id, {
-		limit: 25,
-		q: "",
-	}),
+	key: organizationMembersKey(MockDefaultOrganization.id),
 	data,
 });
 
@@ -82,62 +55,27 @@ type Story = StoryObj<typeof GroupPage>;
 
 export const LoadingGroup: Story = {
 	parameters: {
-		queries: [groupQuery(null), groupMembersQuery(null), permissionsQuery({})],
-	},
-};
-
-export const LoadingGroupMembers: Story = {
-	parameters: {
-		queries: [
-			groupQuery(MockGroupWithoutMembers),
-			groupMembersQuery(null),
-			permissionsQuery({}),
-		],
+		queries: [groupQuery(null), permissionsQuery({})],
 	},
 };
 
 export const GroupError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getGroup").mockRejectedValue(new Error("test group error"));
-		spyOn(API, "getGroupMembers").mockResolvedValue({
-			users: [],
-			count: 0,
-		});
-		spyOn(API, "checkAuthorization").mockResolvedValue({});
-	},
-};
-
-export const GroupMembersError: Story = {
-	beforeEach: () => {
-		spyOn(API, "getGroup").mockResolvedValue(MockGroupWithoutMembers);
-		spyOn(API, "getGroupMembers").mockRejectedValue(
-			new Error("test group members error"),
-		);
 		spyOn(API, "checkAuthorization").mockResolvedValue({});
 	},
 };
 
 export const LoadingPermissions: Story = {
 	parameters: {
-		queries: [
-			groupQuery(MockGroupWithoutMembers),
-			groupMembersQuery({
-				users: MockGroup.members,
-				count: MockGroup.members.length,
-			}),
-			permissionsQuery(null),
-		],
+		queries: [groupQuery(MockGroup), permissionsQuery(null)],
 	},
 };
 
 export const NoUpdatePermission: Story = {
 	parameters: {
 		queries: [
-			groupQuery(MockGroupWithoutMembers),
-			groupMembersQuery({
-				users: MockGroup.members,
-				count: MockGroup.members.length,
-			}),
+			groupQuery(MockGroup),
 			permissionsQuery({ canUpdateGroup: false }),
 		],
 	},
@@ -147,13 +85,9 @@ export const EveryoneGroup: Story = {
 	parameters: {
 		queries: [
 			groupQuery({
-				...MockGroupWithoutMembers,
+				...MockGroup,
 				// The everyone group has the same ID as the organization.
 				id: MockDefaultOrganization.id,
-			}),
-			groupMembersQuery({
-				users: MockGroup.members,
-				count: MockGroup.members.length,
 			}),
 			permissionsQuery({ canUpdateGroup: true }, MockDefaultOrganization.id),
 		],
@@ -162,7 +96,7 @@ export const EveryoneGroup: Story = {
 
 export const MembersError: Story = {
 	beforeEach() {
-		spyOn(API, "getGroup").mockResolvedValue(MockGroupWithoutMembers);
+		spyOn(API, "getGroup").mockResolvedValue(MockGroup);
 		spyOn(API, "checkAuthorization").mockResolvedValue({
 			canUpdateGroup: true,
 		});
@@ -170,18 +104,10 @@ export const MembersError: Story = {
 			new Error("test members error"),
 		);
 	},
-	parameters: {
-		queries: [
-			groupMembersQuery({
-				users: MockGroup.members,
-				count: MockGroup.members.length,
-			}),
-		],
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add users" }),
+			await canvas.findByRole("button", { name: "Select a user" }),
 		);
 	},
 };
@@ -189,8 +115,10 @@ export const MembersError: Story = {
 export const NoMembers: Story = {
 	parameters: {
 		queries: [
-			groupQuery(MockGroupWithoutMembers),
-			groupMembersQuery({ users: [], count: 0 }),
+			groupQuery({
+				...MockGroup,
+				members: [],
+			}),
 			permissionsQuery({ canUpdateGroup: true }),
 			membersQuery({ members: [] }),
 		],
@@ -198,7 +126,7 @@ export const NoMembers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add users" }),
+			await canvas.findByRole("button", { name: "Select a user" }),
 		);
 	},
 };
@@ -206,11 +134,7 @@ export const NoMembers: Story = {
 export const FiltersByMembers: Story = {
 	parameters: {
 		queries: [
-			groupQuery(MockGroupWithoutMembers),
-			groupMembersQuery({
-				users: MockGroup.members,
-				count: MockGroup.members.length,
-			}),
+			groupQuery(MockGroup),
 			permissionsQuery({ canUpdateGroup: true }),
 			membersQuery({
 				members: [MockOrganizationMember, MockOrganizationMember2],
@@ -220,7 +144,7 @@ export const FiltersByMembers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Add users" }),
+			await canvas.findByRole("button", { name: "Select a user" }),
 		);
 	},
 };

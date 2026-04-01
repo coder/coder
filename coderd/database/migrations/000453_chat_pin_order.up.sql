@@ -1,1 +1,0 @@
-ALTER TABLE chats ADD COLUMN pin_order integer DEFAULT 0 NOT NULL;

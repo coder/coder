@@ -17,8 +17,7 @@
         "name": "owner",
         "display_name": "Owner"
       }
-    ],
-    "has_ai_seat": false
+    ]
   },
   {
     "id": "==========[second user ID]==========",
@@ -32,7 +31,6 @@
     "organization_ids": [
       "===========[first org ID]==========="
     ],
-    "roles": [],
-    "has_ai_seat": false
+    "roles": []
   }
 ]

@@ -4,12 +4,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS
 
 -- Copy "theme_preference" back to "users"
 UPDATE users
-	-- Use COALESCE(SELECT, <default>) to avoid forcing an insert of user_configs
-	-- for every users insert in order for this down migration to succeed.
-	SET theme_preference = COALESCE(
-		(SELECT value FROM user_configs WHERE user_configs.user_id = users.id AND user_configs.key = 'theme_preference'),
-		''
-	);
+	SET theme_preference = (SELECT value
+    FROM user_configs
+    WHERE user_configs.user_id = users.id
+		  AND user_configs.key = 'theme_preference');
 
 -- Drop the "user_configs" table.
 DROP TABLE user_configs;

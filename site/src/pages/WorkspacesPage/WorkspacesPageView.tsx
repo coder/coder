@@ -1,37 +1,43 @@
-import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
-import type { UseQueryResult } from "react-query";
-import { hasError, isApiValidationError } from "#/api/errors";
-import type { Template, Workspace } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
+import { hasError, isApiValidationError } from "api/errors";
+import type { Template, Workspace } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Margins } from "#/components/Margins/Margins";
-import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
-import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
-import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
-import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
-import { mustUpdateWorkspace } from "#/utils/workspace";
+} from "components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Margins } from "components/Margins/Margins";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+import { Spinner } from "components/Spinner/Spinner";
+import { Stack } from "components/Stack/Stack";
+import { TableToolbar } from "components/TableToolbar/TableToolbar";
+import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
+import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
+import type { FC } from "react";
+import type { UseQueryResult } from "react-query";
+import { mustUpdateWorkspace } from "utils/workspace";
 import {
 	type WorkspaceFilterState,
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
-import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
+import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesButton } from "./WorkspacesButton";
+
+const Language = {
+	pageTitle: "Workspaces",
+	yourWorkspacesButton: "Your workspaces",
+	allWorkspacesButton: "All workspaces",
+	runningWorkspacesButton: "Running workspaces",
+	seeAllTemplates: "See all templates",
+	template: "Template",
+};
 
 type TemplateQuery = UseQueryResult<Template[]>;
 interface WorkspacesPageViewProps {
@@ -55,7 +61,6 @@ interface WorkspacesPageViewProps {
 	canChangeVersions: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
-	chatsByWorkspace?: Record<string, string>;
 }
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
@@ -79,7 +84,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	canChangeVersions,
 	onActionSuccess,
 	onActionError,
-	chatsByWorkspace,
 }) => {
 	// Let's say the user has 5 workspaces, but tried to hit page 100, which
 	// does not exist. In this case, the page is not valid and we want to show a
@@ -100,8 +104,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 			>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>Workspaces</span>
-						<WorkspaceHelpPopover />
+						<span>{Language.pageTitle}</span>
+						<WorkspaceHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
 			</PageHeader>
@@ -223,7 +227,6 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					templates={templates}
 					onActionSuccess={onActionSuccess}
 					onActionError={onActionError}
-					chatsByWorkspace={chatsByWorkspace}
 				/>
 			)}
 
@@ -231,7 +234,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				// Temporary styling stopgap before component is migrated to using
 				// PaginationContainer (which renders PaginationWidgetBase using CSS
 				// flexbox gaps)
-				<div className="pt-4">
+				<div css={{ paddingTop: "16px" }}>
 					<PaginationWidgetBase
 						totalRecords={count}
 						pageSize={limit}

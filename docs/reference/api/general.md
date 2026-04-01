@@ -163,9 +163,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "agent_stat_refresh_interval": 0,
     "ai": {
       "aibridge_proxy": {
-        "allowed_private_cidrs": [
-          "string"
-        ],
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -207,9 +204,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
-      },
-      "chat": {
-        "acquire_batch_size": 0
       }
     },
     "allow_workspace_renames": true,
@@ -285,7 +279,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "external_auth": {
       "value": [
         {
-          "api_base_url": "string",
           "app_install_url": "string",
           "app_installations_url": "string",
           "auth_url": "string",

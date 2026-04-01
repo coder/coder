@@ -1,14 +1,13 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
-import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
-import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import {
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockOwnerRole,
 	MockUserAdminRole,
 	MockUserOwner,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const meta: Meta<typeof OrganizationMembersPageView> = {
@@ -43,34 +42,6 @@ export default meta;
 type Story = StoryObj<typeof OrganizationMembersPageView>;
 
 export const Default: Story = {};
-
-export const WithAIAddonColumn: Story = {
-	args: {
-		showAISeatColumn: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const header = await canvas.findByRole("columnheader", {
-			name: /AI add-on/i,
-		});
-
-		await expect(header).toBeVisible();
-	},
-};
-
-export const WithoutAIAddonColumn: Story = {
-	args: {
-		showAISeatColumn: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByRole("columnheader", { name: "User" });
-
-		await expect(
-			canvas.queryByRole("columnheader", { name: /AI add-on/i }),
-		).not.toBeInTheDocument();
-	},
-};
 
 export const NoMembers: Story = {
 	args: {

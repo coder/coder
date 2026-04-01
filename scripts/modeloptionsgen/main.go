@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/shopspring/decimal"
-
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -119,15 +117,11 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		// so that entire sub-objects can be marked hidden.
 		hidden := f.Tag.Get("hidden") == "true"
 
-		// decimal.Decimal is an opaque numeric type used for pricing
-		// precision; do not recurse into its internal struct fields.
-		isDecimal := ft == reflect.TypeOf(decimal.Decimal{})
-
 		// If the field is a struct (not a map), recurse to flatten
 		// its children using dot-separated names — unless the
 		// entire struct is marked hidden, in which case emit it
 		// as a single opaque field.
-		if ft.Kind() == reflect.Struct && !hidden && !isDecimal {
+		if ft.Kind() == reflect.Struct && !hidden {
 			nested := extractFields(ft, fullJSONName, nil)
 			fields = append(fields, nested.Fields...)
 			continue
@@ -210,12 +204,6 @@ func goTypeToSchemaType(t reflect.Type) string {
 	// Dereference pointers.
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
-	}
-
-	// decimal.Decimal represents a precise numeric value and should
-	// map to the "number" schema type.
-	if t == reflect.TypeOf(decimal.Decimal{}) {
-		return "number"
 	}
 
 	switch t.Kind() {

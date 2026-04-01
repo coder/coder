@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { Welcome } from "components/Welcome/Welcome";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { Welcome } from "#/components/Welcome/Welcome";
 
 type CliInstallPageViewProps = {
 	origin: string;
@@ -15,16 +15,16 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 
 			<p css={styles.instructions}>
 				Copy the command below and{" "}
-				<strong className="block">paste it in your terminal.</strong>
+				<strong css={{ display: "block" }}>paste it in your terminal.</strong>
 			</p>
 
 			<CodeExample
-				className="max-w-full"
+				css={{ maxWidth: "100%" }}
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
 			/>
 
-			<div className="pt-4">
+			<div css={{ paddingTop: 16 }}>
 				<RouterLink to="/workspaces" css={styles.backLink}>
 					Go to workspaces
 				</RouterLink>

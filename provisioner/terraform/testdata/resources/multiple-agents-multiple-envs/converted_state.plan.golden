@@ -21,13 +21,11 @@
           "extra_envs": [
             {
               "name": "ENV_1",
-              "value": "Env 1",
-              "merge_strategy": "replace"
+              "value": "Env 1"
             },
             {
               "name": "ENV_2",
-              "value": "Env 2",
-              "merge_strategy": "replace"
+              "value": "Env 2"
             }
           ],
           "resources_monitoring": {},
@@ -56,8 +54,7 @@
           "extra_envs": [
             {
               "name": "ENV_3",
-              "value": "Env 3",
-              "merge_strategy": "replace"
+              "value": "Env 3"
             }
           ],
           "resources_monitoring": {},

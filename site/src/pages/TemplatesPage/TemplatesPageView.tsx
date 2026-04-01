@@ -1,32 +1,29 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { ArrowRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router";
-import { hasError, isApiValidationError } from "#/api/errors";
-import type { Template, TemplateExample } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Avatar } from "#/components/Avatar/Avatar";
-import { AvatarData } from "#/components/Avatar/AvatarData";
-import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
-import { DeprecatedBadge } from "#/components/Badges/Badges";
-import { Button } from "#/components/Button/Button";
+import { hasError, isApiValidationError } from "api/errors";
+import type { Template, TemplateExample } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { DeprecatedBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
-import { Margins } from "#/components/Margins/Margins";
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
-import { Stack } from "#/components/Stack/Stack";
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -34,41 +31,57 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/components/Table/Table";
+} from "components/Table/Table";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
-} from "#/components/TableLoader/TableLoader";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { linkToTemplate, useLinks } from "#/modules/navigation";
-import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
-import { createDayString } from "#/utils/createDayString";
-import { docs } from "#/utils/docs";
+} from "components/TableLoader/TableLoader";
+import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { ArrowRightIcon, PlusIcon } from "lucide-react";
+import { linkToTemplate, useLinks } from "modules/navigation";
+import type { WorkspacePermissions } from "modules/permissions/workspaces";
+import type { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router";
+import { createDayString } from "utils/createDayString";
+import { docs } from "utils/docs";
 import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
-} from "#/utils/templates";
+} from "utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 import type { TemplateFilterState } from "./TemplatesPage";
 
-const TemplateHelpPopover: FC = () => {
+const Language = {
+	developerCount: (activeCount: number): string => {
+		return `${formatTemplateActiveDevelopers(activeCount)} developer${
+			activeCount !== 1 ? "s" : ""
+		}`;
+	},
+	nameLabel: "Name",
+	buildTimeLabel: "Build time",
+	usedByLabel: "Used by",
+	lastUpdatedLabel: "Last updated",
+	templateTooltipTitle: "What is template?",
+	templateTooltipText:
+		"With templates you can create a common configuration for your workspaces using Terraform.",
+	templateTooltipLink: "Manage templates",
+};
+
+const TemplateHelpTooltip: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
-				<HelpPopoverText>
-					With templates you can create a common configuration for your
-					workspaces using Terraform.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/templates")}>
-						Manage templates
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<HelpTooltip>
+			<HelpTooltipIconTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
+				<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
+				<HelpTooltipLinksGroup>
+					<HelpTooltipLink href={docs("/admin/templates")}>
+						{Language.templateTooltipLink}
+					</HelpTooltipLink>
+				</HelpTooltipLinksGroup>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };
 
@@ -132,8 +145,6 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
-	const developerCount = `${formatTemplateActiveDevelopers(template.active_user_count)} developer${template.active_user_count !== 1 ? "s" : ""}`;
-
 	const clickableRow = useClickableTableRow({
 		onClick: () => navigate(templatePageLink),
 	});
@@ -164,11 +175,11 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{showOrganizations ? (
 					<AvatarData
 						title={template.organization_display_name}
-						subtitle={`Used by ${developerCount}`}
+						subtitle={`Used by ${Language.developerCount(template.active_user_count)}`}
 						avatar={<Avatar variant="icon" src={template.organization_icon} />}
 					/>
 				) : (
-					developerCount
+					Language.developerCount(template.active_user_count)
 				)}
 			</TableCell>
 
@@ -230,7 +241,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				<PageHeaderTitle>
 					<Stack spacing={1} direction="row" alignItems="center">
 						Templates
-						<TemplateHelpPopover />
+						<TemplateHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
@@ -251,12 +262,14 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[35%]">Name</TableHead>
+						<TableHead className="w-[35%]">{Language.nameLabel}</TableHead>
 						<TableHead className="w-[15%]">
-							{showOrganizations ? "Organization" : "Used by"}
+							{showOrganizations ? "Organization" : Language.usedByLabel}
 						</TableHead>
-						<TableHead className="w-[10%]">Build time</TableHead>
-						<TableHead className="w-[15%]">Last updated</TableHead>
+						<TableHead className="w-[10%]">{Language.buildTimeLabel}</TableHead>
+						<TableHead className="w-[15%]">
+							{Language.lastUpdatedLabel}
+						</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>
@@ -290,7 +303,7 @@ const TableLoader: FC = () => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div className="flex items-center gap-2">
+					<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

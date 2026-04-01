@@ -1,19 +1,19 @@
 import { useTheme } from "@emotion/react";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
-import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
-import type { Group } from "#/api/typesGenerated";
-import { Avatar } from "#/components/Avatar/Avatar";
-import { OverflowY } from "#/components/OverflowY/OverflowY";
-import { TableCell } from "#/components/Table/Table";
+import type { Group } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { OverflowY } from "components/OverflowY/OverflowY";
+import { TableCell } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
+} from "components/Tooltip/Tooltip";
+import { UsersIcon } from "lucide-react";
+import type { FC } from "react";
+import { cn } from "utils/cn";
 
 type GroupsCellProps = {
 	userGroups: readonly Group[] | undefined;
@@ -25,13 +25,23 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 	return (
 		<TableCell>
 			{userGroups === undefined ? (
-				<span>No groups</span>
+				// Felt right to add emphasis to the undefined state for semantics
+				// ("hey, this isn't normal"), but the default italics looked weird in
+				// the table UI
+				<em css={{ fontStyle: "normal" }}>N/A</em>
 			) : (
 				<TooltipProvider>
 					<Tooltip delayDuration={0}>
 						<TooltipTrigger asChild>
 							<button
-								className="cursor-pointer bg-transparent border-0 p-0 text-inherit leading-none"
+								css={{
+									cursor: "pointer",
+									backgroundColor: "transparent",
+									border: "none",
+									padding: 0,
+									color: "inherit",
+									lineHeight: "1",
+								}}
 								type="button"
 							>
 								<div className="flex flex-row gap-2 items-center">
@@ -53,9 +63,12 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 							<OverflowY maxHeight={400}>
 								<List
 									component="ul"
-									className="flex flex-col flex-nowrap gap-0 px-0.5 py-1"
-									style={{
+									css={{
+										display: "flex",
+										flexFlow: "column nowrap",
 										fontSize: theme.typography.body2.fontSize,
+										padding: "4px 2px",
+										gap: 0,
 									}}
 								>
 									{userGroups.map((group) => {
@@ -63,7 +76,10 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 										return (
 											<ListItem
 												key={group.id}
-												className="gap-x-[10px] items-center"
+												css={{
+													columnGap: 10,
+													alignItems: "center",
+												}}
 											>
 												<Avatar
 													size="sm"
@@ -72,7 +88,15 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 													fallback={groupName}
 												/>
 
-												<span className="whitespace-nowrap text-ellipsis overflow-hidden leading-none m-0">
+												<span
+													css={{
+														whiteSpace: "nowrap",
+														textOverflow: "ellipsis",
+														overflow: "hidden",
+														lineHeight: 1,
+														margin: 0,
+													}}
+												>
 													{groupName || <em>N/A</em>}
 												</span>
 											</ListItem>

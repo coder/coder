@@ -132,8 +132,6 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "Organization Role Sync"
 	case database.TaskTable:
 		return typed.Name
-	case database.AiSeatState:
-		return "AI Seat"
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -198,8 +196,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return noID // Org field on audit log has org id
 	case database.TaskTable:
 		return typed.ID
-	case database.AiSeatState:
-		return typed.UserID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -255,8 +251,6 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeIdpSyncSettingsGroup
 	case database.TaskTable:
 		return database.ResourceTypeTask
-	case database.AiSeatState:
-		return database.ResourceTypeAiSeat
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -315,8 +309,6 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.TaskTable:
 		return true
-	case database.AiSeatState:
-		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}

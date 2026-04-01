@@ -1,14 +1,14 @@
+import { checkAuthorization } from "api/queries/authCheck";
+import { templateByName } from "api/queries/templates";
+import type { AuthorizationResponse, Template } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import { templateByName } from "#/api/queries/templates";
-import type { AuthorizationResponse, Template } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Loader } from "#/components/Loader/Loader";
-import { Margins } from "#/components/Margins/Margins";
-import { Stack } from "#/components/Stack/Stack";
-import { pageTitle } from "#/utils/page";
+import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
 const TemplateSettings = createContext<
@@ -54,7 +54,7 @@ export const TemplateSettingsLayout: FC = () => {
 			<title>{pageTitle(templateName, "Settings")}</title>
 
 			<Margins>
-				<Stack className="py-12" direction="row" spacing={10}>
+				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
 					{templateQuery.isError || permissionsQuery.isError ? (
 						<ErrorAlert error={templateQuery.error} />
 					) : (
@@ -66,9 +66,9 @@ export const TemplateSettingsLayout: FC = () => {
 						>
 							<Sidebar template={templateQuery.data} />
 							<Suspense fallback={<Loader />}>
-								<div className="w-full">
+								<main css={{ width: "100%" }}>
 									<Outlet />
-								</div>
+								</main>
 							</Suspense>
 						</TemplateSettings.Provider>
 					)}

@@ -1,3 +1,4 @@
+import { DockerIcon } from "components/Icons/DockerIcon";
 import {
 	BracesIcon,
 	FileCodeIcon,
@@ -6,7 +7,6 @@ import {
 	TerminalIcon,
 } from "lucide-react";
 import type { ComponentProps, ElementType, FC } from "react";
-import { DockerIcon } from "#/components/Icons/DockerIcon";
 
 const FileTypeTerraform: FC<ComponentProps<"svg">> = (props) => (
 	<svg

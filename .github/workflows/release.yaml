@@ -80,7 +80,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
         with:
           egress-policy: audit
 
@@ -155,7 +155,7 @@ jobs:
           cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -163,8 +163,6 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
-        with:
-          use-cache: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -302,7 +300,6 @@ jobs:
 
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
-        id: build_base_image
         if: steps.image-base-tag.outputs.tag != ''
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
         with:
@@ -350,14 +347,48 @@ jobs:
         env:
           IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
+      # GitHub attestation provides SLSA provenance for Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations (which focus on SBOMs) by adding
+      # GitHub-specific build provenance to enhance our supply chain security.
+      #
+      # TODO: Consider refactoring these attestation steps to use a matrix strategy or composite action
+      # to reduce duplication while maintaining the required functionality for each distinct image tag.
       - name: GitHub Attestation for Base Docker image
         id: attest_base
-        if: ${{ !inputs.dry_run && steps.build_base_image.outputs.digest != '' }}
+        if: ${{ !inputs.dry_run && steps.image-base-tag.outputs.tag != '' }}
         continue-on-error: true
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@e59cbc1ad1ac2d59339667419eb8cdde6eb61e3d # v3.2.0
         with:
-          subject-name: ghcr.io/coder/coder-base
-          subject-digest: ${{ steps.build_base_image.outputs.digest }}
+          subject-name: ${{ steps.image-base-tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
           push-to-registry: true
 
       - name: Build Linux Docker images
@@ -380,6 +411,7 @@ jobs:
           # being pushed so will automatically push them.
           make push/build/coder_"$version"_linux.tag
 
+          # Save multiarch image tag for attestation
           multiarch_image="$(./scripts/image_tag.sh)"
           echo "multiarch_image=${multiarch_image}" >> "$GITHUB_OUTPUT"
 
@@ -390,14 +422,12 @@ jobs:
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
-            latest_target="$(./scripts/image_tag.sh --version latest)"
             # shellcheck disable=SC2046
             ./scripts/build_docker_multiarch.sh \
               --push \
-              --target "${latest_target}" \
+              --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
             echo "created_latest_tag=true" >> "$GITHUB_OUTPUT"
-            echo "latest_target=${latest_target}" >> "$GITHUB_OUTPUT"
           else
             echo "created_latest_tag=false" >> "$GITHUB_OUTPUT"
           fi
@@ -418,6 +448,7 @@ jobs:
           echo "Generating SBOM for multi-arch image: ${MULTIARCH_IMAGE}"
           syft "${MULTIARCH_IMAGE}" -o spdx-json > "coder_${VERSION}_sbom.spdx.json"
 
+          # Attest SBOM to multi-arch image
           echo "Attesting SBOM to multi-arch image: ${MULTIARCH_IMAGE}"
           cosign clean --force=true "${MULTIARCH_IMAGE}"
           cosign attest --type spdxjson \
@@ -439,42 +470,85 @@ jobs:
               "${latest_tag}"
           fi
 
-      - name: Resolve Docker image digests for attestation
-        id: docker_digests
-        if: ${{ !inputs.dry_run }}
-        continue-on-error: true
-        env:
-          MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
-          LATEST_TARGET: ${{ steps.build_docker.outputs.latest_target }}
-        run: |
-          set -euxo pipefail
-          if [[ -n "${MULTIARCH_IMAGE}" ]]; then
-            multiarch_digest=$(docker buildx imagetools inspect --raw "${MULTIARCH_IMAGE}" | sha256sum | awk '{print "sha256:"$1}')
-            echo "multiarch_digest=${multiarch_digest}" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ -n "${LATEST_TARGET}" ]]; then
-            latest_digest=$(docker buildx imagetools inspect --raw "${LATEST_TARGET}" | sha256sum | awk '{print "sha256:"$1}')
-            echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: GitHub Attestation for Docker image
         id: attest_main
-        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.multiarch_digest != '' }}
+        if: ${{ !inputs.dry_run }}
         continue-on-error: true
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@e59cbc1ad1ac2d59339667419eb8cdde6eb61e3d # v3.2.0
         with:
-          subject-name: ghcr.io/coder/coder
-          subject-digest: ${{ steps.docker_digests.outputs.multiarch_digest }}
+          subject-name: ${{ steps.build_docker.outputs.multiarch_image }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
           push-to-registry: true
 
+      # Get the latest tag name for attestation
+      - name: Get latest tag name
+        id: latest_tag
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
+        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> "$GITHUB_OUTPUT"
+
+      # If this is the highest version according to semver, also attest the "latest" tag
       - name: GitHub Attestation for "latest" Docker image
         id: attest_latest
-        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.latest_digest != '' }}
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
         continue-on-error: true
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@e59cbc1ad1ac2d59339667419eb8cdde6eb61e3d # v3.2.0
         with:
-          subject-name: ghcr.io/coder/coder
-          subject-digest: ${{ steps.docker_digests.outputs.latest_digest }}
+          subject-name: ${{ steps.latest_tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
           push-to-registry: true
 
       # Report attestation failures but don't fail the workflow
@@ -563,35 +637,6 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
-      # Mark the Linear release as shipped.
-      - name: Extract Linear release version
-        if: ${{ !inputs.dry_run }}
-        id: linear_version
-        run: |
-          # Skip RC releases — they must not complete the Linear release.
-          if [[ "$VERSION" == *-rc* ]]; then
-            echo "RC release (${VERSION}), skipping Linear release completion."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          # Strip patch to get the Linear release version (e.g. 2.32.0 -> 2.32).
-          linear_version=$(echo "$VERSION" | cut -d. -f1,2)
-          echo "version=$linear_version" >> "$GITHUB_OUTPUT"
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "Completing Linear release ${linear_version}"
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-
-      - name: Complete Linear release
-        if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
-        continue-on-error: true
-        uses: linear/linear-release-action@755d50b5adb7dd42b976ee9334952745d62ceb2d # v0.6.0
-        with:
-          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
-          command: complete
-          version: ${{ steps.linear_version.outputs.version }}
-          timeout: 300
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -620,7 +665,7 @@ jobs:
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: release-artifacts
           path: |
@@ -636,7 +681,7 @@ jobs:
 
       - name: Upload latest sbom artifact to actions (if dry-run)
         if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: latest-sbom-artifact
           path: ./coder_latest_sbom.spdx.json
@@ -655,11 +700,13 @@ jobs:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
     needs: release
-    if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
+    if: ${{ !inputs.dry_run }}
 
     steps:
+      # TODO: skip this if it's not a new release (i.e. a backport). This is
+      #       fine right now because it just makes a PR that we can close.
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
         with:
           egress-policy: audit
 
@@ -735,7 +782,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
         with:
           egress-policy: audit
 

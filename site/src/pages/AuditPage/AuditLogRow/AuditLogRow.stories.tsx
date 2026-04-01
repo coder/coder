@@ -1,6 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table, TableBody } from "#/components/Table/Table";
-import { chromatic } from "#/testHelpers/chromatic";
+import { chromatic } from "testHelpers/chromatic";
 import {
 	MockAuditLog,
 	MockAuditLog2,
@@ -9,7 +7,9 @@ import {
 	MockAuditLogWithDeletedResource,
 	MockAuditLogWithWorkspaceBuild,
 	MockUserOwner,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Table, TableBody } from "components/Table/Table";
 import { AuditLogRow } from "./AuditLogRow";
 
 const meta: Meta<typeof AuditLogRow> = {

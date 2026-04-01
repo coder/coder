@@ -1,22 +1,16 @@
-import type { QueryClient, UseQueryOptions } from "react-query";
-import { API } from "#/api/api";
+import { API } from "api/api";
 import type {
 	CreateGroupRequest,
 	Group,
-	GroupMembersResponse,
-	GroupRequest,
 	PatchGroupRequest,
-	UsersRequest,
-} from "#/api/typesGenerated";
-import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
-import { prepareQuery } from "#/utils/filters";
+} from "api/typesGenerated";
+import type { QueryClient, UseQueryOptions } from "react-query";
 
 type GroupSortOrder = "asc" | "desc";
 
 export const groupsQueryKey = ["groups"];
 
-/** @public */
-export const groups = () => {
+const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
@@ -36,63 +30,19 @@ export const groupsByOrganization = (organization: string) => {
 	} satisfies UseQueryOptions<Group[]>;
 };
 
-const getRootGroupQueryKey = (organization: string, groupName: string) => [
+export const getGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",
 	organization,
 	"group",
 	groupName,
 ];
 
-export const getGroupQueryKey = (
-	organization: string,
-	groupName: string,
-	req: GroupRequest,
-) => {
-	const base = getRootGroupQueryKey(organization, groupName);
-	return [...base, req];
-};
-
-export const group = (
-	organization: string,
-	groupName: string,
-	req: GroupRequest,
-): UseQueryOptions<Group> => {
+export const group = (organization: string, groupName: string) => {
 	return {
-		queryKey: getGroupQueryKey(organization, groupName, req),
-		queryFn: ({ signal }) => API.getGroup(organization, groupName, req, signal),
+		queryKey: getGroupQueryKey(organization, groupName),
+		queryFn: () => API.getGroup(organization, groupName),
 	};
 };
-
-export const getGroupMembersQueryKey = (
-	organization: string,
-	groupName: string,
-	req?: UsersRequest,
-) => {
-	const base = [...getRootGroupQueryKey(organization, groupName), "members"];
-	return req ? [...base, req] : base;
-};
-
-export function groupMembers(
-	organization: string,
-	groupName: string,
-	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<GroupMembersResponse, UsersRequest> {
-	return {
-		searchParams,
-		queryPayload: ({ limit, offset }) => {
-			return {
-				limit,
-				offset,
-				q: prepareQuery(searchParams.get("filter") ?? ""),
-			};
-		},
-
-		queryKey: ({ payload }) =>
-			getGroupMembersQueryKey(organization, groupName, payload),
-		queryFn: ({ payload, signal }) =>
-			API.getGroupMembers(organization, groupName, payload, signal),
-	};
-}
 
 export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 
@@ -200,15 +150,10 @@ export const deleteGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const addMembers = (queryClient: QueryClient, organization: string) => {
+export const addMember = (queryClient: QueryClient, organization: string) => {
 	return {
-		mutationFn: ({
-			groupId,
-			userIds,
-		}: {
-			groupId: string;
-			userIds: string[];
-		}) => API.addMembers(groupId, userIds),
+		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
+			API.addMember(groupId, userId),
 		onSuccess: async (updatedGroup: Group) =>
 			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
@@ -237,7 +182,7 @@ const invalidateGroup = (
 			queryKey: getGroupsByOrganizationQueryKey(organization),
 		}),
 		queryClient.invalidateQueries({
-			queryKey: getRootGroupQueryKey(organization, groupName),
+			queryKey: getGroupQueryKey(organization, groupName),
 		}),
 	]);
 

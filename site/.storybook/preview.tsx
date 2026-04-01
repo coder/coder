@@ -1,5 +1,4 @@
 import "../src/index.css";
-import "../src/theme/globalFonts";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
@@ -7,12 +6,13 @@ import {
 	StyledEngineProvider,
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
-import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
 import isChromatic from "chromatic/isChromatic";
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
+import "theme/globalFonts";
+import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
 import themes from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
@@ -66,7 +66,6 @@ const withQuery: Decorator = (Story, { parameters }) => {
 		defaultOptions: {
 			queries: {
 				staleTime: Number.POSITIVE_INFINITY,
-				refetchInterval: false,
 				retry: false,
 			},
 		},

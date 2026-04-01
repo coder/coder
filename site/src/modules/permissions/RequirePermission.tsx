@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -6,8 +5,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/Dialog/Dialog";
-import { Link } from "#/components/Link/Link";
+} from "components/Dialog/Dialog";
+import { Link } from "components/Link/Link";
+import type { FC, ReactNode } from "react";
 
 interface RequirePermissionProps {
 	children?: ReactNode;

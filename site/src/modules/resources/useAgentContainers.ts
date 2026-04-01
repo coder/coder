@@ -1,17 +1,17 @@
-import { useEffect } from "react";
-import { useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
-import { watchAgentContainers } from "#/api/api";
+import { watchAgentContainers } from "api/api";
 import {
 	workspaceAgentContainers,
 	workspaceAgentContainersKey,
-} from "#/api/queries/workspaces";
+} from "api/queries/workspaces";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
-} from "#/api/typesGenerated";
-import { useEffectEvent } from "#/hooks/hookPolyfills";
+} from "api/typesGenerated";
+import { useEffectEvent } from "hooks/hookPolyfills";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 
 export function useAgentContainers(
 	agent: WorkspaceAgent,

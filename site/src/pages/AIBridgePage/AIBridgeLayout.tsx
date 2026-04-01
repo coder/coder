@@ -1,12 +1,12 @@
-import type { FC, PropsWithChildren } from "react";
-import { Outlet } from "react-router";
-import { Margins } from "#/components/Margins/Margins";
+import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
-import { AIBridgeHelpPopover } from "./AIBridgeHelpPopover";
+} from "components/PageHeader/PageHeader";
+import type { FC, PropsWithChildren } from "react";
+import { Outlet } from "react-router";
+import { AIBridgeHelpTooltip } from "./AIBridgeHelpTooltip";
 
 const AIBridgeLayout: FC<PropsWithChildren> = () => {
 	return (
@@ -15,7 +15,7 @@ const AIBridgeLayout: FC<PropsWithChildren> = () => {
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
 						<span>AI Bridge Logs</span>
-						<AIBridgeHelpPopover />
+						<AIBridgeHelpTooltip />
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>

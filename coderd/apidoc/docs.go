@@ -84,36 +84,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/aibridge/clients": {
+        "/aibridge/interceptions": {
             "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "List AI Bridge clients",
-                "operationId": "list-ai-bridge-clients",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            }
-        },
-        "/aibridge/interceptions": {
-            "get": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -155,16 +132,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/aibridge/models": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -183,119 +160,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/aibridge/sessions": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "List AI Bridge sessions",
-                "operationId": "list-ai-bridge-sessions",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, model, client, session_id, started_after, started_before.",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor pagination after session ID (cannot be used with offset)",
-                        "name": "after_session_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Offset pagination (cannot be used with after_session_id)",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/aibridge/sessions/{session_id}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "Get AI Bridge session threads",
-                "operationId": "get-ai-bridge-session-threads",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Session ID (client_session_id or interception UUID)",
-                        "name": "session_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Thread pagination cursor (forward/older)",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Thread pagination cursor (backward/newer)",
-                        "name": "before_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Number of threads per page (default 50)",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/appearance": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -311,14 +185,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AppearanceConfig"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -348,16 +222,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/applications/auth-redirect": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Applications"
                 ],
@@ -375,16 +249,16 @@ const docTemplate = `{
                     "307": {
                         "description": "Temporary Redirect"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/applications/host": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -401,16 +275,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AppHostResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/applications/reconnecting-pty-signed-token": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -441,11 +315,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -453,6 +322,11 @@ const docTemplate = `{
         },
         "/audit": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -489,16 +363,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AuditLogResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/audit/testgenerate": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -523,11 +397,6 @@ const docTemplate = `{
                         "description": "No Content"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -555,6 +424,11 @@ const docTemplate = `{
         },
         "/authcheck": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -584,12 +458,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AuthorizationResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/buildinfo": {
@@ -612,52 +481,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/insights/pull-requests": {
+        "/connectionlog": {
             "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get PR insights",
-                "operationId": "get-pr-insights",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Start date (RFC3339)",
-                        "name": "start_date",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (RFC3339)",
-                        "name": "end_date",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.PRInsightsResponse"
-                        }
-                    }
-                },
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
                 ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/connectionlog": {
-            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -694,16 +524,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ConnectionLogResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/csp/reports": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -727,16 +557,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/debug/coordinator": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "text/html"
                 ],
@@ -749,16 +579,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/debug/derp/traffic": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -778,11 +608,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -790,6 +615,11 @@ const docTemplate = `{
         },
         "/debug/expvar": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -807,11 +637,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -819,6 +644,11 @@ const docTemplate = `{
         },
         "/debug/health": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -842,16 +672,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/healthsdk.HealthcheckReport"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/debug/health/settings": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -867,14 +697,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/healthsdk.HealthSettings"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -904,16 +734,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/healthsdk.UpdateHealthSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/debug/metrics": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Debug"
                 ],
@@ -924,11 +754,6 @@ const docTemplate = `{
                         "description": "OK"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -936,6 +761,11 @@ const docTemplate = `{
         },
         "/debug/pprof": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Debug"
                 ],
@@ -946,11 +776,6 @@ const docTemplate = `{
                         "description": "OK"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -958,6 +783,11 @@ const docTemplate = `{
         },
         "/debug/pprof/cmdline": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Debug"
                 ],
@@ -968,11 +798,6 @@ const docTemplate = `{
                         "description": "OK"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -980,6 +805,11 @@ const docTemplate = `{
         },
         "/debug/pprof/profile": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Debug"
                 ],
@@ -990,11 +820,6 @@ const docTemplate = `{
                         "description": "OK"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -1002,6 +827,11 @@ const docTemplate = `{
         },
         "/debug/pprof/symbol": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Debug"
                 ],
@@ -1012,11 +842,6 @@ const docTemplate = `{
                         "description": "OK"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -1024,6 +849,11 @@ const docTemplate = `{
         },
         "/debug/pprof/trace": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Debug"
                 ],
@@ -1034,33 +864,6 @@ const docTemplate = `{
                         "description": "OK"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/debug/profile": {
-            "post": {
-                "tags": [
-                    "Debug"
-                ],
-                "summary": "Collect debug profiles",
-                "operationId": "collect-debug-profiles",
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -1068,6 +871,11 @@ const docTemplate = `{
         },
         "/debug/tailnet": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "text/html"
                 ],
@@ -1080,16 +888,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/debug/ws": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1106,11 +914,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -1118,6 +921,11 @@ const docTemplate = `{
         },
         "/debug/{user}/debug-link": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -1137,11 +945,6 @@ const docTemplate = `{
                         "description": "Success"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -1149,6 +952,11 @@ const docTemplate = `{
         },
         "/deployment/config": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1164,16 +972,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.DeploymentConfig"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/deployment/ssh": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1189,16 +997,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.SSHConfigResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/deployment/stats": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1214,16 +1022,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.DeploymentStats"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/derp-map": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -1233,16 +1041,16 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/entitlements": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1258,41 +1066,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Entitlements"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/experimental/watch-all-workspacebuilds": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Watch all workspace builds",
-                "operationId": "watch-all-workspace-builds",
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
         "/experiments": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1311,16 +1094,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/experiments/available": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1339,16 +1122,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/external-auth": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1364,16 +1147,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ExternalAuthLink"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/external-auth/{externalauth}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1399,14 +1182,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ExternalAuth"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1432,16 +1215,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.DeleteExternalAuthByIDResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/external-auth/{externalauth}/device": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1467,14 +1250,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ExternalAuthDevice"
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "tags": [
                     "Git"
                 ],
@@ -1494,16 +1277,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/files": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "description": "Swagger notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
                 "consumes": [
                     "application/x-tar"
@@ -1546,16 +1329,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UploadResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/files/{fileID}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Files"
                 ],
@@ -1575,16 +1358,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/groups": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1626,16 +1409,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/groups/{group}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1651,12 +1434,6 @@ const docTemplate = `{
                         "name": "group",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Exclude members from the response",
-                        "name": "exclude_members",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1666,14 +1443,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Group"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1698,14 +1475,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Group"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -1742,71 +1519,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Group"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/groups/{group}/members": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get group members by group ID",
-                "operationId": "get-group-members-by-group-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Group id",
-                        "name": "group",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Member search query",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "After ID",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page offset",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.GroupMembersResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/init-script/{os}/{arch}": {
@@ -1844,6 +1557,11 @@ const docTemplate = `{
         },
         "/insights/daus": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1868,16 +1586,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/insights/templates": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1932,16 +1650,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateInsightsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/insights/user-activity": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1985,16 +1703,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserActivityInsightsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/insights/user-latency": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2038,16 +1756,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserLatencyInsightsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/insights/user-status-counts": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2077,16 +1795,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GetUserStatusCountsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/licenses": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2105,14 +1823,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -2142,16 +1860,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.License"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/licenses/refresh-entitlements": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2167,16 +1885,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/licenses/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2199,16 +1917,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/custom": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -2253,16 +1971,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/dispatch-methods": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2281,16 +1999,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/inbox": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2333,16 +2051,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ListInboxNotificationsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/inbox/mark-all-as-read": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Notifications"
                 ],
@@ -2352,16 +2070,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/inbox/watch": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2407,16 +2125,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GetInboxNotificationResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/inbox/{id}/read-status": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2441,16 +2159,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/settings": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2466,14 +2184,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.NotificationsSettings"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -2506,16 +2224,16 @@ const docTemplate = `{
                     "304": {
                         "description": "Not Modified"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/templates/custom": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2540,16 +2258,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/templates/system": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2574,16 +2292,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/templates/{notification_template}/method": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2608,16 +2326,16 @@ const docTemplate = `{
                     "304": {
                         "description": "Not modified"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/notifications/test": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Notifications"
                 ],
@@ -2627,16 +2345,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/oauth2-provider/apps": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2663,14 +2381,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -2700,16 +2418,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/oauth2-provider/apps/{app}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2734,14 +2452,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -2778,14 +2496,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -2804,16 +2522,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/oauth2-provider/apps/{app}/secrets": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2841,14 +2559,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2876,16 +2594,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/oauth2-provider/apps/{app}/secrets/{secretID}": {
             "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -2911,16 +2629,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/oauth2/authorize": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -2969,14 +2687,14 @@ const docTemplate = `{
                     "200": {
                         "description": "Returns HTML authorization page"
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -3025,12 +2743,7 @@ const docTemplate = `{
                     "302": {
                         "description": "Returns redirect with authorization code"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/oauth2/clients/{client_id}": {
@@ -3258,6 +2971,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -3276,16 +2994,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3304,14 +3022,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -3341,16 +3059,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Organization"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3376,14 +3094,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Organization"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3408,14 +3126,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -3452,16 +3170,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Organization"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/groups": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3490,14 +3208,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -3534,16 +3252,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Group"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/groups/{groupName}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3576,83 +3294,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Group"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/organizations/{organization}/groups/{groupName}/members": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get group members by organization and group name",
-                "operationId": "get-group-members-by-organization-and-group-name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Group name",
-                        "name": "groupName",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Member search query",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "After ID",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page offset",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.GroupMembersResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3681,16 +3332,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members/roles": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3719,14 +3370,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -3767,14 +3418,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -3815,16 +3466,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members/roles/{roleName}": {
             "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3860,16 +3511,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members/{user}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3901,14 +3552,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3940,14 +3591,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OrganizationMember"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "tags": [
                     "Members"
                 ],
@@ -3973,16 +3624,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members/{user}/roles": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -4026,16 +3677,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OrganizationMember"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members/{user}/workspace-quota": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4068,16 +3719,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceQuota"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members/{user}/workspaces": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
                 "consumes": [
                     "application/json"
@@ -4124,16 +3775,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/members/{user}/workspaces/available-users": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4187,16 +3838,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/paginated-members": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4212,19 +3863,6 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Member search query",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "After ID",
-                        "name": "after_id",
-                        "in": "query"
                     },
                     {
                         "type": "integer",
@@ -4249,16 +3887,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/provisionerdaemons": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4331,16 +3969,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/provisionerdaemons/serve": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -4360,16 +3998,16 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/provisionerjobs": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4449,16 +4087,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/provisionerjobs/{job}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4492,16 +4130,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ProvisionerJob"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/provisionerkeys": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4529,14 +4167,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4561,16 +4199,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.CreateProvisionerKeyResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/provisionerkeys/daemons": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4598,16 +4236,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/provisionerkeys/{provisionerkey}": {
             "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -4633,16 +4271,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/available-fields": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4671,16 +4309,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/field-values": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4717,16 +4355,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/groups": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4752,14 +4390,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -4797,16 +4435,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/groups/config": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -4844,16 +4482,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/groups/mapping": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -4891,16 +4529,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/roles": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4926,14 +4564,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -4971,16 +4609,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/roles/config": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5018,16 +4656,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/idpsync/roles/mapping": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5065,16 +4703,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/settings/workspace-sharing": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5100,14 +4738,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5134,7 +4772,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
+                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
                         }
                     }
                 ],
@@ -5142,19 +4780,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/templates": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "description": "Returns a list of templates for the specified organization.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
                     "application/json"
@@ -5184,14 +4822,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5228,16 +4866,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Template"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/templates/examples": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5267,16 +4905,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/templates/{templatename}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5309,16 +4947,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Template"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5358,16 +4996,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5407,16 +5045,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/organizations/{organization}/templateversions": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5454,16 +5092,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/prebuilds/settings": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5479,14 +5117,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.PrebuildsSettings"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5519,16 +5157,16 @@ const docTemplate = `{
                     "304": {
                         "description": "Not Modified"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/provisionerkeys/{provisionerkey}": {
             "get": {
+                "security": [
+                    {
+                        "CoderProvisionerKey": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5553,16 +5191,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ProvisionerKey"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderProvisionerKey": []
-                    }
-                ]
+                }
             }
         },
         "/regions": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5578,16 +5216,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_Region"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/replicas": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5606,12 +5244,7 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/scim/v2/ServiceProviderConfig": {
@@ -5633,6 +5266,11 @@ const docTemplate = `{
         },
         "/scim/v2/Users": {
             "get": {
+                "security": [
+                    {
+                        "Authorization": []
+                    }
+                ],
                 "produces": [
                     "application/scim+json"
                 ],
@@ -5645,14 +5283,14 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "Authorization": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5679,16 +5317,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/coderd.SCIMUser"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "Authorization": []
-                    }
-                ]
+                }
             }
         },
         "/scim/v2/Users/{id}": {
             "get": {
+                "security": [
+                    {
+                        "Authorization": []
+                    }
+                ],
                 "produces": [
                     "application/scim+json"
                 ],
@@ -5711,14 +5349,14 @@ const docTemplate = `{
                     "404": {
                         "description": "Not Found"
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "Authorization": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "produces": [
                     "application/scim+json"
                 ],
@@ -5753,14 +5391,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "Authorization": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "produces": [
                     "application/scim+json"
                 ],
@@ -5795,16 +5433,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "Authorization": []
-                    }
-                ]
+                }
             }
         },
         "/settings/idpsync/available-fields": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5833,16 +5471,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/settings/idpsync/field-values": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5879,16 +5517,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/settings/idpsync/organization": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5904,14 +5542,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5941,16 +5579,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/settings/idpsync/organization/config": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5980,16 +5618,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/settings/idpsync/organization/mapping": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6019,16 +5657,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tailnet": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -6038,16 +5676,16 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6071,16 +5709,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TasksListResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks/{user}": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6117,16 +5755,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Task"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks/{user}/{task}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6158,14 +5796,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Task"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "tags": [
                     "Tasks"
                 ],
@@ -6191,16 +5829,16 @@ const docTemplate = `{
                     "202": {
                         "description": "Accepted"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks/{user}/{task}/input": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6238,16 +5876,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks/{user}/{task}/logs": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6279,16 +5917,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TaskLogsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks/{user}/{task}/pause": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6321,16 +5959,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.PauseTaskResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks/{user}/{task}/resume": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6363,16 +6001,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ResumeTaskResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/tasks/{user}/{task}/send": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6410,16 +6048,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "description": "Returns a list of templates.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
                 "produces": [
                     "application/json"
@@ -6439,16 +6077,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/examples": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6467,16 +6105,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6502,14 +6140,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Template"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6535,14 +6173,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6580,16 +6218,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Template"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}/acl": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6615,14 +6253,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateACL"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6660,16 +6298,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}/acl/available": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6698,16 +6336,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}/daus": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6733,16 +6371,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}/prebuilds/invalidate": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6768,16 +6406,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.InvalidatePresetsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}/versions": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6831,14 +6469,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6876,16 +6514,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}/versions/archive": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -6923,16 +6561,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templates/{template}/versions/{templateversionname}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6968,16 +6606,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7003,14 +6641,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -7048,16 +6686,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/archive": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7083,16 +6721,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/cancel": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7118,16 +6756,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dry-run": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -7165,16 +6803,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ProvisionerJob"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dry-run/{jobID}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7208,16 +6846,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ProvisionerJob"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7251,16 +6889,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dry-run/{jobID}/logs": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7325,16 +6963,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7368,16 +7006,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.MatchedProvisioners"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7414,16 +7052,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dynamic-parameters": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Templates"
                 ],
@@ -7443,16 +7081,16 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/dynamic-parameters/evaluate": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -7490,16 +7128,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.DynamicParametersResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/external-auth": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7528,16 +7166,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/logs": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7594,16 +7232,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/parameters": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Templates"
                 ],
@@ -7623,16 +7261,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/presets": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7661,16 +7299,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/resources": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7699,16 +7337,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/rich-parameters": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7737,16 +7375,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/schema": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Templates"
                 ],
@@ -7766,16 +7404,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/unarchive": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7801,16 +7439,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/templateversions/{templateversion}/variables": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7839,12 +7477,7 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/updatecheck": {
@@ -7869,6 +7502,11 @@ const docTemplate = `{
         },
         "/users": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7911,14 +7549,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GetUsersResponse"
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -7948,16 +7586,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/authmethods": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7973,16 +7611,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AuthMethods"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/first": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -7998,14 +7636,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -8035,12 +7673,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.CreateFirstUserResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/login": {
@@ -8079,6 +7712,11 @@ const docTemplate = `{
         },
         "/users/logout": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8094,16 +7732,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/oauth2/github/callback": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Users"
                 ],
@@ -8113,16 +7751,16 @@ const docTemplate = `{
                     "307": {
                         "description": "Temporary Redirect"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/oauth2/github/device": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8138,41 +7776,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ExternalAuthDevice"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/users/oidc-claims": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Get OIDC claims for the authenticated user",
-                "operationId": "get-oidc-claims-for-the-authenticated-user",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.OIDCClaimsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/oidc/callback": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Users"
                 ],
@@ -8182,12 +7795,7 @@ const docTemplate = `{
                     "307": {
                         "description": "Temporary Redirect"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/otp/change-password": {
@@ -8248,6 +7856,11 @@ const docTemplate = `{
         },
         "/users/roles": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8266,16 +7879,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/validate-password": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -8305,16 +7918,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8339,14 +7952,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "tags": [
                     "Users"
                 ],
@@ -8365,16 +7978,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/appearance": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8399,14 +8012,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserAppearanceSettings"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -8443,16 +8056,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserAppearanceSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/autofill-parameters": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8487,16 +8100,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/convert-login": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -8533,16 +8146,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OAuthConversionResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/gitsshkey": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8567,14 +8180,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GitSSHKey"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8599,16 +8212,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GitSSHKey"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/keys": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8633,16 +8246,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/keys/tokens": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8676,14 +8289,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -8720,16 +8333,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/keys/tokens/tokenconfig": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8754,16 +8367,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TokenConfig"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/keys/tokens/{keyname}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8796,16 +8409,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKey"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/keys/{keyid}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8838,14 +8451,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKey"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "tags": [
                     "Users"
                 ],
@@ -8872,16 +8485,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/keys/{keyid}/expire": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Users"
                 ],
@@ -8920,16 +8533,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/login-type": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8954,16 +8567,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserLoginType"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/notifications/preferences": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8991,14 +8604,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9038,16 +8651,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/organizations": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9075,16 +8688,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/organizations/{organizationname}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9116,16 +8729,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Organization"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/password": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9156,16 +8769,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/preferences": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9190,14 +8803,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserPreferenceSettings"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9234,16 +8847,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UserPreferenceSettings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/profile": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9280,16 +8893,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/quiet-hours": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9318,14 +8931,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9366,16 +8979,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/roles": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9400,14 +9013,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9444,16 +9057,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/status/activate": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9478,16 +9091,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/status/suspend": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9512,16 +9125,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.User"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/webpush/subscription": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9553,16 +9166,16 @@ const docTemplate = `{
                         "description": "No Content"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9594,11 +9207,6 @@ const docTemplate = `{
                         "description": "No Content"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -9606,6 +9214,11 @@ const docTemplate = `{
         },
         "/users/{user}/webpush/test": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Notifications"
                 ],
@@ -9625,11 +9238,6 @@ const docTemplate = `{
                         "description": "No Content"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -9637,6 +9245,11 @@ const docTemplate = `{
         },
         "/users/{user}/workspace/{workspacename}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9674,16 +9287,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9723,16 +9336,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/users/{user}/workspaces": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
                 "consumes": [
                     "application/json"
@@ -9770,16 +9383,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspace-quota/{user}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9805,16 +9418,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceQuota"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/aws-instance-identity": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9844,16 +9457,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/azure-instance-identity": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9883,16 +9496,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/connection": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9909,11 +9522,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -9921,6 +9529,11 @@ const docTemplate = `{
         },
         "/workspaceagents/google-instance-identity": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9950,16 +9563,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/app-status": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -9990,16 +9603,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/external-auth": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10037,16 +9650,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.ExternalAuthResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/gitauth": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10084,16 +9697,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.ExternalAuthResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/gitsshkey": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10109,16 +9722,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.GitSSHKey"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/log-source": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -10148,16 +9761,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/logs": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -10187,16 +9800,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/reinit": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10212,16 +9825,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.ReinitializationEvent"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/me/rpc": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -10232,11 +9845,6 @@ const docTemplate = `{
                         "description": "Switching Protocols"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -10244,6 +9852,11 @@ const docTemplate = `{
         },
         "/workspaceagents/me/tasks/{task}/log-snapshot": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -10285,16 +9898,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10320,16 +9933,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceAgent"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/connection": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10355,16 +9968,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/workspacesdk.AgentConnectionInfo"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/containers": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10398,16 +10011,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}": {
             "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -10434,16 +10047,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10476,16 +10089,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/containers/watch": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10511,16 +10124,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -10540,16 +10153,16 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10575,16 +10188,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPortsResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/logs": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10647,16 +10260,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/pty": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -10676,16 +10289,16 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/startup-logs": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10738,16 +10351,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/watch-metadata": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Agents"
                 ],
@@ -10769,11 +10382,6 @@ const docTemplate = `{
                         "description": "Success"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -10781,6 +10389,11 @@ const docTemplate = `{
         },
         "/workspaceagents/{workspaceagent}/watch-metadata-ws": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10807,11 +10420,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -10819,6 +10427,11 @@ const docTemplate = `{
         },
         "/workspacebuilds/{workspacebuild}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10843,16 +10456,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/cancel": {
             "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10887,16 +10500,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/logs": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10952,16 +10565,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/parameters": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -10989,16 +10602,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/resources": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11027,16 +10640,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/state": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11061,14 +10674,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
                     }
-                },
+                }
+            },
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "put": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11100,16 +10713,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspacebuilds/{workspacebuild}/timings": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11135,16 +10748,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceproxies": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11163,14 +10776,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11200,16 +10813,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaceproxies/me/app-stats": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11234,11 +10847,6 @@ const docTemplate = `{
                         "description": "No Content"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -11246,6 +10854,11 @@ const docTemplate = `{
         },
         "/workspaceproxies/me/coordinate": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -11256,11 +10869,6 @@ const docTemplate = `{
                         "description": "Switching Protocols"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -11268,6 +10876,11 @@ const docTemplate = `{
         },
         "/workspaceproxies/me/crypto-keys": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11293,11 +10906,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -11305,6 +10913,11 @@ const docTemplate = `{
         },
         "/workspaceproxies/me/deregister": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11329,11 +10942,6 @@ const docTemplate = `{
                         "description": "No Content"
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -11341,6 +10949,11 @@ const docTemplate = `{
         },
         "/workspaceproxies/me/issue-signed-app-token": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11371,11 +10984,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -11383,6 +10991,11 @@ const docTemplate = `{
         },
         "/workspaceproxies/me/register": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11413,11 +11026,6 @@ const docTemplate = `{
                         }
                     }
                 },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "x-apidocgen": {
                     "skip": true
                 }
@@ -11425,6 +11033,11 @@ const docTemplate = `{
         },
         "/workspaceproxies/{workspaceproxy}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11450,14 +11063,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11483,14 +11096,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11528,16 +11141,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11573,16 +11186,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspacesResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11614,14 +11227,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11653,16 +11266,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/acl": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11688,14 +11301,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceACL"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -11715,14 +11328,14 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
+                }
+            },
+            "patch": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "patch": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11757,16 +11370,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/autostart": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11798,16 +11411,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/autoupdates": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11839,16 +11452,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/builds": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -11903,14 +11516,14 @@ const docTemplate = `{
                             }
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11948,16 +11561,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/dormant": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -11995,16 +11608,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/extend": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -12042,16 +11655,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/external-agent/{agent}/credentials": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -12084,16 +11697,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ExternalAgentCredentials"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/favorite": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -12113,14 +11726,14 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -12140,16 +11753,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/port-share": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -12175,14 +11788,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceAgentPortShares"
                         }
                     }
-                },
+                }
+            },
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "post": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -12220,14 +11833,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceAgentPortShare"
                         }
                     }
-                },
+                }
+            },
+            "delete": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ]
-            },
-            "delete": {
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -12259,16 +11872,16 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/resolve-autostart": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -12294,16 +11907,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ResolveAutostartResponse"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/timings": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -12329,16 +11942,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/ttl": {
             "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -12370,16 +11983,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/usage": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -12410,16 +12023,16 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/watch": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "text/event-stream"
                 ],
@@ -12446,16 +12059,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         },
         "/workspaces/{workspace}/watch-ws": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -12481,12 +12094,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ServerSentEvent"
                         }
                     }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
+                }
             }
         }
     },
@@ -12755,29 +12363,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeAgenticAction": {
-            "type": "object",
-            "properties": {
-                "model": {
-                    "type": "string"
-                },
-                "thinking": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeModelThought"
-                    }
-                },
-                "token_usage": {
-                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
-                },
-                "tool_calls": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeToolCall"
-                    }
-                }
-            }
-        },
         "codersdk.AIBridgeAnthropicConfig": {
             "type": "object",
             "properties": {
@@ -12841,7 +12426,6 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "inject_coder_mcp_tools": {
-                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "boolean"
                 },
                 "max_concurrency": {
@@ -12932,28 +12516,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeListSessionsResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "sessions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeSession"
-                    }
-                }
-            }
-        },
-        "codersdk.AIBridgeModelThought": {
-            "type": "object",
-            "properties": {
-                "text": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIBridgeOpenAIConfig": {
             "type": "object",
             "properties": {
@@ -12968,12 +12530,6 @@ const docTemplate = `{
         "codersdk.AIBridgeProxyConfig": {
             "type": "object",
             "properties": {
-                "allowed_private_cidrs": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "cert_file": {
                     "type": "string"
                 },
@@ -13006,169 +12562,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeSession": {
-            "type": "object",
-            "properties": {
-                "client": {
-                    "type": "string"
-                },
-                "ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "initiator": {
-                    "$ref": "#/definitions/codersdk.MinimalUser"
-                },
-                "last_prompt": {
-                    "type": "string"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "models": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "providers": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "threads": {
-                    "type": "integer"
-                },
-                "token_usage_summary": {
-                    "$ref": "#/definitions/codersdk.AIBridgeSessionTokenUsageSummary"
-                }
-            }
-        },
-        "codersdk.AIBridgeSessionThreadsResponse": {
-            "type": "object",
-            "properties": {
-                "client": {
-                    "type": "string"
-                },
-                "ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "initiator": {
-                    "$ref": "#/definitions/codersdk.MinimalUser"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "models": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "page_ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "page_started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "providers": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "threads": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeThread"
-                    }
-                },
-                "token_usage_summary": {
-                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
-                }
-            }
-        },
-        "codersdk.AIBridgeSessionThreadsTokenUsage": {
-            "type": "object",
-            "properties": {
-                "input_tokens": {
-                    "type": "integer"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "output_tokens": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.AIBridgeSessionTokenUsageSummary": {
-            "type": "object",
-            "properties": {
-                "input_tokens": {
-                    "type": "integer"
-                },
-                "output_tokens": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.AIBridgeThread": {
-            "type": "object",
-            "properties": {
-                "agentic_actions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeAgenticAction"
-                    }
-                },
-                "ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "prompt": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "token_usage": {
-                    "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
-                }
-            }
-        },
         "codersdk.AIBridgeTokenUsage": {
             "type": "object",
             "properties": {
@@ -13195,42 +12588,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "provider_response_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeToolCall": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "injected": {
-                    "type": "boolean"
-                },
-                "input": {
-                    "type": "string"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "provider_response_id": {
-                    "type": "string"
-                },
-                "server_url": {
-                    "type": "string"
-                },
-                "tool": {
                     "type": "string"
                 }
             }
@@ -13309,9 +12666,6 @@ const docTemplate = `{
                 },
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
-                },
-                "chat": {
-                    "$ref": "#/definitions/codersdk.ChatConfig"
                 }
             }
         },
@@ -14369,14 +13723,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatConfig": {
-            "type": "object",
-            "properties": {
-                "acquire_batch_size": {
-                    "type": "integer"
-                }
-            }
-        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -14966,6 +14312,7 @@ const docTemplate = `{
         "codersdk.CreateUserRequestWithOrgs": {
             "type": "object",
             "required": [
+                "email",
                 "username"
             ],
             "properties": {
@@ -14994,10 +14341,6 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
-                },
-                "service_account": {
-                    "description": "Service accounts are admin-managed accounts that cannot login.",
-                    "type": "boolean"
                 },
                 "user_status": {
                     "description": "UserStatus defaults to UserStatusDormant.",
@@ -15814,8 +15157,7 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "agents",
-                "mcp-server-http",
-                "workspace-build-updates"
+                "mcp-server-http"
             ],
             "x-enum-comments": {
                 "ExperimentAgents": "Enables agent-powered chat functionality.",
@@ -15825,7 +15167,6 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
-                "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -15836,8 +15177,7 @@ const docTemplate = `{
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
                 "Enables agent-powered chat functionality.",
-                "Enables the MCP HTTP server functionality.",
-                "Enables publishing workspace build updates to the all builds pubsub channel."
+                "Enables the MCP HTTP server functionality."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -15847,8 +15187,7 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentAgents",
-                "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceBuildUpdates"
+                "ExperimentMCPServerHTTP"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -15930,10 +15269,6 @@ const docTemplate = `{
         "codersdk.ExternalAuthConfig": {
             "type": "object",
             "properties": {
-                "api_base_url": {
-                    "description": "APIBaseURL is the base URL for provider REST API calls\n(e.g., \"https://api.github.com\" for GitHub). Derived from\ndefaults when not explicitly configured.",
-                    "type": "string"
-                },
                 "app_install_url": {
                     "type": "string"
                 },
@@ -15972,15 +15307,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mcp_tool_allow_regex": {
-                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_tool_deny_regex": {
-                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_url": {
-                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "no_refresh": {
@@ -16243,20 +15575,6 @@ const docTemplate = `{
                 "total_member_count": {
                     "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.GroupMembersResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "users": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ReducedUser"
-                    }
                 }
             }
         },
@@ -17451,16 +16769,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.OIDCClaimsResponse": {
-            "type": "object",
-            "properties": {
-                "claims": {
-                    "description": "Claims are the merged claims from the OIDC provider. These\nare the union of the ID token claims and the userinfo claims,\nwhere userinfo claims take precedence on conflict.",
-                    "type": "object",
-                    "additionalProperties": true
-                }
-            }
-        },
         "codersdk.OIDCConfig": {
             "type": "object",
             "properties": {
@@ -17678,20 +16986,6 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
-                "has_ai_seat": {
-                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
-                    "type": "boolean"
-                },
-                "is_service_account": {
-                    "type": "boolean"
-                },
-                "last_seen_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "login_type": {
-                    "$ref": "#/definitions/codersdk.LoginType"
-                },
                 "name": {
                     "type": "string"
                 },
@@ -17705,32 +16999,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
-                "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
-                },
                 "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "user_created_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "user_updated_at": {
-                    "type": "string",
-                    "format": "date-time"
                 },
                 "username": {
                     "type": "string"
@@ -17757,191 +17032,6 @@ const docTemplate = `{
                 "organization_assign_default": {
                     "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.PRInsightsModelBreakdown": {
-            "type": "object",
-            "properties": {
-                "cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "merge_rate": {
-                    "type": "number"
-                },
-                "merged_prs": {
-                    "type": "integer"
-                },
-                "model_config_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "total_additions": {
-                    "type": "integer"
-                },
-                "total_cost_micros": {
-                    "type": "integer"
-                },
-                "total_deletions": {
-                    "type": "integer"
-                },
-                "total_prs": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.PRInsightsPullRequest": {
-            "type": "object",
-            "properties": {
-                "additions": {
-                    "type": "integer"
-                },
-                "approved": {
-                    "type": "boolean"
-                },
-                "author_avatar_url": {
-                    "type": "string"
-                },
-                "author_login": {
-                    "type": "string"
-                },
-                "base_branch": {
-                    "type": "string"
-                },
-                "changed_files": {
-                    "type": "integer"
-                },
-                "changes_requested": {
-                    "type": "boolean"
-                },
-                "chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "commits": {
-                    "type": "integer"
-                },
-                "cost_micros": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "deletions": {
-                    "type": "integer"
-                },
-                "draft": {
-                    "type": "boolean"
-                },
-                "model_display_name": {
-                    "type": "string"
-                },
-                "pr_number": {
-                    "type": "integer"
-                },
-                "pr_title": {
-                    "type": "string"
-                },
-                "pr_url": {
-                    "type": "string"
-                },
-                "reviewer_count": {
-                    "type": "integer"
-                },
-                "state": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.PRInsightsResponse": {
-            "type": "object",
-            "properties": {
-                "by_model": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsModelBreakdown"
-                    }
-                },
-                "recent_prs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsPullRequest"
-                    }
-                },
-                "summary": {
-                    "$ref": "#/definitions/codersdk.PRInsightsSummary"
-                },
-                "time_series": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsTimeSeriesEntry"
-                    }
-                }
-            }
-        },
-        "codersdk.PRInsightsSummary": {
-            "type": "object",
-            "properties": {
-                "approval_rate": {
-                    "type": "number"
-                },
-                "cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "merge_rate": {
-                    "type": "number"
-                },
-                "prev_cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "prev_merge_rate": {
-                    "type": "number"
-                },
-                "prev_total_prs_created": {
-                    "type": "integer"
-                },
-                "prev_total_prs_merged": {
-                    "type": "integer"
-                },
-                "total_additions": {
-                    "type": "integer"
-                },
-                "total_cost_micros": {
-                    "type": "integer"
-                },
-                "total_deletions": {
-                    "type": "integer"
-                },
-                "total_prs_created": {
-                    "type": "integer"
-                },
-                "total_prs_merged": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.PRInsightsTimeSeriesEntry": {
-            "type": "object",
-            "properties": {
-                "date": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "prs_closed": {
-                    "type": "integer"
-                },
-                "prs_created": {
-                    "type": "integer"
-                },
-                "prs_merged": {
-                    "type": "integer"
                 }
             }
         },
@@ -19158,9 +18248,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "is_service_account": {
-                    "type": "boolean"
-                },
                 "last_seen_at": {
                     "type": "string",
                     "format": "date-time"
@@ -19329,8 +18416,7 @@ const docTemplate = `{
                 "idp_sync_settings_role",
                 "workspace_agent",
                 "workspace_app",
-                "task",
-                "ai_seat"
+                "task"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -19358,8 +18444,7 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
-                "ResourceTypeTask",
-                "ResourceTypeAISeat"
+                "ResourceTypeTask"
             ]
         },
         "codersdk.Response": {
@@ -19570,19 +18655,6 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
-        },
-        "codersdk.ShareableWorkspaceOwners": {
-            "type": "string",
-            "enum": [
-                "none",
-                "everyone",
-                "service_accounts"
-            ],
-            "x-enum-varnames": [
-                "ShareableWorkspaceOwnersNone",
-                "ShareableWorkspaceOwnersEveryone",
-                "ShareableWorkspaceOwnersServiceAccounts"
-            ]
         },
         "codersdk.SharedWorkspaceActor": {
             "type": "object",
@@ -20478,16 +19550,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "email"
                 },
-                "has_ai_seat": {
-                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
-                    "type": "boolean"
-                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "is_service_account": {
-                    "type": "boolean"
                 },
                 "last_seen_at": {
                     "type": "string",
@@ -21199,21 +20264,7 @@ const docTemplate = `{
         "codersdk.UpdateWorkspaceSharingSettingsRequest": {
             "type": "object",
             "properties": {
-                "shareable_workspace_owners": {
-                    "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
-                        }
-                    ]
-                },
                 "sharing_disabled": {
-                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes.\nDeprecated: use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead",
                     "type": "boolean"
                 }
             }
@@ -21331,16 +20382,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "email"
                 },
-                "has_ai_seat": {
-                    "description": "HasAISeat intentionally omits omitempty so the API always includes the\nfield, even when false.",
-                    "type": "boolean"
-                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "is_service_account": {
-                    "type": "boolean"
                 },
                 "last_seen_at": {
                     "type": "string",
@@ -23061,21 +22105,7 @@ const docTemplate = `{
         "codersdk.WorkspaceSharingSettings": {
             "type": "object",
             "properties": {
-                "shareable_workspace_owners": {
-                    "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
-                    "enum": [
-                        "none",
-                        "everyone",
-                        "service_accounts"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
-                        }
-                    ]
-                },
                 "sharing_disabled": {
-                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes.\nDeprecated: use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead",
                     "type": "boolean"
                 },
                 "sharing_globally_disabled": {

@@ -1,8 +1,8 @@
+import { MockProvisionerJob } from "testHelpers/entities";
+import { withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Response } from "api/typesGenerated";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type { Response } from "#/api/typesGenerated";
-import { MockProvisionerJob } from "#/testHelpers/entities";
-import { withToaster } from "#/testHelpers/storybook";
 import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
 
 const meta: Meta<typeof CancelJobConfirmationDialog> = {
@@ -31,7 +31,7 @@ export const OnCancel: Story = {
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
-		const cancelButton = body.getByRole("button", { name: "Cancel" });
+		const cancelButton = body.getByRole("button", { name: "Discard" });
 		user.click(cancelButton);
 		await waitFor(() => {
 			expect(args.onClose).toHaveBeenCalledTimes(1);

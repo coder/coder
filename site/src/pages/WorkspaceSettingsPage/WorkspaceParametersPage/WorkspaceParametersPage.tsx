@@ -1,28 +1,28 @@
-import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
-import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router";
-import { API } from "#/api/api";
-import { isApiValidationError } from "#/api/errors";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import { richParameters } from "#/api/queries/templates";
-import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
+import { API } from "api/api";
+import { isApiValidationError } from "api/errors";
+import { checkAuthorization } from "api/queries/authCheck";
+import { richParameters } from "api/queries/templates";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type {
 	TemplateVersionParameter,
 	Workspace,
 	WorkspaceBuildParameter,
-} from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Loader } from "#/components/Loader/Loader";
-import { docs } from "#/utils/docs";
-import { pageTitle } from "#/utils/page";
+} from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Loader } from "components/Loader/Loader";
+import { ExternalLinkIcon } from "lucide-react";
+import type { FC } from "react";
+import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router";
+import { docs } from "utils/docs";
+import { pageTitle } from "utils/page";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { useWorkspaceSettings } from "../useWorkspaceSettings";
+import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {
 	WorkspaceParametersForm,
 	type WorkspaceParametersFormValues,
@@ -151,7 +151,7 @@ export const WorkspaceParametersPageView: FC<
 			</header>
 
 			{submitError && !isApiValidationError(submitError) ? (
-				<ErrorAlert error={submitError} className="mb-12" />
+				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
 			) : null}
 
 			{templateVersionParameters && buildParameters ? (

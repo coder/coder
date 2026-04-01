@@ -288,8 +288,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.ErrorContains(t, err, "not allowed to assign organization member permissions for an organization role")
 	})
 
-	// System roles are stored in the DB but excluded from the custom
-	// roles API, so attempting to delete one returns 404.
+	// Attempt to delete a system role, which is not allowed.
 	t.Run("DeleteSystemRole", func(t *testing.T) {
 		t.Parallel()
 
@@ -307,7 +306,8 @@ func TestCustomOrganizationRole(t *testing.T) {
 		err := owner.DeleteOrganizationRole(ctx, first.OrganizationID, rbac.RoleOrgMember())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.ErrorContains(t, err, "Reserved role name")
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -452,13 +452,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentAgents)}
-
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			DeploymentValues: dv,
-		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
@@ -493,7 +487,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
-				{Name: codersdk.RoleAgentsAccess}:  false,
 			}),
 		},
 		{
@@ -527,7 +520,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
-				{Name: codersdk.RoleAgentsAccess}:  false,
 			}),
 		},
 		{
@@ -561,7 +553,6 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       true,
 				{Name: codersdk.RoleTemplateAdmin}: true,
 				{Name: codersdk.RoleUserAdmin}:     true,
-				{Name: codersdk.RoleAgentsAccess}:  true,
 			}),
 		},
 		{

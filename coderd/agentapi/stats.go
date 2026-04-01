@@ -4,21 +4,20 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 type StatsAPI struct {
-	AgentID                   uuid.UUID
-	AgentName                 string
+	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
 	Workspace                 *CachedWorkspaceFields
 	Database                  database.Store
 	Log                       slog.Logger
@@ -45,13 +44,32 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		return res, nil
 	}
 
+	// Inject RBAC object into context for dbauthz fast path, avoid having to
+	// call GetWorkspaceAgentByID on every stats update.
+
+	rbacCtx := ctx
+	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		var err error
+		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
+		if err != nil {
+			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
+			//nolint:gocritic
+			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
+		}
+	}
+
+	workspaceAgent, err := a.AgentFn(rbacCtx)
+	if err != nil {
+		return nil, err
+	}
+
 	// If cache is empty (prebuild or invalid), fall back to DB
 	var ws database.WorkspaceIdentity
 	var ok bool
 	if ws, ok = a.Workspace.AsWorkspaceIdentity(); !ok {
-		w, err := a.Database.GetWorkspaceByAgentID(ctx, a.AgentID)
+		w, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 		if err != nil {
-			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", a.AgentID, err)
+			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
 		}
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
@@ -72,12 +90,11 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		req.Stats.SessionCountReconnectingPty = 0
 	}
 
-	err := a.StatsReporter.ReportAgentStats(
+	err = a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
 		ws,
-		a.AgentID,
-		a.AgentName,
+		workspaceAgent,
 		req.Stats,
 		false,
 	)

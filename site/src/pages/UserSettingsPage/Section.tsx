@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC, ReactNode } from "react";
 import {
 	FeatureStageBadge,
 	type featureStageBadgeTypes,
-} from "#/components/FeatureStageBadge/FeatureStageBadge";
-import { Stack } from "#/components/Stack/Stack";
+} from "components/FeatureStageBadge/FeatureStageBadge";
+import { Stack } from "components/Stack/Stack";
+import type { FC, ReactNode } from "react";
 
 type SectionLayout = "fixed" | "fluid";
 
@@ -34,18 +34,27 @@ export const Section: FC<SectionProps> = ({
 }) => {
 	return (
 		<section className={className} id={id} data-testid={id}>
-			<div className={layout === "fluid" ? "max-w-full" : "max-w-[500px]"}>
+			<div css={{ maxWidth: layout === "fluid" ? "100%" : 500 }}>
 				{(title || description) && (
 					<div css={styles.header}>
 						<div>
 							{title && (
 								<Stack direction="row" alignItems="center">
-									<h4 className="text-2xl font-medium m-0 mb-2">{title}</h4>
+									<h4
+										css={{
+											fontSize: 24,
+											fontWeight: 500,
+											margin: 0,
+											marginBottom: 8,
+										}}
+									>
+										{title}
+									</h4>
 									{featureStage && (
 										<FeatureStageBadge
 											contentType={featureStage}
 											size="md"
-											className="mb-[5px]"
+											css={{ marginBottom: "5px" }}
 										/>
 									)}
 								</Stack>
@@ -60,7 +69,7 @@ export const Section: FC<SectionProps> = ({
 						{toolbar && <div>{toolbar}</div>}
 					</div>
 				)}
-				{alert && <div className="mb-2">{alert}</div>}
+				{alert && <div css={{ marginBottom: 8 }}>{alert}</div>}
 				{children}
 			</div>
 		</section>

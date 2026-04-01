@@ -1,13 +1,13 @@
+import { checkAuthorization } from "api/queries/authCheck";
+import { Link } from "components/Link/Link";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { workspaceChecks } from "modules/workspaces/permissions";
+import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import { Link } from "#/components/Link/Link";
-import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
-import { workspaceChecks } from "#/modules/workspaces/permissions";
-import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
-import { docs } from "#/utils/docs";
-import { pageTitle } from "#/utils/page";
-import { useWorkspaceSettings } from "../useWorkspaceSettings";
+import { docs } from "utils/docs";
+import { pageTitle } from "utils/page";
+import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const WorkspaceSharingPage: FC = () => {

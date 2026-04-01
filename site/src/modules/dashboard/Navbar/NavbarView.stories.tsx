@@ -1,13 +1,9 @@
+import { chromaticWithTablet } from "testHelpers/chromatic";
+import { MockTasks, MockUserMember, MockUserOwner } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { TasksFilter } from "api/typesGenerated";
 import { userEvent, within } from "storybook/test";
-import type { TasksFilter } from "#/api/typesGenerated";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
-import {
-	MockTasks,
-	MockUserMember,
-	MockUserOwner,
-} from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
 const tasksFilter: TasksFilter = {
@@ -19,7 +15,6 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: {
 		chromatic: chromaticWithTablet,
 		layout: "fullscreen",
-		experiments: ["agents"],
 		queries: [
 			{
 				key: ["tasks", tasksFilter],

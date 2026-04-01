@@ -1,10 +1,11 @@
+import { MockTemplate } from "testHelpers/entities";
+import { render } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
-import { API } from "#/api/api";
-import { defaultSchedule } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { MockTemplate } from "#/testHelpers/entities";
-import { render } from "#/testHelpers/renderHelpers";
-import { timeZones } from "#/utils/timeZones";
+import { API } from "api/api";
+import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { timeZones } from "utils/timeZones";
 import {
+	Language,
 	ttlShutdownAt,
 	validationSchema,
 	WorkspaceScheduleForm,
@@ -70,9 +71,7 @@ describe("validationSchema", () => {
 			saturday: false,
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow(
-			"Must set at least one day of week if autostart is enabled.",
-		);
+		expect(validate).toThrow(Language.errorNoDayOfWeek);
 	});
 
 	it("disallows empty startTime when autostart is enabled", () => {
@@ -88,9 +87,7 @@ describe("validationSchema", () => {
 			startTime: "",
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow(
-			"Start time is required when autostart is enabled.",
-		);
+		expect(validate).toThrow(Language.errorNoTime);
 	});
 
 	it("allows startTime 16:20", () => {
@@ -108,7 +105,7 @@ describe("validationSchema", () => {
 			startTime: "9:30",
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow("Time must be in HH:mm format.");
+		expect(validate).toThrow(Language.errorTime);
 	});
 
 	it("disallows startTime to be HH:m", () => {
@@ -117,7 +114,7 @@ describe("validationSchema", () => {
 			startTime: "09:5",
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow("Time must be in HH:mm format.");
+		expect(validate).toThrow(Language.errorTime);
 	});
 
 	it("disallows an invalid startTime 24:01", () => {
@@ -126,7 +123,7 @@ describe("validationSchema", () => {
 			startTime: "24:01",
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow("Time must be in HH:mm format.");
+		expect(validate).toThrow(Language.errorTime);
 	});
 
 	it("disallows an invalid startTime 09:60", () => {
@@ -135,7 +132,7 @@ describe("validationSchema", () => {
 			startTime: "09:60",
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow("Time must be in HH:mm format.");
+		expect(validate).toThrow(Language.errorTime);
 	});
 
 	it("disallows an invalid timezone Canada/North", () => {
@@ -144,7 +141,7 @@ describe("validationSchema", () => {
 			timezone: "Canada/North",
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow("Invalid timezone.");
+		expect(validate).toThrow(Language.errorTimezone);
 	});
 
 	it("validation passes for all timezones", () => {
@@ -182,9 +179,7 @@ describe("validationSchema", () => {
 			ttl: 24 * 30 + 1,
 		};
 		const validate = () => validationSchema.validateSync(values);
-		expect(validate).toThrow(
-			"Please enter a limit that is less than or equal to 30 days (720 hours).",
-		);
+		expect(validate).toThrow(Language.errorTtlMax);
 	});
 
 	it("allows a ttl of 1.2 hours", () => {

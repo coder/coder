@@ -1,8 +1,8 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
-import { DisabledBadge, EnabledBadge } from "#/components/Badges/Badges";
-import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -58,7 +58,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (typeof value === "object" && !Array.isArray(value)) {
 		return (
-			<ul className="option-array list-none">
+			<ul css={{ listStyle: "none" }} className="option-array">
 				{Object.entries(value)
 					.sort((a, b) => a[0].localeCompare(b[0]))
 					.map(([option, isEnabled]) => (
@@ -75,7 +75,12 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 								isEnabled ? "option-enabled" : "option-disabled"
 							}`}
 						>
-							<div className="inline-flex items-center">
+							<div
+								css={{
+									display: "inline-flex",
+									alignItems: "center",
+								}}
+							>
 								{isEnabled && <WrenchIcon className="size-4 mx-2" />}
 								{option}
 							</div>
@@ -87,7 +92,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (Array.isArray(value)) {
 		return (
-			<ul className="option-array list-inside">
+			<ul css={{ listStylePosition: "inside" }} className="option-array">
 				{value.map((item) => (
 					<li key={item} css={styles.option}>
 						{item}
@@ -160,13 +165,13 @@ const styles = {
 	}),
 
 	option: css`
-		font-size: 14px;
-		font-family: ${MONOSPACE_FONT_FAMILY};
-		overflow-wrap: anywhere;
-		user-select: all;
+    font-size: 14px;
+    font-family: ${MONOSPACE_FONT_FAMILY};
+    overflow-wrap: anywhere;
+    user-select: all;
 
-		& ul {
-			padding: 16px;
-		}
-	`,
+    & ul {
+      padding: 16px;
+    }
+  `,
 } satisfies Record<string, Interpolation<Theme>>;

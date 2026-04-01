@@ -1,20 +1,27 @@
 import TextField from "@mui/material/TextField";
+import type { UpdateUserProfileRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
+import { Form, FormFields } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
-import * as Yup from "yup";
-import type { UpdateUserProfileRequest } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
-import { Form, FormFields } from "#/components/Form/Form";
-import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "#/utils/formUtils";
+} from "utils/formUtils";
+import * as Yup from "yup";
+
+export const Language = {
+	usernameLabel: "Username",
+	emailLabel: "Email",
+	nameLabel: "Name",
+	updateSettings: "Update account",
+};
 
 const validationSchema = Yup.object({
-	username: nameValidator("Username"),
+	username: nameValidator(Language.usernameLabel),
 	name: Yup.string(),
 });
 
@@ -53,7 +60,12 @@ export const AccountForm: FC<AccountFormProps> = ({
 					<ErrorAlert error={updateProfileError} />
 				)}
 
-				<TextField disabled fullWidth label="Email" value={email} />
+				<TextField
+					disabled
+					fullWidth
+					label={Language.emailLabel}
+					value={email}
+				/>
 				<TextField
 					{...getFieldHelpers("username")}
 					onChange={onChangeTrimmed(form)}
@@ -61,7 +73,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 					autoComplete="username"
 					disabled={!editable}
 					fullWidth
-					label="Username"
+					label={Language.usernameLabel}
 				/>
 				<TextField
 					{...getFieldHelpers("name")}
@@ -71,14 +83,14 @@ export const AccountForm: FC<AccountFormProps> = ({
 						e.target.value = e.target.value.trim();
 						form.handleChange(e);
 					}}
-					label="Name"
+					label={Language.nameLabel}
 					helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
 				/>
 
 				<div>
 					<Button disabled={isLoading} type="submit">
 						<Spinner loading={isLoading} />
-						Update account
+						{Language.updateSettings}
 					</Button>
 				</div>
 			</FormFields>

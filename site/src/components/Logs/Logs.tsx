@@ -18,7 +18,7 @@ export const Logs: FC<LogsProps> = ({
 }) => {
 	return (
 		<div css={styles.root} className={`${className} logs-container`}>
-			<div className="min-w-fit">
+			<div css={{ minWidth: "fit-content" }}>
 				{lines.map((line) => (
 					<LogLine key={line.id} level={line.level}>
 						{!hideTimestamps && (

@@ -1,12 +1,12 @@
-import type { FC, HTMLAttributes, ReactNode } from "react";
-import { Link } from "#/components/Link/Link";
+import { Link } from "components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
-import { docs } from "#/utils/docs";
+} from "components/Tooltip/Tooltip";
+import type { FC, HTMLAttributes, ReactNode } from "react";
+import { cn } from "utils/cn";
+import { docs } from "utils/docs";
 
 /**
  * All types of feature that we are currently supporting. Defined as record to

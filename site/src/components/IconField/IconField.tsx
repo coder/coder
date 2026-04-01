@@ -1,16 +1,16 @@
 import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { type FC, lazy, Suspense, useState } from "react";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Loader } from "#/components/Loader/Loader";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Loader } from "components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/Popover/Popover";
+} from "components/Popover/Popover";
+import { type FC, lazy, Suspense, useState } from "react";
 
 type IconFieldProps = TextFieldProps & {
 	onPickEmoji: (value: string) => void;
@@ -43,7 +43,18 @@ export const IconField: FC<IconFieldProps> = ({
 					endAdornment: hasIcon ? (
 						<InputAdornment
 							position="end"
-							className="w-6 h-6 flex items-center justify-center [&_img]:max-w-full [&_img]:object-contain"
+							css={{
+								width: 24,
+								height: 24,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+
+								"& img": {
+									maxWidth: "100%",
+									objectFit: "contain",
+								},
+							}}
 						>
 							<ExternalImage
 								alt=""

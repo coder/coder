@@ -1,4 +1,5 @@
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
+import { FileIcon } from "components/FileIcon/FileIcon";
 import {
 	$getNodeByKey,
 	DecoratorNode,
@@ -10,8 +11,7 @@ import {
 } from "lexical";
 import { XIcon } from "lucide-react";
 import { type FC, memo, type ReactNode } from "react";
-import { FileIcon } from "#/components/FileIcon/FileIcon";
-import { cn } from "#/utils/cn";
+import { cn } from "utils/cn";
 
 type SerializedFileReferenceNode = Spread<
 	{
@@ -23,22 +23,20 @@ type SerializedFileReferenceNode = Spread<
 	SerializedLexicalNode
 >;
 
-export function FileReferenceChip({
+function FileReferenceChip({
 	fileName,
 	startLine,
 	endLine,
 	isSelected,
 	onRemove,
 	onClick,
-	className: extraClassName,
 }: {
 	fileName: string;
 	startLine: number;
 	endLine: number;
 	isSelected?: boolean;
-	onRemove?: () => void;
+	onRemove: () => void;
 	onClick?: () => void;
-	className?: string;
 }) {
 	const shortFile = fileName.split("/").pop() || fileName;
 	const lineLabel =
@@ -47,10 +45,9 @@ export function FileReferenceChip({
 	return (
 		<span
 			className={cn(
-				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-primary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
+				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-secondary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
 				isSelected &&
 					"border-content-link bg-content-link/10 ring-1 ring-content-link/40",
-				extraClassName,
 			)}
 			contentEditable={false}
 			title={`${fileName}:${lineLabel}`}
@@ -65,27 +62,23 @@ export function FileReferenceChip({
 			tabIndex={0}
 		>
 			<FileIcon fileName={shortFile} className="shrink-0" />
-			<span className="inline-flex min-w-0 text-content-secondary">
-				<span dir="rtl" className="min-w-0 truncate">
-					{shortFile}
-				</span>
-				<span className="shrink-0 text-content-link">:{lineLabel}</span>
+			<span className="shrink-0 text-content-secondary">
+				{shortFile}
+				<span className="text-content-link">:{lineLabel}</span>
 			</span>
-			{onRemove && (
-				<button
-					type="button"
-					className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
-					onClick={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						onRemove();
-					}}
-					aria-label="Remove reference"
-					tabIndex={-1}
-				>
-					<XIcon className="size-2" />
-				</button>
-			)}
+			<button
+				type="button"
+				className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
+				onClick={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					onRemove();
+				}}
+				aria-label="Remove reference"
+				tabIndex={-1}
+			>
+				<XIcon className="size-2" />
+			</button>
 		</span>
 	);
 }
@@ -124,9 +117,8 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 		this.__content = content;
 	}
 
-	createDOM(config: EditorConfig): HTMLElement {
+	createDOM(_config: EditorConfig): HTMLElement {
 		const span = document.createElement("span");
-		span.className = config.theme.inlineDecorator ?? "";
 		span.style.display = "inline";
 		span.style.userSelect = "none";
 		return span;

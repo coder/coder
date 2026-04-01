@@ -3020,7 +3020,7 @@ func TestCompleteJob(t *testing.T) {
 
 					// We never expect a usage event to be collected for
 					// template imports.
-					require.Equal(t, 0, fakeUsageInserter.TotalEventCount())
+					require.Empty(t, fakeUsageInserter.collectedEvents)
 				})
 			}
 		})
@@ -3371,13 +3371,13 @@ func TestCompleteJob(t *testing.T) {
 
 					if tc.expectUsageEvent {
 						// Check that a usage event was collected.
-						require.Len(t, fakeUsageInserter.GetDiscreteEvents(), 1)
+						require.Len(t, fakeUsageInserter.collectedEvents, 1)
 						require.Equal(t, usagetypes.DCManagedAgentsV1{
 							Count: 1,
-						}, fakeUsageInserter.GetDiscreteEvents()[0])
+						}, fakeUsageInserter.collectedEvents[0])
 					} else {
 						// Check that no usage event was collected.
-						require.Equal(t, 0, fakeUsageInserter.TotalEventCount())
+						require.Empty(t, fakeUsageInserter.collectedEvents)
 					}
 				})
 			}
@@ -5032,10 +5032,21 @@ func (s *fakeStream) cancel() {
 	s.c.Broadcast()
 }
 
-func newFakeUsageInserter() (*coderdtest.UsageInserter, *atomic.Pointer[usage.Inserter]) {
+type fakeUsageInserter struct {
+	collectedEvents []usagetypes.Event
+}
+
+var _ usage.Inserter = &fakeUsageInserter{}
+
+func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]) {
 	poitr := &atomic.Pointer[usage.Inserter]{}
-	fake := coderdtest.NewUsageInserter()
+	fake := &fakeUsageInserter{}
 	var inserter usage.Inserter = fake
 	poitr.Store(&inserter)
 	return fake, poitr
+}
+
+func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
+	f.collectedEvents = append(f.collectedEvents, event)
+	return nil
 }

@@ -1,7 +1,7 @@
-import type { FC } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
-import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type * as TypesGen from "api/typesGenerated";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { FC, JSX } from "react";
 
 interface ResetPasswordDialogProps {
 	open: boolean;
@@ -11,6 +11,16 @@ interface ResetPasswordDialogProps {
 	newPassword?: string;
 	loading: boolean;
 }
+
+const Language = {
+	title: "Reset password",
+	message: (username?: string): JSX.Element => (
+		<>
+			You will need to send <strong>{username}</strong> the following password:
+		</>
+	),
+	confirmText: "Reset password",
+};
 
 export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
 	open,
@@ -22,14 +32,16 @@ export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
 }) => {
 	const description = (
 		<>
-			<p>
-				You will need to send <strong>{user?.username}</strong> the following
-				password:
-			</p>
+			<p>{Language.message(user?.username)}</p>
 			<CodeExample
 				secret={false}
 				code={newPassword ?? ""}
-				className="min-h-auto select-all w-full mt-6"
+				css={{
+					minHeight: "auto",
+					userSelect: "all",
+					width: "100%",
+					marginTop: 24,
+				}}
 			/>
 		</>
 	);
@@ -41,9 +53,9 @@ export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
 			open={open}
 			onConfirm={onConfirm}
 			onClose={onClose}
-			title="Reset password"
+			title={Language.title}
 			confirmLoading={loading}
-			confirmText="Reset password"
+			confirmText={Language.confirmText}
 			description={description}
 		/>
 	);

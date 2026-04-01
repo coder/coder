@@ -1,31 +1,28 @@
-import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { toast } from "sonner";
-import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
 	SlimRole,
 	User,
-} from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Avatar } from "#/components/Avatar/Avatar";
-import { AvatarData } from "#/components/Avatar/AvatarData";
-import { Button } from "#/components/Button/Button";
+} from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { Loader } from "#/components/Loader/Loader";
-import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
+} from "components/DropdownMenu/DropdownMenu";
+import { Loader } from "components/Loader/Loader";
+import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
+} from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
+import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -33,12 +30,14 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/components/Table/Table";
-import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
-import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
-import { AISeatCell } from "#/modules/users/AISeatCell";
-import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
-import { TableColumnHelpPopover } from "./UserTable/TableColumnHelpPopover";
+} from "components/Table/Table";
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
+import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
+import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
+import { type FC, useState } from "react";
+import { toast } from "sonner";
+import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
 interface OrganizationMembersPageViewProps {
@@ -48,7 +47,6 @@ interface OrganizationMembersPageViewProps {
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
-	showAISeatColumn?: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	membersQuery: PaginationResultInfo & {
@@ -75,7 +73,6 @@ export const OrganizationMembersPageView: FC<
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
-	showAISeatColumn,
 	me,
 	membersQuery,
 	members,
@@ -115,24 +112,16 @@ export const OrganizationMembersPageView: FC<
 								<TableHead className="w-2/6">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Roles</span>
-										<TableColumnHelpPopover variant="roles" />
+										<TableColumnHelpTooltip variant="roles" />
 									</Stack>
 								</TableHead>
-								<TableHead className={showAISeatColumn ? "w-1/6" : "w-2/6"}>
+								<TableHead className="w-2/6">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Groups</span>
-										<TableColumnHelpPopover variant="groups" />
+										<TableColumnHelpTooltip variant="groups" />
 									</Stack>
 								</TableHead>
-								{showAISeatColumn && (
-									<TableHead className="w-1/6">
-										<Stack direction="row" spacing={1} alignItems="center">
-											<span>AI add-on</span>
-											<TableColumnHelpPopover variant="ai_addon" />
-										</Stack>
-									</TableHead>
-								)}
-								<TableHead className="w-px whitespace-nowrap text-right" />
+								<TableHead className="w-auto" />
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -171,34 +160,29 @@ export const OrganizationMembersPageView: FC<
 											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />
-										{showAISeatColumn && (
-											<AISeatCell hasAISeat={member.has_ai_seat} />
-										)}
-										<TableCell className="w-px whitespace-nowrap text-right">
-											<div className="flex justify-end">
-												{member.user_id !== me.id && canEditMembers && (
-													<DropdownMenu>
-														<DropdownMenuTrigger asChild>
-															<Button
-																size="icon-lg"
-																variant="subtle"
-																aria-label="Open menu"
-															>
-																<EllipsisVertical aria-hidden="true" />
-																<span className="sr-only">Open menu</span>
-															</Button>
-														</DropdownMenuTrigger>
-														<DropdownMenuContent align="end">
-															<DropdownMenuItem
-																className="text-content-destructive focus:text-content-destructive"
-																onClick={() => removeMember(member)}
-															>
-																Remove
-															</DropdownMenuItem>
-														</DropdownMenuContent>
-													</DropdownMenu>
-												)}
-											</div>
+										<TableCell>
+											{member.user_id !== me.id && canEditMembers && (
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<Button
+															size="icon-lg"
+															variant="subtle"
+															aria-label="Open menu"
+														>
+															<EllipsisVertical aria-hidden="true" />
+															<span className="sr-only">Open menu</span>
+														</Button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuItem
+															className="text-content-destructive focus:text-content-destructive"
+															onClick={() => removeMember(member)}
+														>
+															Remove
+														</DropdownMenuItem>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											)}
 										</TableCell>
 									</TableRow>
 								))

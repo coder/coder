@@ -7,7 +7,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
-} from "#/testHelpers/entities";
+} from "testHelpers/entities";
 import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
@@ -285,19 +285,19 @@ describe("api.ts", () => {
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
 				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
+				() => API.getChatModels(),
 				{
 					providers: [],
 				},
 			],
 			[
 				"/api/experimental/chats/providers",
-				() => API.experimental.getChatProviderConfigs(),
+				() => API.getChatProviderConfigs(),
 				[],
 			],
 			[
 				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
+				() => API.getChatModelConfigs(),
 				[],
 			],
 		])("returns response data for %s", async (path, request, responseData) => {
@@ -312,17 +312,11 @@ describe("api.ts", () => {
 		});
 
 		it.each<[string, () => Promise<unknown>]>([
-			[
-				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
-			],
-			[
-				"/api/experimental/chats/providers",
-				() => API.experimental.getChatProviderConfigs(),
-			],
+			["/api/experimental/chats/models", () => API.getChatModels()],
+			["/api/experimental/chats/providers", () => API.getChatProviderConfigs()],
 			[
 				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
+				() => API.getChatModelConfigs(),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");

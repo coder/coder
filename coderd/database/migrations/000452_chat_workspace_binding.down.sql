@@ -1,3 +1,0 @@
-ALTER TABLE chats
-    DROP COLUMN IF EXISTS build_id,
-    DROP COLUMN IF EXISTS agent_id;

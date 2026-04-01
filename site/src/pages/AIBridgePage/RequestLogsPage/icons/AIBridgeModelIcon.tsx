@@ -1,6 +1,6 @@
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CircleQuestionMarkIcon } from "lucide-react";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { cn } from "#/utils/cn";
+import { cn } from "utils/cn";
 
 // Infers the model family from a model name string.
 // See official model naming docs:

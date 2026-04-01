@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -34,18 +33,6 @@ import (
 // usage disabled.
 func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
-
-	cmd, err := root.Command(root.AGPL())
-	require.NoError(t, err)
-
-	return NewWithCommand(t, cmd, args...)
-}
-
-// NewWithClock is like New, but injects the given clock for
-// tests that are time-dependent.
-func NewWithClock(t testing.TB, clk quartz.Clock, args ...string) (*serpent.Invocation, config.Root) {
-	var root cli.RootCmd
-	root.SetClock(clk)
 
 	cmd, err := root.Command(root.AGPL())
 	require.NoError(t, err)
@@ -173,10 +160,7 @@ func Start(t *testing.T, inv *serpent.Invocation) {
 	StartWithAssert(t, inv, nil)
 }
 
-// StartWithAssert starts the given invocation and calls assertCallback
-// with the resulting error when the invocation completes. If assertCallback
-// is nil, expected shutdown errors are silently tolerated.
-func StartWithAssert(t *testing.T, inv *serpent.Invocation, assertCallback func(t *testing.T, err error)) {
+func StartWithAssert(t *testing.T, inv *serpent.Invocation, assertCallback func(t *testing.T, err error)) { //nolint:revive
 	t.Helper()
 
 	closeCh := make(chan struct{})

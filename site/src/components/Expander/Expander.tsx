@@ -1,9 +1,10 @@
-import type { FC, ReactNode } from "react";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/Collapsible/Collapsible";
+} from "components/Collapsible/Collapsible";
+import type { FC, ReactNode } from "react";
 
 interface ExpanderProps {
 	expanded: boolean;
@@ -19,10 +20,15 @@ export const Expander: FC<ExpanderProps> = ({
 	return (
 		<Collapsible open={expanded} onOpenChange={setExpanded}>
 			<CollapsibleContent>
-				<div className="text-content-primary text-xs">{children}</div>
+				<p className="flex items-center text-content-secondary text-xs">
+					{children}
+				</p>
 			</CollapsibleContent>
-			<CollapsibleTrigger className="appearance-none bg-transparent border-0 cursor-pointer p-0 text-content-link text-xs hover:underline">
-				{expanded ? "Show less" : "Show more"}
+			<CollapsibleTrigger className="cursor-pointer text-content-secondary hover:underline">
+				<span className="flex items-center text-xs">
+					{expanded ? "Click here to hide" : "Click here to learn more"}
+					<ChevronDownIcon open={expanded} className="size-4" />
+				</span>
 			</CollapsibleTrigger>
 		</Collapsible>
 	);

@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -18,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/elazarl/goproxy"
@@ -39,6 +37,9 @@ const (
 )
 
 const (
+	// HeaderAIBridgeRequestID is the header used to correlate requests
+	// between aibridgeproxyd and aibridged.
+	HeaderAIBridgeRequestID = "X-AI-Bridge-Request-Id"
 	// ProxyAuthRealm is the realm used in Proxy-Authenticate challenges.
 	// The realm helps clients identify which credentials to use.
 	ProxyAuthRealm = `"Coder AI Bridge Proxy"`
@@ -53,59 +54,6 @@ var proxyAuthRequiredMsg = []byte(http.StatusText(http.StatusProxyAuthRequired))
 // servers run in parallel, and without this guard they would race on writing
 // to GoproxyCa. In production, only one server runs, so this has no impact.
 var loadMITMOnce sync.Once
-
-// blockedIPError is returned by checkBlockedIP and checkBlockedIPAndDial when
-// a connection is blocked because the destination resolves to a private or
-// reserved IP range. ConnectionErrHandler uses this type to return 403
-// Forbidden instead of the generic 502 Bad Gateway, since the block is a
-// policy decision rather than an upstream failure.
-type blockedIPError struct {
-	host string
-	ip   net.IP
-}
-
-func (e *blockedIPError) Error() string {
-	return fmt.Sprintf("connection to %s (%s) blocked: destination is in a private/reserved IP range", e.host, e.ip)
-}
-
-// blockedIPRanges defines private, reserved, and special-purpose IP ranges
-// that are blocked by default to prevent connections to internal networks.
-// Operators can selectively allow specific ranges via AllowedPrivateCIDRs.
-var blockedIPRanges = func() []net.IPNet {
-	cidrs := []string{
-		"0.0.0.0/8",      // RFC 1122: "This" network
-		"10.0.0.0/8",     // RFC 1918: Private-Use
-		"100.64.0.0/10",  // RFC 6598: Shared Address Space (CGNAT / Tailscale)
-		"127.0.0.0/8",    // RFC 1122: Loopback
-		"169.254.0.0/16", // RFC 3927: Link-Local (cloud IMDS: AWS, GCP, Azure)
-		"172.16.0.0/12",  // RFC 1918: Private-Use
-		"192.0.0.0/24",   // RFC 6890: IETF Protocol Assignments
-		"192.168.0.0/16", // RFC 1918: Private-Use
-		"198.18.0.0/15",  // RFC 2544: Benchmarking
-		"240.0.0.0/4",    // RFC 1112: Reserved for Future Use
-		"::1/128",        // RFC 4291: Loopback
-		"64:ff9b::/96",   // RFC 6052: NAT64 well-known prefix
-		"64:ff9b:1::/48", // RFC 8215: NAT64 local-use prefix
-		"2002::/16",      // RFC 3056: 6to4
-		"fc00::/7",       // RFC 4193: Unique-Local
-		"fe80::/10",      // RFC 4291: Link-Local Unicast
-
-		// Note: intentionally excluded because Go's net.IPNet.Contains matches
-		// all IPv4 addresses against this range due to internal IPv4-to-IPv6 mapping.
-		// See https://github.com/golang/go/issues/51906
-		// "::ffff:0:0/96",  // RFC 4291: IPv4-mapped IPv6
-	}
-
-	ranges := make([]net.IPNet, 0, len(cidrs))
-	for _, cidr := range cidrs {
-		_, ipNet, err := net.ParseCIDR(cidr)
-		if err != nil {
-			panic(fmt.Sprintf("invalid blocked CIDR %q: %v", cidr, err))
-		}
-		ranges = append(ranges, *ipNet)
-	}
-	return ranges
-}()
 
 // Server is the AI MITM (Man-in-the-Middle) proxy server.
 // It is responsible for:
@@ -124,8 +72,6 @@ type Server struct {
 	// caCert is the PEM-encoded MITM CA certificate loaded during initialization.
 	// This is served to clients who need to trust the proxy's generated certificates.
 	caCert []byte
-	// allowedPrivateRanges are CIDR ranges exempt from the blocked IP denylist.
-	allowedPrivateRanges []net.IPNet
 	// Metrics is the Prometheus metrics for the proxy. If nil, metrics are disabled.
 	metrics *Metrics
 }
@@ -188,11 +134,6 @@ type Options struct {
 	// proxies with certificates not trusted by the system. If empty, the system
 	// certificate pool is used.
 	UpstreamProxyCA string
-	// AllowedPrivateCIDRs is a list of CIDR ranges that are permitted even
-	// though they fall within blocked private/reserved IP ranges. This allows
-	// access to specific internal networks while keeping all other private
-	// ranges blocked. If empty, all private ranges are blocked.
-	AllowedPrivateCIDRs []string
 	// Metrics is the prometheus metrics instance for recording proxy metrics.
 	// If nil, metrics will not be recorded.
 	Metrics *Metrics
@@ -218,17 +159,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid coder access URL %q: %w", opts.CoderAccessURL, err)
 	}
-	// Resolve the default port when not explicitly specified in the URL.
-	coderAccessPort := coderAccessURL.Port()
-	if coderAccessPort == "" {
-		switch coderAccessURL.Scheme {
-		case "https":
-			coderAccessPort = "443"
-		default:
-			coderAccessPort = "80"
-		}
-	}
-	coderAccessURL.Host = net.JoinHostPort(coderAccessURL.Hostname(), coderAccessPort)
 
 	// MITM cert and key are required to intercept and decrypt HTTPS traffic.
 	if opts.MITMCertFile == "" || opts.MITMKeyFile == "" {
@@ -264,16 +194,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		}
 	}
 
-	// Parse configured exceptions to the blocked IP ranges.
-	allowedPrivateRanges := make([]net.IPNet, 0, len(opts.AllowedPrivateCIDRs))
-	for _, cidr := range opts.AllowedPrivateCIDRs {
-		_, ipNet, err := net.ParseCIDR(cidr)
-		if err != nil {
-			return nil, xerrors.Errorf("invalid allowed private CIDR %q: %w", cidr, err)
-		}
-		allowedPrivateRanges = append(allowedPrivateRanges, *ipNet)
-	}
-
 	// Load the CA certificate for MITM.
 	certPEM, err := loadMITMCertificate(opts.MITMCertFile, opts.MITMKeyFile)
 	if err != nil {
@@ -299,21 +219,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
 	}
 
-	srv := &Server{
-		ctx:                      ctx,
-		logger:                   logger,
-		proxy:                    proxy,
-		tlsEnabled:               opts.TLSCertFile != "",
-		coderAccessURL:           coderAccessURL,
-		aibridgeProviderFromHost: aibridgeProviderFromHost,
-		caCert:                   certPEM,
-		allowedPrivateRanges:     allowedPrivateRanges,
-		metrics:                  opts.Metrics,
-	}
-
-	// Configure upstream proxy for tunneled (non-allowlisted) CONNECT requests.
-	// Allowlisted domains are MITM'd and forwarded to aibridge directly,
-	// bypassing the upstream proxy.
+	// Configure upstream proxy for tunneled (non-allowlisted) requests.
+	// This only affects CONNECT requests to domains not in the allowlist.
+	// MITM'd requests (allowlisted domains) are handled by aiproxy and forwarded
+	// to aibridge directly, not through the upstream proxy. AI Bridge respects
+	// proxy environment variables if set, so the upstream proxy is used at that
+	// layer instead.
 	if opts.UpstreamProxy != "" {
 		upstreamURL, err := url.Parse(opts.UpstreamProxy)
 		if err != nil {
@@ -362,36 +273,21 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			}
 		}
 
-		connectDialer := proxy.NewConnectDialToProxyWithHandler(opts.UpstreamProxy, connectReqHandler)
-		proxy.ConnectDial = func(network, addr string) (net.Conn, error) {
-			// Block CONNECT tunnels to private/reserved IP ranges.
-			// addr is the CONNECT target, not the upstream proxy address.
-			if err := srv.checkBlockedIP(ctx, addr); err != nil {
-				return nil, err
-			}
-			return connectDialer(network, addr)
-		}
+		// Configure tunneled CONNECT requests to go through upstream proxy.
+		// This only affects non-allowlisted domains; allowlisted domains are
+		// MITM'd and forwarded to aibridge.
+		proxy.ConnectDial = proxy.NewConnectDialToProxyWithHandler(opts.UpstreamProxy, connectReqHandler)
 	}
 
-	// No upstream proxy configured: check private/reserved IPs and dial to the destination.
-	if proxy.ConnectDial == nil {
-		proxy.ConnectDial = func(network, addr string) (net.Conn, error) {
-			return srv.checkBlockedIPAndDial(srv.ctx, network, addr)
-		}
-	}
-
-	// Override goproxy's default CONNECT error handler to avoid leaking
-	// internal error details to clients. Errors are still logged by the caller.
-	// Policy blocks (private/reserved IP ranges) return 403 Forbidden; all
-	// other dial failures return 502 Bad Gateway.
-	proxy.ConnectionErrHandler = func(w io.Writer, _ *goproxy.ProxyCtx, err error) {
-		status := http.StatusBadGateway
-		var blocked *blockedIPError
-		if errors.As(err, &blocked) {
-			status = http.StatusForbidden
-		}
-		statusText := http.StatusText(status)
-		_, _ = fmt.Fprintf(w, "HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", status, statusText, len(statusText), statusText)
+	srv := &Server{
+		ctx:                      ctx,
+		logger:                   logger,
+		proxy:                    proxy,
+		tlsEnabled:               opts.TLSCertFile != "",
+		coderAccessURL:           coderAccessURL,
+		aibridgeProviderFromHost: aibridgeProviderFromHost,
+		caCert:                   certPEM,
+		metrics:                  opts.Metrics,
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -452,7 +348,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		slog.F("coder_access_url", coderAccessURL.String()),
 		slog.F("domain_allowlist", mitmHosts),
 		slog.F("upstream_proxy", opts.UpstreamProxy),
-		slog.F("allowed_private_cidrs", opts.AllowedPrivateCIDRs),
 	)
 
 	go func() {
@@ -477,11 +372,6 @@ func (s *Server) Addr() string {
 // IsTLSListener reports whether the proxy listener is serving TLS.
 func (s *Server) IsTLSListener() bool {
 	return s.tlsEnabled
-}
-
-// CoderAccessURL returns the parsed Coder access URL with a normalized port.
-func (s *Server) CoderAccessURL() *url.URL {
-	return s.coderAccessURL
 }
 
 // Close gracefully shuts down the proxy server.
@@ -732,17 +622,6 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
-// extractCoderTokenFromBearerAuth extracts the bearer token from an
-// Authorization header. Returns empty string if the header is not a
-// valid "Bearer <token>" value.
-func extractCoderTokenFromBearerAuth(auth string) string {
-	parts := strings.Fields(auth)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return ""
-	}
-	return parts[1]
-}
-
 // newProxyAuthRequiredResponse creates a 407 Proxy Authentication Required
 // response with the appropriate challenge header. This is used both during
 // CONNECT handling and for decrypted requests missing authentication.
@@ -776,12 +655,6 @@ func defaultAIBridgeProvider(host string) string {
 		return aibridge.ProviderOpenAI
 	case HostCopilot:
 		return aibridge.ProviderCopilot
-	case agplaibridge.HostCopilotBusiness:
-		return agplaibridge.ProviderCopilotBusiness
-	case agplaibridge.HostCopilotEnterprise:
-		return agplaibridge.ProviderCopilotEnterprise
-	case agplaibridge.HostChatGPT:
-		return agplaibridge.ProviderChatGPT
 	default:
 		return ""
 	}
@@ -801,110 +674,9 @@ func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.
 	return goproxy.OkConnect, host
 }
 
-// isBlockedIP reports whether the given IP is in a blocked private/reserved range
-// and not exempted by AllowedPrivateCIDRs or the Coder access URL hostname.
-func (s *Server) isBlockedIP(ip net.IP, hostname string, port string) bool {
-	// Always allow the Coder access URL hostname+port so the proxy doesn't
-	// block connections to its own deployment. Hostname-based (not IP-based)
-	// to handle dynamic IPs (DNS changes, load balancers, k8s rescheduling).
-	// The port is normalized at startup to handle URLs without explicit ports.
-	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessURL.Port() {
-		return false
-	}
-
-	for _, blocked := range blockedIPRanges {
-		if blocked.Contains(ip) {
-			for _, allowed := range s.allowedPrivateRanges {
-				if allowed.Contains(ip) {
-					return false
-				}
-			}
-			return true
-		}
-	}
-	return false
-}
-
-// checkBlockedIP resolves the destination address and returns an error if any
-// resolved IP falls within a blocked range. Used in the upstream proxy path,
-// where the actual dial is delegated to the upstream proxy dialer.
-//
-// Note: this only prevents DNS rebinding on aibridgeproxyd, not on upstream proxies.
-// The upstream proxy performs its own DNS resolution when dialing, so there is
-// a window between this check and the actual connection.
-func (s *Server) checkBlockedIP(ctx context.Context, addr string) error {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return xerrors.Errorf("invalid address %q: %w", addr, err)
-	}
-
-	// DNS resolution relies on the OS resolver. We avoid application-level
-	// caching to keep the implementation simple. DNS caching behavior depends
-	// on the OS resolver.
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return xerrors.Errorf("failed to resolve %q: %w", host, err)
-	}
-
-	for _, ip := range ips {
-		if s.isBlockedIP(ip.IP, host, port) {
-			s.logger.Warn(ctx, "blocking connection to private/reserved IP",
-				slog.F("hostname", host),
-				slog.F("port", port),
-				slog.F("resolved_ip", ip.IP.String()),
-			)
-			return &blockedIPError{host: host, ip: ip.IP}
-		}
-	}
-	return nil
-}
-
-// checkBlockedIPAndDial dials the destination address, blocking connections to
-// private/reserved IPs. Used for tunneled CONNECT requests when no upstream
-// proxy is configured.
-func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, xerrors.Errorf("invalid address %q: %w", addr, err)
-	}
-
-	// DNS resolution is handled by Go's DialContext using the OS resolver.
-	// We avoid application-level DNS caching to keep the implementation
-	// simple. DNS caching behavior depends on the OS resolver.
-	dialer := net.Dialer{
-		// ControlContext fires after DNS resolution and before each TCP dial,
-		// receiving the resolved IP:port. The resolved address is always an IP,
-		// so there is no risk of DNS rebinding between validation and the dial.
-		ControlContext: func(ctx context.Context, _, address string, _ syscall.RawConn) error {
-			resolvedIP, _, err := net.SplitHostPort(address)
-			if err != nil {
-				return xerrors.Errorf("invalid resolved address %q: %w", address, err)
-			}
-
-			ip := net.ParseIP(resolvedIP)
-			if ip == nil {
-				return xerrors.Errorf("invalid resolved IP %q", resolvedIP)
-			}
-
-			if s.isBlockedIP(ip, host, port) {
-				s.logger.Warn(ctx, "blocking connection to private/reserved IP",
-					slog.F("hostname", host),
-					slog.F("port", port),
-					slog.F("resolved_ip", ip.String()),
-				)
-				return &blockedIPError{host: host, ip: ip}
-			}
-			return nil
-		},
-	}
-	return dialer.DialContext(ctx, network, addr)
-}
-
 // handleRequest intercepts HTTP requests after MITM decryption.
-//   - Requests to known AI providers are rewritten to point at aibridged.
-//     In centralized mode the Coder token is already in the
-//     Authorization header. For BYOK clients that cannot set custom
-//     headers, the proxy injects the BYOK header.
+//   - Requests to known AI providers are rewritten to aibridged, with the Coder token
+//     (from ctx.UserData, set during CONNECT) set in the X-Coder-Token header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -982,10 +754,14 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = aiBridgeParsedURL
 	req.Host = aiBridgeParsedURL.Host
 
-	injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
+	// Set X-Coder-Token header for aibridged authentication.
+	// Using a separate header preserves the original request headers,
+	// which are forwarded to upstream providers.
+	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
 
-	// Set request ID header to correlate requests between aibridgeproxyd and aibridged.
-	req.Header.Set(agplaibridge.HeaderCoderRequestID, reqCtx.RequestID.String())
+	// Set custom header for cross-service log correlation.
+	// This allows correlating aibridgeproxyd logs with aibridged logs.
+	req.Header.Set(HeaderAIBridgeRequestID, reqCtx.RequestID.String())
 
 	logger.Info(s.ctx, "routing MITM request to aibridged",
 		slog.F("aibridged_url", aiBridgeParsedURL.String()),
@@ -998,27 +774,6 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 
 	return req, nil
-}
-
-// injectBYOKHeaderIfNeeded sets HeaderCoderToken when the
-// Authorization header carries a bearer token that differs from the
-// Coder token, indicating the client is using its own LLM
-// credentials. Clients that can set custom headers
-// do this themselves; this handles clients that cannot.
-//
-// In centralized mode, Authorization carries the Coder token
-// itself, so aibridged discovers it via ExtractAuthToken
-// without any extra header.
-func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
-	// Don’t overwrite the header if it’s already set.
-	if header.Get(agplaibridge.HeaderCoderToken) != "" {
-		return
-	}
-
-	bearer := extractCoderTokenFromBearerAuth(header.Get("Authorization"))
-	if bearer != "" && bearer != coderToken {
-		header.Set(agplaibridge.HeaderCoderToken, coderToken)
-	}
 }
 
 // handleResponse handles responses received from aibridged.

@@ -578,27 +578,17 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 }
 
 func User(t testing.TB, db database.Store, orig database.User) database.User {
-	loginType := takeFirst(orig.LoginType, database.LoginTypePassword)
-	email := takeFirst(orig.Email, testutil.GetRandomName(t))
-	// A DB constraint requires login_type = 'none' and email = '' for service
-	// accounts.
-	if orig.IsServiceAccount {
-		loginType = database.LoginTypeNone
-		email = ""
-	}
-
 	user, err := db.InsertUser(genCtx, database.InsertUserParams{
-		ID:               takeFirst(orig.ID, uuid.New()),
-		Email:            email,
-		Username:         takeFirst(orig.Username, testutil.GetRandomName(t)),
-		Name:             takeFirst(orig.Name, testutil.GetRandomName(t)),
-		HashedPassword:   takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
-		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:        takeFirst(orig.UpdatedAt, dbtime.Now()),
-		RBACRoles:        takeFirstSlice(orig.RBACRoles, []string{}),
-		LoginType:        loginType,
-		Status:           string(takeFirst(orig.Status, database.UserStatusDormant)),
-		IsServiceAccount: orig.IsServiceAccount,
+		ID:             takeFirst(orig.ID, uuid.New()),
+		Email:          takeFirst(orig.Email, testutil.GetRandomName(t)),
+		Username:       takeFirst(orig.Username, testutil.GetRandomName(t)),
+		Name:           takeFirst(orig.Name, testutil.GetRandomName(t)),
+		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
+		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
+		RBACRoles:      takeFirstSlice(orig.RBACRoles, []string{}),
+		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
+		Status:         string(takeFirst(orig.Status, database.UserStatusDormant)),
 	})
 	require.NoError(t, err, "insert user")
 
@@ -650,26 +640,34 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	})
 	require.NoError(t, err, "insert organization")
 
-	// Populate the placeholder system roles (created by DB
-	// trigger/migration) so org members have expected permissions.
-	//nolint:gocritic // ReconcileSystemRole needs the system:update
+	// Populate the placeholder organization-member system role (created by
+	// DB trigger/migration) so org members have expected permissions.
+	//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
 	// permission that `genCtx` does not have.
 	sysCtx := dbauthz.AsSystemRestricted(genCtx)
-	for roleName := range rolestore.SystemRoleNames {
-		role := database.CustomRole{
-			Name:           roleName,
-			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
-		}
-		_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
-		if errors.Is(err, sql.ErrNoRows) {
-			// The trigger that creates the placeholder role didn't run (e.g.,
-			// triggers were disabled in the test). Create the role manually.
-			err = rolestore.CreateSystemRole(sysCtx, db, org, roleName)
-			require.NoError(t, err, "create role "+roleName)
-			_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
-		}
-		require.NoError(t, err, "reconcile role "+roleName)
+	_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
+		Name: rbac.RoleOrgMember(),
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	}, org.WorkspaceSharingDisabled)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		// The trigger that creates the placeholder role didn't run (e.g.,
+		// triggers were disabled in the test). Create the role manually.
+		err = rolestore.CreateOrgMemberRole(sysCtx, db, org)
+		require.NoError(t, err, "create organization-member role")
+
+		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
+			Name: rbac.RoleOrgMember(),
+			OrganizationID: uuid.NullUUID{
+				UUID:  org.ID,
+				Valid: true,
+			},
+		}, org.WorkspaceSharingDisabled)
 	}
+	require.NoError(t, err, "reconcile organization-member role")
 
 	return org
 }
@@ -1661,17 +1659,6 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 	})
 	require.NoError(t, err, "insert aibridge tool usage")
 	return toolUsage
-}
-
-func AIBridgeModelThought(t testing.TB, db database.Store, seed database.InsertAIBridgeModelThoughtParams) database.AIBridgeModelThought {
-	thought, err := db.InsertAIBridgeModelThought(genCtx, database.InsertAIBridgeModelThoughtParams{
-		InterceptionID: takeFirst(seed.InterceptionID, uuid.New()),
-		Content:        takeFirst(seed.Content, ""),
-		Metadata:       takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
-		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
-	})
-	require.NoError(t, err, "insert aibridge model thought")
-	return thought
 }
 
 func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Task {

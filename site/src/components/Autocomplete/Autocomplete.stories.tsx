@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { Check } from "lucide-react";
 import { useState } from "react";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import { Avatar } from "#/components/Avatar/Avatar";
-import { AvatarData } from "#/components/Avatar/AvatarData";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { Autocomplete } from "./Autocomplete";
 
 const meta: Meta<typeof Autocomplete> = {
@@ -222,22 +222,13 @@ export const SearchAndFilter: Story = {
 };
 
 export const ClearSelection: Story = {
-	args: {
-		onChange: fn<(value: unknown) => void>(),
-	},
-	render: function ClearSelectionStory(args) {
+	render: function ClearSelectionStory() {
 		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
-		const handleChange = (newValue: SimpleOption | null) => {
-			args.onChange(newValue);
-			setValue(newValue);
-		};
-
 		return (
 			<div className="w-80">
 				<Autocomplete
-					{...args}
 					value={value}
-					onChange={handleChange}
+					onChange={setValue}
 					options={simpleOptions}
 					getOptionValue={(opt) => opt.id}
 					getOptionLabel={(opt) => opt.name}
@@ -246,23 +237,13 @@ export const ClearSelection: Story = {
 			</div>
 		);
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByRole("button", { name: /mango/i });
 		expect(trigger).toHaveTextContent("Mango");
 
-		const onChangeSpy = args.onChange as ReturnType<
-			typeof fn<(value: unknown) => void>
-		>;
-		onChangeSpy.mockClear();
-
-		const clearButton = canvas.getByLabelText("Clear selection");
-		expect(clearButton).toHaveAttribute("role", "button");
-		expect(clearButton).toHaveAttribute("tabindex", "0");
-		expect(clearButton.tagName).toBe("SPAN");
-
+		const clearButton = canvas.getByRole("button", { name: "Clear selection" });
 		await userEvent.click(clearButton);
-		await waitFor(() => expect(onChangeSpy).toHaveBeenCalledWith(null));
 
 		await waitFor(() =>
 			expect(

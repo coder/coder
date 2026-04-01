@@ -1,8 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { Button } from "components/Button/Button";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC, PropsWithChildren, ReactNode } from "react";
-import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
+import { cn } from "utils/cn";
 
 type SettingsHeaderProps = Readonly<
 	PropsWithChildren<{

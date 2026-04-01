@@ -29,24 +29,15 @@ type Config struct {
 	// to schedule them to be started again.
 	AutostartDelay time.Duration `json:"autostart_delay"`
 
-	// AutostartBuildTimeout is how long to wait for the autostart build to
-	// complete after it has been triggered. This should be longer than
-	// WorkspaceJobTimeout to account for potential queueing time in high-load
-	// scenarios where provisioner capacity is limited.
-	AutostartBuildTimeout time.Duration `json:"autostart_build_timeout"`
+	// AutostartTimeout is how long to wait for the autostart build to be
+	// initiated after the scheduled time.
+	AutostartTimeout time.Duration `json:"autostart_timeout"`
+
+	Metrics *Metrics `json:"-"`
 
 	// SetupBarrier is used to ensure all runners own stopped workspaces
 	// before setting the autostart schedule on each.
 	SetupBarrier *sync.WaitGroup `json:"-"`
-
-	// BuildUpdates is a channel that receives workspace build updates for
-	// this specific workspace. The channel is pre-created and keyed by the
-	// deterministic workspace name.
-	BuildUpdates <-chan codersdk.WorkspaceBuildUpdate `json:"-"`
-
-	// ResultSink is a channel where the runner sends its result upon completion.
-	// This allows the CLI to aggregate results from all concurrent runners.
-	ResultSink chan<- RunResult `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -64,10 +55,6 @@ func (c Config) Validate() error {
 		return xerrors.New("setup barrier must be set")
 	}
 
-	if c.BuildUpdates == nil {
-		return xerrors.New("build updates channel must be set")
-	}
-
 	if c.WorkspaceJobTimeout <= 0 {
 		return xerrors.New("workspace_job_timeout must be greater than 0")
 	}
@@ -76,13 +63,12 @@ func (c Config) Validate() error {
 		return xerrors.New("autostart_delay must be at least 2 minutes")
 	}
 
-	if c.AutostartBuildTimeout <= 0 {
-		return xerrors.New("autostart_build_timeout must be greater than 0")
+	if c.AutostartTimeout <= 0 {
+		return xerrors.New("autostart_timeout must be greater than 0")
 	}
 
-	if c.AutostartBuildTimeout <= c.WorkspaceJobTimeout {
-		return xerrors.Errorf("autostart_build_timeout (%s) must be greater than workspace_job_timeout (%s) to account for scheduling delay and queueing time",
-			c.AutostartBuildTimeout, c.WorkspaceJobTimeout)
+	if c.Metrics == nil {
+		return xerrors.New("metrics must be set")
 	}
 
 	return nil

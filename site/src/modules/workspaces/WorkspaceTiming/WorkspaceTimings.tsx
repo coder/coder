@@ -1,15 +1,16 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
-import sortBy from "lodash/sortBy";
-import uniqBy from "lodash/uniqBy";
-import { type FC, useState } from "react";
 import type {
 	AgentConnectionTiming,
 	AgentScriptTiming,
 	ProvisionerTiming,
-} from "#/api/typesGenerated";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
+} from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Button } from "components/Button/Button";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
+import { type FC, useState } from "react";
 import {
 	calcDuration,
 	formatTime,
@@ -99,16 +100,21 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	};
 
 	return (
-		<div className="rounded-lg border-solid bg-surface-primary">
+		<div css={styles.collapse}>
 			<Button
 				disabled={isLoading}
 				variant="subtle"
-				className="w-full flex items-center"
+				css={styles.collapseTrigger}
 				onClick={() => setIsOpen((o) => !o)}
 			>
 				<ChevronDownIcon open={isOpen} className="size-4 mr-4" />
 				<span>Build timeline</span>
-				<span className="ml-auto text-content-secondary">
+				<span
+					css={(theme) => ({
+						marginLeft: "auto",
+						color: theme.palette.text.secondary,
+					})}
+				>
 					{isLoading ? (
 						<Skeleton variant="text" width={40} height={16} />
 					) : (
@@ -118,12 +124,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 			</Button>
 			{!isLoading && (
 				<Collapse in={isOpen}>
-					<div
-						className="border-solid border-0 border-t flex flex-col"
-						style={{
-							height: "var(--collapse-body-height, 420px)",
-						}}
-					>
+					<div css={styles.collapseBody}>
 						{view.name === "default" && (
 							<StagesChart
 								timings={stages.map((s) => {
@@ -174,6 +175,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 								}}
 							/>
 						)}
+
 						{view.name === "detailed" && (
 							<>
 								{view.stage.section === "provisioning" && (
@@ -233,3 +235,46 @@ const toTimeRange = (timing: {
 		endedAt: new Date(timing.ended_at),
 	};
 };
+
+const _humanizeDuration = (durationMs: number): string => {
+	const seconds = Math.floor(durationMs / 1000);
+	const minutes = Math.floor(seconds / 60);
+	const hours = Math.floor(minutes / 60);
+
+	if (hours > 0) {
+		return `${hours.toLocaleString()}h ${(minutes % 60).toLocaleString()}m`;
+	}
+
+	if (minutes > 0) {
+		return `${minutes.toLocaleString()}m ${(seconds % 60).toLocaleString()}s`;
+	}
+
+	return `${seconds.toLocaleString()}s`;
+};
+
+const styles = {
+	collapse: (theme) => ({
+		borderRadius: 8,
+		border: `1px solid ${theme.palette.divider}`,
+		backgroundColor: theme.palette.background.default,
+	}),
+	collapseTrigger: {
+		background: "none",
+		border: 0,
+		padding: 16,
+		color: "inherit",
+		width: "100%",
+		display: "flex",
+		alignItems: "center",
+		height: 57,
+		fontSize: 14,
+		fontWeight: 500,
+		cursor: "pointer",
+	},
+	collapseBody: (theme) => ({
+		borderTop: `1px solid ${theme.palette.divider}`,
+		display: "flex",
+		flexDirection: "column",
+		height: "var(--collapse-body-height, 420px)",
+	}),
+} satisfies Record<string, Interpolation<Theme>>;

@@ -118,9 +118,5 @@
 	"viewOAuth2AppSecrets": {
 		"object": { "resource_type": "oauth2_app_secret" },
 		"action": "read"
-	},
-	"createChat": {
-		"object": { "resource_type": "chat", "owner_id": "me" },
-		"action": "create"
 	}
 }
