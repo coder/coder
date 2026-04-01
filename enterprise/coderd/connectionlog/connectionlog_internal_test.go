@@ -1,7 +1,9 @@
 package connectionlog
 
 import (
+	"context"
 	"database/sql"
+	"sync"
 	"testing"
 	"time"
 
@@ -353,17 +355,12 @@ func Test_batcherFlush(t *testing.T) {
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
 
-		scheduledFlushTrap := clock.Trap().TimerReset("connectionLogBatcher", "scheduledFlush")
-		defer scheduledFlushTrap.Close()
-		retryTrap := clock.Trap().NewTimer("connectionLogBatcher", "retryBackoff")
-		defer retryTrap.Close()
-
 		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
 
 		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
 
-		// First call (synchronous in flush) fails, then the retry
-		// worker picks it up and succeeds on the first retry.
+		// First call (synchronous in flush) fails, then the
+		// retry/drain path succeeds.
 		gomock.InOrder(
 			store.EXPECT().
 				BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
@@ -380,16 +377,67 @@ func Test_batcherFlush(t *testing.T) {
 
 		require.NoError(t, b.Upsert(ctx, evt))
 
-		// Advance the clock to trigger the scheduled flush. The
-		// synchronous attempt fails and queues to retryCh.
-		clock.Advance(defaultFlushInterval).MustWait(ctx)
-		scheduledFlushTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Release the retry backoff timer so the retry fires.
-		retryTrap.MustWait(ctx).MustRelease(ctx)
-		clock.Advance(retryInterval).MustWait(ctx)
-
+		// Close triggers flush (fails), queues to retryCh, sets
+		// draining, closes channel. Retry worker picks up the
+		// batch and writes it via writeBatch.
 		require.NoError(t, b.Close())
+	})
+
+	t.Run("ShutdownDrainsRetryQueue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctrl := gomock.NewController(t)
+		store := dbmock.NewMockStore(ctrl)
+		clock := quartz.NewMock(t)
+
+		scheduledTrap := clock.Trap().TimerReset("connectionLogBatcher", "scheduledFlush")
+		defer scheduledTrap.Close()
+
+		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
+
+		evt1 := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
+		evt2 := fakeConnectEvent(uuid.New(), "agent2", uuid.New())
+
+		// Track all successfully written IDs.
+		var writtenIDs []uuid.UUID
+		var mu sync.Mutex
+		callCount := 0
+		store.EXPECT().
+			BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, p database.BatchUpsertConnectionLogsParams) error {
+				mu.Lock()
+				defer mu.Unlock()
+				callCount++
+				// First two calls (synchronous flushes) fail.
+				if callCount <= 2 {
+					return xerrors.New("transient error")
+				}
+				// Drain attempts succeed.
+				writtenIDs = append(writtenIDs, p.ID...)
+				return nil
+			}).
+			AnyTimes()
+
+		// Send evt1 and trigger flush — fails, queues.
+		require.NoError(t, b.Upsert(ctx, evt1))
+		clock.Advance(defaultFlushInterval).MustWait(ctx)
+		scheduledTrap.MustWait(ctx).MustRelease(ctx)
+
+		// Send evt2 and trigger flush — fails, queues.
+		require.NoError(t, b.Upsert(ctx, evt2))
+		clock.Advance(defaultFlushInterval).MustWait(ctx)
+		scheduledTrap.MustWait(ctx).MustRelease(ctx)
+
+		// Close cancels the context. The retry worker exits its
+		// TickerFunc wait and drains retryCh with writeBatch.
+		require.NoError(t, b.Close())
+
+		mu.Lock()
+		defer mu.Unlock()
+		require.Contains(t, writtenIDs, evt1.ID, "evt1 should be written during shutdown drain")
+		require.Contains(t, writtenIDs, evt2.ID, "evt2 should be written during shutdown drain")
 	})
 }
 

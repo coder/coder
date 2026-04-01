@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -139,9 +140,10 @@ type DBBatcher struct {
 	timer    *quartz.Timer
 	interval time.Duration
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	draining atomic.Bool
 }
 
 // NewDBBatcher creates a DBBatcher that batches writes to the database
@@ -305,7 +307,14 @@ func (b *DBBatcher) run(ctx context.Context) {
 		case item := <-b.itemCh:
 			b.addToBatch(item)
 		default:
+			// Use the normal flush path so failed writes get
+			// queued to retryCh for the retry worker.
 			b.flush(authCtx)
+			// Signal the retry worker to skip delays and close
+			// the channel so it exits after processing any
+			// remaining items.
+			b.draining.Store(true)
+			close(b.retryCh)
 			return
 		}
 	}
@@ -430,48 +439,43 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 
 // retryLoop is a single background goroutine that processes failed
 // batches from retryCh. Each batch is retried up to maxRetries times
-// with a fixed delay. On shutdown, remaining queued batches each get
-// one final attempt.
+// with a fixed delay between attempts. When draining is set (shutdown),
+// batches get a single immediate write attempt instead. The loop exits
+// when retryCh is closed by the run goroutine.
 func (b *DBBatcher) retryLoop() {
-	for {
-		select {
-		case params, ok := <-b.retryCh:
-			if !ok {
-				return
-			}
-			b.retryBatch(params)
-		case <-b.ctx.Done():
-			// Drain remaining batches with one attempt each.
-			for {
-				select {
-				case params, ok := <-b.retryCh:
-					if !ok {
-						return
-					}
-					b.writeBatch(params)
-				default:
-					return
-				}
-			}
+	for params := range b.retryCh {
+		if b.draining.Load() {
+			b.writeBatch(params)
+			continue
 		}
+		b.retryBatch(params)
 	}
 }
 
+// retryBatch retries writing a batch up to maxRetries times with a
+// fixed delay between attempts. If the batcher context is canceled
+// during a wait, one final attempt is made before returning.
 func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) {
 	count := len(params.ID)
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		timer := b.clock.NewTimer(retryInterval, "connectionLogBatcher", "retryBackoff")
-		select {
-		case <-timer.C:
-		case <-b.ctx.Done():
-			timer.Stop()
-			// Shutting down — one last attempt.
+	//nolint:gocritic // System-level batch operation for connection logs.
+	authCtx := dbauthz.AsConnectionLogger(context.Background())
+	for attempt := range maxRetries {
+		// If shutting down, skip the delay and do one final write.
+		if b.draining.Load() {
 			b.writeBatch(params)
 			return
 		}
 
-		//nolint:gocritic // System-level batch operation for connection logs.
-		err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(context.Background()), params)
+		t := time.NewTimer(retryInterval)
+		select {
+		case <-t.C:
+		case <-b.ctx.Done():
+			t.Stop()
+			b.writeBatch(params)
+			return
+		}
+
+		err := b.store.BatchUpsertConnectionLogs(authCtx, params)
 		if err == nil {
 			return
 		}
@@ -479,7 +483,7 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 		b.log.Warn(b.ctx, "batch retry failed",
 			slog.Error(err),
 			slog.F("count", count),
-			slog.F("attempt", attempt),
+			slog.F("attempt", attempt+1),
 			slog.F("max_attempts", maxRetries),
 		)
 	}
@@ -489,8 +493,8 @@ func (b *DBBatcher) retryBatch(params database.BatchUpsertConnectionLogsParams) 
 }
 
 // writeBatch makes a single write attempt using a background context
-// (since this is called during shutdown when b.ctx is canceled) and
-// logs on failure.
+// (since this may be called during shutdown when b.ctx is canceled)
+// and logs on failure.
 func (b *DBBatcher) writeBatch(params database.BatchUpsertConnectionLogsParams) {
 	//nolint:gocritic // System-level batch operation for connection logs.
 	err := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(context.Background()), params)
