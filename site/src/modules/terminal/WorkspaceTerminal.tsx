@@ -46,6 +46,7 @@ type WorkspaceTerminalProps = {
 	baseUrl?: string;
 	terminalFontFamily?: string;
 	renderer?: string;
+	backgroundColor?: string;
 	onOpenLink?: (uri: string) => void;
 	loading?: boolean;
 	errorMessage?: string;
@@ -75,6 +76,7 @@ export const WorkspaceTerminal = ({
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
 	renderer,
+	backgroundColor,
 	onOpenLink,
 	loading = false,
 	errorMessage,
@@ -93,9 +95,9 @@ export const WorkspaceTerminal = ({
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard } = useClipboard();
 
-	const [activated, setActivated] = useState(false);
-	if (isVisible && !activated) {
-		setActivated(true);
+	const [hasBeenVisible, setHasBeenVisible] = useState(false);
+	if (isVisible && !hasBeenVisible) {
+		setHasBeenVisible(true);
 	}
 
 	const reportTerminalError = useEffectEvent((error: Error) => {
@@ -128,6 +130,9 @@ export const WorkspaceTerminal = ({
 			return;
 		}
 
+		// We have to fit twice here. It's unknown why, but the
+		// first fit will overflow slightly in some scenarios.
+		// Applying a second fit resolves this.
 		try {
 			fitAddon.fit();
 			fitAddon.fit();
@@ -146,7 +151,7 @@ export const WorkspaceTerminal = ({
 	);
 
 	useEffect(() => {
-		if (!activated) {
+		if (!hasBeenVisible) {
 			return;
 		}
 
@@ -162,6 +167,7 @@ export const WorkspaceTerminal = ({
 			disableStdin: false,
 			fontFamily: terminalFontFamily,
 			fontSize: 16,
+			...(backgroundColor ? { theme: { background: backgroundColor } } : {}),
 		});
 
 		if (renderer === "webgl") {
@@ -221,7 +227,14 @@ export const WorkspaceTerminal = ({
 			return true;
 		});
 
-		// Auto-copy selection to clipboard on select.
+		// Browsers don't support automatic copy to the X11 primary
+		// selection (highlighted text that can be pasted with
+		// middle-click). Instead, copy-on-select writes to the
+		// system clipboard. This means users can't middle-click
+		// paste in the terminal after selecting, but this tradeoff
+		// is necessary because web browsers don't expose primary
+		// selection APIs. Most web terminal users expect Ctrl+V or
+		// right-click paste anyway.
 		nextTerminal.onSelectionChange(() => {
 			copySelection();
 		});
@@ -246,13 +259,14 @@ export const WorkspaceTerminal = ({
 			setTerminal(undefined);
 		};
 	}, [
-		activated,
+		hasBeenVisible,
 		copyToClipboard,
 		handleOpenLink,
 		refit,
 		renderer,
 		reportTerminalError,
 		terminalFontFamily,
+		backgroundColor,
 	]);
 
 	useEffect(() => {
@@ -264,7 +278,7 @@ export const WorkspaceTerminal = ({
 	}, [isVisible, refit]);
 
 	useEffect(() => {
-		if (!terminal || !activated) {
+		if (!terminal || !hasBeenVisible) {
 			return;
 		}
 
@@ -440,7 +454,7 @@ export const WorkspaceTerminal = ({
 			websocketRef.current = undefined;
 		};
 	}, [
-		activated,
+		hasBeenVisible,
 		agentId,
 		autoFocus,
 		baseUrl,

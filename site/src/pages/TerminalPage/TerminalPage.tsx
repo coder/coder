@@ -148,8 +148,13 @@ const TerminalPage: FC = () => {
 					baseUrl={terminalConfig.baseUrl}
 					terminalFontFamily={terminalConfig.fontFamily}
 					renderer={terminalConfig.renderer}
+					backgroundColor={theme.palette.background.default}
 					onOpenLink={handleWebLink}
-					loading={workspace.isLoading || config.isLoading}
+					loading={
+						workspace.isLoading ||
+						config.isLoading ||
+						appearanceSettingsQuery.isLoading
+					}
 					errorMessage={terminalErrorMessage}
 					testId="terminal"
 				/>
