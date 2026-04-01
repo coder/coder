@@ -4095,12 +4095,13 @@ func TestGetChatDiffStatus(t *testing.T) {
 
 		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleAgentsAccess())
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
-			_, err = otherClient.GetChat(ctx, createdChat.ID)
-			requireSDKError(t, err, http.StatusNotFound)
-		})
+		_, err = otherClient.GetChat(ctx, createdChat.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
 }
 
-func TestGetChatDiffContents(t *testing.T) {	t.Parallel()
+func TestGetChatDiffContents(t *testing.T) {
+	t.Parallel()
 
 	t.Run("SuccessWithCachedRepositoryReference", func(t *testing.T) {
 		t.Parallel()
