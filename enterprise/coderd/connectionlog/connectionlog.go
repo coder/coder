@@ -28,10 +28,6 @@ const (
 	// audit visibility with write efficiency.
 	defaultFlushInterval = 5 * time.Second
 
-	// finalFlushTimeout is the timeout for the final flush when the
-	// batcher is shutting down.
-	finalFlushTimeout = 15 * time.Second
-
 	// maxRetryDuration is the maximum total time to spend retrying a
 	// failed batch write before dropping it.
 	maxRetryDuration = 30 * time.Minute
@@ -284,11 +280,7 @@ func (b *DBBatcher) run(ctx context.Context) {
 		case item := <-b.itemCh:
 			b.addToBatch(item)
 		default:
-			ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
-			defer cancel() //nolint:revive // Returning after this.
-
-			//nolint:gocritic // System-level batch operation for connection logs.
-			b.flush(dbauthz.AsConnectionLogger(ctxTimeout))
+			b.flush(authCtx)
 			return
 		}
 	}
@@ -413,11 +405,10 @@ func (b *DBBatcher) ensureUpsertLogs(params database.BatchUpsertConnectionLogsPa
 	// Use the batcher's context so shutdown stops the retry loop.
 	bkoff := backoff.WithContext(eb, b.ctx)
 
+	//nolint:gocritic // System-level batch operation for connection logs.
+	authCtx := dbauthz.AsConnectionLogger(context.Background())
 	err := backoff.Retry(func() error {
-		ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
-		defer cancel()
-		//nolint:gocritic // System-level batch operation for connection logs.
-		return b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
+		return b.store.BatchUpsertConnectionLogs(authCtx, params)
 	}, bkoff)
 	if err == nil {
 		b.log.Debug(b.ctx, "connection log batch flush complete", slog.F("count", count))
@@ -426,10 +417,7 @@ func (b *DBBatcher) ensureUpsertLogs(params database.BatchUpsertConnectionLogsPa
 
 	// If the context was canceled (shutdown), try one final time.
 	if b.ctx.Err() != nil {
-		ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
-		defer cancel()
-		//nolint:gocritic // System-level batch operation for connection logs.
-		finalErr := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
+		finalErr := b.store.BatchUpsertConnectionLogs(authCtx, params)
 		if finalErr == nil {
 			b.log.Info(b.ctx, "final retry on shutdown succeeded", slog.F("count", count))
 			return
