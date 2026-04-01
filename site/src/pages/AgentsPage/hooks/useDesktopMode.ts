@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /**
  * Try to lock the screen orientation. This only works in certain
@@ -27,84 +27,41 @@ function tryOrientationUnlock(): void {
 }
 
 /**
- * Detect whether the device is likely a mobile/touch device. We use
- * the coarse pointer media query rather than user-agent sniffing
- * because it reflects actual input capability.
- */
-function isTouchDevice(): boolean {
-	if (typeof window === "undefined") return false;
-	return window.matchMedia("(pointer: coarse)").matches;
-}
-
-export interface UseDesktopModeResult {
-	/** Whether landscape mode is currently active. */
-	isLandscape: boolean;
-	/** Enter landscape mode. */
-	enterLandscape: () => void;
-	/** Exit landscape mode and re-lock portrait. */
-	exitLandscape: () => void;
-	/**
-	 * Whether the device supports the feature at all. False on
-	 * desktop browsers and non-touch devices where the button
-	 * should be hidden.
-	 */
-	isSupported: boolean;
-}
-
-/**
- * Manages landscape orientation for the Desktop panel on mobile.
- * Follows the YouTube pattern: the app is normally portrait-locked,
- * and this hook provides an escape hatch to landscape specifically
- * for the desktop VNC view.
+ * Manages landscape orientation for the Desktop panel fullscreen
+ * mode on mobile. The caller tells the hook whether landscape
+ * should be active; the hook handles the Screen Orientation API
+ * and cleans up on unmount.
  *
- * When the caller signals entry (enterLandscape), the hook attempts
- * screen.orientation.lock('landscape'). On exit it re-locks portrait.
- * Unmounting automatically exits landscape.
+ * Portrait is restored automatically when `isLandscape` flips
+ * back to false or when the component unmounts.
  */
-export function useDesktopMode(): UseDesktopModeResult {
-	const [isSupported] = useState(() => isTouchDevice());
-	const [isLandscape, setIsLandscape] = useState(false);
-	const cleanupRef = useRef(false);
+export function useDesktopLandscape(isLandscape: boolean): void {
+	const wasLandscapeRef = useRef(false);
 
-	const enterLandscape = useCallback(() => {
-		setIsLandscape(true);
-	}, []);
-
-	const exitLandscape = useCallback(() => {
-		setIsLandscape(false);
+	const restorePortrait = useCallback(() => {
+		void tryOrientationLock("portrait-primary").then((locked) => {
+			if (!locked) {
+				tryOrientationUnlock();
+			}
+		});
 	}, []);
 
 	useEffect(() => {
-		if (!isSupported) return;
-
 		if (isLandscape) {
 			void tryOrientationLock("landscape");
-			cleanupRef.current = true;
-		} else if (cleanupRef.current) {
-			// Re-lock portrait. If that fails (e.g. iOS), just
-			// release whatever lock is active.
-			void tryOrientationLock("portrait-primary").then((locked) => {
-				if (!locked) {
-					tryOrientationUnlock();
-				}
-			});
-			cleanupRef.current = false;
+			wasLandscapeRef.current = true;
+		} else if (wasLandscapeRef.current) {
+			restorePortrait();
+			wasLandscapeRef.current = false;
 		}
 
 		return () => {
-			// Restore portrait on unmount so navigating away from
-			// the Desktop panel returns the device to its normal
-			// orientation.
-			if (cleanupRef.current) {
-				void tryOrientationLock("portrait-primary").then((locked) => {
-					if (!locked) {
-						tryOrientationUnlock();
-					}
-				});
-				cleanupRef.current = false;
+			// Restore portrait on unmount so navigating away
+			// returns the device to its normal orientation.
+			if (wasLandscapeRef.current) {
+				restorePortrait();
+				wasLandscapeRef.current = false;
 			}
 		};
-	}, [isLandscape, isSupported]);
-
-	return { isLandscape, enterLandscape, exitLandscape, isSupported };
+	}, [isLandscape, restorePortrait]);
 }

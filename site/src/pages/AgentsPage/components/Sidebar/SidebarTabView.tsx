@@ -1,17 +1,16 @@
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	FullscreenIcon,
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
-	SmartphoneIcon,
 	XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
-import type { UseDesktopModeResult } from "../../hooks/useDesktopMode";
 import { DesktopPanel } from "../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
@@ -44,8 +43,6 @@ interface SidebarTabViewProps {
 	onClose?: () => void;
 	/** Desktop chat ID. Omitted if desktop is not available. */
 	desktopChatId?: string;
-	/** Desktop landscape mode state from useDesktopMode. */
-	desktopMode?: UseDesktopModeResult;
 	/** The currently active tab ID (controlled by the parent). */
 	activeTabId: string | null;
 	/** Called when the user switches tabs. */
@@ -115,7 +112,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	desktopChatId,
-	desktopMode,
 	activeTabId,
 	onActiveTabChange,
 }) => {
@@ -151,7 +147,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				<DesktopPanel
 					chatId={desktopChatId}
 					isVisible={effectiveTabId === "desktop"}
-					desktopMode={desktopMode}
 				/>
 			),
 		});
@@ -164,6 +159,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		scrollLeft: scrollTabsLeft,
 		scrollRight: scrollTabsRight,
 	} = useTabScroll();
+
+	// Whether to show the mobile fullscreen button for the
+	// desktop tab. Visible only on touch devices when the
+	// Desktop tab is active and the panel is not yet expanded.
+	const showDesktopFullscreen =
+		effectiveTabId === "desktop" && desktopChatId && !isExpanded;
 
 	if (tabs.length === 0 && !desktopChatId) {
 		return (
@@ -313,8 +314,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					</div>
 				)}
-				{/* Right side: close (mobile) / landscape (mobile desktop tab) / expand (desktop) */}
-				{onClose && (
+				{/* Right side: close (mobile) / fullscreen (mobile desktop) / expand (desktop) */}
+				{onClose && !isExpanded && (
 					<Button
 						variant="subtle"
 						size="icon"
@@ -325,22 +326,31 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<XIcon />
 					</Button>
 				)}
-				{/* Landscape toggle — mobile only, when the Desktop
-					   tab is active. Tapping unlocks orientation so the
-					   VNC view fills the screen in landscape. */}
-				{desktopMode?.isSupported &&
-					effectiveTabId === "desktop" &&
-					desktopMode.isLandscape && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={desktopMode.exitLandscape}
-							aria-label="Exit landscape"
-							className="h-7 w-7 shrink-0 text-content-primary md:hidden"
-						>
-							<SmartphoneIcon />
-						</Button>
-					)}
+				{/* Mobile fullscreen for Desktop tab — enters expanded
+				    mode which the parent ties to landscape orientation. */}
+				{showDesktopFullscreen && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onToggleExpanded}
+						aria-label="Fullscreen desktop"
+						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
+					>
+						<FullscreenIcon />
+					</Button>
+				)}
+				{/* Exit fullscreen — visible on mobile when expanded */}
+				{isExpanded && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onToggleExpanded}
+						aria-label="Exit fullscreen"
+						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
+					>
+						<MinimizeIcon />
+					</Button>
+				)}
 				<Button
 					variant="subtle"
 					size="icon"

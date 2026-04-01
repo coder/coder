@@ -29,7 +29,7 @@ import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
-import { useDesktopMode } from "./hooks/useDesktopMode";
+import { useDesktopLandscape } from "./hooks/useDesktopMode";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -216,7 +216,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// State for programmatically switching the sidebar tab (e.g. when
 	// the user clicks the inline desktop preview card).
 	const [sidebarTabId, setSidebarTabId] = useState<string | null>(null);
-	const desktopMode = useDesktopMode();
+
+	// Lock landscape orientation when the Desktop tab is fullscreened
+	// on mobile. Exiting fullscreen (isRightPanelExpanded = false)
+	// automatically restores portrait.
+	useDesktopLandscape(isRightPanelExpanded && sidebarTabId === "desktop");
 
 	const handleOpenDesktop = () => {
 		onSetShowSidebarPanel(true);
@@ -399,7 +403,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 						chatTitle={chatTitle}
 						desktopChatId={desktopChatId}
-						desktopMode={desktopMode}
 					/>
 				</RightPanel>
 			</div>
