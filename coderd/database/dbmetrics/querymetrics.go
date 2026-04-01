@@ -1288,6 +1288,22 @@ func (m queryMetricsStore) GetChatsByWorkspaceIDs(ctx context.Context, ids []uui
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatsWithRunningWorkspaces(ctx context.Context) ([]database.GetChatsWithRunningWorkspacesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsWithRunningWorkspaces(ctx)
+	m.queryLatencies.WithLabelValues("GetChatsWithRunningWorkspaces").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsWithRunningWorkspaces").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatsWithStoppedWorkspaces(ctx context.Context) ([]database.GetChatsWithStoppedWorkspacesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsWithStoppedWorkspaces(ctx)
+	m.queryLatencies.WithLabelValues("GetChatsWithStoppedWorkspaces").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsWithStoppedWorkspaces").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
@@ -1389,6 +1405,14 @@ func (m queryMetricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (dat
 	r0, r1 := m.s.GetDeploymentWorkspaceStats(ctx)
 	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentWorkspaceStats").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx context.Context) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx)
+	m.queryLatencies.WithLabelValues("GetDistinctOwnerIDsForChatWorkspaceMonitoring").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDistinctOwnerIDsForChatWorkspaceMonitoring").Inc()
 	return r0, r1
 }
 

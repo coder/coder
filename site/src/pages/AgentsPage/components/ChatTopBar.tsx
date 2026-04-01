@@ -29,6 +29,10 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
+import {
+	type DisplayWorkspaceStatusType,
+	getDisplayWorkspaceStatus,
+} from "#/utils/workspace";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -63,6 +67,16 @@ type ChatTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
+	workspaceStatus?: TypesGen.WorkspaceStatus;
+};
+
+const statusDotColor: Record<DisplayWorkspaceStatusType, string> = {
+	success: "bg-content-success",
+	active: "bg-content-link",
+	inactive: "bg-content-disabled",
+	error: "bg-content-destructive",
+	warning: "bg-content-warning",
+	danger: "bg-content-destructive",
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
@@ -81,6 +95,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
+	workspaceStatus,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 
@@ -92,6 +107,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const prNumberMatch =
 		diffStatusData?.pr_number?.toString() ?? parsedPr?.number;
 	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
+
+	const wsDisplay = workspaceStatus
+		? getDisplayWorkspaceStatus(workspaceStatus)
+		: undefined;
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -162,6 +181,18 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</div>
 				)}
 			</div>
+			{/* Workspace status indicator */}
+			{wsDisplay && (
+				<div className="hidden shrink-0 items-center gap-1.5 text-xs text-content-secondary md:inline-flex">
+					<span
+						className={cn(
+							"inline-block h-2 w-2 rounded-full",
+							statusDotColor[wsDisplay.type],
+						)}
+					/>
+					<span>{wsDisplay.text}</span>
+				</div>
+			)}
 			{/* PR link — mobile: icon + number; desktop: icon + title.
 			   Hidden on desktop when the sidebar panel is open
 			   (which already shows PR info). */}

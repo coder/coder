@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -74,6 +75,12 @@ const (
 	// recovery loop runs relative to the stale threshold. A value
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
+
+	// workspaceMonitorInterval controls how often the workspace
+	// monitor polls for stopped/started workspaces. The poll acts
+	// as a fallback; real-time detection is driven by per-owner
+	// pubsub subscriptions.
+	workspaceMonitorInterval = 15 * time.Second
 
 	// streamDropWarnInterval controls how often WARN-level logs are
 	// emitted when stream events are dropped. Between intervals the
@@ -139,6 +146,18 @@ type Server struct {
 	// and PromoteQueued so the run loop calls processOnce
 	// immediately instead of waiting for the next ticker.
 	wakeCh chan struct{}
+
+	// workspaceMonitorCh is signaled by workspace pubsub events
+	// so the run loop calls monitorWorkspaceTransitions
+	// immediately instead of waiting for the periodic ticker.
+	workspaceMonitorCh chan struct{}
+
+	// wsSubs tracks active per-owner workspace event pubsub
+	// subscriptions. The map is keyed by owner ID; values are
+	// cancel functions returned by SubscribeWithErr. Protected
+	// by wsSubsMu.
+	wsSubsMu sync.Mutex
+	wsSubs   map[uuid.UUID]func()
 }
 
 // chatTemplateAllowlist returns the deployment-wide template
@@ -1508,6 +1527,28 @@ func (p *Server) InterruptChat(
 	return updatedChat
 }
 
+// ResumeChat transitions a paused chat to waiting and broadcasts the
+// status change so subscribers see it immediately.
+func (p *Server) ResumeChat(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("update chat status: %w", err)
+	}
+	p.publishStatus(chat.ID, updatedChat.Status, updatedChat.WorkerID)
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+	return updatedChat, nil
+}
+
 const manualTitleMessageWindowLimit = 50
 
 var ErrManualTitleRegenerationInProgress = xerrors.New(
@@ -2399,6 +2440,8 @@ func New(cfg Config) *Server {
 		usageTracker:                   cfg.UsageTracker,
 		clock:                          clk,
 		wakeCh:                         make(chan struct{}, 1),
+		workspaceMonitorCh:             make(chan struct{}, 1),
+		wsSubs:                         make(map[uuid.UUID]func()),
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -2440,6 +2483,10 @@ func (p *Server) start(ctx context.Context) {
 	// to handle chats orphaned by crashed or redeployed workers.
 	p.recoverStaleChats(ctx)
 
+	// Run the workspace monitor once at startup to catch any
+	// transitions that occurred while the server was down.
+	p.monitorWorkspaceTransitions(ctx)
+
 	acquireTicker := p.clock.NewTicker(
 		p.pendingChatAcquireInterval,
 		"chatd",
@@ -2455,9 +2502,17 @@ func (p *Server) start(ctx context.Context) {
 	)
 	defer staleTicker.Stop()
 
+	workspaceMonitorTicker := p.clock.NewTicker(
+		workspaceMonitorInterval,
+		"chatd",
+		"workspace-monitor",
+	)
+	defer workspaceMonitorTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
+			p.closeWorkspaceSubscriptions()
 			return
 		case <-acquireTicker.C:
 			p.processOnce(ctx)
@@ -2465,6 +2520,10 @@ func (p *Server) start(ctx context.Context) {
 			p.processOnce(ctx)
 		case <-staleTicker.C:
 			p.recoverStaleChats(ctx)
+		case <-workspaceMonitorTicker.C:
+			p.monitorWorkspaceTransitions(ctx)
+		case <-p.workspaceMonitorCh:
+			p.monitorWorkspaceTransitions(ctx)
 		}
 	}
 }
@@ -3715,6 +3774,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
+	if err := p.ensureWorkspaceRunning(chatCtx, chat, logger); err != nil {
+		logger.Warn(ctx, "failed to ensure workspace is running", slog.Error(err))
+	}
+
 	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
 	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
@@ -3751,6 +3814,117 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusPending
 		lastError = ""
 		return
+	}
+}
+
+const (
+	// ensureBuildPollInterval is how often ensureWorkspaceRunning
+	// checks whether a workspace build has completed.
+	ensureBuildPollInterval = 2 * time.Second
+	// ensureBuildTimeout is the maximum time ensureWorkspaceRunning
+	// waits for a workspace build before giving up.
+	ensureBuildTimeout = 10 * time.Minute
+)
+
+// ensureWorkspaceRunning checks whether the chat's workspace is
+// stopped and starts it if necessary. This handles the implicit
+// resume case: a user sends a message to a paused chat, or the
+// race case where a message arrives before the chat is paused.
+// It only acts on definitively stopped workspaces. For other
+// non-running states (starting, failed, etc.), it returns
+// immediately and lets the LLM's existing tool error handling
+// and start_workspace self-recovery deal with it.
+func (p *Server) ensureWorkspaceRunning(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+) error {
+	if !chat.WorkspaceID.Valid {
+		return nil
+	}
+
+	build, err := p.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		return xerrors.Errorf("get latest workspace build: %w", err)
+	}
+
+	job, err := p.db.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		return xerrors.Errorf("get provisioner job: %w", err)
+	}
+
+	// Only act on stopped workspaces. All other states (running,
+	// starting, failed, etc.) are left for the LLM to handle via
+	// existing tool error handling and start_workspace self-recovery.
+	if build.Transition != database.WorkspaceTransitionStop ||
+		job.JobStatus != database.ProvisionerJobStatusSucceeded {
+		return nil
+	}
+
+	logger.Info(ctx, "workspace is stopped, starting it")
+	if p.startWorkspaceFn == nil {
+		return xerrors.New("workspace start function is not configured")
+	}
+	_, err = p.startWorkspaceFn(ctx, chat.OwnerID, chat.WorkspaceID.UUID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: build.TemplateVersionID,
+		Transition:        codersdk.WorkspaceTransitionStart,
+	})
+	if err != nil {
+		return xerrors.Errorf("start workspace: %w", err)
+	}
+	return p.waitForWorkspaceBuild(ctx, chat.WorkspaceID.UUID)
+}
+
+// waitForWorkspaceBuild polls the latest build for the workspace until
+// it reaches a terminal state or the timeout is reached.
+func (p *Server) waitForWorkspaceBuild(
+	ctx context.Context,
+	workspaceID uuid.UUID,
+) error {
+	buildCtx, cancel := context.WithTimeout(ctx, ensureBuildTimeout)
+	defer cancel()
+
+	ticker := p.clock.NewTicker(ensureBuildPollInterval, "chatd", "ensure-build")
+	defer ticker.Stop()
+
+	for {
+		build, err := p.db.GetLatestWorkspaceBuildByWorkspaceID(buildCtx, workspaceID)
+		if err != nil {
+			return xerrors.Errorf("get latest build: %w", err)
+		}
+
+		job, err := p.db.GetProvisionerJobByID(buildCtx, build.JobID)
+		if err != nil {
+			return xerrors.Errorf("get provisioner job: %w", err)
+		}
+
+		switch job.JobStatus {
+		case database.ProvisionerJobStatusSucceeded:
+			return nil
+		case database.ProvisionerJobStatusFailed:
+			errMsg := "build failed"
+			if job.Error.Valid {
+				errMsg = job.Error.String
+			}
+			return xerrors.New(errMsg)
+		case database.ProvisionerJobStatusCanceled:
+			return xerrors.New("build was canceled")
+		case database.ProvisionerJobStatusPending,
+			database.ProvisionerJobStatusRunning,
+			database.ProvisionerJobStatusCanceling:
+			// Still in progress.
+		default:
+			return xerrors.Errorf("unexpected job status: %s", job.JobStatus)
+		}
+
+		select {
+		case <-buildCtx.Done():
+			return xerrors.Errorf(
+				"timed out waiting for workspace build: %w",
+				buildCtx.Err(),
+			)
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -5275,6 +5449,189 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 
 	if recovered > 0 {
 		p.logger.Info(ctx, "recovered stale chats", slog.F("count", recovered))
+	}
+}
+
+// signalWorkspaceMonitor wakes the workspace monitor in the run
+// loop. Non-blocking: if a signal is already pending it is a no-op.
+func (p *Server) signalWorkspaceMonitor() {
+	select {
+	case p.workspaceMonitorCh <- struct{}{}:
+	default:
+	}
+}
+
+// monitorWorkspaceTransitions detects workspace stop/start events
+// and transitions chat statuses accordingly:
+//   - waiting -> paused when the workspace stops
+//   - paused  -> waiting when the workspace starts
+//
+// After processing transitions it refreshes the set of per-owner
+// pubsub subscriptions so future workspace events trigger an
+// immediate re-check.
+func (p *Server) monitorWorkspaceTransitions(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+
+	// Phase 1: waiting -> paused for stopped workspaces.
+	stoppedChats, err := p.db.GetChatsWithStoppedWorkspaces(ctx)
+	if err != nil {
+		p.logger.Error(ctx, "failed to get chats with stopped workspaces", slog.Error(err))
+	} else {
+		for _, row := range stoppedChats {
+			p.transitionChatStatus(ctx, row.ChatID, database.ChatStatusWaiting, database.ChatStatusPaused)
+		}
+	}
+
+	// Phase 2: paused -> waiting for running workspaces.
+	runningChats, err := p.db.GetChatsWithRunningWorkspaces(ctx)
+	if err != nil {
+		p.logger.Error(ctx, "failed to get chats with running workspaces", slog.Error(err))
+	} else {
+		for _, row := range runningChats {
+			p.transitionChatStatus(ctx, row.ChatID, database.ChatStatusPaused, database.ChatStatusWaiting)
+		}
+	}
+
+	// Phase 3: refresh pubsub subscriptions for relevant owners.
+	p.updateWorkspaceSubscriptions(ctx)
+}
+
+// transitionChatStatus atomically transitions a chat from
+// expectedStatus to newStatus under a row lock. If the chat's
+// status has already changed since the initial query, the
+// transition is skipped.
+func (p *Server) transitionChatStatus(
+	ctx context.Context,
+	chatID uuid.UUID,
+	expectedStatus database.ChatStatus,
+	newStatus database.ChatStatus,
+) {
+	logger := p.logger.With(
+		slog.F("chat_id", chatID),
+		slog.F("from_status", expectedStatus),
+		slog.F("to_status", newStatus),
+	)
+
+	var updatedChat database.Chat
+	err := p.db.InTx(func(tx database.Store) error {
+		locked, lockErr := tx.GetChatByIDForUpdate(ctx, chatID)
+		if lockErr != nil {
+			return xerrors.Errorf("lock chat for workspace transition: %w", lockErr)
+		}
+
+		// Between the initial query and acquiring the lock the
+		// chat may have been transitioned by another replica or
+		// by a user action (e.g. SendMessage setting it to
+		// pending). Only proceed if the status still matches.
+		if locked.Status != expectedStatus {
+			logger.Debug(ctx, "chat status changed since snapshot, skipping workspace transition",
+				slog.F("actual_status", locked.Status))
+			return nil
+		}
+
+		var updateErr error
+		updatedChat, updateErr = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      newStatus,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		return updateErr
+	}, nil)
+	if err != nil {
+		logger.Error(ctx, "failed to transition chat for workspace state change", slog.Error(err))
+		return
+	}
+
+	// A zero-value updatedChat means the transition was skipped.
+	if updatedChat.ID == uuid.Nil {
+		return
+	}
+
+	logger.Info(ctx, "transitioned chat status due to workspace state change")
+	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
+
+	// If we moved to waiting, wake the run loop so the chat gets
+	// picked up for processing promptly.
+	if newStatus == database.ChatStatusWaiting {
+		p.signalWake()
+	}
+}
+
+// updateWorkspaceSubscriptions reconciles the set of per-owner
+// workspace event pubsub subscriptions with the current set of
+// owners who have waiting or paused chats bound to workspaces.
+// New owners get a subscription; removed owners are unsubscribed.
+func (p *Server) updateWorkspaceSubscriptions(ctx context.Context) {
+	if p.pubsub == nil {
+		return
+	}
+
+	ownerIDs, err := p.db.GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx)
+	if err != nil {
+		p.logger.Error(ctx, "failed to get owner IDs for workspace monitoring", slog.Error(err))
+		return
+	}
+
+	wanted := make(map[uuid.UUID]struct{}, len(ownerIDs))
+	for _, id := range ownerIDs {
+		wanted[id] = struct{}{}
+	}
+
+	p.wsSubsMu.Lock()
+	defer p.wsSubsMu.Unlock()
+
+	// Unsubscribe from owners that no longer have relevant chats.
+	for ownerID, cancel := range p.wsSubs {
+		if _, ok := wanted[ownerID]; !ok {
+			cancel()
+			delete(p.wsSubs, ownerID)
+		}
+	}
+
+	// Subscribe to new owners.
+	for ownerID := range wanted {
+		if _, ok := p.wsSubs[ownerID]; ok {
+			continue
+		}
+		cancel, subErr := p.pubsub.SubscribeWithErr(
+			wspubsub.WorkspaceEventChannel(ownerID),
+			wspubsub.HandleWorkspaceEvent(func(_ context.Context, ev wspubsub.WorkspaceEvent, evErr error) {
+				if evErr != nil {
+					p.logger.Warn(ctx, "workspace event error", slog.Error(evErr))
+					return
+				}
+				// Only state changes (build completions) are
+				// relevant for stop/start detection.
+				if ev.Kind != wspubsub.WorkspaceEventKindStateChange {
+					return
+				}
+				p.signalWorkspaceMonitor()
+			}),
+		)
+		if subErr != nil {
+			p.logger.Error(ctx, "failed to subscribe to workspace events",
+				slog.F("owner_id", ownerID),
+				slog.Error(subErr))
+			continue
+		}
+		p.wsSubs[ownerID] = cancel
+	}
+}
+
+// closeWorkspaceSubscriptions cancels all active per-owner
+// workspace event subscriptions. Called during shutdown.
+func (p *Server) closeWorkspaceSubscriptions() {
+	p.wsSubsMu.Lock()
+	defer p.wsSubsMu.Unlock()
+	for ownerID, cancel := range p.wsSubs {
+		cancel()
+		delete(p.wsSubs, ownerID)
 	}
 }
 

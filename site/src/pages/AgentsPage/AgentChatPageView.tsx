@@ -1,4 +1,4 @@
-import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
+import { ArchiveIcon, ArrowDownIcon, PauseIcon, PlayIcon } from "lucide-react";
 import {
 	type FC,
 	type RefObject,
@@ -7,10 +7,13 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { resumeChat } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
@@ -65,6 +68,8 @@ interface AgentChatPageViewProps {
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
+	workspaceStatus?: TypesGen.WorkspaceStatus;
+	chatStatus: TypesGen.ChatStatus | null;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -154,6 +159,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	persistedError,
 	isArchived,
 	hasWorkspace,
+	workspaceStatus,
+	chatStatus,
 	store,
 	editing,
 	pendingEditMessageId,
@@ -284,6 +291,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							diffStatusData={diffStatusData}
 							isSidebarCollapsed={isSidebarCollapsed}
 							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+							workspaceStatus={workspaceStatus}
 						/>
 						{isArchived && (
 							<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
@@ -291,6 +299,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								This agent has been archived and is read-only.
 							</div>
 						)}
+						{chatStatus === "paused" && <PausedBanner chatId={agentId} />}
 						<div
 							aria-hidden
 							className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
@@ -401,6 +410,30 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				</RightPanel>
 			</div>
 		</DesktopPanelContext>
+	);
+};
+
+const PausedBanner: FC<{ chatId: string }> = ({ chatId }) => {
+	const queryClient = useQueryClient();
+	const mutation = useMutation(resumeChat(queryClient, chatId));
+
+	return (
+		<div className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-warning">
+			<PauseIcon className="h-4 w-4 shrink-0" />
+			<span className="flex-1">Workspace stopped</span>
+			<Button
+				size="sm"
+				variant="outline"
+				className="h-6 gap-1 px-2 text-xs"
+				disabled={mutation.isPending}
+				onClick={() => mutation.mutate()}
+			>
+				<Spinner loading={mutation.isPending}>
+					<PlayIcon className="h-3 w-3" />
+				</Spinner>
+				Resume
+			</Button>
+		</div>
 	);
 };
 

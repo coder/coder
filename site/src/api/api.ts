@@ -3183,6 +3183,13 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	resumeChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/resume`,
+		);
+		return response.data;
+	};
+
 	deleteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,

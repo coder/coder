@@ -277,6 +277,14 @@ type sqlcQuerier interface {
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
+	// Finds chats in 'paused' status whose bound workspace is now
+	// running (latest build transition=start, job succeeded). Used to
+	// resume chats after a workspace restart.
+	GetChatsWithRunningWorkspaces(ctx context.Context) ([]GetChatsWithRunningWorkspacesRow, error)
+	// Finds chats in 'waiting' status whose bound workspace has been
+	// stopped (latest build transition=stop, job succeeded). Used to
+	// detect workspace-based status transitions.
+	GetChatsWithStoppedWorkspaces(ctx context.Context) ([]GetChatsWithStoppedWorkspacesRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
@@ -290,6 +298,10 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
+	// Returns distinct owner IDs for non-archived chats that are either
+	// 'waiting' or 'paused' with a bound workspace. Used to maintain
+	// the dynamic set of workspace event pubsub subscriptions.
+	GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx context.Context) ([]uuid.UUID, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error)

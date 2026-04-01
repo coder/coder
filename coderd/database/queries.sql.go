@@ -5548,6 +5548,187 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 	return items, nil
 }
 
+const getChatsWithRunningWorkspaces = `-- name: GetChatsWithRunningWorkspaces :many
+SELECT
+    c.id AS chat_id,
+    c.status AS chat_status,
+    c.workspace_id,
+    wb.transition AS workspace_build_transition,
+    pj.job_status AS provisioner_job_status
+FROM
+    chats c
+INNER JOIN LATERAL (
+    SELECT
+        wb.transition,
+        wb.job_id
+    FROM
+        workspace_builds wb
+    WHERE
+        wb.workspace_id = c.workspace_id
+    ORDER BY
+        wb.build_number DESC
+    LIMIT
+        1
+) wb ON TRUE
+INNER JOIN
+    provisioner_jobs pj ON pj.id = wb.job_id
+WHERE
+    c.archived = FALSE
+    AND c.workspace_id IS NOT NULL
+    AND c.status = 'paused'::chat_status
+    AND wb.transition = 'start'::workspace_transition
+    AND pj.job_status = 'succeeded'::provisioner_job_status
+`
+
+type GetChatsWithRunningWorkspacesRow struct {
+	ChatID                   uuid.UUID            `db:"chat_id" json:"chat_id"`
+	ChatStatus               ChatStatus           `db:"chat_status" json:"chat_status"`
+	WorkspaceID              uuid.NullUUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildTransition WorkspaceTransition  `db:"workspace_build_transition" json:"workspace_build_transition"`
+	ProvisionerJobStatus     ProvisionerJobStatus `db:"provisioner_job_status" json:"provisioner_job_status"`
+}
+
+// Finds chats in 'paused' status whose bound workspace is now
+// running (latest build transition=start, job succeeded). Used to
+// resume chats after a workspace restart.
+func (q *sqlQuerier) GetChatsWithRunningWorkspaces(ctx context.Context) ([]GetChatsWithRunningWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsWithRunningWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatsWithRunningWorkspacesRow
+	for rows.Next() {
+		var i GetChatsWithRunningWorkspacesRow
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ChatStatus,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildTransition,
+			&i.ProvisionerJobStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsWithStoppedWorkspaces = `-- name: GetChatsWithStoppedWorkspaces :many
+SELECT
+    c.id AS chat_id,
+    c.status AS chat_status,
+    c.workspace_id,
+    wb.transition AS workspace_build_transition,
+    pj.job_status AS provisioner_job_status
+FROM
+    chats c
+INNER JOIN LATERAL (
+    SELECT
+        wb.transition,
+        wb.job_id
+    FROM
+        workspace_builds wb
+    WHERE
+        wb.workspace_id = c.workspace_id
+    ORDER BY
+        wb.build_number DESC
+    LIMIT
+        1
+) wb ON TRUE
+INNER JOIN
+    provisioner_jobs pj ON pj.id = wb.job_id
+WHERE
+    c.archived = FALSE
+    AND c.workspace_id IS NOT NULL
+    AND c.status = 'waiting'::chat_status
+    AND wb.transition = 'stop'::workspace_transition
+    AND pj.job_status = 'succeeded'::provisioner_job_status
+`
+
+type GetChatsWithStoppedWorkspacesRow struct {
+	ChatID                   uuid.UUID            `db:"chat_id" json:"chat_id"`
+	ChatStatus               ChatStatus           `db:"chat_status" json:"chat_status"`
+	WorkspaceID              uuid.NullUUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildTransition WorkspaceTransition  `db:"workspace_build_transition" json:"workspace_build_transition"`
+	ProvisionerJobStatus     ProvisionerJobStatus `db:"provisioner_job_status" json:"provisioner_job_status"`
+}
+
+// Finds chats in 'waiting' status whose bound workspace has been
+// stopped (latest build transition=stop, job succeeded). Used to
+// detect workspace-based status transitions.
+func (q *sqlQuerier) GetChatsWithStoppedWorkspaces(ctx context.Context) ([]GetChatsWithStoppedWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsWithStoppedWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatsWithStoppedWorkspacesRow
+	for rows.Next() {
+		var i GetChatsWithStoppedWorkspacesRow
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ChatStatus,
+			&i.WorkspaceID,
+			&i.WorkspaceBuildTransition,
+			&i.ProvisionerJobStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDistinctOwnerIDsForChatWorkspaceMonitoring = `-- name: GetDistinctOwnerIDsForChatWorkspaceMonitoring :many
+SELECT DISTINCT
+    c.owner_id
+FROM
+    chats c
+WHERE
+    c.archived = FALSE
+    AND c.workspace_id IS NOT NULL
+    AND c.status IN ('waiting'::chat_status, 'paused'::chat_status)
+`
+
+// Returns distinct owner IDs for non-archived chats that are either
+// 'waiting' or 'paused' with a bound workspace. Used to maintain
+// the dynamic set of workspace event pubsub subscriptions.
+func (q *sqlQuerier) GetDistinctOwnerIDsForChatWorkspaceMonitoring(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getDistinctOwnerIDsForChatWorkspaceMonitoring)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var owner_id uuid.UUID
+		if err := rows.Scan(&owner_id); err != nil {
+			return nil, err
+		}
+		items = append(items, owner_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
