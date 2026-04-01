@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -16,11 +15,11 @@ import (
 // Env var names for context configuration. Prefixed with EXP_
 // to indicate these are experimental and may change.
 const (
-	EnvInstructionsDir  = "CODER_AGENT_EXP_INSTRUCTIONS_DIR"
+	EnvInstructionsDirs = "CODER_AGENT_EXP_INSTRUCTIONS_DIRS"
 	EnvInstructionsFile = "CODER_AGENT_EXP_INSTRUCTIONS_FILE"
-	EnvSkillsDir        = "CODER_AGENT_EXP_SKILLS_DIR"
+	EnvSkillsDirs       = "CODER_AGENT_EXP_SKILLS_DIRS"
 	EnvSkillMetaFile    = "CODER_AGENT_EXP_SKILL_META_FILE"
-	EnvMCPConfigFile    = "CODER_AGENT_EXP_MCP_CONFIG_FILE"
+	EnvMCPConfigFiles   = "CODER_AGENT_EXP_MCP_CONFIG_FILES"
 )
 
 // Defaults are defined in codersdk/workspacesdk so both
@@ -30,16 +29,14 @@ const (
 // API exposes the resolved context configuration through the
 // agent's HTTP API.
 type API struct {
-	logger slog.Logger
 	config workspacesdk.ContextConfigResponse
 }
 
 // NewAPI reads context configuration from environment variables,
 // resolves all paths relative to workingDir, and returns an API
 // handler that serves the result.
-func NewAPI(logger slog.Logger, workingDir string) *API {
+func NewAPI(workingDir string) *API {
 	return &API{
-		logger: logger,
 		config: Config(workingDir),
 	}
 }
@@ -51,11 +48,11 @@ func Config(workingDir string) workspacesdk.ContextConfigResponse {
 	// because stray whitespace would silently break lookups.
 	// Directory vars go through ResolvePaths which splits on
 	// commas and trims each element.
-	instructionsDir := cmp.Or(os.Getenv(EnvInstructionsDir), workspacesdk.DefaultInstructionsDir)
+	instructionsDir := cmp.Or(os.Getenv(EnvInstructionsDirs), workspacesdk.DefaultInstructionsDir)
 	instructionsFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsFile)), workspacesdk.DefaultInstructionsFile)
-	skillsDir := cmp.Or(os.Getenv(EnvSkillsDir), workspacesdk.DefaultSkillsDir)
+	skillsDir := cmp.Or(os.Getenv(EnvSkillsDirs), workspacesdk.DefaultSkillsDir)
 	skillMetaFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillMetaFile)), workspacesdk.DefaultSkillMetaFile)
-	mcpConfigFile := cmp.Or(os.Getenv(EnvMCPConfigFile), workspacesdk.DefaultMCPConfigFile)
+	mcpConfigFile := cmp.Or(os.Getenv(EnvMCPConfigFiles), workspacesdk.DefaultMCPConfigFile)
 
 	return workspacesdk.ContextConfigResponse{
 		InstructionsDirs: ResolvePaths(instructionsDir, workingDir),

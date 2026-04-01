@@ -89,6 +89,18 @@ func (m *Manager) Connect(ctx context.Context, mcpConfigFiles []string) error {
 		allConfigs = append(allConfigs, configs...)
 	}
 
+	// Deduplicate by server name; first occurrence wins.
+	seen := make(map[string]struct{})
+	deduped := make([]ServerConfig, 0, len(allConfigs))
+	for _, cfg := range allConfigs {
+		if _, ok := seen[cfg.Name]; ok {
+			continue
+		}
+		seen[cfg.Name] = struct{}{}
+		deduped = append(deduped, cfg)
+	}
+	allConfigs = deduped
+
 	if len(allConfigs) == 0 {
 		return nil
 	}

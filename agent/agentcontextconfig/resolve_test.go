@@ -53,6 +53,12 @@ func TestResolvePath(t *testing.T) {
 		got := agentcontextconfig.ResolvePath("  foo/bar  ", "/work")
 		require.Equal(t, "/work/foo/bar", got)
 	})
+
+	t.Run("RelativePathWithEmptyBaseDir", func(t *testing.T) {
+		t.Parallel()
+		got := agentcontextconfig.ResolvePath(".agents/skills", "")
+		require.Equal(t, "", got)
+	})
 }
 
 func TestResolvePath_HomeUnset(t *testing.T) {
@@ -111,5 +117,12 @@ func TestResolvePaths(t *testing.T) {
 		t.Parallel()
 		got := agentcontextconfig.ResolvePaths("/only,", "/base")
 		require.Equal(t, []string{"/only"}, got)
+	})
+
+	t.Run("RelativePathSkippedWhenBaseDirEmpty", func(t *testing.T) {
+		fakeHome := t.TempDir()
+		t.Setenv("HOME", fakeHome)
+		got := agentcontextconfig.ResolvePaths("~/.coder,.agents/skills", "")
+		require.Equal(t, []string{filepath.Join(fakeHome, ".coder")}, got)
 	})
 }

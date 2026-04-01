@@ -30,6 +30,9 @@ func ResolvePath(raw, baseDir string) string {
 	case filepath.IsAbs(raw):
 		return raw
 	default:
+		if baseDir == "" {
+			return ""
+		}
 		return filepath.Join(baseDir, raw)
 	}
 }

@@ -4915,7 +4915,7 @@ func (p *Server) persistInstructionFiles(
 	modelConfigID uuid.UUID,
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (string, []chattool.SkillMeta, string, error) {
+) (instruction string, skills []chattool.SkillMeta, skillMetaFile string, err error) {
 	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
 		return "", nil, workspacesdk.DefaultSkillMetaFile, nil
 	}
