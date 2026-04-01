@@ -351,8 +351,9 @@ function useStickToBottom(): StickToBottomInstance {
 				);
 				const wasAtBottom =
 					s.internalIsAtBottom ||
-					s.scrollElement.scrollTop >=
-						prevMaxScroll - STICK_TO_BOTTOM_OFFSET_PX;
+					(!s.escapedFromLock &&
+						s.scrollElement.scrollTop >=
+							prevMaxScroll - STICK_TO_BOTTOM_OFFSET_PX);
 
 				if (wasAtBottom) {
 					scrollTo(s, target);

@@ -930,18 +930,19 @@ export const ScrollNotJumpedDuringWheel: Story = {
 			);
 		});
 
-		// The new scroll implementation follows content growth
-		// immediately when near the bottom, regardless of active
-		// wheel state. Verify we tracked the new content.
+		// After wheeling up, the user has expressed intent to
+		// disengage auto-follow. Content growth should NOT yank
+		// them back to the bottom — they keep their position.
 		await waitFor(() => {
 			const dist =
 				scrollContainer.scrollHeight -
 				scrollContainer.scrollTop -
 				scrollContainer.clientHeight;
-			expect(dist).toBeLessThan(5);
-			expect(
-				canvas.queryByRole("button", { name: "Scroll to bottom" }),
-			).toBeNull();
+			// The user should NOT have been yanked to the absolute
+			// bottom. They may still be within the "near bottom"
+			// visual threshold, but scrollTop must not have been
+			// forced to maxScrollTop.
+			expect(dist).toBeGreaterThan(5);
 		});
 	},
 };
