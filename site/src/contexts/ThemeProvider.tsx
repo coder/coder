@@ -11,8 +11,6 @@ import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
 } from "@mui/material/styles";
-import { appearanceSettings } from "api/queries/users";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -22,7 +20,9 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import themes, { DEFAULT_THEME, type Theme } from "theme";
+import { appearanceSettings } from "#/api/queries/users";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import themes, { DEFAULT_THEME, type Theme } from "#/theme";
 
 /**
  *
@@ -58,14 +58,21 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [themeQuery]);
 
 	// We might not be logged in yet, or the `theme_preference` could be an empty string.
+	// Prefer JS-fetched value, fall back to server-rendered meta tag, then default.
 	const themePreference =
-		appearanceSettingsQuery.data?.theme_preference || DEFAULT_THEME;
-	// The janky casting here is find because of the much more type safe fallback
+		appearanceSettingsQuery.data?.theme_preference ||
+		metadata.userAppearance?.value?.theme_preference ||
+		DEFAULT_THEME;
+	// The janky casting here is fine because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.
 
 	useEffect(() => {
 		const root = document.documentElement;
+		// Embedded pages manage theme independently.
+		if (root.dataset.embedTheme) {
+			return;
+		}
 		if (themePreference === "auto") {
 			root.classList.add(preferredColorScheme);
 		} else {
@@ -73,7 +80,9 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		}
 
 		return () => {
-			root.classList.remove("light", "dark");
+			if (!root.dataset.embedTheme) {
+				root.classList.remove("light", "dark");
+			}
 		};
 	}, [themePreference, preferredColorScheme]);
 

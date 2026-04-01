@@ -1,18 +1,18 @@
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIcon,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
 import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/roles";
-import { cn } from "utils/cn";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIcon,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
+import type { ThemeRole } from "#/theme/roles";
+import { cn } from "#/utils/cn";
 
 interface InfoTooltipProps {
 	type?: ThemeRole;
-	title: ReactNode;
+	title?: ReactNode;
 	message: ReactNode;
 }
 
@@ -24,7 +24,7 @@ const tooltipColorClasses: Record<ThemeRole, string> = {
 	success: "text-content-success",
 	danger: "text-content-destructive",
 	active: "text-content-link",
-	inactive: "text-highlight-grey",
+	inactive: "text-content-secondary",
 	preview: "text-highlight-purple",
 };
 
@@ -34,14 +34,14 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 	type = "info",
 }) => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger size="small" hoverEffect={false}>
-				<HelpTooltipIcon className={cn(tooltipColorClasses[type])} />
-			</HelpTooltipIconTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>{title}</HelpTooltipTitle>
-				<HelpTooltipText>{message}</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+		<HelpPopover>
+			<HelpPopoverIconTrigger size="small" hoverEffect={false}>
+				<HelpPopoverIcon className={cn(tooltipColorClasses[type])} />
+			</HelpPopoverIconTrigger>
+			<HelpPopoverContent>
+				{title && <HelpPopoverTitle>{title}</HelpPopoverTitle>}
+				<HelpPopoverText>{message}</HelpPopoverText>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

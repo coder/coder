@@ -1,18 +1,18 @@
-import {
-	MockWorkspaceAgent,
-	MockWorkspaceAgentDevcontainer,
-} from "testHelpers/entities";
-import { createTestQueryClient } from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { renderHook, waitFor } from "@testing-library/react";
-import * as API from "api/api";
-import type { WorkspaceAgentListContainersResponse } from "api/typesGenerated";
-import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClientProvider } from "react-query";
-import type { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { toast } from "sonner";
+import * as API from "#/api/api";
+import type { WorkspaceAgentListContainersResponse } from "#/api/typesGenerated";
+import {
+	MockWorkspaceAgent,
+	MockWorkspaceAgentDevcontainer,
+} from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { useAgentContainers } from "./useAgentContainers";
 
 const createWrapper = (): FC<PropsWithChildren> => {
@@ -84,7 +84,7 @@ describe("useAgentContainers", () => {
 	});
 
 	it("handles parsing errors from WebSocket", async () => {
-		const displayErrorSpy = jest.spyOn(GlobalSnackbar, "displayError");
+		const toastErrorSpy = jest.spyOn(toast, "error");
 		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
 
 		const mockSocket = {
@@ -134,19 +134,19 @@ describe("useAgentContainers", () => {
 		}
 
 		await waitFor(() => {
-			expect(displayErrorSpy).toHaveBeenCalledWith(
-				"Failed to update containers",
-				"Please try refreshing the page",
+			expect(toastErrorSpy).toHaveBeenCalledWith(
+				"Failed to update containers.",
+				{ description: "Please try refreshing the page." },
 			);
 		});
 
 		unmount();
-		displayErrorSpy.mockRestore();
+		toastErrorSpy.mockRestore();
 		watchAgentContainersSpy.mockRestore();
 	});
 
 	it("handles WebSocket errors", async () => {
-		const displayErrorSpy = jest.spyOn(GlobalSnackbar, "displayError");
+		const toastErrorSpy = jest.spyOn(toast, "error");
 		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
 
 		const mockSocket = {
@@ -193,14 +193,13 @@ describe("useAgentContainers", () => {
 		}
 
 		await waitFor(() => {
-			expect(displayErrorSpy).toHaveBeenCalledWith(
-				"Failed to load containers",
-				"Please try refreshing the page",
-			);
+			expect(toastErrorSpy).toHaveBeenCalledWith("Failed to load containers.", {
+				description: "Please try refreshing the page.",
+			});
 		});
 
 		unmount();
-		displayErrorSpy.mockRestore();
+		toastErrorSpy.mockRestore();
 		watchAgentContainersSpy.mockRestore();
 	});
 

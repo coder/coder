@@ -1,23 +1,19 @@
-import type { ProvisionerJob } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { TableCell, TableRow } from "components/Table/Table";
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
-import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
+import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router";
+import type { ProvisionerJob } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { TableCell, TableRow } from "#/components/Table/Table";
+import { JobStatusIndicator } from "#/modules/provisioners/JobStatusIndicator";
 import {
 	ProvisionerTag,
 	ProvisionerTags,
 	ProvisionerTruncateTags,
-} from "modules/provisioners/ProvisionerTags";
-import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
+} from "#/modules/provisioners/ProvisionerTags";
+import { cn } from "#/utils/cn";
+import { relativeTime } from "#/utils/time";
 import { CancelJobButton } from "./CancelJobButton";
 
 type JobRowProps = {
@@ -48,7 +44,9 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 							setIsOpen((v) => !v);
 						}}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						<span className="block first-letter:uppercase">
 							{relativeTime(new Date(job.created_at))}

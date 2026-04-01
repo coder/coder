@@ -3,10 +3,12 @@ export default {
 
 	addons: [
 		"@chromatic-com/storybook",
+		"@storybook/addon-a11y",
 		"@storybook/addon-docs",
 		"@storybook/addon-links",
 		"@storybook/addon-themes",
 		"storybook-addon-remix-react-router",
+		"@storybook/addon-vitest",
 	],
 
 	staticDirs: ["../static"],
@@ -14,6 +16,10 @@ export default {
 	framework: {
 		name: "@storybook/react-vite",
 		options: {},
+	},
+
+	core: {
+		allowedHosts: [".coder", ".dev.coder.com"],
 	},
 
 	async viteFinal(config) {

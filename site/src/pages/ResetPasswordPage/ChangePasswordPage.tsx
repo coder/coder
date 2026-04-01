@@ -1,20 +1,20 @@
-import { isApiValidationError } from "api/errors";
-import { changePasswordWithOTP } from "api/queries/users";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { CustomLogo } from "components/CustomLogo/CustomLogo";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
-import { getApplicationName } from "utils/appearance";
-import { getFormHelpers } from "utils/formUtils";
-import { pageTitle } from "utils/page";
+import { toast } from "sonner";
 import * as yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import { changePasswordWithOTP } from "#/api/queries/users";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { getApplicationName } from "#/utils/appearance";
+import { getFormHelpers } from "#/utils/formUtils";
+import { pageTitle } from "#/utils/page";
 
 const validationSchema = yup.object({
 	password: yup.string().required("Password is required"),
@@ -49,15 +49,21 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 			const email = searchParams.get("email") ?? "";
 			const otp = searchParams.get("otp") ?? "";
 
-			await changePasswordMutation.mutateAsync({
-				email,
-				one_time_passcode: otp,
-				password: values.password,
-			});
-			displaySuccess("Password reset successfully");
-			if (redirect) {
-				navigate("/login");
-			}
+			await changePasswordMutation.mutateAsync(
+				{
+					email,
+					one_time_passcode: otp,
+					password: values.password,
+				},
+				{
+					onSuccess: () => {
+						toast.success("Password reset successfully.");
+						if (redirect) {
+							navigate("/login");
+						}
+					},
+				},
+			);
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, changePasswordMutation.error);

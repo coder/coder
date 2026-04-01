@@ -1,40 +1,16 @@
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
-import { pauseTask, resumeTask } from "api/queries/tasks";
-import { template as templateQueryOptions } from "api/queries/templates";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import type {
-	Task,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceStatus,
-} from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
-import { Button } from "components/Button/Button";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Spinner } from "components/Spinner/Spinner";
-import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
 	PauseIcon,
 	RotateCcwIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
-import { useAgentLogs } from "modules/resources/useAgentLogs";
-import { getAllAppsWithAgent } from "modules/tasks/apps";
-import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
-import { isPauseDisabled } from "modules/tasks/taskActions";
-import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
+	useCallback,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -43,15 +19,57 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
 import type { FixedSizeList } from "react-window";
-import { pageTitle } from "utils/page";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
+import { pauseTask, resumeTask, taskLogs } from "#/api/queries/tasks";
+import { template as templateQueryOptions } from "#/api/queries/templates";
+import {
+	workspaceByOwnerAndName,
+	workspaceByOwnerAndNameKey,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
+import type {
+	Task,
+	TaskLogEntry,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
+import { useAgentLogs } from "#/modules/resources/useAgentLogs";
+import { getAllAppsWithAgent } from "#/modules/tasks/apps";
+import { TasksSidebar } from "#/modules/tasks/TasksSidebar/TasksSidebar";
+import { isPauseDisabled } from "#/modules/tasks/taskActions";
+import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { cn } from "#/utils/cn";
+import { pageTitle } from "#/utils/page";
+import { relativeTime } from "#/utils/time";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
+import { FollowUpDialog } from "./FollowUpDialog";
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
+
+type FollowUpStage =
+	| "idle"
+	| "resuming"
+	| "waitingForActive"
+	| "sending"
+	| "error";
 
 const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -64,10 +82,29 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 
 const TaskPage = () => {
 	const [isModifyDialogOpen, setIsModifyDialogOpen] = useState(false);
+	const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = useState(false);
+	const [followUpDraft, setFollowUpDraft] = useState("");
+	const [followUpStage, setFollowUpStage] = useState<FollowUpStage>("idle");
+	const [followUpError, setFollowUpError] = useState<string>();
 	const { taskId, username } = useParams() as {
 		taskId: string;
 		username: string;
 	};
+	const taskRouteKey = `${username}/${taskId}`;
+	const prevTaskRouteKeyRef = useRef(taskRouteKey);
+	const queryClient = useQueryClient();
+	const resumeFollowUpMutation = useMutation({
+		mutationFn: () => API.resumeTask(username, taskId),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		},
+	});
+	const sendFollowUpMutation = useMutation({
+		mutationFn: (input: string) => API.sendTaskInput(username, taskId, input),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		},
+	});
 	const { data: task, ...taskQuery } = useQuery({
 		queryKey: ["tasks", username, taskId],
 		queryFn: () => API.getTask(username, taskId),
@@ -82,9 +119,120 @@ const TaskPage = () => {
 			return state.error ? false : 5_000;
 		},
 	});
+	const { data: permissions } = useQuery(workspacePermissions(workspace));
 	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
 	const error = taskQuery.error ?? workspaceQuery.error;
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
+
+	useEffect(() => {
+		if (prevTaskRouteKeyRef.current === taskRouteKey) {
+			return;
+		}
+		prevTaskRouteKeyRef.current = taskRouteKey;
+		// Reset in-memory follow-up state when navigating to another task route.
+		setFollowUpDraft("");
+		setFollowUpStage("idle");
+		setFollowUpError(undefined);
+	}, [taskRouteKey]);
+
+	const startSendingFollowUp = useCallback(
+		async (message: string) => {
+			setFollowUpStage("sending");
+			try {
+				await sendFollowUpMutation.mutateAsync(message);
+				setFollowUpDraft("");
+				setFollowUpError(undefined);
+				setFollowUpStage("idle");
+			} catch (error) {
+				setFollowUpError(getErrorMessage(error, "Failed to send message."));
+				setFollowUpStage("error");
+			}
+		},
+		[sendFollowUpMutation],
+	);
+
+	const queueFollowUp = useCallback(
+		async (message: string) => {
+			const trimmedMessage = message.trim();
+			if (!trimmedMessage || !task || !workspace) {
+				return;
+			}
+
+			setFollowUpDraft(trimmedMessage);
+			setFollowUpError(undefined);
+
+			if (task.status === "active") {
+				void startSendingFollowUp(trimmedMessage);
+				return;
+			}
+
+			if (
+				followUpStage === "resuming" ||
+				followUpStage === "waitingForActive" ||
+				followUpStage === "sending"
+			) {
+				return;
+			}
+
+			setFollowUpStage("resuming");
+			try {
+				await resumeFollowUpMutation.mutateAsync();
+				await queryClient.invalidateQueries({
+					queryKey: ["tasks", task.owner_name, task.id],
+				});
+				await queryClient.invalidateQueries({
+					queryKey: workspaceByOwnerAndNameKey(
+						workspace.owner_name,
+						workspace.name,
+					),
+				});
+				setFollowUpStage("waitingForActive");
+			} catch (error) {
+				setFollowUpError(getErrorMessage(error, "Failed to resume task."));
+				setFollowUpStage("error");
+			}
+		},
+		[
+			followUpStage,
+			queryClient,
+			resumeFollowUpMutation,
+			startSendingFollowUp,
+			task,
+			workspace,
+		],
+	);
+
+	const openFollowUpDialog = useCallback(() => {
+		setIsFollowUpDialogOpen(true);
+	}, []);
+
+	useEffect(() => {
+		if (followUpStage !== "resuming" && followUpStage !== "waitingForActive") {
+			return;
+		}
+		if (
+			workspace?.latest_build.status === "failed" ||
+			workspace?.latest_build.status === "canceled"
+		) {
+			setFollowUpError(
+				"Failed to resume task because the workspace build did not complete successfully.",
+			);
+			setFollowUpStage("error");
+		}
+	}, [followUpStage, workspace?.latest_build.status]);
+
+	useEffect(() => {
+		// Only auto-send a queued follow-up after we explicitly entered the
+		// waiting stage and the task transitions back to active.
+		if (
+			!followUpDraft ||
+			task?.status !== "active" ||
+			followUpStage !== "waitingForActive"
+		) {
+			return;
+		}
+		void startSendingFollowUp(followUpDraft);
+	}, [followUpDraft, followUpStage, startSendingFollowUp, task?.status]);
 
 	if (error) {
 		return (
@@ -137,13 +285,7 @@ const TaskPage = () => {
 			/>
 		);
 	} else if (workspace.latest_build.status === "failed") {
-		content = (
-			<TaskBuildFailed
-				workspaceOwner={workspace.owner_name}
-				workspaceName={workspace.name}
-				buildNumber={workspace.latest_build.build_number}
-			/>
-		);
+		content = <TaskBuildFailed task={task} workspace={workspace} />;
 	} else if (workspace.latest_build.status === "stopping") {
 		content = (
 			<TaskTransitioning
@@ -160,6 +302,10 @@ const TaskPage = () => {
 				task={task}
 				workspace={workspace}
 				onEditPrompt={() => setIsModifyDialogOpen(true)}
+				onAddFollowUp={openFollowUpDialog}
+				followUpDraft={followUpDraft}
+				followUpStage={followUpStage}
+				followUpError={followUpError}
 			/>
 		);
 	} else if (workspace.latest_build.status === "canceling") {
@@ -217,7 +363,11 @@ const TaskPage = () => {
 		<TaskPageLayout>
 			<title>{pageTitle(task.display_name)}</title>
 
-			<TaskTopbar task={task} workspace={workspace} />
+			<TaskTopbar
+				task={task}
+				workspace={workspace}
+				canUpdatePermissions={permissions?.updateWorkspace ?? false}
+			/>
 			{content}
 
 			<ModifyPromptDialog
@@ -225,6 +375,15 @@ const TaskPage = () => {
 				workspace={workspace}
 				open={isModifyDialogOpen}
 				onOpenChange={setIsModifyDialogOpen}
+			/>
+			<FollowUpDialog
+				task={task}
+				initialMessage={followUpDraft}
+				open={isFollowUpDialogOpen}
+				onOpenChange={setIsFollowUpDialogOpen}
+				onSubmit={(message) => {
+					void queueFollowUp(message);
+				}}
 			/>
 		</TaskPageLayout>
 	);
@@ -303,32 +462,134 @@ const TaskDeleted: FC = () => {
 	);
 };
 
-type TaskBuildFailedProps = {
-	workspaceOwner: string;
-	workspaceName: string;
-	buildNumber: number;
+type TaskLogPreviewProps = {
+	logs: readonly TaskLogEntry[];
+	maxMessages?: number;
+	headerAction?: ReactNode;
+	snapshotAt?: string;
 };
 
-const TaskBuildFailed: FC<TaskBuildFailedProps> = ({
-	workspaceOwner,
-	workspaceName,
-	buildNumber,
+function logPreviewLabel(count: number): string {
+	if (count === 0) {
+		return "AI chat logs";
+	}
+	if (count === 1) {
+		return "Last message of AI chat logs";
+	}
+	return `Last ${count} messages of AI chat logs`;
+}
+
+const TaskLogPreview: FC<TaskLogPreviewProps> = ({
+	logs,
+	headerAction,
+	snapshotAt,
 }) => {
+	// Scroll to the bottom on mount since snapshot logs are static.
+	const scrollToBottom = useCallback((el: HTMLDivElement | null) => {
+		if (!isChromatic() && el) {
+			el.scrollIntoView({ block: "end" });
+		}
+	}, []);
+
 	return (
-		<TaskStateMessage
-			title="Task build failed"
-			description="Please check the logs for more details."
-			icon={<TriangleAlertIcon className="size-4 text-content-destructive" />}
-			actions={
-				<Button size="sm" variant="outline" asChild>
-					<RouterLink
-						to={`/@${workspaceOwner}/${workspaceName}/builds/${buildNumber}`}
-					>
-						View full logs
-					</RouterLink>
-				</Button>
-			}
-		/>
+		<div className="w-full max-w-screen-lg mx-auto px-16">
+			<div className="border border-solid border-border rounded-lg overflow-hidden">
+				<div className="flex items-center justify-between px-4 py-2 border-0 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
+					<span className="flex items-center gap-1.5">
+						{logPreviewLabel(logs.length)}
+						{snapshotAt && (
+							<InfoTooltip
+								type="info"
+								message={`This log snapshot was taken ${relativeTime(snapshotAt)}.`}
+							/>
+						)}
+					</span>
+					{headerAction}
+				</div>
+				{snapshotAt ? (
+					logs.length > 0 ? (
+						<ScrollArea className="h-96">
+							<div
+								ref={scrollToBottom}
+								className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
+							>
+								{logs.map((entry, index) => {
+									const prev = index === 0 ? undefined : logs[index - 1];
+									const isNewGroup = !prev || prev.type !== entry.type;
+									return (
+										<div
+											key={entry.id}
+											className={cn(
+												"pl-3 border-0 border-l-2 border-solid",
+												entry.type === "input"
+													? "border-l-border-pending"
+													: "border-l-border-purple",
+												isNewGroup && index > 0 && "mt-4",
+											)}
+										>
+											{isNewGroup && (
+												<div className="text-content-primary font-semibold mb-1">
+													{entry.type === "input" ? "[user]" : "[agent]"}
+												</div>
+											)}
+											{entry.content || "\u00A0"}
+										</div>
+									);
+								})}
+							</div>
+						</ScrollArea>
+					) : (
+						<p className="px-4 py-3 text-sm text-content-secondary m-0">
+							No log messages in this snapshot.
+						</p>
+					)
+				) : (
+					<p className="px-4 py-3 text-sm text-content-secondary m-0">
+						No log snapshot available. Resume your task to view logs.
+					</p>
+				)}
+			</div>
+		</div>
+	);
+};
+
+type TaskBuildFailedProps = {
+	task: Task;
+	workspace: Workspace;
+};
+
+const TaskBuildFailed: FC<TaskBuildFailedProps> = ({ task, workspace }) => {
+	const { data: logsData } = useQuery({
+		...taskLogs(task.owner_name, task.id),
+		retry: false,
+	});
+
+	const buildLogsLink = `/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`;
+
+	return (
+		<>
+			<TaskStateMessage
+				title="Task build failed"
+				description="Please check the logs for more details."
+				icon={<TriangleAlertIcon className="size-4 text-content-destructive" />}
+				actions={
+					<Button size="sm" variant="outline" asChild>
+						<RouterLink to={buildLogsLink}>View full logs</RouterLink>
+					</Button>
+				}
+			/>
+			{logsData && (
+				<TaskLogPreview
+					logs={logsData.logs}
+					snapshotAt={logsData.snapshot_at}
+					headerAction={
+						<Button size="sm" variant="subtle" asChild>
+							<RouterLink to={buildLogsLink}>View full logs</RouterLink>
+						</Button>
+					}
+				/>
+			)}
+		</>
 	);
 };
 
@@ -336,9 +597,21 @@ type TaskPausedProps = {
 	task: Task;
 	workspace: Workspace;
 	onEditPrompt: () => void;
+	onAddFollowUp: () => void;
+	followUpDraft: string;
+	followUpStage: FollowUpStage;
+	followUpError?: string;
 };
 
-const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
+const TaskPaused: FC<TaskPausedProps> = ({
+	task,
+	workspace,
+	onEditPrompt,
+	onAddFollowUp,
+	followUpDraft,
+	followUpStage,
+	followUpError,
+}) => {
 	const queryClient = useQueryClient();
 
 	// Use mutation config directly to customize error handling:
@@ -347,9 +620,16 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
 			if (!isApiError(error)) {
-				displayError(getErrorMessage(error, "Failed to resume task."));
+				toast.error(getErrorMessage(error, "Failed to resume task."), {
+					description: getErrorDetail(error),
+				});
 			}
 		},
+	});
+
+	const { data: logsData } = useQuery({
+		...taskLogs(task.owner_name, task.id),
+		retry: false,
 	});
 
 	// After requesting a task resume, it may take a while to become ready.
@@ -362,6 +642,17 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 	const apiError = isApiError(resumeMutation.error)
 		? resumeMutation.error
 		: undefined;
+	const hasPendingFollowUp = followUpDraft.trim().length > 0;
+	const isFollowUpSending =
+		followUpStage === "resuming" ||
+		followUpStage === "waitingForActive" ||
+		followUpStage === "sending";
+	const followUpStatusLabels: Record<string, string> = {
+		resuming: "Resuming task...",
+		waitingForActive: "Waiting for the task to become active...",
+		sending: "Sending follow-up message...",
+	};
+	const followUpStatusLabel = followUpStatusLabels[followUpStage];
 
 	return (
 		<>
@@ -386,21 +677,71 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 					)
 				}
 				actions={
-					<div className="flex flex-row gap-4">
-						<Button
-							size="sm"
-							disabled={isWaitingForStart}
-							onClick={() => resumeMutation.mutate()}
-						>
-							<Spinner loading={isWaitingForStart} />
-							Resume
-						</Button>
-						<Button size="sm" onClick={onEditPrompt} variant="outline">
-							Edit prompt
-						</Button>
+					<div className="flex flex-col gap-3 items-center">
+						<div className="flex flex-row gap-4">
+							<Button
+								size="sm"
+								disabled={isWaitingForStart}
+								onClick={() => resumeMutation.mutate()}
+							>
+								<Spinner loading={isWaitingForStart} />
+								Resume
+							</Button>
+							<Button size="sm" variant="outline" onClick={onEditPrompt}>
+								Edit prompt
+							</Button>
+							<Button size="sm" variant="outline" onClick={onAddFollowUp}>
+								Follow-up
+							</Button>
+						</div>
+
+						{hasPendingFollowUp && (
+							<div className="w-full max-w-xl rounded-md border border-border p-3 text-left text-sm">
+								<p className="m-0 text-content-primary">
+									<strong>Pending follow-up:</strong> {followUpDraft}
+								</p>
+								{followUpStatusLabel && (
+									<p className="m-0 mt-2 text-content-secondary flex items-center gap-2">
+										<Spinner loading />
+										{followUpStatusLabel}
+									</p>
+								)}
+								{followUpError && (
+									<p className="m-0 mt-2 text-content-destructive">
+										{followUpError}
+									</p>
+								)}
+								<p className="m-0 mt-2 text-content-secondary">
+									Refreshing or leaving this page clears the pending follow-up
+									message.
+								</p>
+							</div>
+						)}
+						{!hasPendingFollowUp && isFollowUpSending && (
+							<p className="m-0 text-content-secondary text-sm">
+								<Spinner loading /> Processing follow-up message...
+							</p>
+						)}
 					</div>
 				}
 			/>
+			{logsData && (
+				<TaskLogPreview
+					logs={logsData.logs}
+					snapshotAt={logsData.snapshot_at}
+					headerAction={
+						<Button
+							size="sm"
+							variant="subtle"
+							disabled={isWaitingForStart || isFollowUpSending}
+							onClick={() => resumeMutation.mutate()}
+						>
+							<Spinner loading={isWaitingForStart} />
+							Resume to view full logs
+						</Button>
+					}
+				/>
+			)}
 
 			<WorkspaceErrorDialog
 				open={apiError !== undefined}
@@ -438,21 +779,6 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 		P95: null,
 	};
 
-	const scrollAreaRef = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect should run when build logs change
-	useLayoutEffect(() => {
-		if (isChromatic()) {
-			return;
-		}
-		const scrollAreaEl = scrollAreaRef.current;
-		const scrollAreaViewportEl = scrollAreaEl?.querySelector<HTMLDivElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (scrollAreaViewportEl) {
-			scrollAreaViewportEl.scrollTop = scrollAreaViewportEl.scrollHeight;
-		}
-	}, [buildLogs]);
-
 	return (
 		<section className="p-16 overflow-y-auto">
 			<div className="flex justify-center items-center w-full">
@@ -473,10 +799,7 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 							variant="task"
 						/>
 
-						<ScrollArea
-							ref={scrollAreaRef}
-							className="h-96 border border-solid border-border rounded-lg"
-						>
+						<ScrollArea className="h-96 border border-solid border-border rounded-lg">
 							<WorkspaceBuildLogs
 								sticky
 								className="border-0 rounded-none"
@@ -511,7 +834,9 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),
 		onError: (error: unknown) => {
-			displayError(getErrorMessage(error, "Failed to pause task."));
+			toast.error(getErrorMessage(error, "Failed to pause task."), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 	const pauseDisabled = isPauseDisabled(task.status);

@@ -22,78 +22,8 @@ task.
 
 To use startup dependencies in your templates, you must:
 
-- Enable the Coder Agent Socket Server.
-- Modify your workspace startup scripts to run in parallel and declare dependencies as required using `coder exp sync`.
-
-### Enable the Coder Agent Socket Server
-
-The agent socket server provides the communication layer for startup
-coordination. To enable it, set `CODER_AGENT_SOCKET_SERVER_ENABLED=true` in the environment in which the agent is running.
-The exact method for doing this depends on your infrastructure platform:
-
-<div class="tabs">
-
-#### Docker / Podman
-
-```hcl
-resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
-  name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-
-  env = [
-    "CODER_AGENT_SOCKET_SERVER_ENABLED=true"
-  ]
-
-  command = ["sh", "-c", coder_agent.main.init_script]
-}
-```
-
-#### Kubernetes
-
-```hcl
-resource "kubernetes_pod" "main" {
-  count = data.coder_workspace.me.start_count
-
-  metadata {
-    name      = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-    namespace = var.workspaces_namespace
-  }
-
-  spec {
-    container {
-      name    = "dev"
-      image   = "codercom/enterprise-base:ubuntu"
-      command = ["sh", "-c", coder_agent.main.init_script]
-
-      env {
-        name  = "CODER_AGENT_SOCKET_SERVER_ENABLED"
-        value = "true"
-      }
-    }
-  }
-}
-```
-
-#### AWS EC2 / VMs
-
-For virtual machines, pass the environment variable through cloud-init or your
-provisioning system:
-
-```hcl
-locals {
-  agent_env = {
-    "CODER_AGENT_SOCKET_SERVER_ENABLED"    = "true"
-  }
-}
-
-# In your cloud-init userdata template:
-# %{ for key, value in local.agent_env ~}
-# export ${key}="${value}"
-# %{ endfor ~}
-```
-
-</div>
+- Modify your workspace startup scripts to run in parallel
+- Declare dependencies as required using `coder exp sync`
 
 ### Declare Dependencies in your Workspace Startup Scripts
 

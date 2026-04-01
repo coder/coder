@@ -1,13 +1,15 @@
+import { XIcon } from "lucide-react";
+import type { FC } from "react";
 import type {
 	Organization,
 	ProvisionerJob,
 	ProvisionerJobStatus,
-} from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
+} from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Select,
 	SelectContent,
@@ -15,17 +17,17 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
+} from "#/components/Select/Select";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
 	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
+} from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -33,16 +35,14 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
+} from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { XIcon } from "lucide-react";
-import type { FC } from "react";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
+} from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import { JobRow } from "./JobRow";
 
 const variantByStatus: Record<

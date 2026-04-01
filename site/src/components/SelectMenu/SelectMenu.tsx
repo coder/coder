@@ -1,18 +1,6 @@
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
-import { Button, type ButtonProps } from "components/Button/Button";
-import {
-	Popover,
-	PopoverContent,
-	type PopoverContentProps,
-	PopoverTrigger,
-	type PopoverTriggerProps,
-} from "components/Popover/Popover";
-import {
-	SearchField,
-	type SearchFieldProps,
-} from "components/SearchField/SearchField";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
@@ -21,7 +9,20 @@ import {
 	type ReactElement,
 	useMemo,
 } from "react";
-import { cn } from "utils/cn";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button, type ButtonProps } from "#/components/Button/Button";
+import {
+	Popover,
+	PopoverContent,
+	type PopoverContentProps,
+	PopoverTrigger,
+	type PopoverTriggerProps,
+} from "#/components/Popover/Popover";
+import {
+	SearchField,
+	type SearchFieldProps,
+} from "#/components/SearchField/SearchField";
+import { cn } from "#/utils/cn";
 
 export const SelectMenu = Popover;
 

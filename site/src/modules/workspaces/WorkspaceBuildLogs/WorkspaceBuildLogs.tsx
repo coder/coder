@@ -1,7 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
-import type { Line } from "components/Logs/LogLine";
-import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -10,11 +6,10 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
-import { BODY_FONT_FAMILY } from "theme/constants";
-
-const Language = {
-	seconds: "seconds",
-};
+import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
+import type { Line } from "#/components/Logs/LogLine";
+import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
+import { cn } from "#/utils/cn";
 
 type Stage = ProvisionerJobLog["stage"];
 type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>;
@@ -74,7 +69,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	return (
 		<div
 			ref={ref}
-			className="font-mono border border-border rounded-lg"
+			className={cn("font-mono border border-border rounded-lg", className)}
 			{...attrs}
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
@@ -92,54 +87,33 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 				return (
 					<Fragment key={stage}>
 						<div
-							css={[styles.header, sticky && styles.sticky]}
-							className="logs-header"
+							className={cn(
+								"logs-header",
+								"flex items-center border-solid border-0 border-b border-border font-sans",
+								"bg-surface-primary text-xs font-semibold leading-none",
+								"first-of-type:pt-4",
+							)}
+							style={{
+								padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
+							}}
 						>
 							<div>{stage}</div>
 							{shouldDisplayDuration && (
-								<div css={styles.duration}>
-									{duration} {Language.seconds}
+								<div className="ml-auto text-xs text-content-secondary">
+									{duration} seconds
 								</div>
 							)}
 						</div>
-						{!isEmpty && <Logs hideTimestamps={hideTimestamps} lines={lines} />}
+						{!isEmpty && (
+							<Logs
+								className="border-b-border"
+								hideTimestamps={hideTimestamps}
+								lines={lines}
+							/>
+						)}
 					</Fragment>
 				);
 			})}
 		</div>
 	);
 };
-
-const styles = {
-	header: (theme) => ({
-		fontSize: 13,
-		fontWeight: 600,
-		padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
-		display: "flex",
-		alignItems: "center",
-		fontFamily: BODY_FONT_FAMILY,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		background: theme.palette.background.default,
-		lineHeight: "1",
-
-		"&:last-child": {
-			borderBottom: 0,
-			borderRadius: "0 0 8px 8px",
-		},
-
-		"&:first-of-type": {
-			borderRadius: "8px 8px 0 0",
-		},
-	}),
-
-	sticky: {
-		position: "sticky",
-		top: 0,
-	},
-
-	duration: (theme) => ({
-		marginLeft: "auto",
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -1,13 +1,13 @@
-import { buildInfo } from "api/queries/buildInfo";
-import { authMethods } from "api/queries/users";
-import { useAuthContext } from "contexts/auth/AuthProvider";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router";
-import { getApplicationName } from "utils/appearance";
-import { retrieveRedirect } from "utils/redirect";
-import { sendDeploymentEvent } from "utils/telemetry";
+import { buildInfo } from "#/api/queries/buildInfo";
+import { authMethods } from "#/api/queries/users";
+import { useAuthContext } from "#/contexts/auth/AuthProvider";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { getApplicationName } from "#/utils/appearance";
+import { retrieveRedirect } from "#/utils/redirect";
+import { sendDeploymentEvent } from "#/utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
 const LoginPage: FC = () => {
@@ -35,7 +35,9 @@ const LoginPage: FC = () => {
 		// Do nothing
 	}
 
-	const isApiRouteRedirect = redirectTo.startsWith("/api/v2");
+	const isApiRouteRedirect =
+		redirectTo.startsWith("/api/v2") ||
+		redirectTo.startsWith("/oauth2/authorize");
 
 	useEffect(() => {
 		if (!buildInfoQuery.data || isSignedIn) {

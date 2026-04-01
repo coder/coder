@@ -19,12 +19,18 @@ func OverrideVSCodeConfigs(fs afero.Fs) error {
 		return err
 	}
 	mutate := func(m map[string]interface{}) {
-		// This prevents VS Code from overriding GIT_ASKPASS, which
-		// we use to automatically authenticate Git providers.
-		m["git.useIntegratedAskPass"] = false
-		// This prevents VS Code from using it's own GitHub authentication
-		// which would circumvent cloning with Coder-configured providers.
-		m["github.gitAuthentication"] = false
+		// These defaults prevent VS Code from overriding
+		// GIT_ASKPASS and using its own GitHub authentication,
+		// which would circumvent cloning with Coder-configured
+		// providers. We only set them if they are not already
+		// present so that template authors can override them
+		// via module settings (e.g. the vscode-web module).
+		if _, ok := m["git.useIntegratedAskPass"]; !ok {
+			m["git.useIntegratedAskPass"] = false
+		}
+		if _, ok := m["github.gitAuthentication"]; !ok {
+			m["github.gitAuthentication"] = false
+		}
 	}
 
 	for _, configPath := range []string{

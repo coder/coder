@@ -4,28 +4,19 @@ Codex CLI can be configured to use AI Bridge by setting up a custom model provid
 
 ## Configuration
 
-> [!NOTE]
-> When running Codex CLI inside a Coder workspace, use the configuration below to route requests through AI Bridge.
-
 To configure Codex CLI to use AI Bridge, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
 
 ```toml
+model_provider = "aibridge"
+
 [model_providers.aibridge]
 name = "AI Bridge"
-base_url = "${data.coder_workspace.me.access_url}/api/v2/aibridge/openai/v1"
+base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
-
-[profiles.aibridge]
-model_provider = "aibridge"
-model = "gpt-5.2-codex"
 ```
 
-Run Codex with the `aibridge` profile:
-
-```bash
-codex --profile aibridge
-```
+Run Codex as usual. It will automatically use the `aibridge` model provider from your configuration:
 
 If configuring within a Coder workspace, you can also use the [Codex CLI](https://registry.coder.com/modules/coder-labs/codex) module and set the following variables:
 

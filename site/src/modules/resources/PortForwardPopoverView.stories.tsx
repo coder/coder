@@ -1,12 +1,12 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
 	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+} from "#/testHelpers/entities";
 import { PortForwardPopoverView } from "./PortForwardButton";
 
 const meta: Meta<typeof PortForwardPopoverView> = {

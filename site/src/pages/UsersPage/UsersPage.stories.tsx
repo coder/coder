@@ -1,20 +1,20 @@
-import { MockAuthMethodsAll, MockUserOwner } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { deploymentConfigQueryKey } from "#/api/queries/deployment";
+import { groupsQueryKey } from "#/api/queries/groups";
+import { rolesQueryKey } from "#/api/queries/roles";
+import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
+import type { User } from "#/api/typesGenerated";
+import { MockGroups } from "#/pages/UsersPage/storybookData/groups";
+import { MockRoles } from "#/pages/UsersPage/storybookData/roles";
+import { MockUsers } from "#/pages/UsersPage/storybookData/users";
+import { MockAuthMethodsAll, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { deploymentConfigQueryKey } from "api/queries/deployment";
-import { groupsQueryKey } from "api/queries/groups";
-import { rolesQueryKey } from "api/queries/roles";
-import { authMethodsQueryKey, usersKey } from "api/queries/users";
-import type { User } from "api/typesGenerated";
-import { MockGroups } from "pages/UsersPage/storybookData/groups";
-import { MockRoles } from "pages/UsersPage/storybookData/roles";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+	withToaster,
+} from "#/testHelpers/storybook";
 import UsersPage from "./UsersPage";
 
 const parameters = {
@@ -71,7 +71,7 @@ const meta: Meta<typeof UsersPage> = {
 	title: "pages/UsersPage",
 	component: UsersPage,
 	parameters,
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	args: {
 		defaultNewPassword: "edWbqYiaVpEiEWwI",
 	},
@@ -81,6 +81,34 @@ export default meta;
 type Story = StoryObj<typeof UsersPage>;
 
 export const Loaded: Story = {};
+
+export const WithAIAddonColumn: Story = {
+	parameters: {
+		features: ["ai_governance_user_limit"],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = await canvas.findByRole("columnheader", {
+			name: /AI add-on/i,
+		});
+
+		await expect(header).toBeVisible();
+	},
+};
+
+export const WithoutAIAddonColumn: Story = {
+	parameters: {
+		features: ["audit_log"],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("columnheader", { name: "User" });
+
+		await expect(
+			canvas.queryByRole("columnheader", { name: /AI add-on/i }),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const SuspendUserSuccess: Story = {
 	play: async ({ canvasElement }) => {
@@ -105,7 +133,7 @@ export const SuspendUserSuccess: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Suspend" }));
-		await within(document.body).findByText("Successfully suspended the user.");
+		await within(document.body).findByText(/suspended successfully/);
 	},
 };
 
@@ -124,7 +152,7 @@ export const SuspendUserError: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Suspend" }));
-		await within(document.body).findByText("Error suspending user.");
+		await within(document.body).findByText(/Error suspending user/);
 	},
 };
 
@@ -153,7 +181,7 @@ export const DeleteUserSuccess: Story = {
 		const input = within(dialog).getByLabelText("Name of the user to delete");
 		await user.type(input, MockUsers[0].username);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-		await within(document.body).findByText("Successfully deleted the user.");
+		await within(document.body).findByText(/deleted successfully/);
 	},
 };
 
@@ -174,7 +202,7 @@ export const DeleteUserError: Story = {
 		const input = within(dialog).getByLabelText("Name of the user to delete");
 		await user.type(input, MockUsers[0].username);
 		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-		await within(document.body).findByText("Error deleting user.");
+		await within(document.body).findByText(/Error deleting user/);
 	},
 };
 
@@ -218,7 +246,7 @@ export const ActivateUserSuccess: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await within(document.body).findByText("Successfully activated the user.");
+		await within(document.body).findByText(/activated successfully/);
 	},
 };
 
@@ -238,7 +266,7 @@ export const ActivateUserError: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await within(document.body).findByText("Error activating user.");
+		await within(document.body).findByText(/Error activating user/);
 	},
 };
 
@@ -277,9 +305,7 @@ export const ResetUserPasswordSuccess: Story = {
 		await user.click(
 			within(dialog).getByRole("button", { name: "Reset password" }),
 		);
-		await within(document.body).findByText(
-			"Successfully updated the user password.",
-		);
+		await within(document.body).findByText(/password .* updated successfully/i);
 	},
 };
 
@@ -303,9 +329,7 @@ export const ResetUserPasswordError: Story = {
 		await user.click(
 			within(dialog).getByRole("button", { name: "Reset password" }),
 		);
-		await within(document.body).findByText(
-			"Error on resetting the user password.",
-		);
+		await within(document.body).findByText(/Error resetting password/i);
 	},
 };
 
@@ -355,7 +379,7 @@ export const UpdateUserRoleSuccess: Story = {
 
 		await user.click(within(userRow).getByLabelText("Edit user roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
-		await screen.findByText("Successfully updated the user roles.");
+		await screen.findByText(/roles updated successfully/);
 	},
 };
 
@@ -371,10 +395,10 @@ export const UpdateUserRoleError: Story = {
 
 		await user.click(within(userRow).getByLabelText("Edit user roles"));
 		await user.click(screen.getByLabelText("Auditor", { exact: false }));
-		await screen.findByText("Error on updating the user roles.");
+		await screen.findByText(/Error updating user roles/);
 	},
 };
 
 function replaceUser(users: User[], index: number, user: User) {
-	return users.map((u, i) => (i === index ? user : u));
+	return users.map((u, i) => (i === index ? { ...u, ...user } : u));
 }

@@ -1,6 +1,10 @@
-import type { Organization } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
+import { Check, Plus } from "lucide-react";
+import { type FC, useState } from "react";
+import { useNavigate } from "react-router";
+import type { Organization } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
 import {
 	Command,
 	CommandEmpty,
@@ -9,18 +13,15 @@ import {
 	CommandItem,
 	CommandList,
 	CommandSeparator,
-} from "components/Command/Command";
+} from "#/components/Command/Command";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SettingsSidebarNavItem } from "components/Sidebar/Sidebar";
-import { Check, ChevronDown, Plus } from "lucide-react";
-import type { Permissions } from "modules/permissions";
-import type { OrganizationPermissions } from "modules/permissions/organizations";
-import { type FC, useState } from "react";
-import { useNavigate } from "react-router";
+} from "#/components/Popover/Popover";
+import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
+import type { Permissions } from "#/modules/permissions";
+import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */
@@ -78,7 +79,7 @@ export const OrganizationSidebarView: FC<
 						) : (
 							<span className="truncate">No organization selected</span>
 						)}
-						<ChevronDown className="ml-auto" />
+						<ChevronDownIcon className="ml-auto !size-icon-sm" />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">

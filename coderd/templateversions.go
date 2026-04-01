@@ -1814,13 +1814,22 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 		tfVarValues[variable.Name] = cty.StringVal(variable.Value)
 	}
 
-	output, diags := preview.Preview(ctx, preview.Input{
+	input := preview.Input{
 		PlanJSON:        nil, // Template versions are before `terraform plan`
 		ParameterValues: nil, // No user-specified parameters
 		Owner:           *ownerData,
 		Logger:          stdslog.New(stdslog.DiscardHandler),
 		TFVars:          tfVarValues,
-	}, files)
+	}
+	output, diags := preview.Preview(ctx, input, files)
+	if output != nil {
+		// ValidatePrebuilds iterates through the presets and validate their values. This
+		// ensures the prebuild can actually succeed in a workspace build. The failure
+		// diagnostics are added to the existing presets, and checked by
+		// 'dynamicparameters.CheckPresets'
+		preview.ValidatePrebuilds(ctx, input, output.Presets, files)
+	}
+
 	tagErr := dynamicparameters.CheckTags(output, diags)
 	if tagErr != nil {
 		code, resp := tagErr.Response()

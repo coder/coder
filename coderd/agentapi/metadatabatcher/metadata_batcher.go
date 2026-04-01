@@ -387,9 +387,9 @@ func (b *Batcher) flush(ctx context.Context, reason string) {
 	b.Metrics.BatchSize.Observe(float64(count))
 	b.Metrics.MetadataTotal.Add(float64(count))
 	b.Metrics.BatchesTotal.WithLabelValues(reason).Inc()
-	b.Metrics.FlushDuration.WithLabelValues(reason).Observe(time.Since(start).Seconds())
+	elapsed = b.clock.Since(start)
+	b.Metrics.FlushDuration.WithLabelValues(reason).Observe(elapsed.Seconds())
 
-	elapsed = time.Since(start)
 	b.log.Debug(ctx, "flush complete",
 		slog.F("count", count),
 		slog.F("elapsed", elapsed),

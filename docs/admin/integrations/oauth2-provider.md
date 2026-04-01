@@ -128,9 +128,16 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
      "$CODER_URL/api/v2/users/me"
    ```
 
-### PKCE Flow (Recommended)
+> [!NOTE]
+> The PKCE flow below is the **required** integration path. The example
+> above is shown for reference but omits the mandatory `code_challenge`
+> parameter. See [PKCE Flow](#pkce-flow-required) for the complete flow.
 
-Use PKCE for enhanced security (recommended for both public and confidential clients):
+### PKCE Flow (Required)
+
+PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
+PKCE in compliance with the OAuth 2.1 specification. Both public and
+confidential clients must include PKCE parameters:
 
 1. Generate a code verifier and challenge:
 
@@ -251,7 +258,8 @@ Verify that the `code_verifier` used in the token request matches the one used t
 ## Security Considerations
 
 - **Use HTTPS**: Always use HTTPS in production to protect tokens in transit
-- **Implement PKCE**: Use PKCE for all public clients (mobile apps, SPAs)
+- **Implement PKCE**: PKCE is mandatory for all authorization code clients
+  (public and confidential)
 - **Validate redirect URLs**: Only register trusted redirect URIs for your applications
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 
@@ -261,11 +269,20 @@ As an experimental feature, the current implementation has limitations:
 
 - No scope system - all tokens have full API access
 - No client credentials grant support
+- Implicit grant (`response_type=token`) is not supported; OAuth 2.1
+  deprecated this flow due to token leakage risks, and requests return
+  `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
 ## Standards Compliance
 
-This implementation follows established OAuth2 standards including [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core), [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and related specifications for discovery and client registration.
+This implementation follows established OAuth2 standards including
+[RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
+[RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
+[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12).
+Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
+authorization code grants, exact redirect URI string matching, rejection
+of the implicit grant, and CSRF protections on consent pages.
 
 ## Next Steps
 

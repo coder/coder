@@ -1,13 +1,13 @@
-import { apiKey } from "api/queries/users";
+import type React from "react";
+import { useQuery } from "react-query";
+import { toast } from "sonner";
+import { apiKey } from "#/api/queries/users";
 import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { useProxy } from "contexts/ProxyContext";
-import type React from "react";
-import { useQuery } from "react-query";
+} from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
 import {
 	getAppHref,
 	isExternalApp,
@@ -72,19 +72,21 @@ export const useAppLink = (
 				const isCoderApp = app.url?.startsWith("coder:");
 
 				if (isJetBrainsGateway) {
-					displayError(
-						`To use ${label}, you need to have JetBrains Gateway installed.`,
-					);
+					toast.error(`Failed to open "${label}".`, {
+						description: "JetBrains Gateway must be installed.",
+					});
 				} else if (isJetBrainsToolbox) {
-					displayError(
-						`To use ${label}, you need to have JetBrains Toolbox installed.`,
-					);
+					toast.error(`Failed to open "${label}".`, {
+						description: "JetBrains Toolbox must be installed.",
+					});
 				} else if (isCoderApp) {
-					displayError(
-						`To use ${label} you need to have Coder Desktop installed`,
-					);
+					toast.error(`Failed to open "${label}".`, {
+						description: "Coder Desktop must be installed.",
+					});
 				} else {
-					displayError(`${label} must be installed first.`);
+					toast.error(`Failed to open "${label}".`, {
+						description: "The app must be installed first.",
+					});
 				}
 			}, openAppExternallyFailedTimeout);
 			window.addEventListener("blur", () => {

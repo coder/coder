@@ -1,11 +1,16 @@
-import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	setGroupRole,
+	setUserRole,
+	templateACL,
+} from "#/api/queries/templates";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
@@ -30,7 +35,7 @@ const TemplatePermissionsPage: FC = () => {
 			{!isTemplateRBACEnabled ? (
 				<PaywallPremium
 					message="Template permissions"
-					description="Control access of templates for users and groups to templates. You need a Premium license to use this feature."
+					description="Control users and groups access to templates. You need a Premium license to use this feature."
 					documentationLink={docs("/admin/templates/template-permissions")}
 				/>
 			) : (
@@ -48,12 +53,31 @@ const TemplatePermissionsPage: FC = () => {
 					}}
 					isAddingUser={addUserMutation.isPending}
 					onUpdateUser={async (user, role) => {
-						await updateUserMutation.mutateAsync({
-							templateId: template.id,
-							userId: user.id,
-							role,
-						});
-						displaySuccess("User role updated successfully!");
+						await updateUserMutation.mutateAsync(
+							{
+								templateId: template.id,
+								userId: user.id,
+								role,
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`Role for "${user.username}" updated to "${role}" successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to update role for "${user.username}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 					updatingUserId={
 						updateUserMutation.isPending
@@ -61,12 +85,31 @@ const TemplatePermissionsPage: FC = () => {
 							: undefined
 					}
 					onRemoveUser={async (user) => {
-						await removeUserMutation.mutateAsync({
-							templateId: template.id,
-							userId: user.id,
-							role: "",
-						});
-						displaySuccess("User removed successfully!");
+						await removeUserMutation.mutateAsync(
+							{
+								templateId: template.id,
+								userId: user.id,
+								role: "",
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`User "${user.username}" removed successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to remove user "${user.username}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 					onAddGroup={async (group, role, reset) => {
 						await addGroupMutation.mutateAsync({
@@ -78,12 +121,31 @@ const TemplatePermissionsPage: FC = () => {
 					}}
 					isAddingGroup={addGroupMutation.isPending}
 					onUpdateGroup={async (group, role) => {
-						await updateGroupMutation.mutateAsync({
-							templateId: template.id,
-							groupId: group.id,
-							role,
-						});
-						displaySuccess("Group role updated successfully!");
+						await updateGroupMutation.mutateAsync(
+							{
+								templateId: template.id,
+								groupId: group.id,
+								role,
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`Role for "${group.display_name || group.name}" updated to "${role}" successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to update role for "${group.display_name || group.name}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 					updatingGroupId={
 						updateGroupMutation.isPending
@@ -91,12 +153,31 @@ const TemplatePermissionsPage: FC = () => {
 							: undefined
 					}
 					onRemoveGroup={async (group) => {
-						await removeGroupMutation.mutateAsync({
-							groupId: group.id,
-							templateId: template.id,
-							role: "",
-						});
-						displaySuccess("Group removed successfully!");
+						await removeGroupMutation.mutateAsync(
+							{
+								groupId: group.id,
+								templateId: template.id,
+								role: "",
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`Group "${group.display_name || group.name}" removed successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to remove group "${group.display_name || group.name}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 				/>
 			)}

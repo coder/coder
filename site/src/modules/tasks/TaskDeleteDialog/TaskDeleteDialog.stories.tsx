@@ -1,21 +1,21 @@
-import { MockTask } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { MockTask } from "#/testHelpers/entities";
+import { withToaster } from "#/testHelpers/storybook";
 import { TaskDeleteDialog } from "./TaskDeleteDialog";
 
 const meta: Meta<typeof TaskDeleteDialog> = {
 	title: "modules/tasks/TaskDeleteDialog",
 	component: TaskDeleteDialog,
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 };
 
 export default meta;
 type Story = StoryObj<typeof TaskDeleteDialog>;
 
 export const DeleteTaskSuccess: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	args: {
 		open: true,
 		task: MockTask,

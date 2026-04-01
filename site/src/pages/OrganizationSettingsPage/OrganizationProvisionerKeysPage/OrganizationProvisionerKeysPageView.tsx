@@ -1,19 +1,20 @@
+import type { FC } from "react";
 import {
 	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
 	ProvisionerKeyIDPSK,
 	ProvisionerKeyIDUserAuth,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Table,
 	TableBody,
@@ -21,9 +22,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Table/Table";
+import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
 
 // If the user using provisioner keys for external provisioners you're unlikely to
@@ -44,6 +44,10 @@ interface OrganizationProvisionerKeysPageViewProps {
 export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps
 > = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
+	const filteredProvisionerKeyDaemons = provisionerKeyDaemons?.filter(
+		(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
+	);
+
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
@@ -58,7 +62,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 				<PaywallPremium
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/")}
+					documentationLink={docs("/admin/provisioners")}
 				/>
 			) : (
 				<Table className="mt-6">
@@ -71,8 +75,8 @@ export const OrganizationProvisionerKeysPageView: FC<
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{provisionerKeyDaemons ? (
-							provisionerKeyDaemons.length === 0 ? (
+						{filteredProvisionerKeyDaemons ? (
+							filteredProvisionerKeyDaemons.length === 0 ? (
 								<TableRow>
 									<TableCell colSpan={5}>
 										<EmptyState
@@ -82,18 +86,14 @@ export const OrganizationProvisionerKeysPageView: FC<
 									</TableCell>
 								</TableRow>
 							) : (
-								provisionerKeyDaemons
-									.filter(
-										(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
-									)
-									.map((pkd) => (
-										<ProvisionerKeyRow
-											key={pkd.key.id}
-											provisionerKey={pkd.key}
-											provisioners={pkd.daemons}
-											defaultIsOpen={false}
-										/>
-									))
+								filteredProvisionerKeyDaemons.map((pkd) => (
+									<ProvisionerKeyRow
+										key={pkd.key.id}
+										provisionerKey={pkd.key}
+										provisioners={pkd.daemons}
+										defaultIsOpen={false}
+									/>
+								))
 							)
 						) : error ? (
 							<TableRow>

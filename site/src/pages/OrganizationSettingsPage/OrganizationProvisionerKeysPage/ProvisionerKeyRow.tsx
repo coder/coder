@@ -1,17 +1,17 @@
-import type { ProvisionerDaemon, ProvisionerKey } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { TableCell, TableRow } from "components/Table/Table";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router";
+import type { ProvisionerDaemon, ProvisionerKey } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	ProvisionerTag,
 	ProvisionerTags,
 	ProvisionerTruncateTags,
-} from "modules/provisioners/ProvisionerTags";
-import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import { relativeTime } from "utils/time";
+} from "#/modules/provisioners/ProvisionerTags";
+import { cn } from "#/utils/cn";
+import { relativeTime } from "#/utils/time";
 
 type ProvisionerKeyRowProps = {
 	readonly provisionerKey: ProvisionerKey;
@@ -39,7 +39,9 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 						])}
 						onClick={() => setIsOpen((v) => !v)}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{provisionerKey.name}
 					</Button>

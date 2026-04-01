@@ -1,8 +1,7 @@
-import { mockApiError } from "testHelpers/entities";
-import { renderWithAuth } from "testHelpers/renderHelpers";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { API } from "api/api";
-import * as AccountForm from "./AccountForm";
+import { API } from "#/api/api";
+import { mockApiError } from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import AccountPage from "./AccountPage";
 
 const newData = {
@@ -19,7 +18,7 @@ const fillAndSubmitForm = async () => {
 	fireEvent.change(screen.getByLabelText("Name"), {
 		target: { value: newData.name },
 	});
-	fireEvent.click(screen.getByText(AccountForm.Language.updateSettings));
+	fireEvent.click(screen.getByText("Update account"));
 };
 
 describe("AccountPage", () => {
@@ -37,6 +36,7 @@ describe("AccountPage", () => {
 					avatar_url: "",
 					last_seen_at: new Date().toISOString(),
 					login_type: "password",
+					has_ai_seat: false,
 					theme_preference: "",
 					...data,
 				}),
@@ -44,7 +44,9 @@ describe("AccountPage", () => {
 			renderWithAuth(<AccountPage />);
 			await fillAndSubmitForm();
 
-			const successMessage = await screen.findByText("Updated settings.");
+			const successMessage = await screen.findByText(
+				"Profile updated successfully.",
+			);
 			expect(successMessage).toBeDefined();
 			expect(API.updateProfile).toBeCalledTimes(1);
 			expect(API.updateProfile).toBeCalledWith("me", newData);
@@ -65,10 +67,10 @@ describe("AccountPage", () => {
 			renderWithAuth(<AccountPage />);
 			await fillAndSubmitForm();
 
-			const errorMessage = await screen.findByText(
+			const errorMessages = await screen.findAllByText(
 				"Username is already in use",
 			);
-			expect(errorMessage).toBeDefined();
+			expect(errorMessages.length).toBeGreaterThanOrEqual(2);
 			expect(API.updateProfile).toBeCalledTimes(1);
 			expect(API.updateProfile).toBeCalledWith("me", newData);
 		});

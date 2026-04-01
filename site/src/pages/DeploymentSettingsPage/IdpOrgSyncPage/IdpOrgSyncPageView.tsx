@@ -1,11 +1,23 @@
+import { useFormik } from "formik";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import * as Yup from "yup";
 import type {
 	Organization,
 	OrganizationSyncSettings,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	Dialog,
 	DialogContent,
@@ -13,23 +25,23 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
+} from "#/components/Dialog/Dialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+} from "#/components/HelpPopover/HelpPopover";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
-} from "components/MultiSelectCombobox/MultiSelectCombobox";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -37,18 +49,14 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
+} from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useFormik } from "formik";
-import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
-import * as Yup from "yup";
+} from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
@@ -198,7 +206,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
-										<AssignDefaultOrgHelpTooltip />
+										<AssignDefaultOrgHelpPopover />
 									</span>
 								</div>
 							</div>
@@ -221,19 +229,48 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 								{claimFieldValues ? (
 									<Combobox
-										value={idpOrgName}
-										options={claimFieldValues}
-										placeholder="Select IdP organization"
 										open={open}
 										onOpenChange={setOpen}
-										inputValue={inputValue}
-										onInputChange={setInputValue}
-										onKeyDown={handleKeyDown}
-										onSelect={(value: string) => {
-											setIdpOrgName(value);
-											setOpen(false);
-										}}
-									/>
+										value={idpOrgName}
+										onValueChange={(value) => setIdpOrgName(value ?? "")}
+									>
+										<ComboboxTrigger asChild>
+											<ComboboxButton
+												className="w-72"
+												selectedOption={
+													idpOrgName
+														? { label: idpOrgName, value: idpOrgName }
+														: undefined
+												}
+												placeholder="Select IdP organization"
+											/>
+										</ComboboxTrigger>
+										<ComboboxContent className="w-72">
+											<ComboboxInput
+												value={inputValue}
+												onValueChange={setInputValue}
+												placeholder="Search..."
+												onKeyDown={handleKeyDown}
+											/>
+											<ComboboxList>
+												{claimFieldValues
+													.filter((value) =>
+														value
+															.toLowerCase()
+															.includes(inputValue.toLowerCase()),
+													)
+													.map((value) => (
+														<ComboboxItem
+															key={value}
+															value={value}
+															onSelect={() => setInputValue("")}
+														>
+															{value}
+														</ComboboxItem>
+													))}
+											</ComboboxList>
+										</ComboboxContent>
+									</Combobox>
 								) : (
 									<Input
 										id={`${id}-idp-org-name`}
@@ -453,16 +490,16 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-const AssignDefaultOrgHelpTooltip: FC = () => {
+const AssignDefaultOrgHelpPopover: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipText>
+		<HelpPopover>
+			<HelpPopoverIconTrigger />
+			<HelpPopoverContent>
+				<HelpPopoverText>
 					Disabling will remove all users from the default organization if a
 					mapping for the default organization is not defined.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+				</HelpPopoverText>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

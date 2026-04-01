@@ -1,14 +1,14 @@
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { createMemoryRouter } from "react-router";
+import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	render,
 	renderWithRouter,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { fireEvent, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import { createMemoryRouter } from "react-router";
-import { Language } from "./Language";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import LoginPage from "./LoginPage";
 
 describe("LoginPage", () => {
@@ -34,12 +34,12 @@ describe("LoginPage", () => {
 		// When
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
-		const email = screen.getByLabelText(new RegExp(Language.emailLabel));
-		const password = screen.getByLabelText(new RegExp(Language.passwordLabel));
+		const email = screen.getByLabelText(/Email/);
+		const password = screen.getByLabelText(/Password/);
 		await userEvent.type(email, "test@coder.com");
 		await userEvent.type(password, "password");
 		// Click sign-in
-		const signInButton = await screen.findByText(Language.passwordSignIn);
+		const signInButton = await screen.findByText("Sign In");
 		fireEvent.click(signInButton);
 
 		// Then
@@ -47,6 +47,50 @@ describe("LoginPage", () => {
 		expect(errorMessage).toBeDefined();
 	});
 
+	it("associates email validation errors with the email input", async () => {
+		// When
+		render(<LoginPage />);
+		await waitForLoaderToBeRemoved();
+
+		const emailInput = screen.getByLabelText(/Email/);
+		const passwordInput = screen.getByLabelText(/Password/);
+		expect(emailInput).not.toHaveAttribute("aria-invalid", "true");
+		expect(emailInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
+		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
+		expect(passwordInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-password-error",
+		);
+
+		const signInButton = await screen.findByText("Sign In");
+		fireEvent.click(signInButton);
+
+		// Then
+		const emailError = await screen.findByText(
+			"Please enter an email address.",
+		);
+		expect(emailInput).toHaveAttribute("aria-invalid", "true");
+		expect(emailInput).toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
+
+		const emailErrorElement = document.getElementById("signin-email-error");
+		expect(emailErrorElement).toBe(emailError);
+		expect(emailErrorElement).toHaveTextContent(
+			"Please enter an email address.",
+		);
+
+		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
+		expect(passwordInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-password-error",
+		);
+		expect(document.getElementById("signin-password-error")).toBeNull();
+	});
 	it("redirects to the setup page if there is no first user", async () => {
 		// Given
 		server.use(
@@ -75,5 +119,148 @@ describe("LoginPage", () => {
 
 		// Then
 		await screen.findByText("Setup");
+	});
+
+	it("redirects to /oauth2/authorize via server-side redirect when signed in", async () => {
+		// Given - user is signed in
+		server.use(
+			http.get("/api/v2/users/me", () => {
+				return HttpResponse.json(MockUserOwner);
+			}),
+		);
+
+		const redirectPath =
+			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
+
+		// Spy on window.location.href assignment
+		const locationHrefSpy = vi.fn();
+		const originalLocation = window.location;
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: {
+				...originalLocation,
+				origin: originalLocation.origin,
+				set href(url: string) {
+					locationHrefSpy(url);
+				},
+				get href() {
+					return originalLocation.href;
+				},
+			},
+		});
+
+		// When
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/login",
+						element: <LoginPage />,
+					},
+				],
+				{
+					initialEntries: [
+						`/login?redirect=${encodeURIComponent(redirectPath)}`,
+					],
+				},
+			),
+		);
+
+		// Then - it should perform a server-side redirect, not a React navigate
+		await waitFor(() => {
+			expect(locationHrefSpy).toHaveBeenCalledWith(
+				expect.stringContaining("/oauth2/authorize"),
+			);
+		});
+
+		// Cleanup
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: originalLocation,
+		});
+	});
+
+	it("redirects to /oauth2/authorize after successful login when not already signed in", async () => {
+		// Given - user is NOT signed in
+		let loggedIn = false;
+		server.use(
+			http.get("/api/v2/users/me", () => {
+				if (!loggedIn) {
+					return HttpResponse.json(
+						{ message: "no user here" },
+						{ status: 401 },
+					);
+				}
+				return HttpResponse.json(MockUserOwner);
+			}),
+			http.post("/api/v2/users/login", () => {
+				loggedIn = true;
+				return HttpResponse.json({
+					session_token: "test-session-token",
+				});
+			}),
+		);
+
+		const redirectPath =
+			"/oauth2/authorize?client_id=xxx&response_type=code&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback";
+
+		// Spy on window.location.href
+		const originalLocation = window.location;
+		const locationHrefSpy = vi.fn();
+
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: {
+				...originalLocation,
+				origin: originalLocation.origin,
+				set href(url: string) {
+					locationHrefSpy(url);
+				},
+				get href() {
+					return originalLocation.href;
+				},
+			},
+		});
+
+		// When
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/login",
+						element: <LoginPage />,
+					},
+				],
+				{
+					initialEntries: [
+						`/login?redirect=${encodeURIComponent(redirectPath)}`,
+					],
+				},
+			),
+		);
+
+		await waitForLoaderToBeRemoved();
+
+		const email = screen.getByLabelText(/Email/);
+		const password = screen.getByLabelText(/Password/);
+
+		await userEvent.type(email, "test@coder.com");
+		await userEvent.type(password, "password");
+
+		const signInButton = await screen.findByText("Sign In");
+		fireEvent.click(signInButton);
+
+		// Then - it should hard redirect to OAuth endpoint
+		await waitFor(() => {
+			expect(locationHrefSpy).toHaveBeenCalledWith(
+				expect.stringContaining("/oauth2/authorize"),
+			);
+		});
+
+		// Cleanup
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: originalLocation,
+		});
 	});
 });

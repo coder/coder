@@ -72,6 +72,64 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, link.Claims)
 }
 
+// Returns the merged OIDC claims for the authenticated user.
+//
+// @Summary Get OIDC claims for the authenticated user
+// @ID get-oidc-claims-for-the-authenticated-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.OIDCClaimsResponse
+// @Router /users/oidc-claims [get]
+func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if user.LoginType != database.LoginTypeOIDC {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not an OIDC user.",
+		})
+		return
+	}
+
+	//nolint:gocritic // GetUserLinkByUserIDLoginType requires reading
+	// rbac.ResourceSystem. The endpoint is scoped to the authenticated
+	// user's own identity via apiKey, so this is safe.
+	link, err := api.Database.GetUserLinkByUserIDLoginType(
+		dbauthz.AsSystemRestricted(ctx),
+		database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		},
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user link.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	claims := link.Claims.MergedClaims
+	if claims == nil {
+		claims = map[string]interface{}{}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OIDCClaimsResponse{
+		Claims: claims,
+	})
+}
+
 // Returns whether the initial user has been created or not.
 //
 // @Summary Check initial user created
@@ -271,8 +329,31 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
+	var aiSeatSet map[uuid.UUID]struct{}
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		var aiSeatUserIDs []uuid.UUID
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatUserIDs, err = api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
+		if err != nil {
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				api.Logger.Warn(
+					ctx,
+					"failed to fetch AI seat states for users",
+					slog.F("user_count", len(userIDs)),
+					slog.Error(err),
+				)
+			}
+			aiSeatUserIDs = nil
+		}
+
+		aiSeatSet = make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
+		for _, uid := range aiSeatUserIDs {
+			aiSeatSet[uid] = struct{}{}
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
-		Users: convertUsers(users, organizationIDsByUserID),
+		Users: convertUsers(users, organizationIDsByUserID, aiSeatSet),
 		Count: int(userCount),
 	})
 }
@@ -295,17 +376,18 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 	}
 
 	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-		AfterID:         paginationParams.AfterID,
-		Search:          params.Search,
-		Name:            params.Name,
-		Status:          params.Status,
-		RbacRole:        params.RbacRole,
-		LastSeenBefore:  params.LastSeenBefore,
-		LastSeenAfter:   params.LastSeenAfter,
-		CreatedAfter:    params.CreatedAfter,
-		CreatedBefore:   params.CreatedBefore,
-		GithubComUserID: params.GithubComUserID,
-		LoginType:       params.LoginType,
+		AfterID:          paginationParams.AfterID,
+		Search:           params.Search,
+		Name:             params.Name,
+		Status:           params.Status,
+		IsServiceAccount: params.IsServiceAccount,
+		RbacRole:         params.RbacRole,
+		LastSeenBefore:   params.LastSeenBefore,
+		LastSeenAfter:    params.LastSeenAfter,
+		CreatedAfter:     params.CreatedAfter,
+		CreatedBefore:    params.CreatedBefore,
+		GithubComUserID:  params.GithubComUserID,
+		LoginType:        params.LoginType,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -356,7 +438,33 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.UserLoginType == "" {
+	// Service accounts must use login_type 'none' and have no password
+	// or email.
+	if req.ServiceAccount {
+		// The client can omit login type for a service account and it will be
+		// set for them below. But if they request the wrong one, we have to let
+		// them know.
+		if req.UserLoginType != "" && req.UserLoginType != codersdk.LoginTypeNone {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Service accounts must use login type 'none'.",
+			})
+			return
+		}
+		if req.Password != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Password cannot be set for service accounts.",
+			})
+			return
+		}
+		if req.Email != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Email cannot be set for service accounts.",
+			})
+			return
+		}
+
+		req.UserLoginType = codersdk.LoginTypeNone
+	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword
 	}
@@ -511,7 +619,9 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.User(user, req.OrganizationIDs))
+	sdkUser := db2sdk.User(user, req.OrganizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusCreated, sdkUser)
 }
 
 // @Summary Delete user
@@ -639,7 +749,9 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(user, organizationIDs))
+	sdkUser := db2sdk.User(user, organizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
 // Returns recent build parameters for the signed-in user.
@@ -812,7 +924,9 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUserProfile, organizationIDs))
+	sdkUser := db2sdk.User(updatedUserProfile, organizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
 // @Summary Suspend user account
@@ -913,7 +1027,9 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(targetUser, organizations))
+		sdkUser := db2sdk.User(targetUser, organizations)
+		api.enrichUserAISeat(ctx, &sdkUser)
+		httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 	}
 }
 
@@ -1402,7 +1518,9 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
+	sdkUser := db2sdk.User(updatedUser, organizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
 // Returns organizations the parameterized user has access to.
@@ -1510,16 +1628,17 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			status = string(*req.UserStatus)
 		}
 		params := database.InsertUserParams{
-			ID:             uuid.New(),
-			Email:          req.Email,
-			Username:       req.Username,
-			Name:           codersdk.NormalizeRealUsername(req.Name),
-			CreatedAt:      dbtime.Now(),
-			UpdatedAt:      dbtime.Now(),
-			HashedPassword: []byte{},
-			RBACRoles:      rbacRoles,
-			LoginType:      req.LoginType,
-			Status:         status,
+			ID:               uuid.New(),
+			Email:            req.Email,
+			Username:         req.Username,
+			Name:             codersdk.NormalizeRealUsername(req.Name),
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+			HashedPassword:   []byte{},
+			RBACRoles:        rbacRoles,
+			LoginType:        req.LoginType,
+			Status:           status,
+			IsServiceAccount: req.ServiceAccount,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
@@ -1615,11 +1734,40 @@ func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUs
 	return userAdmins, nil
 }
 
-func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
+// enrichUserAISeat sets HasAISeat on the user when the feature is entitled.
+func (api *API) enrichUserAISeat(ctx context.Context, user *codersdk.User) {
+	if !api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		return
+	}
+
+	//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+	aiSeatUserIDs, err := api.Database.GetUserAISeatStates(
+		dbauthz.AsSystemRestricted(ctx),
+		[]uuid.UUID{user.ID},
+	)
+	if err != nil {
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			api.Logger.Warn(
+				ctx,
+				"failed to fetch AI seat state for user",
+				slog.F("user_id", user.ID),
+				slog.Error(err),
+			)
+		}
+		return
+	}
+
+	user.HasAISeat = len(aiSeatUserIDs) > 0
+}
+
+func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID, aiSeatSet map[uuid.UUID]struct{}) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
 		userOrganizationIDs := organizationIDsByUserID[u.ID]
-		converted = append(converted, db2sdk.User(u, userOrganizationIDs))
+		_, hasAISeat := aiSeatSet[u.ID]
+		convertedUser := db2sdk.User(u, userOrganizationIDs)
+		convertedUser.HasAISeat = hasAISeat
+		converted = append(converted, convertedUser)
 	}
 	return converted
 }

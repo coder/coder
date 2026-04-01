@@ -33,6 +33,11 @@ const (
 	APIKeyScopeBoundaryUsageDelete                 APIKeyScope = "boundary_usage:delete"
 	APIKeyScopeBoundaryUsageRead                   APIKeyScope = "boundary_usage:read"
 	APIKeyScopeBoundaryUsageUpdate                 APIKeyScope = "boundary_usage:update"
+	APIKeyScopeChatAll                             APIKeyScope = "chat:*"
+	APIKeyScopeChatCreate                          APIKeyScope = "chat:create"
+	APIKeyScopeChatDelete                          APIKeyScope = "chat:delete"
+	APIKeyScopeChatRead                            APIKeyScope = "chat:read"
+	APIKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	APIKeyScopeCoderAll                            APIKeyScope = "coder:all"
 	APIKeyScopeCoderApikeysManageSelf              APIKeyScope = "coder:apikeys.manage_self"
 	APIKeyScopeCoderApplicationConnect             APIKeyScope = "coder:application_connect"
@@ -242,6 +247,7 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeTemplateRead,
 	APIKeyScopeTemplateUpdate,
 	APIKeyScopeTemplateUse,
+	APIKeyScopeUserRead,
 	APIKeyScopeUserReadPersonal,
 	APIKeyScopeUserUpdatePersonal,
 	APIKeyScopeUserSecretAll,

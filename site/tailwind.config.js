@@ -4,12 +4,19 @@ module.exports = {
 		preflight: false,
 	},
 	darkMode: ["selector"],
-	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+	content: [
+		"./index.html",
+		"./src/**/*.{js,ts,jsx,tsx}",
+		"./node_modules/streamdown/dist/**/*.js",
+		"./node_modules/@streamdown/*/dist/**/*.js",
+	],
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
 			fontFamily: {
 				sans: `"Geist Variable", system-ui, sans-serif`,
+				// `monospace, monospace` resets the font-size to 16px with the fallback.
+				mono: `"Geist Mono Variable", monospace, monospace`,
 			},
 			size: {
 				"icon-lg": "1.5rem",
@@ -27,6 +34,7 @@ module.exports = {
 				lg: "var(--radius)",
 				md: "calc(var(--radius) - 2px)",
 				sm: "calc(var(--radius) - 4px)",
+				xs: "calc(var(--radius) - 6px)",
 			},
 			colors: {
 				content: {
@@ -55,6 +63,10 @@ module.exports = {
 					sky: "hsl(var(--surface-sky))",
 					red: "hsl(var(--surface-red))",
 					purple: "hsl(var(--surface-purple))",
+					magenta: "hsl(var(--surface-magenta))",
+					"git-added": "hsl(var(--surface-git-added))",
+					"git-deleted": "hsl(var(--surface-git-deleted))",
+					"git-merged": "hsl(var(--surface-git-merged))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -65,6 +77,7 @@ module.exports = {
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",
 					purple: "hsl(var(--border-purple))",
+					magenta: "hsl(var(--border-magenta))",
 				},
 				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
@@ -72,9 +85,26 @@ module.exports = {
 				highlight: {
 					purple: "hsl(var(--highlight-purple))",
 					green: "hsl(var(--highlight-green))",
+					orange: "hsl(var(--highlight-orange))",
 					grey: "hsl(var(--highlight-grey))",
 					sky: "hsl(var(--highlight-sky))",
 					red: "hsl(var(--highlight-red))",
+					magenta: "hsl(var(--highlight-magenta))",
+				},
+				syntax: {
+					key: "hsl(var(--syntax-key))",
+					string: "hsl(var(--syntax-string))",
+					number: "hsl(var(--syntax-number))",
+					boolean: "hsl(var(--syntax-boolean))",
+				},
+				git: {
+					added: "hsl(var(--git-added))",
+					deleted: "hsl(var(--git-deleted))",
+					modified: "hsl(var(--git-modified))",
+					merged: "hsl(var(--git-merged))",
+					"added-bright": "hsl(var(--git-added-bright))",
+					"deleted-bright": "hsl(var(--git-deleted-bright))",
+					"merged-bright": "hsl(var(--git-merged-bright))",
 				},
 			},
 			keyframes: {
@@ -89,10 +119,17 @@ module.exports = {
 					"0%": { left: "0%" },
 					"100%": { left: "100%" },
 				},
+				"zip-right": {
+					"0%": { left: "0%", width: "0%" },
+					"30%": { left: "0%", width: "40%" },
+					"100%": { left: "100%", width: "0%" },
+				},
 			},
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
+				"spin-once": "spin 1s cubic-bezier(0.4, 0, 0.2, 1)",
+				"zip-right": "zip-right 1s cubic-bezier(0.4, 0, 0.2, 1)",
 			},
 		},
 	},

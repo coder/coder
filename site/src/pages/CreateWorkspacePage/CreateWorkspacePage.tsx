@@ -1,24 +1,3 @@
-import { API } from "api/api";
-import { type ApiErrorResponse, DetailedError } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
-import {
-	templateByName,
-	templateVersion,
-	templateVersionExternalAuth,
-	templateVersionPresets,
-} from "api/queries/templates";
-import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import type {
-	DynamicParametersRequest,
-	DynamicParametersResponse,
-	PreviewParameter,
-	Workspace,
-} from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "hooks";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
 	useCallback,
@@ -29,8 +8,30 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
-import type { AutofillBuildParameter } from "utils/richParameters";
+import { API } from "#/api/api";
+import { type ApiErrorResponse, DetailedError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import {
+	templateByName,
+	templateVersion,
+	templateVersionExternalAuth,
+	templateVersionPresets,
+} from "#/api/queries/templates";
+import { autoCreateWorkspace, createWorkspace } from "#/api/queries/workspaces";
+import type {
+	DynamicParametersRequest,
+	DynamicParametersResponse,
+	MinimalUser,
+	PreviewParameter,
+	Workspace,
+} from "#/api/typesGenerated";
+import { Loader } from "#/components/Loader/Loader";
+import { useEffectEvent } from "#/hooks/hookPolyfills";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { pageTitle } from "#/utils/page";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {
@@ -63,8 +64,8 @@ const CreateWorkspacePage: FC = () => {
 	const [autoCreateConsented, setAutoCreateConsented] = useState(false);
 	const [autoCreateError, setAutoCreateError] =
 		useState<ApiErrorResponse | null>(null);
-	const defaultOwner = me;
-	const [owner, setOwner] = useState(defaultOwner);
+	const defaultOwner: MinimalUser = me;
+	const [owner, setOwner] = useState<MinimalUser>(defaultOwner);
 
 	const queryClient = useQueryClient();
 	const autoCreateWorkspaceMutation = useMutation(

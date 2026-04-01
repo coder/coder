@@ -49,6 +49,7 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 		startedAfterRaw  string
 		provider         string
 		model            string
+		client           string
 		afterIDRaw       string
 		limit            int64
 	)
@@ -88,6 +89,12 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 				Value:       serpent.StringOf(&model),
 			},
 			{
+				Flag:        "client",
+				Description: `Only return interceptions from this client.`,
+				Default:     "",
+				Value:       serpent.StringOf(&client),
+			},
+			{
 				Flag:        "after-id",
 				Description: "The ID of the last result on the previous page to use as a pagination cursor.",
 				Default:     "",
@@ -101,7 +108,7 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			client, err := r.InitClient(inv)
+			serpetClient, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
@@ -134,12 +141,13 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 				return xerrors.Errorf("limit value must be between 1 and %d", maxInterceptionsLimit)
 			}
 
-			resp, err := client.AIBridgeListInterceptions(inv.Context(), codersdk.AIBridgeListInterceptionsFilter{
+			resp, err := serpetClient.AIBridgeListInterceptions(inv.Context(), codersdk.AIBridgeListInterceptionsFilter{
 				Pagination: codersdk.Pagination{
 					AfterID: afterID,
 					// #nosec G115 - Checked above.
 					Limit: int(limit),
 				},
+				Client:        client,
 				Initiator:     initiator,
 				StartedBefore: startedBefore,
 				StartedAfter:  startedAfter,

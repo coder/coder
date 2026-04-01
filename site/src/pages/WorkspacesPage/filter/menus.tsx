@@ -1,21 +1,21 @@
-import { API } from "api/api";
-import type { Template, WorkspaceStatus } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import type { FC } from "react";
+import { API } from "#/api/api";
+import type { Template, WorkspaceStatus } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "components/Filter/menu";
+} from "#/components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-	SelectFilterSearch,
-} from "components/Filter/SelectFilter";
+} from "#/components/Filter/SelectFilter";
 import {
 	StatusIndicatorDot,
 	type StatusIndicatorDotProps,
-} from "components/StatusIndicator/StatusIndicator";
-import type { FC } from "react";
-import { getDisplayWorkspaceStatus } from "utils/workspace";
+} from "#/components/StatusIndicator/StatusIndicator";
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 export const useTemplateFilterMenu = ({
 	value,
@@ -84,11 +84,11 @@ export const TemplateMenu: FC<TemplateMenuProps> = ({ width, menu }) => {
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
 			selectFilterSearch={
-				<SelectFilterSearch
+				<ComboboxInput
+					aria-label="Search template"
 					placeholder="Search template..."
 					value={menu.query}
-					onChange={menu.setQuery}
-					aria-label="Search template"
+					onValueChange={menu.setQuery}
 				/>
 			}
 		/>

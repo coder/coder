@@ -1,26 +1,31 @@
-import InputAdornment from "@mui/material/InputAdornment";
-import TextField from "@mui/material/TextField";
-import type { UpdateAppearanceConfig } from "api/typesGenerated";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
 import {
 	Badges,
 	EnterpriseBadge,
 	PremiumBadge,
-} from "components/Badges/Badges";
-import { Button } from "components/Button/Button";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+} from "#/components/Badges/Badges";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "#/components/InputGroup/InputGroup";
+import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
+} from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
@@ -85,7 +90,7 @@ export const AppearanceSettingsPageView: FC<
 						<PopoverPaywall
 							message="Appearance"
 							description="With a Premium license, you can customize the appearance and branding of your deployment."
-							documentationLink="https://coder.com/docs/admin/appearance"
+							documentationLink={docs("/admin/setup/appearance")}
 						/>
 					</TooltipContent>
 				</Tooltip>
@@ -98,15 +103,11 @@ export const AppearanceSettingsPageView: FC<
 				onSubmit={applicationNameForm.handleSubmit}
 				button={!isEntitled && <Button disabled>Submit</Button>}
 			>
-				<TextField
+				<Input
 					{...applicationNameFieldHelpers("application_name")}
-					defaultValue={appearance.application_name}
-					fullWidth
 					placeholder='Leave empty to display "Coder".'
 					disabled={!isEntitled}
-					inputProps={{
-						"aria-label": "Application name",
-					}}
+					aria-label="Application name"
 				/>
 			</Fieldset>
 
@@ -122,44 +123,28 @@ export const AppearanceSettingsPageView: FC<
 				onSubmit={logoForm.handleSubmit}
 				button={!isEntitled && <Button disabled>Submit</Button>}
 			>
-				<TextField
-					{...logoFieldHelpers("logo_url")}
-					defaultValue={appearance.logo_url}
-					fullWidth
-					placeholder="Leave empty to display the Coder logo."
-					disabled={!isEntitled}
-					InputProps={{
-						endAdornment: (
-							<InputAdornment
-								position="end"
-								css={{
-									width: 24,
-									height: 24,
-
-									"& img": {
-										maxWidth: "100%",
-									},
-								}}
-							>
-								<img
-									alt=""
-									src={logoForm.values.logo_url}
-									// This prevent browser to display the ugly error icon if the
-									// image path is wrong or user didn't finish typing the url
-									onError={(e) => {
-										e.currentTarget.style.display = "none";
-									}}
-									onLoad={(e) => {
-										e.currentTarget.style.display = "inline";
-									}}
-								/>
-							</InputAdornment>
-						),
-					}}
-					inputProps={{
-						"aria-label": "Logo URL",
-					}}
-				/>
+				<InputGroup>
+					<InputGroupInput
+						{...logoFieldHelpers("logo_url")}
+						placeholder="Leave empty to display the Coder logo."
+						disabled={!isEntitled}
+						aria-label="Logo URL"
+					/>
+					<InputGroupAddon align="inline-end">
+						<img
+							alt=""
+							src={logoForm.values.logo_url}
+							className="h-6 w-6 max-w-full object-contain"
+							// Hide broken image icon while users type incomplete URLs.
+							onError={(e) => {
+								e.currentTarget.style.display = "none";
+							}}
+							onLoad={(e) => {
+								e.currentTarget.style.display = "inline";
+							}}
+						/>
+					</InputGroupAddon>
+				</InputGroup>
 			</Fieldset>
 
 			<AnnouncementBannerSettings

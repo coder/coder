@@ -109,13 +109,13 @@ func (RootCmd) promptExample() *serpent.Command {
 					Options: []string{
 						"Blue", "Green", "Yellow", "Red", "Something else",
 					},
-					Default:    "",
+					Default:    "Green",
 					Message:    "Select your favorite color:",
 					Size:       5,
 					HideSearch: !useSearch,
 				})
 				if value == "Something else" {
-					_, _ = fmt.Fprint(inv.Stdout, "I would have picked blue.\n")
+					_, _ = fmt.Fprint(inv.Stdout, "I would have picked green.\n")
 				} else {
 					_, _ = fmt.Fprintf(inv.Stdout, "%s is a nice color.\n", value)
 				}
@@ -128,7 +128,7 @@ func (RootCmd) promptExample() *serpent.Command {
 					Options: []string{
 						"Car", "Bike", "Plane", "Boat", "Train",
 					},
-					Default: "Car",
+					Default: "Bike",
 				})
 				if err != nil {
 					return err

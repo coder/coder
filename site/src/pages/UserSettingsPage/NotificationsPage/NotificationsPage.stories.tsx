@@ -1,25 +1,25 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import {
+	customNotificationTemplatesKey,
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+	userNotificationPreferencesKey,
+} from "#/api/queries/notifications";
 import {
 	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
 	MockSystemNotificationTemplates,
 	MockUserOwner,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import {
-	customNotificationTemplatesKey,
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-	userNotificationPreferencesKey,
-} from "api/queries/notifications";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+	withToaster,
+} from "#/testHelpers/storybook";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {
@@ -48,7 +48,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: { createTemplates: true, createUser: true },
 	},
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
 
 export default meta;
@@ -156,7 +156,7 @@ export const DisableValidTemplate: Story = {
 		},
 	],
 	play: async ({ canvasElement }) => {
-		await within(document.body).findByText("Notification has been disabled");
+		await within(document.body).findByText("Notification has been disabled.");
 		const switchEl = await within(canvasElement).findByLabelText(
 			templateToDisable.name,
 		);
@@ -182,7 +182,7 @@ export const DisableInvalidTemplate: Story = {
 		},
 	],
 	play: async () => {
-		await within(document.body).findByText("Error disabling notification");
+		await within(document.body).findByText("Error disabling notification.");
 	},
 };
 

@@ -124,6 +124,12 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
+func (c *Client) ConnectRPC28WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient28, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC28(ctx)
+}
+
 func (c *Client) ConnectRPC28(ctx context.Context) (
 	agentproto.DRPCAgentClient28, proto.DRPCTailnetClient28, error,
 ) {
@@ -227,6 +233,10 @@ type FakeAgentAPI struct {
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
 	pushResourcesMonitoringUsageFunc        func(*agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error)
+}
+
+func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+	panic("unimplemented")
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {

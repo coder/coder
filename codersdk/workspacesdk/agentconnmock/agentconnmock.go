@@ -13,20 +13,23 @@ import (
 	context "context"
 	io "io"
 	net "net"
+	http "net/http"
 	reflect "reflect"
 	time "time"
 
-	slog "cdr.dev/slog/v3"
-	codersdk "github.com/coder/coder/v2/codersdk"
-	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
-	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
-	tailnet "github.com/coder/coder/v2/tailnet"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 	ssh "golang.org/x/crypto/ssh"
 	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	ipnstate "tailscale.com/ipn/ipnstate"
 	speedtest "tailscale.com/net/speedtest"
+
+	slog "cdr.dev/slog/v3"
+	codersdk "github.com/coder/coder/v2/codersdk"
+	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
+	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
+	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
+	tailnet "github.com/coder/coder/v2/tailnet"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -67,6 +70,21 @@ func (mr *MockAgentConnMockRecorder) AwaitReachable(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AwaitReachable", reflect.TypeOf((*MockAgentConn)(nil).AwaitReachable), ctx)
 }
 
+// CallMCPTool mocks base method.
+func (m *MockAgentConn) CallMCPTool(ctx context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CallMCPTool", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.CallMCPToolResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CallMCPTool indicates an expected call of CallMCPTool.
+func (mr *MockAgentConnMockRecorder) CallMCPTool(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallMCPTool", reflect.TypeOf((*MockAgentConn)(nil).CallMCPTool), ctx, req)
+}
+
 // Close mocks base method.
 func (m *MockAgentConn) Close() error {
 	m.ctrl.T.Helper()
@@ -79,6 +97,36 @@ func (m *MockAgentConn) Close() error {
 func (mr *MockAgentConnMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAgentConn)(nil).Close))
+}
+
+// ConnectDesktopVNC mocks base method.
+func (m *MockAgentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConnectDesktopVNC", ctx)
+	ret0, _ := ret[0].(net.Conn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConnectDesktopVNC indicates an expected call of ConnectDesktopVNC.
+func (mr *MockAgentConnMockRecorder) ConnectDesktopVNC(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectDesktopVNC", reflect.TypeOf((*MockAgentConn)(nil).ConnectDesktopVNC), ctx)
+}
+
+// ContextConfig mocks base method.
+func (m *MockAgentConn) ContextConfig(ctx context.Context) (workspacesdk.ContextConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContextConfig", ctx)
+	ret0, _ := ret[0].(workspacesdk.ContextConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContextConfig indicates an expected call of ContextConfig.
+func (mr *MockAgentConnMockRecorder) ContextConfig(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextConfig", reflect.TypeOf((*MockAgentConn)(nil).ContextConfig), ctx)
 }
 
 // DebugLogs mocks base method.
@@ -169,6 +217,21 @@ func (mr *MockAgentConnMockRecorder) EditFiles(ctx, edits any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditFiles", reflect.TypeOf((*MockAgentConn)(nil).EditFiles), ctx, edits)
 }
 
+// ExecuteDesktopAction mocks base method.
+func (m *MockAgentConn) ExecuteDesktopAction(ctx context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExecuteDesktopAction", ctx, action)
+	ret0, _ := ret[0].(workspacesdk.DesktopActionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExecuteDesktopAction indicates an expected call of ExecuteDesktopAction.
+func (mr *MockAgentConnMockRecorder) ExecuteDesktopAction(ctx, action any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteDesktopAction", reflect.TypeOf((*MockAgentConn)(nil).ExecuteDesktopAction), ctx, action)
+}
+
 // GetPeerDiagnostics mocks base method.
 func (m *MockAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	m.ctrl.T.Helper()
@@ -211,6 +274,36 @@ func (m *MockAgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceA
 func (mr *MockAgentConnMockRecorder) ListContainers(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListContainers", reflect.TypeOf((*MockAgentConn)(nil).ListContainers), ctx)
+}
+
+// ListMCPTools mocks base method.
+func (m *MockAgentConn) ListMCPTools(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListMCPTools", ctx)
+	ret0, _ := ret[0].(workspacesdk.ListMCPToolsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListMCPTools indicates an expected call of ListMCPTools.
+func (mr *MockAgentConnMockRecorder) ListMCPTools(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPTools", reflect.TypeOf((*MockAgentConn)(nil).ListMCPTools), ctx)
+}
+
+// ListProcesses mocks base method.
+func (m *MockAgentConn) ListProcesses(ctx context.Context) (workspacesdk.ListProcessesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListProcesses", ctx)
+	ret0, _ := ret[0].(workspacesdk.ListProcessesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListProcesses indicates an expected call of ListProcesses.
+func (mr *MockAgentConnMockRecorder) ListProcesses(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProcesses", reflect.TypeOf((*MockAgentConn)(nil).ListProcesses), ctx)
 }
 
 // ListeningPorts mocks base method.
@@ -260,6 +353,21 @@ func (mr *MockAgentConnMockRecorder) Ping(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockAgentConn)(nil).Ping), ctx)
 }
 
+// ProcessOutput mocks base method.
+func (m *MockAgentConn) ProcessOutput(ctx context.Context, id string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessOutput", ctx, id, opts)
+	ret0, _ := ret[0].(workspacesdk.ProcessOutputResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ProcessOutput indicates an expected call of ProcessOutput.
+func (mr *MockAgentConnMockRecorder) ProcessOutput(ctx, id, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOutput", reflect.TypeOf((*MockAgentConn)(nil).ProcessOutput), ctx, id, opts)
+}
+
 // PrometheusMetrics mocks base method.
 func (m *MockAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -289,6 +397,21 @@ func (m *MockAgentConn) ReadFile(ctx context.Context, path string, offset, limit
 func (mr *MockAgentConnMockRecorder) ReadFile(ctx, path, offset, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFile", reflect.TypeOf((*MockAgentConn)(nil).ReadFile), ctx, path, offset, limit)
+}
+
+// ReadFileLines mocks base method.
+func (m *MockAgentConn) ReadFileLines(ctx context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) (workspacesdk.ReadFileLinesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadFileLines", ctx, path, offset, limit, limits)
+	ret0, _ := ret[0].(workspacesdk.ReadFileLinesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadFileLines indicates an expected call of ReadFileLines.
+func (mr *MockAgentConnMockRecorder) ReadFileLines(ctx, path, offset, limit, limits any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFileLines", reflect.TypeOf((*MockAgentConn)(nil).ReadFileLines), ctx, path, offset, limit, limits)
 }
 
 // ReconnectingPTY mocks base method.
@@ -386,6 +509,32 @@ func (mr *MockAgentConnMockRecorder) SSHOnPort(ctx, port any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHOnPort", reflect.TypeOf((*MockAgentConn)(nil).SSHOnPort), ctx, port)
 }
 
+// SetExtraHeaders mocks base method.
+func (m *MockAgentConn) SetExtraHeaders(h http.Header) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetExtraHeaders", h)
+}
+
+// SetExtraHeaders indicates an expected call of SetExtraHeaders.
+func (mr *MockAgentConnMockRecorder) SetExtraHeaders(h any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetExtraHeaders", reflect.TypeOf((*MockAgentConn)(nil).SetExtraHeaders), h)
+}
+
+// SignalProcess mocks base method.
+func (m *MockAgentConn) SignalProcess(ctx context.Context, id, signal string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SignalProcess", ctx, id, signal)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SignalProcess indicates an expected call of SignalProcess.
+func (mr *MockAgentConnMockRecorder) SignalProcess(ctx, id, signal any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignalProcess", reflect.TypeOf((*MockAgentConn)(nil).SignalProcess), ctx, id, signal)
+}
+
 // Speedtest mocks base method.
 func (m *MockAgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	m.ctrl.T.Helper()
@@ -399,6 +548,21 @@ func (m *MockAgentConn) Speedtest(ctx context.Context, direction speedtest.Direc
 func (mr *MockAgentConnMockRecorder) Speedtest(ctx, direction, duration any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Speedtest", reflect.TypeOf((*MockAgentConn)(nil).Speedtest), ctx, direction, duration)
+}
+
+// StartProcess mocks base method.
+func (m *MockAgentConn) StartProcess(ctx context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartProcess", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.StartProcessResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartProcess indicates an expected call of StartProcess.
+func (mr *MockAgentConnMockRecorder) StartProcess(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartProcess", reflect.TypeOf((*MockAgentConn)(nil).StartProcess), ctx, req)
 }
 
 // TailnetConn mocks base method.
@@ -429,6 +593,21 @@ func (m *MockAgentConn) WatchContainers(ctx context.Context, logger slog.Logger)
 func (mr *MockAgentConnMockRecorder) WatchContainers(ctx, logger any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchContainers", reflect.TypeOf((*MockAgentConn)(nil).WatchContainers), ctx, logger)
+}
+
+// WatchGit mocks base method.
+func (m *MockAgentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WatchGit", ctx, logger, chatID)
+	ret0, _ := ret[0].(*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WatchGit indicates an expected call of WatchGit.
+func (mr *MockAgentConnMockRecorder) WatchGit(ctx, logger, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchGit", reflect.TypeOf((*MockAgentConn)(nil).WatchGit), ctx, logger, chatID)
 }
 
 // WriteFile mocks base method.

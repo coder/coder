@@ -1,30 +1,25 @@
+import capitalize from "lodash/capitalize";
+import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+} from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import capitalize from "lodash/capitalize";
-import {
-	ChevronDownIcon,
-	ChevronUpIcon,
-	ExternalLinkIcon,
-	FileIcon,
-	LayoutGridIcon,
-} from "lucide-react";
-import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
-import { useAppLink } from "modules/apps/useAppLink";
-import { type FC, useState } from "react";
-import { timeFrom } from "utils/time";
-import { truncateURI } from "utils/uri";
+} from "#/components/Tooltip/Tooltip";
+import { AppStatusStateIcon } from "#/modules/apps/AppStatusStateIcon";
+import { useAppLink } from "#/modules/apps/useAppLink";
+import { timeFrom } from "#/utils/time";
+import { truncateURI } from "#/utils/uri";
 
 interface AppStatusesProps {
 	workspace: Workspace;
@@ -122,7 +117,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 									setDisplayStatuses((display) => !display);
 								}}
 							>
-								{displayStatuses ? <ChevronUpIcon /> : <ChevronDownIcon />}
+								<ChevronDownIcon />
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>

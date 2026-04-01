@@ -4,7 +4,7 @@
  */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 const badgeVariants = cva(
 	`
@@ -25,6 +25,8 @@ const badgeVariants = cva(
 					"border border-solid border-border-green bg-surface-green text-highlight-green shadow",
 				purple:
 					"border border-solid border-border-purple bg-surface-purple text-highlight-purple shadow",
+				magenta:
+					"border border-solid border-border-magenta bg-surface-magenta text-highlight-magenta shadow",
 				info: "border border-solid border-border-pending bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {
@@ -46,6 +48,11 @@ const badgeVariants = cva(
 				hover: true,
 				variant: "default",
 				class: "hover:bg-surface-tertiary",
+			},
+			{
+				hover: true,
+				variant: "info",
+				class: "hover:bg-surface-info/20",
 			},
 		],
 		defaultVariants: {

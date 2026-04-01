@@ -1107,6 +1107,7 @@ func TestProvision(t *testing.T) {
 				require.Contains(t, initComplete.Error, testCase.InitErrorContains)
 				return
 			}
+			require.Empty(t, initComplete.Error, "unexpected init error")
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
 				Metadata: testCase.Metadata,

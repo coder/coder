@@ -1,34 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Combobox } from "components/Combobox/Combobox";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useDebouncedFunction } from "hooks/debounce";
-import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
-import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
-import {
-	Diagnostics,
-	DynamicParameter,
-	getInitialParameterValues,
-	useValidationSchemaForDynamicParameters,
-} from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
 	type FC,
 	useCallback,
@@ -38,10 +9,48 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
-import { nameValidator } from "utils/formUtils";
-import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import type * as TypesGen from "#/api/typesGenerated";
+import type {
+	FriendlyDiagnostic,
+	PreviewParameter,
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxItem,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { WorkspaceUserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
+import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
+import {
+	Diagnostics,
+	DynamicParameter,
+	getInitialParameterValues,
+	useValidationSchemaForDynamicParameters,
+} from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
+import { docs } from "#/utils/docs";
+import { nameValidator } from "#/utils/formUtils";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
@@ -51,7 +60,7 @@ interface CreateWorkspacePageViewProps {
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
-	defaultOwner: TypesGen.User;
+	defaultOwner: TypesGen.MinimalUser;
 	diagnostics: readonly FriendlyDiagnostic[];
 	disabledParams?: string[];
 	error: unknown;
@@ -68,13 +77,13 @@ interface CreateWorkspacePageViewProps {
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
-		owner: TypesGen.User,
+		owner: TypesGen.MinimalUser,
 	) => void;
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
-	owner: TypesGen.User;
-	setOwner: (user: TypesGen.User) => void;
+	owner: TypesGen.MinimalUser;
+	setOwner: (user: TypesGen.MinimalUser) => void;
 }
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
@@ -121,6 +130,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const initialTouched = Object.fromEntries(
 		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
 	);
+	if (defaultName) {
+		initialTouched.name = true;
+	}
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
@@ -172,15 +184,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ displayName: "None", value: "undefined", icon: "", description: "" },
+		{ label: "None", value: "undefined", icon: "", description: "" },
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ displayName: "None", value: "undefined", icon: "", description: "" },
+			{ label: "None", value: "undefined", icon: "", description: "" },
 			...presets.map((preset) => ({
-				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 				icon: preset.Icon,
 				description: preset.Description,
@@ -307,7 +319,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		sendDynamicParamsRequest,
 	]);
 
-	const handleOwnerChange = (user: TypesGen.User) => {
+	const handleOwnerChange = (user: TypesGen.MinimalUser) => {
 		setOwner(user);
 		sendDynamicParamsRequest([], user.id);
 	};
@@ -497,12 +509,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										<Label className="text-sm" htmlFor={`${id}-workspace-name`}>
 											Owner
 										</Label>
-										<UserAutocomplete
+										<WorkspaceUserAutocomplete
+											organizationId={template.organization_id}
 											value={owner}
 											onChange={(user) => {
 												handleOwnerChange(user ?? defaultOwner);
 											}}
-											size="medium"
 										/>
 									</div>
 								)}
@@ -572,12 +584,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
 											<Combobox
-												value={
-													presetOptions[selectedPresetIndex]?.displayName || ""
-												}
-												options={presetOptions}
-												placeholder="Select a preset"
-												onSelect={(value) => {
+												value={presetOptions[selectedPresetIndex]?.value}
+												onValueChange={(value) => {
 													const index = presetOptions.findIndex(
 														(preset) => preset.value === value,
 													);
@@ -587,14 +595,44 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														// "undefined" string is equivalent to using None option
-														// Combobox requires a value in order to correctly highlight the None option
+														// "undefined" string is equivalent to using None option.
+														// Combobox requires a value in order to correctly
+														// highlight the None option.
 														presetOptions[index].value === "undefined"
 															? undefined
 															: presetOptions[index].value,
 													);
 												}}
-											/>
+											>
+												<ComboboxTrigger asChild>
+													<ComboboxButton
+														selectedOption={{
+															label:
+																presetOptions[selectedPresetIndex]?.label || "",
+															value:
+																presetOptions[selectedPresetIndex]?.value || "",
+														}}
+														placeholder="Select a preset"
+													/>
+												</ComboboxTrigger>
+												<ComboboxContent align="start">
+													{presetOptions.map((preset) => (
+														<ComboboxItem
+															key={preset.value}
+															value={preset.value}
+														>
+															{preset.icon && (
+																<img
+																	src={preset.icon}
+																	alt={preset.label}
+																	className="w-4 h-4"
+																/>
+															)}
+															{preset.label}
+														</ComboboxItem>
+													))}
+												</ComboboxContent>
+											</Combobox>
 										</div>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
 										{presetParameterNames.length > 0 && (

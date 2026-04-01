@@ -1,3 +1,8 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { act } from "react";
+import { API } from "#/api/api";
+import type { DynamicParametersResponse } from "#/api/typesGenerated";
 import {
 	MockDropdownParameter,
 	MockDynamicParametersResponse,
@@ -10,17 +15,12 @@ import {
 	MockUserOwner,
 	MockValidationParameter,
 	MockWorkspace,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { createMockWebSocket } from "testHelpers/websockets";
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type { DynamicParametersResponse } from "api/typesGenerated";
-import { act } from "react";
+} from "#/testHelpers/renderHelpers";
+import { createMockWebSocket } from "#/testHelpers/websockets";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {
@@ -137,9 +137,11 @@ describe("CreateWorkspacePage", () => {
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 
-			const instanceTypeSelect = screen.getByRole("button", {
-				name: /instance type/i,
-			});
+			const instanceTypeField = screen.getByTestId(
+				"parameter-field-instance_type",
+			);
+			const instanceTypeSelect =
+				within(instanceTypeField).getByRole("combobox");
 			expect(instanceTypeSelect).toBeInTheDocument();
 
 			jest.useFakeTimers();
@@ -187,7 +189,10 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => {
 				expect(mockPublisher).toBeDefined();
 				mockPublisher.publishError(new Event("Connection failed"));
-				expect(screen.getByText(/connection failed/i)).toBeInTheDocument();
+				const alert = screen.getByRole("alert");
+				expect(
+					within(alert).getByRole("heading", { name: /connection failed/i }),
+				).toBeInTheDocument();
 			});
 		});
 
@@ -209,8 +214,11 @@ describe("CreateWorkspacePage", () => {
 			await waitFor(() => {
 				expect(mockPublisher).toBeDefined();
 				mockPublisher.publishClose(new Event("close") as CloseEvent);
+				const alert = screen.getByRole("alert");
 				expect(
-					screen.getByText(/websocket connection.*unexpectedly closed/i),
+					within(alert).getByRole("heading", {
+						name: /websocket connection.*unexpectedly closed/i,
+					}),
 				).toBeInTheDocument();
 			});
 		});

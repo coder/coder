@@ -1058,6 +1058,17 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 Controls the 'SameSite' property is set on browser session cookies.
 
+### --host-prefix-cookie
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_HOST_PREFIX_COOKIE</code>   |
+| YAML        | <code>networking.hostPrefixCookie</code> |
+| Default     | <code>false</code>                       |
+
+Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain. This change is disruptive to any workspaces built before release 2.31, requiring a workspace restart.
+
 ### --terms-of-service-url
 
 |             |                                          |
@@ -1156,7 +1167,7 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 | Environment | <code>$CODER_DISABLE_WORKSPACE_SHARING</code> |
 | YAML        | <code>disableWorkspaceSharing</code>          |
 
-Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
 
 ### --session-duration
 
@@ -1246,6 +1257,17 @@ The upgrade message to display to users when a client/server mismatch is detecte
 | YAML        | <code>supportLinks</code>                  |
 
 Support links to display in the top right drop down menu.
+
+### --external-auth-github-default-provider-enable
+
+|             |                                                                  |
+|-------------|------------------------------------------------------------------|
+| Type        | <code>bool</code>                                                |
+| Environment | <code>$CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE</code> |
+| YAML        | <code>externalAuthGithubDefaultProviderEnable</code>             |
+| Default     | <code>true</code>                                                |
+
+Enable the default GitHub external auth provider managed by Coder.
 
 ### --proxy-health-interval
 
@@ -1791,17 +1813,6 @@ The model to use when making requests to the AWS Bedrock API.
 
 The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
-### --aibridge-inject-coder-mcp-tools
-
-|             |                                                     |
-|-------------|-----------------------------------------------------|
-| Type        | <code>bool</code>                                   |
-| Environment | <code>$CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS</code> |
-| YAML        | <code>aibridge.inject_coder_mcp_tools</code>        |
-| Default     | <code>false</code>                                  |
-
-Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
-
 ### --aibridge-retention
 
 |             |                                        |
@@ -1890,6 +1901,26 @@ Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requ
 
 The address the AI Bridge Proxy will listen on.
 
+### --aibridge-proxy-tls-cert-file
+
+|             |                                                  |
+|-------------|--------------------------------------------------|
+| Type        | <code>string</code>                              |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_CERT_FILE</code> |
+| YAML        | <code>aibridgeproxy.tls_cert_file</code>         |
+
+Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.
+
+### --aibridge-proxy-tls-key-file
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_KEY_FILE</code> |
+| YAML        | <code>aibridgeproxy.tls_key_file</code>         |
+
+Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.
+
 ### --aibridge-proxy-cert-file
 
 |             |                                              |
@@ -1898,7 +1929,7 @@ The address the AI Bridge Proxy will listen on.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
 | YAML        | <code>aibridgeproxy.cert_file</code>         |
 
-Path to the CA certificate file for AI Bridge Proxy.
+Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.
 
 ### --aibridge-proxy-key-file
 
@@ -1908,7 +1939,7 @@ Path to the CA certificate file for AI Bridge Proxy.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
 | YAML        | <code>aibridgeproxy.key_file</code>         |
 
-Path to the CA private key file for AI Bridge Proxy.
+Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.
 
 ### --aibridge-proxy-upstream
 
@@ -1929,6 +1960,16 @@ URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests throu
 | YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
 
 Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
+
+### --aibridge-proxy-allowed-private-cidrs
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>string-array</code>                                |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS</code> |
+| YAML        | <code>aibridgeproxy.allowed_private_cidrs</code>         |
+
+Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.
 
 ### --audit-logs-retention
 

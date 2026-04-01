@@ -1,7 +1,15 @@
-import { API } from "api/api";
-import { type ApiError, getErrorMessage, isApiError } from "api/errors";
-import { templateVersion } from "api/queries/templates";
-import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
+import { type FC, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import {
+	type ApiError,
+	getErrorDetail,
+	getErrorMessage,
+	isApiError,
+} from "#/api/errors";
+import { templateVersion } from "#/api/queries/templates";
+import { workspaceBuildTimings } from "#/api/queries/workspaceBuilds";
 import {
 	activate,
 	cancelBuild,
@@ -9,39 +17,34 @@ import {
 	startWorkspace,
 	stopWorkspace,
 	toggleFavorite,
-} from "api/queries/workspaces";
-import type * as TypesGen from "api/typesGenerated";
+} from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
-import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
+} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
+import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
-} from "modules/workspaces/WorkspaceUpdateDialogs";
-import { type FC, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { pageTitle } from "utils/page";
+} from "#/modules/workspaces/WorkspaceUpdateDialogs";
+import { pageTitle } from "#/utils/page";
 import { Workspace } from "./Workspace";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
 	workspace: TypesGen.Workspace;
 	permissions: WorkspacePermissions;
-	sharingDisabled?: boolean;
 }
 
 export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	workspace,
 	template,
 	permissions,
-	sharingDisabled,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -70,7 +73,15 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				error: error,
 			});
 		} else {
-			displayError(getErrorMessage(error, "Failed to build workspace."));
+			toast.error(
+				getErrorMessage(
+					error,
+					`Failed to build workspace "${workspace.name}".`,
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		}
 	};
 
@@ -143,6 +154,28 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	// Start workspace
 	const startWorkspaceMutation = useMutation({
 		...startWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
+
+	// Retry workspace (stop-before-start for failed workspaces)
+	const retryWorkspaceMutation = useMutation({
+		...startWorkspace(workspace, queryClient),
+		mutationFn: ({
+			buildParameters,
+			logLevel,
+		}: {
+			buildParameters?: TypesGen.WorkspaceBuildParameter[];
+			logLevel?: TypesGen.ProvisionerLogLevel;
+		}) => {
+			return API.retryWorkspace(
+				workspace,
+				workspace.latest_build.template_version_id,
+				logLevel,
+				buildParameters,
+			);
+		},
 		onError: (error: unknown) => {
 			handleError(error);
 		},
@@ -235,7 +268,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		} else {
 			switch (workspace.latest_build.transition) {
 				case "start":
-					startWorkspaceMutation.mutate({
+					retryWorkspaceMutation.mutate({
 						logLevel,
 						buildParameters,
 					});
@@ -285,7 +318,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}
-				sharingDisabled={sharingDisabled}
 				handleStart={async (buildParameters) => {
 					const { hasEphemeral, ephemeralParameters } =
 						await checkEphemeralParameters(buildParameters);
@@ -325,8 +357,15 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					try {
 						await activateWorkspaceMutation.mutateAsync();
 					} catch (e) {
-						const message = getErrorMessage(e, "Error activate workspace.");
-						displayError(message);
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error activating workspace "${workspace.name}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 				handleToggleFavorite={() => {

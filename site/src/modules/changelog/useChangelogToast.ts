@@ -1,7 +1,7 @@
-import { API } from "api/api";
 import { useEffect } from "react";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { API } from "#/api/api";
 import { useChangelog } from "./ChangelogProvider";
 
 const CHANGELOG_TOAST_KEY = "changelog-toast-last-seen";

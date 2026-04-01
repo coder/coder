@@ -1,11 +1,13 @@
 package httpmw_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -30,4 +32,17 @@ func TestRequestID(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.NotEmpty(t, res.Header.Get("X-Coder-Request-ID"))
 	require.NotEmpty(t, rw.Body.Bytes())
+}
+
+func TestRequestIDHelpers(t *testing.T) {
+	t.Parallel()
+
+	requestID := uuid.New()
+	ctx := httpmw.WithRequestID(context.Background(), requestID)
+	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+
+	gotRequestID, ok := httpmw.RequestIDOptional(req)
+	require.True(t, ok)
+	require.Equal(t, requestID, gotRequestID)
+	require.Equal(t, requestID, httpmw.RequestID(req))
 }

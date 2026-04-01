@@ -106,6 +106,10 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 	if userID, err := uuid.Parse(userQuery); err == nil {
 		user, err = db.GetUserByID(ctx, userID)
 		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.ResourceNotFound(rw)
+				return database.User{}, false
+			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: userErrorMessage,
 				Detail:  fmt.Sprintf("queried user=%q", userQuery),
@@ -120,6 +124,10 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 		Username: userQuery,
 	})
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return database.User{}, false
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: userErrorMessage,
 			Detail:  fmt.Sprintf("queried user=%q", userQuery),

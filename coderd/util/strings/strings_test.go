@@ -57,6 +57,17 @@ func TestTruncate(t *testing.T) {
 		{"foo bar", 1, "…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
 		{"foo bar", 0, "", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
 		{"This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", 160, "This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		// Multi-byte rune handling.
+		{"日本語テスト", 3, "日本語", nil},
+		{"日本語テスト", 4, "日本語テ", nil},
+		{"日本語テスト", 6, "日本語テスト", nil},
+		{"日本語テスト", 4, "日本語…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"🎉🎊🎈🎁", 2, "🎉🎊", nil},
+		{"🎉🎊🎈🎁", 3, "🎉🎊…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		// Multi-byte with full-word truncation.
+		{"hello 日本語", 7, "hello…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"hello 日本語", 8, "hello 日…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"日本語 テスト", 4, "日本語", []strings.TruncateOption{strings.TruncateWithFullWords}},
 	} {
 		tName := fmt.Sprintf("%s_%d", tt.s, tt.n)
 		for _, opt := range tt.options {
@@ -104,6 +115,27 @@ func TestUISanitize(t *testing.T) {
 			t.Parallel()
 			actual := strings.UISanitize(tt.s)
 			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestCapitalize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"hello", "Hello"},
+		{"über", "Über"},
+		{"Hello", "Hello"},
+		{"a", "A"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%q", tt.input), func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, strings.Capitalize(tt.input))
 		})
 	}
 }

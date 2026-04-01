@@ -1,29 +1,31 @@
-import { getErrorMessage } from "api/errors";
+import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
 	SlimRole,
 	User,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Loader } from "#/components/Loader/Loader";
+import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -31,13 +33,12 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
-import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
-import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
-import { type FC, useState } from "react";
-import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
+} from "#/components/Table/Table";
+import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
+import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { AISeatCell } from "#/modules/users/AISeatCell";
+import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
+import { TableColumnHelpPopover } from "./UserTable/TableColumnHelpPopover";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
 interface OrganizationMembersPageViewProps {
@@ -47,6 +48,7 @@ interface OrganizationMembersPageViewProps {
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
+	showAISeatColumn?: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	membersQuery: PaginationResultInfo & {
@@ -73,6 +75,7 @@ export const OrganizationMembersPageView: FC<
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
+	showAISeatColumn,
 	me,
 	membersQuery,
 	members,
@@ -112,16 +115,24 @@ export const OrganizationMembersPageView: FC<
 								<TableHead className="w-2/6">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Roles</span>
-										<TableColumnHelpTooltip variant="roles" />
+										<TableColumnHelpPopover variant="roles" />
 									</Stack>
 								</TableHead>
-								<TableHead className="w-2/6">
+								<TableHead className={showAISeatColumn ? "w-1/6" : "w-2/6"}>
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Groups</span>
-										<TableColumnHelpTooltip variant="groups" />
+										<TableColumnHelpPopover variant="groups" />
 									</Stack>
 								</TableHead>
-								<TableHead className="w-auto" />
+								{showAISeatColumn && (
+									<TableHead className="w-1/6">
+										<Stack direction="row" spacing={1} alignItems="center">
+											<span>AI add-on</span>
+											<TableColumnHelpPopover variant="ai_addon" />
+										</Stack>
+									</TableHead>
+								)}
+								<TableHead className="w-px whitespace-nowrap text-right" />
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -153,34 +164,41 @@ export const OrganizationMembersPageView: FC<
 												// but testing-library does.
 												try {
 													await updateMemberRoles(member, roles);
-													displaySuccess("Roles updated successfully.");
+													toast.success(
+														`Roles of "${member.username}" updated successfully.`,
+													);
 												} catch {}
 											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />
-										<TableCell>
-											{member.user_id !== me.id && canEditMembers && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															size="icon-lg"
-															variant="subtle"
-															aria-label="Open menu"
-														>
-															<EllipsisVertical aria-hidden="true" />
-															<span className="sr-only">Open menu</span>
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onClick={() => removeMember(member)}
-														>
-															Remove
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
+										{showAISeatColumn && (
+											<AISeatCell hasAISeat={member.has_ai_seat} />
+										)}
+										<TableCell className="w-px whitespace-nowrap text-right">
+											<div className="flex justify-end">
+												{member.user_id !== me.id && canEditMembers && (
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																size="icon-lg"
+																variant="subtle"
+																aria-label="Open menu"
+															>
+																<EllipsisVertical aria-hidden="true" />
+																<span className="sr-only">Open menu</span>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem
+																className="text-content-destructive focus:text-content-destructive"
+																onClick={() => removeMember(member)}
+															>
+																Remove
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
+												)}
+											</div>
 										</TableCell>
 									</TableRow>
 								))
@@ -220,7 +238,17 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 						await onSubmit(selectedUser);
 						setSelectedUser(null);
 					} catch (error) {
-						displayError(getErrorMessage(error, "Failed to add member."));
+						toast.error(
+							getErrorMessage(
+								error,
+								selectedUser
+									? `Failed to add "${selectedUser.username}" as a member.`
+									: "Failed to add member.",
+							),
+							{
+								description: getErrorDetail(error),
+							},
+						);
 					}
 				}
 			}}

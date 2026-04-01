@@ -37,6 +37,10 @@ OPTIONS:
           Path to the socket where the boundary log proxy server listens for
           audit logs.
 
+      --no-user-namespace bool, $BOUNDARY_NO_USER_NAMESPACE
+          Do not create a user namespace. Use in restricted environments that
+          disallow user NS (e.g. Bottlerocket in EKS auto-mode).
+
       --pprof bool, $BOUNDARY_PPROF
           Enable pprof profiling server.
 

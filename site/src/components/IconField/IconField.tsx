@@ -1,20 +1,16 @@
 import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Loader } from "components/Loader/Loader";
+import { type FC, lazy, Suspense, useState } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { ChevronDownIcon } from "lucide-react";
-import { type FC, lazy, Suspense, useState } from "react";
-
-// See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
-const urlFromUnifiedCode = (unified: string) =>
-	`/emojis/${unified.replace(/-fe0f$/, "")}.png`;
+} from "#/components/Popover/Popover";
 
 type IconFieldProps = TextFieldProps & {
 	onPickEmoji: (value: string) => void;
@@ -47,18 +43,7 @@ export const IconField: FC<IconFieldProps> = ({
 					endAdornment: hasIcon ? (
 						<InputAdornment
 							position="end"
-							css={{
-								width: 24,
-								height: 24,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-
-								"& img": {
-									maxWidth: "100%",
-									objectFit: "contain",
-								},
-							}}
+							className="w-6 h-6 flex items-center justify-center [&_img]:max-w-full [&_img]:object-contain"
 						>
 							<ExternalImage
 								alt=""
@@ -88,7 +73,7 @@ export const IconField: FC<IconFieldProps> = ({
 			/>
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger asChild>
-					<Button variant="outline" size="lg" className="flex-shrink-0">
+					<Button variant="outline" size="lg" className="group flex-shrink-0">
 						Emoji
 						<ChevronDownIcon />
 					</Button>
@@ -97,7 +82,7 @@ export const IconField: FC<IconFieldProps> = ({
 					<Suspense fallback={<Loader />}>
 						<EmojiPicker
 							onEmojiSelect={(emoji) => {
-								const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
+								const value = emoji.src ?? `/emojis/${emoji.unified}.png`;
 								onPickEmoji(value);
 								setOpen(false);
 							}}

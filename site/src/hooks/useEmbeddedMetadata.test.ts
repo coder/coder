@@ -1,14 +1,17 @@
+import { act, renderHook } from "@testing-library/react";
+import type { Region, User } from "#/api/typesGenerated";
 import {
+	MockAgentsTabVisible,
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockEntitlements,
 	MockExperiments,
+	MockOrganization,
+	MockPermissions,
 	MockTasksTabVisible,
 	MockUserAppearanceSettings,
 	MockUserOwner,
-} from "testHelpers/entities";
-import { act, renderHook } from "@testing-library/react";
-import type { Region, User } from "api/typesGenerated";
+} from "#/testHelpers/entities";
 import {
 	DEFAULT_METADATA_KEY,
 	type MetadataKey,
@@ -43,6 +46,9 @@ const mockDataForTags = {
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
 	"tasks-tab-visible": MockTasksTabVisible,
+	"agents-tab-visible": MockAgentsTabVisible,
+	permissions: MockPermissions,
+	organizations: [MockOrganization],
 } as const satisfies Record<MetadataKey, MetadataValue>;
 
 const emptyMetadata: RuntimeHtmlMetadata = {
@@ -75,6 +81,18 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	"tasks-tab-visible": {
+		available: false,
+		value: undefined,
+	},
+	"agents-tab-visible": {
+		available: false,
+		value: undefined,
+	},
+	permissions: {
+		available: false,
+		value: undefined,
+	},
+	organizations: {
 		available: false,
 		value: undefined,
 	},
@@ -112,6 +130,18 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	"tasks-tab-visible": {
 		available: true,
 		value: MockTasksTabVisible,
+	},
+	"agents-tab-visible": {
+		available: true,
+		value: MockAgentsTabVisible,
+	},
+	permissions: {
+		available: true,
+		value: MockPermissions,
+	},
+	organizations: {
+		available: true,
+		value: [MockOrganization],
 	},
 };
 

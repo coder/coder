@@ -1,3 +1,16 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	expect,
+	fireEvent,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { API } from "#/api/api";
+import { getTemplatesQueryKey } from "#/api/queries/templates";
+import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
@@ -8,25 +21,12 @@ import {
 	MockUserOwner,
 	MockWorkspaceBuildStop,
 	mockApiError,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { getTemplatesQueryKey } from "api/queries/templates";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
-import {
-	expect,
-	fireEvent,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+} from "#/testHelpers/storybook";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -195,7 +195,7 @@ export const LoadedTasksWaitingForInputTab: Story = {
 		const canvas = within(canvasElement);
 
 		await step("Switch to 'Waiting for input' tab", async () => {
-			const waitingForInputTab = await canvas.findByRole("button", {
+			const waitingForInputTab = await canvas.findByRole("switch", {
 				name: /waiting for input/i,
 			});
 			await userEvent.click(waitingForInputTab);
@@ -361,7 +361,9 @@ export const PauseTask: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{ ...MockTask, status: "active" },
 		]);
-		spyOn(API, "stopWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
+		spyOn(API, "pauseTask").mockResolvedValue({
+			workspace_build: MockWorkspaceBuildStop,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -370,7 +372,10 @@ export const PauseTask: Story = {
 		});
 		await userEvent.click(pauseButton);
 		await waitFor(() => {
-			expect(API.stopWorkspace).toHaveBeenCalledWith(MockTask.workspace_id);
+			expect(API.pauseTask).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
+			);
 		});
 	},
 };
@@ -394,7 +399,9 @@ export const ResumeTask: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{ ...MockTask, status: "paused" },
 		]);
-		spyOn(API, "startWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
+		spyOn(API, "resumeTask").mockResolvedValue({
+			workspace_build: MockWorkspaceBuildStop,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -403,11 +410,9 @@ export const ResumeTask: Story = {
 		});
 		await userEvent.click(resumeButton);
 		await waitFor(() => {
-			expect(API.startWorkspace).toHaveBeenCalledWith(
-				MockTask.workspace_id,
-				MockTask.template_version_id,
-				undefined,
-				undefined,
+			expect(API.resumeTask).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
 			);
 		});
 	},
@@ -415,7 +420,6 @@ export const ResumeTask: Story = {
 
 export const BatchActionsEnabled: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],
@@ -431,7 +435,6 @@ export const BatchActionsEnabled: Story = {
 
 export const BatchActionsSomeSelected: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],
@@ -458,7 +461,6 @@ export const BatchActionsSomeSelected: Story = {
 
 export const BatchActionsAllSelected: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],
@@ -484,7 +486,6 @@ export const BatchActionsAllSelected: Story = {
 
 export const BatchActionsDropdownOpen: Story = {
 	parameters: {
-		features: ["task_batch_actions"],
 		queries: [
 			{
 				key: ["tasks", { owner: MockUserOwner.username }],

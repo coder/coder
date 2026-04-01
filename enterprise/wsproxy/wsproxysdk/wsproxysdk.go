@@ -453,6 +453,7 @@ func (l *RegisterWorkspaceProxyLoop) failureFn(err error) {
 	if deregisterErr != nil {
 		l.opts.Logger.Error(context.Background(),
 			"failed to deregister workspace proxy with Coder primary (it will be automatically deregistered shortly)",
+			slog.F("root_error", err.Error()),
 			slog.Error(deregisterErr),
 		)
 	}

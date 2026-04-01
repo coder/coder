@@ -2,24 +2,10 @@ import { css } from "@emotion/react";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
-import { DockerIcon } from "components/Icons/DockerIcon";
-import {
-	BracesIcon,
-	ChevronDownIcon,
-	ChevronRightIcon,
-	FileCodeIcon,
-	FileIcon,
-	FolderIcon,
-	TerminalIcon,
-} from "lucide-react";
-import {
-	type CSSProperties,
-	type ElementType,
-	type FC,
-	type JSX,
-	useState,
-} from "react";
-import type { FileTree } from "utils/filetree";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { type CSSProperties, type FC, type JSX, useState } from "react";
+import type { FileTree } from "#/utils/filetree";
+import { getTemplateFileIcon } from "./TemplateFileIcon";
 
 const isFolder = (content?: FileTree | string): content is FileTree =>
 	typeof content === "object";
@@ -94,29 +80,11 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			);
 		}
 
-		let icon: ElementType | undefined;
-		if (isFolder(content)) {
-			icon = FolderIcon;
-		} else if (filename.endsWith(".tf")) {
-			icon = FileTypeTerraform;
-		} else if (filename.endsWith(".md")) {
-			icon = FileTypeMarkdown;
-		} else if (filename.endsWith("Dockerfile")) {
-			icon = DockerIcon;
-		} else if (filename.endsWith(".sh")) {
-			icon = TerminalIcon;
-		} else if (filename.endsWith(".json")) {
-			icon = BracesIcon;
-		} else if (filename.endsWith(".yaml") || filename.endsWith(".yml")) {
-			icon = FileCodeIcon;
-		} else {
-			// Default icon for files without a specific icon.
-			icon = FileIcon;
-		}
+		const templateFileIcon = getTemplateFileIcon(filename, isFolder(content));
 
 		return (
 			<TreeItem
-				slots={{ icon }}
+				slots={{ icon: templateFileIcon }}
 				itemId={currentPath}
 				key={currentPath}
 				label={
@@ -132,52 +100,52 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 					)
 				}
 				css={(theme) => css`
-          overflow: hidden;
-          user-select: none;
+					overflow: hidden;
+					user-select: none;
 
-          & > .MuiTreeItem-content {
+					& > .MuiTreeItem-content {
 						border-radius: 0;
-            padding: 2px 16px;
-            color: ${
+						padding: 2px 16px;
+						color: ${
 							isHiddenFile
 								? theme.palette.text.disabled
 								: theme.palette.text.secondary
 						};
-            height: 32px;
+						height: 32px;
 
-            & svg {
-              width: 12px;
-              height: 12px;
-              color: currentColor;
-            }
+						& svg {
+							width: 12px;
+							height: 12px;
+							color: currentColor;
+						}
 
-            & > .MuiTreeItem-label {
-              margin-left: 4px;
-              font-size: 13px;
-              color: inherit;
-              white-space: nowrap;
-            }
+						& > .MuiTreeItem-label {
+							margin-left: 4px;
+							font-size: 13px;
+							color: inherit;
+							white-space: nowrap;
+						}
 
-            &.Mui-selected {
-              color: ${theme.roles.active.text};
-              background: ${theme.roles.active.background};
-            }
+						&.Mui-selected {
+							color: ${theme.roles.active.text};
+							background: ${theme.roles.active.background};
+						}
 
-            &.Mui-focused {
-              box-shadow: inset 0 0 0 1px ${theme.palette.primary.main};
-            }
-          }
+						&.Mui-focused {
+							box-shadow: inset 0 0 0 1px ${theme.palette.primary.main};
+						}
+					}
 
-          & .MuiTreeItem-group {
-            margin-left: 0;
-            position: relative;
+					& .MuiTreeItem-group {
+						margin-left: 0;
+						position: relative;
 
-            // We need to find a better way to recursive padding here
-            & .MuiTreeItem-content {
-              padding-left: calc(8px + (var(--level) + 1) * 8px);
-            }
-          }
-        `}
+						// We need to find a better way to recursive padding here
+						& .MuiTreeItem-content {
+							padding-left: calc(8px + (var(--level) + 1) * 8px);
+						}
+					}
+				`}
 				onClick={() => {
 					onSelect(currentPath);
 				}}
@@ -272,39 +240,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 		</SimpleTreeView>
 	);
 };
-
-const FileTypeTerraform: FC = () => (
-	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#813cf3">
-		<title>file_type_terraform</title>
-		<polygon points="12.042 6.858 20.071 11.448 20.071 20.462 12.042 15.868 12.042 6.858 12.042 6.858" />
-		<polygon points="20.5 20.415 28.459 15.84 28.459 6.887 20.5 11.429 20.5 20.415 20.5 20.415" />
-		<polygon points="3.541 11.01 11.571 15.599 11.571 6.59 3.541 2 3.541 11.01 3.541 11.01" />
-		<polygon points="12.042 25.41 20.071 30 20.071 20.957 12.042 16.368 12.042 25.41 12.042 25.41" />
-	</svg>
-);
-
-const FileTypeMarkdown: FC = () => (
-	<svg
-		xmlns="http://www.w3.org/2000/svg"
-		viewBox="0 0 32 32"
-		fill="#755838"
-		role="img"
-		aria-label="Markdown icon"
-	>
-		<rect
-			x="2.5"
-			y="7.955"
-			width="27"
-			height="16.091"
-			style={{
-				fill: "none",
-				stroke: "#755838",
-			}}
-		/>
-		<polygon points="5.909 20.636 5.909 11.364 8.636 11.364 11.364 14.773 14.091 11.364 16.818 11.364 16.818 20.636 14.091 20.636 14.091 15.318 11.364 18.727 8.636 15.318 8.636 20.636 5.909 20.636" />
-		<polygon points="22.955 20.636 18.864 16.136 21.591 16.136 21.591 11.364 24.318 11.364 24.318 16.136 27.045 16.136 22.955 20.636" />
-	</svg>
-);
 
 const expandablePaths = (path: string) => {
 	const paths = path.split("/");

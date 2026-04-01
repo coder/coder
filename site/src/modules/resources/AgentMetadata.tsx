@@ -1,17 +1,4 @@
 import Skeleton from "@mui/material/Skeleton";
-import { watchAgentMetadata } from "api/api";
-import type {
-	ServerSentEvent,
-	WorkspaceAgent,
-	WorkspaceAgentMetadata,
-} from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -21,8 +8,21 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "utils/cn";
-import type { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { toast } from "sonner";
+import { watchAgentMetadata } from "#/api/api";
+import type {
+	ServerSentEvent,
+	WorkspaceAgent,
+	WorkspaceAgentMetadata,
+} from "#/api/typesGenerated";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
@@ -87,15 +87,18 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 				retries++;
 				if (retries >= maxSocketErrorRetryCount) {
-					displayError(
-						"Unexpected disconnect while watching Metadata changes. Please try refreshing the page.",
+					toast.error(
+						"Unexpected disconnect while watching Metadata changes.",
+						{
+							description: "Please try refreshing the page.",
+						},
 					);
 					return;
 				}
 
-				displayError(
-					"Unexpected disconnect while watching Metadata changes. Creating new connection...",
-				);
+				toast.error("Unexpected disconnect while watching Metadata changes.", {
+					description: "Creating new connection...",
+				});
 				timeoutId = window.setTimeout(() => {
 					createNewConnection();
 				}, 3_000);
@@ -103,9 +106,9 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 			socket.addEventListener("message", (e) => {
 				if (e.parseError) {
-					displayError(
-						"Unable to process newest response from server. Please try refreshing the page.",
-					);
+					toast.error("Unable to process newest response from server.", {
+						description: "Please try refreshing the page.",
+					});
 					return;
 				}
 

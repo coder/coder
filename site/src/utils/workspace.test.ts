@@ -1,6 +1,6 @@
-import * as Mocks from "testHelpers/entities";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
+import type * as TypesGen from "#/api/typesGenerated";
+import * as Mocks from "#/testHelpers/entities";
 import {
 	agentVersionStatus,
 	defaultWorkspaceExtension,
@@ -90,6 +90,13 @@ describe("util > workspace", () => {
 				{
 					...Mocks.MockWorkspaceBuild,
 					reason: "autostop",
+				},
+				"Coder",
+			],
+			[
+				{
+					...Mocks.MockWorkspaceBuild,
+					reason: "task_auto_pause",
 				},
 				"Coder",
 			],

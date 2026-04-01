@@ -1,5 +1,13 @@
-import { API, type DeleteWorkspaceOptions } from "api/api";
-import { DetailedError, isApiValidationError } from "api/errors";
+import type { Dayjs } from "dayjs";
+import type {
+	MutationOptions,
+	QueryClient,
+	QueryOptions,
+	UseMutationOptions,
+	UseQueryOptions,
+} from "react-query";
+import { API, type DeleteWorkspaceOptions } from "#/api/api";
+import { DetailedError, isApiValidationError } from "#/api/errors";
 import type {
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
@@ -15,20 +23,12 @@ import type {
 	WorkspaceRole,
 	WorkspacesRequest,
 	WorkspacesResponse,
-} from "api/typesGenerated";
-import type { Dayjs } from "dayjs";
+} from "#/api/typesGenerated";
+import type { ConnectionStatus } from "#/modules/terminal/types";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
-} from "modules/workspaces/permissions";
-import type { ConnectionStatus } from "pages/TerminalPage/types";
-import type {
-	MutationOptions,
-	QueryClient,
-	QueryOptions,
-	UseMutationOptions,
-	UseQueryOptions,
-} from "react-query";
+} from "#/modules/workspaces/permissions";
 import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
@@ -37,6 +37,16 @@ export const workspaceByOwnerAndNameKey = (
 	ownerUsername: string,
 	name: string,
 ) => ["workspace", ownerUsername, name, "settings"];
+
+export const workspaceByIdKey = (workspaceId: string) =>
+	["workspace", workspaceId] as const;
+
+export const workspaceById = (workspaceId: string) => {
+	return {
+		queryKey: workspaceByIdKey(workspaceId),
+		queryFn: () => API.getWorkspace(workspaceId),
+	};
+};
 
 export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	return {
@@ -479,7 +489,7 @@ export const workspacePermissions = (workspace?: Workspace) => {
 			checks: workspace ? workspaceChecks(workspace) : {},
 		}),
 		queryKey: ["workspaces", workspace?.id, "permissions"],
-		enabled: !!workspace,
+		enabled: Boolean(workspace),
 		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

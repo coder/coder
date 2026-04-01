@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -48,6 +49,7 @@ var (
 
 const (
 	InterceptionLogMarker = "interception log"
+	MetadataUserAgentKey  = "request_user_agent"
 )
 
 var _ aibridged.DRPCServer = &Server{}
@@ -58,7 +60,9 @@ type store interface {
 	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error)
+	InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, intcID database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error)
+	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -79,10 +83,12 @@ type Server struct {
 
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
+	aiSeatTracker     aiseats.SeatTracker
 }
 
 func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
+	aiSeatTracker aiseats.SeatTracker,
 ) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
 
@@ -100,9 +106,11 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		logger:              logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
+		aiSeatTracker:       aiSeatTracker,
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
+		logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
 		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
 		if err != nil {
 			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
@@ -131,6 +139,16 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 
 	metadata := metadataToMap(in.GetMetadata())
 
+	if in.UserAgent != "" {
+		if _, ok := metadata[MetadataUserAgentKey]; ok {
+			s.logger.Warn(ctx, "interception metadata contains user agent key, will be overwritten")
+		}
+		metadata[MetadataUserAgentKey] = in.UserAgent
+	}
+
+	// Look up the interception lineage using the correlating tool call ID.
+	parentID, rootID := s.findInterceptionLineage(ctx, in.GetCorrelatingToolCallId())
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "interception_start"),
@@ -139,8 +157,13 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("api_key_id", in.ApiKeyId),
 			slog.F("provider", in.Provider),
 			slog.F("model", in.Model),
+			slog.F("client", in.Client),
+			slog.F("client_session_id", in.GetClientSessionId()),
 			slog.F("started_at", in.StartedAt.AsTime()),
 			slog.F("metadata", metadata),
+			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
+			slog.F("thread_parent_id", parentID),
+			slog.F("thread_root_id", rootID),
 		)
 	}
 
@@ -150,18 +173,24 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
-		ID:          intcID,
-		APIKeyID:    sql.NullString{String: in.ApiKeyId, Valid: true},
-		InitiatorID: initID,
-		Provider:    in.Provider,
-		Model:       in.Model,
-		Metadata:    out,
-		StartedAt:   in.StartedAt.AsTime(),
+		ID:                         intcID,
+		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
+		Client:                     sql.NullString{String: in.Client, Valid: in.Client != ""},
+		ClientSessionID:            sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
+		InitiatorID:                initID,
+		Provider:                   in.Provider,
+		Model:                      in.Model,
+		Metadata:                   out,
+		StartedAt:                  in.StartedAt.AsTime(),
+		ThreadParentInterceptionID: uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
+	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
+	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
@@ -295,6 +324,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 			slog.F("record_type", "tool_usage"),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
+			slog.F("tool_call_id", in.GetToolCallId()),
 			slog.F("tool", in.GetTool()),
 			slog.F("input", in.GetInput()),
 			slog.F("server_url", in.GetServerUrl()),
@@ -314,6 +344,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		ID:                 uuid.New(),
 		InterceptionID:     intcID,
 		ProviderResponseID: in.GetMsgId(),
+		ProviderToolCallID: sql.NullString{String: in.GetToolCallId(), Valid: in.GetToolCallId() != ""},
 		ServerUrl:          sql.NullString{String: in.GetServerUrl(), Valid: in.ServerUrl != nil},
 		Tool:               in.GetTool(),
 		Input:              in.GetInput(),
@@ -327,6 +358,64 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	}
 
 	return &proto.RecordToolUsageResponse{}, nil
+}
+
+func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	intcID, err := uuid.Parse(in.GetInterceptionId())
+	if err != nil {
+		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
+	}
+
+	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "model_thought"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("content", in.GetContent()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
+	out, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
+	_, err = s.store.InsertAIBridgeModelThought(ctx, database.InsertAIBridgeModelThoughtParams{
+		InterceptionID: intcID,
+		Content:        in.GetContent(),
+		Metadata:       out,
+		CreatedAt:      in.GetCreatedAt().AsTime(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert model thought: %w", err)
+	}
+
+	return &proto.RecordModelThoughtResponse{}, nil
+}
+
+// findInterceptionLineage looks up the parent interception and the root
+// of the thread by finding which interception recorded a tool usage with
+// the given tool call ID. Returns (parentID, rootID); both will be
+// uuid.Nil if no match is found or the tool call ID is empty.
+func (s *Server) findInterceptionLineage(ctx context.Context, toolCallID string) (parent uuid.UUID, root uuid.UUID) {
+	if toolCallID == "" {
+		return uuid.Nil, uuid.Nil
+	}
+
+	lineage, err := s.store.GetAIBridgeInterceptionLineageByToolCallID(ctx, toolCallID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to retrieve interception lineage",
+			slog.Error(err), slog.F("tool_call_id", toolCallID))
+		return uuid.Nil, uuid.Nil
+	}
+
+	return lineage.ThreadParentID, lineage.ThreadRootID
 }
 
 func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
@@ -509,6 +598,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
+// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
 	// Both the MCP & OAuth2 experiments are currently required in order to use our
 	// internal MCP server.

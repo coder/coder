@@ -606,7 +606,6 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1920,7 +1919,6 @@ func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2786,12 +2784,12 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		const providerID = "fake-idp"
 
 		// Count all the times we call validate
-		validateCalls := 0
+		var validateCalls atomic.Int32
 		fake := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithMiddlewares(func(handler http.Handler) http.Handler {
 			return http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Count all the validate calls
 				if strings.Contains(r.URL.Path, "/external-auth-validate/") {
-					validateCalls++
+					validateCalls.Add(1)
 				}
 				handler.ServeHTTP(w, r)
 			}))
@@ -2854,7 +2852,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		// other should be skipped.
 		// In a failed test, you will likely see 9, as the last one
 		// gets canceled.
-		require.Equal(t, 1, validateCalls, "validate calls duplicated on same token")
+		require.EqualValues(t, 1, validateCalls.Load(), "validate calls duplicated on same token")
 	})
 }
 
@@ -3023,7 +3021,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			q.Set("version", "2.0")
 			u.RawQuery = q.Encode()
 
-			predialTime := time.Now()
+			predialTime := dbtime.Now()
 
 			//nolint:bodyclose // websocket package closes this for you
 			wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
@@ -3043,13 +3041,13 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			telemetryConnection := snapshot.UserTailnetConnections[0]
 			require.Equal(t, memberUser.ID.String(), telemetryConnection.UserID)
 			require.GreaterOrEqual(t, telemetryConnection.ConnectedAt, predialTime)
-			require.LessOrEqual(t, telemetryConnection.ConnectedAt, time.Now())
+			require.LessOrEqual(t, telemetryConnection.ConnectedAt, dbtime.Now())
 			require.NotEmpty(t, telemetryConnection.PeerID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
 			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)
 
-			beforeDisconnectTime := time.Now()
+			beforeDisconnectTime := dbtime.Now()
 			err = wsConn.Close(websocket.StatusNormalClosure, "done")
 			require.NoError(t, err)
 
@@ -3062,7 +3060,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			require.Equal(t, telemetryConnection.PeerID, telemetryDisconnection.PeerID)
 			require.NotNil(t, telemetryDisconnection.DisconnectedAt)
 			require.GreaterOrEqual(t, *telemetryDisconnection.DisconnectedAt, beforeDisconnectTime)
-			require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, time.Now())
+			require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, dbtime.Now())
 			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
 			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)

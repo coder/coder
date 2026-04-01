@@ -1,8 +1,8 @@
-import { MockProvisionerJob } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Response } from "api/typesGenerated";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { Response } from "#/api/typesGenerated";
+import { MockProvisionerJob } from "#/testHelpers/entities";
+import { withToaster } from "#/testHelpers/storybook";
 import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
 
 const meta: Meta<typeof CancelJobConfirmationDialog> = {
@@ -31,7 +31,7 @@ export const OnCancel: Story = {
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
-		const cancelButton = body.getByRole("button", { name: "Discard" });
+		const cancelButton = body.getByRole("button", { name: "Cancel" });
 		user.click(cancelButton);
 		await waitFor(() => {
 			expect(args.onClose).toHaveBeenCalledTimes(1);
@@ -43,7 +43,7 @@ export const OnConfirmSuccess: Story = {
 	parameters: {
 		chromatic: { disableSnapshot: true },
 	},
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
@@ -51,7 +51,7 @@ export const OnConfirmSuccess: Story = {
 
 		user.click(confirmButton);
 		await waitFor(() => {
-			body.getByText("Provisioner job canceled successfully");
+			body.getByText(/canceled successfully/);
 		});
 		expect(args.cancelProvisionerJob).toHaveBeenCalledTimes(1);
 		expect(args.cancelProvisionerJob).toHaveBeenCalledWith(args.job);
@@ -63,7 +63,7 @@ export const OnConfirmFailure: Story = {
 	parameters: {
 		chromatic: { disableSnapshot: true },
 	},
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	args: {
 		cancelProvisionerJob: fn(() => {
 			throw new Error("API Error");
@@ -76,7 +76,7 @@ export const OnConfirmFailure: Story = {
 
 		user.click(confirmButton);
 		await waitFor(() => {
-			body.getByText("Failed to cancel provisioner job");
+			body.getByText(/Failed to cancel provisioner job/);
 		});
 		expect(args.cancelProvisionerJob).toHaveBeenCalledTimes(1);
 		expect(args.cancelProvisionerJob).toHaveBeenCalledWith(args.job);

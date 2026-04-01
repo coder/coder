@@ -3,8 +3,13 @@
  * @see {@link https://ui.shadcn.com/docs/components/select}
  */
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
-import { cn } from "utils/cn";
+import {
+	Check,
+	ChevronUp,
+	ChevronDown as LucideChevronDown,
+} from "lucide-react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { cn } from "#/utils/cn";
 
 export const Select = SelectPrimitive.Root;
 
@@ -25,16 +30,16 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 		className={cn(
 			`flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md
 			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-sm
-			ring-offset-background text-content-secondary placeholder:text-content-secondary focus:outline-none,
-			focus:ring-2 focus:ring-content-link disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
-			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link`,
+			ring-offset-background text-content-secondary placeholder:text-content-secondary
+			disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
+			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group`,
 			className,
 		)}
 		{...props}
 	>
 		{children}
 		<SelectPrimitive.Icon asChild>
-			<ChevronDown className="cursor-pointer text-content-secondary hover:text-content-primary p-0.5" />
+			<ChevronDownIcon className="size-icon-sm cursor-pointer text-content-secondary transition-colors hover:text-content-primary group-hover:text-content-primary" />
 		</SelectPrimitive.Icon>
 	</SelectPrimitive.Trigger>
 );
@@ -64,7 +69,7 @@ const SelectScrollDownButton: React.FC<
 			)}
 			{...props}
 		>
-			<ChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
+			<LucideChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
 		</SelectPrimitive.ScrollDownButton>
 	);
 };

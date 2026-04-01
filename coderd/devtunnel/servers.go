@@ -86,7 +86,6 @@ func FindClosestNode(nodes []Node) (Node, error) {
 		eg      = errgroup.Group{}
 	)
 	for i, node := range nodes {
-		i, node := i, node
 		eg.Go(func() error {
 			pinger, err := ping.NewPinger(node.HostnameHTTPS)
 			if err != nil {

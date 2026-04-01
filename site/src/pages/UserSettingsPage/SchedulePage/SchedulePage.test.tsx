@@ -1,10 +1,10 @@
-import { MockUserOwner } from "testHelpers/entities";
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { UpdateUserQuietHoursScheduleRequest } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
+import type { UpdateUserQuietHoursScheduleRequest } from "#/api/typesGenerated";
+import { MockUserOwner } from "#/testHelpers/entities";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import SchedulePage from "./SchedulePage";
 
 const fillForm = async ({
@@ -88,10 +88,11 @@ describe("SchedulePage", () => {
 				await fillForm(test);
 				await submitForm();
 				const successMessage = await screen.findByText(
-					"Schedule updated successfully",
+					"Schedule updated successfully.",
 				);
 				expect(successMessage).toBeDefined();
 			},
+			15_000,
 		);
 	});
 

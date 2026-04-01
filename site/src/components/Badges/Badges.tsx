@@ -1,5 +1,5 @@
-import { Badge } from "components/Badge/Badge";
-import { Stack } from "components/Stack/Stack";
+import { Badge } from "#/components/Badge/Badge";
+import { Stack } from "#/components/Stack/Stack";
 
 export const EnabledBadge: React.FC = () => {
 	return (
@@ -29,7 +29,7 @@ export const DisabledBadge: React.FC<React.ComponentPropsWithRef<"div">> = ({
 
 export const EnterpriseBadge: React.FC = () => {
 	return (
-		<Badge variant="info" border="solid">
+		<Badge variant="purple" border="solid">
 			Enterprise
 		</Badge>
 	);
@@ -43,7 +43,7 @@ export const PremiumBadge: React.FC<PremiumBadgeProps> = ({
 	children = "Premium",
 }) => {
 	return (
-		<Badge variant="purple" border="solid">
+		<Badge variant="magenta" border="solid">
 			{children}
 		</Badge>
 	);
@@ -75,12 +75,7 @@ export const DeprecatedBadge: React.FC = () => {
 
 export const Badges: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack
-			css={{ margin: "0 0 16px" }}
-			direction="row"
-			alignItems="center"
-			spacing={1}
-		>
+		<Stack className="mb-4" direction="row" alignItems="center" spacing={1}>
 			{children}
 		</Stack>
 	);

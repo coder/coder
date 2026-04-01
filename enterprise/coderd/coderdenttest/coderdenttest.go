@@ -231,12 +231,8 @@ func (opts *LicenseOptions) AIGovernanceAddon(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureAIGovernanceUserLimit, limit)
 }
 
-func (opts *LicenseOptions) ManagedAgentLimit(soft int64, hard int64) *LicenseOptions {
-	// These don't use named or exported feature names, see
-	// enterprise/coderd/license/license.go.
-	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_soft"), soft)
-	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_hard"), hard)
-	return opts
+func (opts *LicenseOptions) ManagedAgentLimit(limit int64) *LicenseOptions {
+	return opts.Feature(codersdk.FeatureManagedAgentLimit, limit)
 }
 
 func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *LicenseOptions {

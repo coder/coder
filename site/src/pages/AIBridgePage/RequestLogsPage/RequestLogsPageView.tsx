@@ -1,25 +1,29 @@
-import type { AIBridgeInterception } from "api/typesGenerated";
+import type { ComponentProps, FC } from "react";
+import type { AIBridgeInterception } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
-import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
+} from "#/components/PaginationWidget/PaginationContainer";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Table,
 	TableBody,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import type { ComponentProps, FC } from "react";
-import { RequestLogsFilter } from "./filter/RequestLogsFilter";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
+import { RequestLogsFilter } from "./RequestLogsFilter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {
 	isLoading: boolean;
-	isRequestLogsVisible: boolean;
+	isRequestLogsEntitled: boolean;
+	isRequestLogsEnabled: boolean;
 	interceptions?: readonly AIBridgeInterception[];
 	interceptionsQuery: PaginationResult;
 	filterProps: ComponentProps<typeof RequestLogsFilter>;
@@ -27,17 +31,30 @@ interface RequestLogsPageViewProps {
 
 export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	isLoading,
-	isRequestLogsVisible,
+	isRequestLogsEntitled,
+	isRequestLogsEnabled,
 	interceptions,
 	interceptionsQuery,
 	filterProps,
 }) => {
-	if (!isRequestLogsVisible) {
+	if (!isRequestLogsEntitled) {
 		return <PaywallAIGovernance />;
+	}
+
+	if (!isRequestLogsEnabled) {
+		return <AIBridgeSetupAlert />;
 	}
 
 	return (
 		<>
+			<Alert severity="info" className="mb-4">
+				Visit the new{" "}
+				<Link href="/aibridge/sessions" className="text-content-link italic">
+					AI Sessions
+				</Link>{" "}
+				page for a more comprehensive view of AI activity.
+			</Alert>
+
 			<RequestLogsFilter {...filterProps} />
 
 			<PaginationContainer
@@ -50,6 +67,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 							<TableHead>Timestamp</TableHead>
 							<TableHead>Initiator</TableHead>
 							<TableHead>Tokens</TableHead>
+							<TableHead>Client</TableHead>
 							<TableHead>Model</TableHead>
 							<TableHead>Tool Calls</TableHead>
 						</TableRow>

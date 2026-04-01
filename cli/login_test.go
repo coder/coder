@@ -516,6 +516,40 @@ func TestLogin(t *testing.T) {
 		require.NotEqual(t, client.SessionToken(), sessionFile)
 	})
 
+	t.Run("SessionTokenEnvVar", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		root, _ := clitest.New(t, "login", client.URL.String())
+		root.Environ.Set("CODER_SESSION_TOKEN", "invalid-token")
+		err := root.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "CODER_SESSION_TOKEN is set")
+		require.Contains(t, err.Error(), "unset CODER_SESSION_TOKEN")
+	})
+
+	t.Run("SessionTokenEnvVarWithUseTokenAsSession", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		root, _ := clitest.New(t, "login", client.URL.String(), "--use-token-as-session")
+		root.Environ.Set("CODER_SESSION_TOKEN", client.SessionToken())
+		err := root.Run()
+		require.NoError(t, err)
+	})
+
+	t.Run("SessionTokenEnvVarWithTokenFlag", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		// Using --token with CODER_SESSION_TOKEN set should succeed.
+		// This is the standard pattern used by coder/setup-action.
+		root, _ := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
+		root.Environ.Set("CODER_SESSION_TOKEN", client.SessionToken())
+		err := root.Run()
+		require.NoError(t, err)
+	})
+
 	t.Run("KeepOrganizationContext", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -558,10 +592,33 @@ func TestLoginToken(t *testing.T) {
 
 	t.Run("NoTokenStored", func(t *testing.T) {
 		t.Parallel()
-		inv, _ := clitest.New(t, "login", "token")
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(t, "login", "token", "--url", client.URL.String())
 		ctx := testutil.Context(t, testutil.WaitShort)
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "no session token found")
+	})
+
+	t.Run("NoURLProvided", func(t *testing.T) {
+		t.Parallel()
+		inv, _ := clitest.New(t, "login", "token")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "You are not logged in")
+	})
+
+	t.Run("URLMismatchFileBackend", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "token", "--url", "https://other.example.com")
+		clitest.SetupConfig(t, client, root)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "file session token storage only supports one server")
 	})
 }

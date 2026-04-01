@@ -1193,7 +1193,6 @@ func TestMatchesCron(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1518,7 +1517,6 @@ func TestCalculateDesiredInstances(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			desiredInstances := tc.snapshot.CalculateDesiredInstances(tc.at)

@@ -1,6 +1,4 @@
 import type { Theme } from "@emotion/react";
-import type * as TypesGen from "api/typesGenerated";
-import { PillSpinner } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
@@ -12,6 +10,8 @@ import {
 	SquareIcon,
 } from "lucide-react";
 import semver from "semver";
+import type * as TypesGen from "#/api/typesGenerated";
+import { PillSpinner } from "#/components/Pill/Pill";
 import { getPendingStatusLabel } from "./provisionerJob";
 
 dayjs.extend(duration);
@@ -87,16 +87,26 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "ssh_connection":
 		case "vscode_connection":
 		case "jetbrains_connection":
+		case "task_manual_pause":
+		case "task_resume":
 			return build.initiator_name;
 		case "autostart":
 		case "autostop":
 		case "dormancy":
+		case "task_auto_pause":
 			return "Coder";
 	}
 	return undefined;
 };
 
-export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
+export const systemBuildReasons = [
+	"autostart",
+	"autostop",
+	"dormancy",
+	"task_auto_pause",
+	"task_manual_pause",
+	"task_resume",
+];
 
 export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	// User build reasons
@@ -111,6 +121,9 @@ export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	autostart: "Autostart",
 	autostop: "Autostop",
 	dormancy: "Dormancy",
+	task_auto_pause: "Task Auto-Pause",
+	task_manual_pause: "Task Manual Pause",
+	task_resume: "Task Resume",
 };
 
 const getWorkspaceBuildDurationInSeconds = (

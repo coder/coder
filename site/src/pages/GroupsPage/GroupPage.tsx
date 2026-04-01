@@ -1,82 +1,84 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { getErrorMessage } from "api/errors";
+import { TrashIcon } from "lucide-react";
+import { type ComponentProps, type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	addMember,
+	Outlet,
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
 	deleteGroup,
 	group,
+	groupMembers,
 	groupPermissions,
-	removeMember,
-} from "api/queries/groups";
-import type {
-	Group,
-	OrganizationMemberWithUserData,
-	ReducedUser,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { LastSeen } from "components/LastSeen/LastSeen";
-import { Loader } from "components/Loader/Loader";
+} from "#/api/queries/groups";
+import type { Group, ReducedUser } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useFilter } from "#/components/Filter/Filter";
+import type { UsersFilter } from "#/components/Filter/UsersFilter";
+import { Loader } from "#/components/Loader/Loader";
+import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
-import {
-	PaginationStatus,
-	TableToolbar,
-} from "components/TableToolbar/TableToolbar";
-import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import {
-	EllipsisVertical,
-	SettingsIcon,
-	TrashIcon,
-	UserPlusIcon,
-} from "lucide-react";
-import { isEveryoneGroup } from "modules/groups";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useNavigate, useParams } from "react-router";
-import { pageTitle } from "utils/page";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { pageTitle } from "#/utils/page";
+
+export type GroupPageOutletContext = {
+	group: Group;
+	members: readonly ReducedUser[];
+	permissions: { canUpdateGroup: boolean };
+	organization: string;
+	groupQuery: ReturnType<typeof useQuery>;
+	membersQuery: PaginationResult;
+	filterProps: ComponentProps<typeof UsersFilter>;
+};
 
 const GroupPage: FC = () => {
 	const { organization = "default", groupName } = useParams() as {
 		organization?: string;
 		groupName: string;
 	};
+	const location = useLocation();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const groupQuery = useQuery(group(organization, groupName));
+	const [searchParams, setSearchParams] = useSearchParams();
+	const groupQuery = useQuery(
+		group(organization, groupName, { exclude_members: true }),
+	);
+	const membersQuery = usePaginatedQuery(
+		groupMembers(organization, groupName, searchParams),
+	);
+	const useFilterResult = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: membersQuery.goToFirstPage,
+	});
+
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery({
 		...groupPermissions(groupData?.id ?? ""),
 		enabled: !!groupData,
 	});
-	const addMemberMutation = useMutation(addMember(queryClient));
-	const removeMemberMutation = useMutation(removeMember(queryClient));
-	const deleteGroupMutation = useMutation(deleteGroup(queryClient));
+	const deleteGroupMutation = useMutation(
+		deleteGroup(queryClient, organization),
+	);
 	const [isDeletingGroup, setIsDeletingGroup] = useState(false);
-	const isLoading = groupQuery.isLoading || !groupData || !permissions;
+	const isLoading =
+		groupQuery.isLoading ||
+		!groupData ||
+		!permissions ||
+		membersQuery.isLoading ||
+		!membersQuery.data;
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
 	const title = (
@@ -85,8 +87,9 @@ const GroupPage: FC = () => {
 		</title>
 	);
 
-	if (groupQuery.error) {
-		return <ErrorAlert error={groupQuery.error} />;
+	const error = groupQuery.error || membersQuery.error;
+	if (error) {
+		return <ErrorAlert error={error} />;
 	}
 
 	if (isLoading) {
@@ -97,7 +100,11 @@ const GroupPage: FC = () => {
 			</>
 		);
 	}
+
 	const groupId = groupData.id;
+	const activeTab = location.pathname.endsWith("/settings")
+		? "settings"
+		: "members";
 
 	return (
 		<>
@@ -106,7 +113,7 @@ const GroupPage: FC = () => {
 			<div className="flex align-baseline justify-between w-full">
 				<SettingsHeader>
 					<SettingsHeaderTitle>
-						{groupData?.display_name || groupData?.name || "Unknown Group"}
+						{groupData.display_name || groupData.name || "Unknown Group"}
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Manage members for this group.
@@ -114,100 +121,47 @@ const GroupPage: FC = () => {
 				</SettingsHeader>
 
 				{canUpdateGroup && (
-					<Stack direction="row" spacing={2}>
-						<Button variant="outline" asChild>
-							<RouterLink to="settings">
-								<SettingsIcon />
-								Settings
-							</RouterLink>
-						</Button>
-						<Button
-							variant="destructive"
-							disabled={groupData?.id === groupData?.organization_id}
-							onClick={() => {
-								setIsDeletingGroup(true);
-							}}
-						>
-							<TrashIcon />
-							Delete&hellip;
-						</Button>
-					</Stack>
+					<Button
+						variant="destructive"
+						disabled={groupData.id === groupData.organization_id}
+						onClick={() => {
+							setIsDeletingGroup(true);
+						}}
+					>
+						<TrashIcon />
+						Delete&hellip;
+					</Button>
 				)}
 			</div>
-
-			<div className="flex flex-col w-full gap-1">
-				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-					<AddGroupMember
-						isLoading={addMemberMutation.isPending}
-						organizationId={groupData.organization_id}
-						onSubmit={async (member, reset) => {
-							try {
-								await addMemberMutation.mutateAsync({
-									groupId,
-									userId: member.user_id,
-								});
-								reset();
-								await groupQuery.refetch();
-							} catch (error) {
-								displayError(getErrorMessage(error, "Failed to add member."));
-							}
-						}}
-					/>
+			<div className="flex flex-col gap-10 w-full">
+				{canUpdateGroup && (
+					<LinkTabs active={activeTab}>
+						<LinkTabsList className="w-full justify-start">
+							<TabLink to="." value="members">
+								Group members
+							</TabLink>
+							<TabLink to="settings" value="settings">
+								Group settings
+							</TabLink>
+						</LinkTabsList>
+					</LinkTabs>
 				)}
-				<TableToolbar>
-					<PaginationStatus
-						isLoading={Boolean(isLoading)}
-						showing={groupData?.members.length ?? 0}
-						total={groupData?.members.length ?? 0}
-						label="members"
-					/>
-				</TableToolbar>
 
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead className="w-2/5">User</TableHead>
-							<TableHead className="w-3/5">Status</TableHead>
-							<TableHead className="w-auto" />
-						</TableRow>
-					</TableHeader>
-
-					<TableBody>
-						{groupData?.members.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="No members yet"
-										description="Add a member using the controls above"
-									/>
-								</TableCell>
-							</TableRow>
-						) : (
-							groupData?.members.map((member) => (
-								<GroupMemberRow
-									member={member}
-									group={groupData}
-									key={member.id}
-									canUpdate={canUpdateGroup}
-									onRemove={async () => {
-										try {
-											await removeMemberMutation.mutateAsync({
-												groupId: groupData.id,
-												userId: member.id,
-											});
-											await groupQuery.refetch();
-											displaySuccess("Member removed successfully.");
-										} catch (error) {
-											displayError(
-												getErrorMessage(error, "Failed to remove member."),
-											);
-										}
-									}}
-								/>
-							))
-						)}
-					</TableBody>
-				</Table>
+				<Outlet
+					context={
+						{
+							group: groupData,
+							members: membersQuery.data?.users || [],
+							permissions: { canUpdateGroup },
+							organization,
+							groupQuery,
+							membersQuery,
+							filterProps: {
+								filter: useFilterResult,
+							},
+						} satisfies GroupPageOutletContext
+					}
+				/>
 			</div>
 
 			{groupQuery.data && (
@@ -218,11 +172,24 @@ const GroupPage: FC = () => {
 					entity="group"
 					onConfirm={async () => {
 						try {
-							await deleteGroupMutation.mutateAsync(groupId);
-							displaySuccess("Group deleted successfully.");
+							await deleteGroupMutation.mutateAsync({
+								groupId,
+								groupName: groupData.name,
+							});
+							toast.success(
+								`Group "${groupQuery.data.name}" deleted successfully.`,
+							);
 							navigate("..");
 						} catch (error) {
-							displayError(getErrorMessage(error, "Failed to delete group."));
+							toast.error(
+								getErrorMessage(
+									error,
+									`Failed to delete group "${groupQuery.data.name}".`,
+								),
+								{
+									description: getErrorDetail(error),
+								},
+							);
 						}
 					}}
 					onCancel={() => {
@@ -233,126 +200,5 @@ const GroupPage: FC = () => {
 		</>
 	);
 };
-
-interface AddGroupMemberProps {
-	isLoading: boolean;
-	onSubmit: (user: OrganizationMemberWithUserData, reset: () => void) => void;
-	organizationId: string;
-}
-
-const AddGroupMember: FC<AddGroupMemberProps> = ({
-	isLoading,
-	onSubmit,
-	organizationId,
-}) => {
-	const [selectedUser, setSelectedUser] =
-		useState<OrganizationMemberWithUserData | null>(null);
-
-	const resetValues = () => {
-		setSelectedUser(null);
-	};
-
-	return (
-		<form
-			onSubmit={(e) => {
-				e.preventDefault();
-
-				if (selectedUser) {
-					onSubmit(selectedUser, resetValues);
-				}
-			}}
-		>
-			<Stack direction="row" alignItems="center" spacing={1}>
-				<MemberAutocomplete
-					css={styles.autoComplete}
-					value={selectedUser}
-					organizationId={organizationId}
-					onChange={(newValue) => {
-						setSelectedUser(newValue);
-					}}
-				/>
-
-				<Button disabled={!selectedUser || isLoading} type="submit">
-					<Spinner loading={isLoading}>
-						<UserPlusIcon className="size-icon-sm" />
-					</Spinner>
-					Add user
-				</Button>
-			</Stack>
-		</form>
-	);
-};
-
-interface GroupMemberRowProps {
-	member: ReducedUser;
-	group: Group;
-	canUpdate: boolean;
-	onRemove: () => void;
-}
-
-const GroupMemberRow: FC<GroupMemberRowProps> = ({
-	member,
-	group,
-	canUpdate,
-	onRemove,
-}) => {
-	return (
-		<TableRow key={member.id}>
-			<TableCell width="59%">
-				<AvatarData
-					avatar={
-						<Avatar
-							size="lg"
-							fallback={member.username}
-							src={member.avatar_url}
-						/>
-					}
-					title={member.username}
-					subtitle={member.email}
-				/>
-			</TableCell>
-			<TableCell
-				width="40%"
-				css={[styles.status, member.status === "suspended" && styles.suspended]}
-			>
-				<div>{member.status}</div>
-				<LastSeen at={member.last_seen_at} css={{ fontSize: 12 }} />
-			</TableCell>
-			<TableCell width="1%">
-				{canUpdate && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-								<EllipsisVertical aria-hidden="true" />
-								<span className="sr-only">Open menu</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={onRemove}
-								disabled={group.id === group.organization_id}
-							>
-								Remove
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
-			</TableCell>
-		</TableRow>
-	);
-};
-
-const styles = {
-	autoComplete: {
-		width: 300,
-	},
-	status: {
-		textTransform: "capitalize",
-	},
-	suspended: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default GroupPage;

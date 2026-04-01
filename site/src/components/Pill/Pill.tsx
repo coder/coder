@@ -3,7 +3,7 @@ import CircularProgress, {
 	type CircularProgressProps,
 } from "@mui/material/CircularProgress";
 import { type FC, type ReactNode, useMemo } from "react";
-import type { ThemeRole } from "theme/roles";
+import type { ThemeRole } from "#/theme/roles";
 
 type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon?: ReactNode;

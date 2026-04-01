@@ -1,6 +1,6 @@
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "components/Button/Button";
+import { Button } from "#/components/Button/Button";
+import { mockApiError } from "#/testHelpers/entities";
 import { ErrorAlert } from "./ErrorAlert";
 
 const mockError = mockApiError({
@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof ErrorAlert>;
 
 const ExampleAction = (
-	<Button onClick={() => null} size="sm" variant="subtle">
+	<Button onClick={() => null} size="sm">
 		Button
 	</Button>
 );

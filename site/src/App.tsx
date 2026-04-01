@@ -1,7 +1,5 @@
 import "./theme/globalFonts";
-import { useTheme } from "@emotion/react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 import {
 	type FC,
 	type ReactNode,
@@ -11,9 +9,10 @@ import {
 } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router";
-import { Toaster } from "sonner";
-import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { Toaster } from "./components/Toaster/Toaster";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
+import { DiffsWorkerPoolProvider } from "./contexts/DiffsWorkerPoolProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { router } from "./router";
 
@@ -25,11 +24,6 @@ const defaultQueryClient = new QueryClient({
 		},
 	},
 });
-
-const AppToaster: FC = () => {
-	const theme = useTheme();
-	return <Toaster position="bottom-right" theme={theme.palette.mode} />;
-};
 
 interface AppProvidersProps {
 	children: ReactNode;
@@ -59,15 +53,16 @@ export const AppProviders: FC<AppProvidersProps> = ({
 
 	return (
 		<QueryClientProvider client={queryClient}>
-			<AuthProvider>
-				<ThemeProvider>
-					<TooltipProvider delayDuration={100}>
-						{children}
-						<GlobalSnackbar />
-						<AppToaster />
-					</TooltipProvider>
-				</ThemeProvider>
-			</AuthProvider>
+			<DiffsWorkerPoolProvider>
+				<AuthProvider>
+					<ThemeProvider>
+						<TooltipProvider delayDuration={100}>
+							{children}
+							<Toaster />
+						</TooltipProvider>
+					</ThemeProvider>
+				</AuthProvider>
+			</DiffsWorkerPoolProvider>
 			{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
 		</QueryClientProvider>
 	);

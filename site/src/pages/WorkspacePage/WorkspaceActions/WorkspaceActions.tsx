@@ -1,15 +1,15 @@
-import { deploymentConfig } from "api/queries/deployment";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { useAuthenticated } from "hooks/useAuthenticated";
+import { type FC, Fragment, type ReactNode } from "react";
+import { useQuery } from "react-query";
+import { deploymentConfig } from "#/api/queries/deployment";
+import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	type ActionType,
 	abilitiesByWorkspaceStatus,
-} from "modules/workspaces/actions";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
-import { type FC, Fragment, type ReactNode } from "react";
-import { useQuery } from "react-query";
-import { mustUpdateWorkspace } from "utils/workspace";
+} from "#/modules/workspaces/actions";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
+import { mustUpdateWorkspace } from "#/utils/workspace";
 import {
 	ActivateButton,
 	CancelButton,
@@ -29,7 +29,6 @@ interface WorkspaceActionsProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	permissions: WorkspacePermissions;
-	sharingDisabled?: boolean;
 	handleToggleFavorite: () => void;
 	handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
@@ -46,7 +45,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	isUpdating,
 	isRestarting,
 	permissions,
-	sharingDisabled,
 	handleToggleFavorite,
 	handleStart,
 	handleStop,
@@ -57,10 +55,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	handleDebug,
 	handleDormantActivate,
 }) => {
-	const { user } = useAuthenticated();
+	const {
+		permissions: { viewDeploymentConfig },
+		user,
+	} = useAuthenticated();
 	const { data: deployment } = useQuery({
 		...deploymentConfig(),
-		enabled: permissions.deploymentConfig,
+		enabled: viewDeploymentConfig,
 	});
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
@@ -170,10 +171,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	};
 
 	return (
-		<div
-			css={{ display: "flex", alignItems: "center", gap: 8 }}
-			data-testid="workspace-actions"
-		>
+		<div className="flex items-center gap-2" data-testid="workspace-actions">
 			{/* Restarting must be handled separately, because it otherwise would appear as stopping */}
 			{isUpdating
 				? buttonMapping.updating
@@ -191,7 +189,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			{!sharingDisabled && (
+			{permissions.shareWorkspace && (
 				<ShareButton
 					workspace={workspace}
 					canUpdatePermissions={permissions.updateWorkspace}

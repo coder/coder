@@ -1,42 +1,43 @@
-import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { templateVersionPresets } from "api/queries/templates";
+import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import TextareaAutosize, {
+	type TextareaAutosizeProps,
+} from "react-textarea-autosize";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { templateVersionPresets } from "#/api/queries/templates";
 import type {
 	Preset,
 	Task,
 	Template,
 	TemplateVersionExternalAuth,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Kbd, KbdGroup } from "components/Kbd/Kbd";
-import { Link } from "components/Link/Link";
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
+import { Link } from "#/components/Link/Link";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectValue,
-} from "components/Select/Select";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { Spinner } from "components/Spinner/Spinner";
+} from "#/components/Select/Select";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useAuthenticated } from "hooks/useAuthenticated";
-import { useExternalAuth } from "hooks/useExternalAuth";
-import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import TextareaAutosize, {
-	type TextareaAutosizeProps,
-} from "react-textarea-autosize";
-import { docs } from "utils/docs";
-import { getOSKey } from "utils/platform";
+} from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useExternalAuth } from "#/hooks/useExternalAuth";
+import { docs } from "#/utils/docs";
+import { getOSKey } from "#/utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
@@ -51,6 +52,8 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 	error,
 	onRetry,
 }) => {
+	const navigate = useNavigate();
+
 	if (error) {
 		return <TaskPromptLoadingError error={error} onRetry={onRetry} />;
 	}
@@ -63,8 +66,14 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 	return (
 		<CreateTaskForm
 			templates={templates}
-			onSuccess={() => {
-				displaySuccess("Task created successfully");
+			onSuccess={(task) => {
+				toast.success(`Task "${task.name}" created successfully.`, {
+					description: `"${task.initial_prompt}"`,
+					action: {
+						label: "View task",
+						onClick: () => navigate(`/tasks/${task.owner_name}/${task.id}`),
+					},
+				});
 			}}
 		/>
 	);
@@ -216,7 +225,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
-			displayError(message, detail);
+			toast.error(message, { description: detail });
 		}
 	};
 
@@ -275,7 +284,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 											<SelectItem value={template.id} key={template.id}>
 												<div className="flex items-center gap-2">
 													{template.icon && (
-														<img
+														<ExternalImage
 															src={template.icon}
 															alt={template.name}
 															className="size-icon-sm flex-shrink-0"
@@ -334,7 +343,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 												<SelectItem value={preset.ID} key={preset.ID}>
 													<div className="flex items-center gap-2">
 														{preset.Icon && (
-															<img
+															<ExternalImage
 																data-slot="preset-icon"
 																src={preset.Icon}
 																alt={preset.Name}

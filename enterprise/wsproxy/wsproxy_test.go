@@ -525,7 +525,6 @@ func TestDERPMesh(t *testing.T) {
 	require.Len(t, cases, (len(proxies)*(len(proxies)+1))/2) // triangle number
 
 	for i, c := range cases {
-		i, c := i, c
 		t.Run(fmt.Sprintf("Proxy%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -1223,4 +1222,56 @@ func createProxyReplicas(ctx context.Context, t *testing.T, opts *createProxyRep
 	t.Log("all replicas have pinged successfully")
 
 	return proxies
+}
+
+func TestWorkspaceProxyDERPMetrics(t *testing.T) {
+	t.Parallel()
+
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{"*"}
+
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         deploymentValues,
+			AppHostname:              "*.primary.test.coder.com",
+			IncludeProvisionerDaemon: true,
+			RealIPConfig: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(8, 32),
+				}},
+				TrustedHeaders: []string{
+					"CF-Connecting-IP",
+				},
+			},
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
+		Name: "metrics-test-proxy",
+	})
+
+	// Gather metrics from the wsproxy's Prometheus registry.
+	metrics, err := proxy.PrometheusRegistry.Gather()
+	require.NoError(t, err)
+
+	names := make(map[string]struct{})
+	for _, m := range metrics {
+		names[m.GetName()] = struct{}{}
+	}
+
+	assert.Contains(t, names, "coder_derp_server_connections",
+		"expected coder_derp_server_connections to be registered")
+	assert.Contains(t, names, "coder_derp_server_bytes_received_total",
+		"expected coder_derp_server_bytes_received_total to be registered")
+	assert.Contains(t, names, "coder_derp_server_packets_dropped_reason_total",
+		"expected coder_derp_server_packets_dropped_reason_total to be registered")
 }

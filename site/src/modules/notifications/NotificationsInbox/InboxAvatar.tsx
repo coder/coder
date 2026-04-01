@@ -1,11 +1,4 @@
 import {
-	InboxNotificationFallbackIconAccount,
-	InboxNotificationFallbackIconOther,
-	InboxNotificationFallbackIconTemplate,
-	InboxNotificationFallbackIconWorkspace,
-} from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import {
 	InfoIcon,
 	LaptopIcon,
 	LayoutTemplateIcon,
@@ -14,6 +7,13 @@ import {
 } from "lucide-react";
 import type React from "react";
 import type { FC } from "react";
+import {
+	InboxNotificationFallbackIconAccount,
+	InboxNotificationFallbackIconOther,
+	InboxNotificationFallbackIconTemplate,
+	InboxNotificationFallbackIconWorkspace,
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 
 const CHANGELOG_ICON = "DEFAULT_ICON_CHANGELOG";
 

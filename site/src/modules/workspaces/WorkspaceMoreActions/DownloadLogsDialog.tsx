@@ -1,18 +1,19 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { agentLogs, buildLogs } from "api/queries/workspaces";
-import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import {
-	ConfirmDialog,
-	type ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
+import { agentLogs, buildLogs } from "#/api/queries/workspaces";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import {
+	ConfirmDialog,
+	type ConfirmDialogProps,
+} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Stack } from "#/components/Stack/Stack";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,
@@ -134,12 +135,14 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 					}, theme.transitions.duration.leavingScreen);
 				} catch (error) {
 					setIsDownloading(false);
-					displayError("Error downloading workspace logs");
+					toast.error(`Error downloading workspace "${workspace.name}" logs.`, {
+						description: getErrorDetail(error),
+					});
 					console.error(error);
 				}
 			}}
 			description={
-				<Stack css={{ paddingBottom: 16 }}>
+				<Stack className="pb-4">
 					<p>
 						Downloading logs will create a zip file containing all logs from all
 						jobs in this workspace. This may take a while.

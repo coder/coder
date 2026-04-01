@@ -1,5 +1,3 @@
-//go:build !windows
-
 package cli_test
 
 import (
@@ -7,8 +5,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -25,12 +23,15 @@ func setupSocketServer(t *testing.T) (path string, cleanup func()) {
 	t.Helper()
 
 	// Use a temporary socket path for each test
-	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
+	socketPath := testutil.AgentSocketPath(t)
 
-	// Create parent directory if needed
-	parentDir := filepath.Dir(socketPath)
-	err := os.MkdirAll(parentDir, 0o700)
-	require.NoError(t, err, "create socket directory")
+	// Create parent directory if needed. Not necessary on Windows because named pipes live in an abstract namespace
+	// not tied to any real files.
+	if runtime.GOOS != "windows" {
+		parentDir := filepath.Dir(socketPath)
+		err := os.MkdirAll(parentDir, 0o700)
+		require.NoError(t, err, "create socket directory")
+	}
 
 	server, err := agentsocket.NewServer(
 		slog.Make().Leveled(slog.LevelDebug),
@@ -101,13 +102,13 @@ func TestSyncCommands_Golden(t *testing.T) {
 		require.NoError(t, err)
 		client.Close()
 
-		// Start a goroutine to complete the dependency after a short delay
-		// This simulates the dependency being satisfied while start is waiting
-		// The delay ensures the "Waiting..." message appears in the output
+		outBuf := testutil.NewWaitBuffer()
 		done := make(chan error, 1)
 		go func() {
-			// Wait a moment to let the start command begin waiting and print the message
-			time.Sleep(100 * time.Millisecond)
+			if err := outBuf.WaitFor(ctx, "Waiting"); err != nil {
+				done <- err
+				return
+			}
 
 			compCtx := context.Background()
 			compClient, err := agentsocket.NewClient(compCtx, agentsocket.WithPath(path))
@@ -117,7 +118,7 @@ func TestSyncCommands_Golden(t *testing.T) {
 			}
 			defer compClient.Close()
 
-			// Start and complete the dependency unit
+			// Start and complete the dependency unit.
 			err = compClient.SyncStart(compCtx, "dep-unit")
 			if err != nil {
 				done <- err
@@ -127,21 +128,20 @@ func TestSyncCommands_Golden(t *testing.T) {
 			done <- err
 		}()
 
-		var outBuf bytes.Buffer
 		inv, _ := clitest.New(t, "exp", "sync", "start", "test-unit", "--socket-path", path)
-		inv.Stdout = &outBuf
-		inv.Stderr = &outBuf
+		inv.Stdout = outBuf
+		inv.Stderr = outBuf
 
-		// Run the start command - it should wait for the dependency
+		// Run the start command - it should wait for the dependency.
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		// Ensure the completion goroutine finished
+		// Ensure the completion goroutine finished.
 		select {
 		case err := <-done:
 			require.NoError(t, err, "complete dependency")
-		case <-time.After(time.Second):
-			// Goroutine should have finished by now
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for dependency completion goroutine")
 		}
 
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/start_with_dependencies", outBuf.Bytes(), nil)
@@ -163,6 +163,37 @@ func TestSyncCommands_Golden(t *testing.T) {
 		require.NoError(t, err)
 
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/want_success", outBuf.Bytes(), nil)
+	})
+
+	t.Run("want_multiple_deps", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "want", "test-unit", "dep-1", "dep-2", "dep-3", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Verify all dependencies were registered by checking status.
+		outBuf.Reset()
+		inv, _ = clitest.New(t, "exp", "sync", "status", "test-unit", "--socket-path", path, "--output", "json")
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// The output should mention all three dependencies.
+		output := outBuf.String()
+		require.Contains(t, output, "dep-1")
+		require.Contains(t, output, "dep-2")
+		require.Contains(t, output, "dep-3")
 	})
 
 	t.Run("complete", func(t *testing.T) {

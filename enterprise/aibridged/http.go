@@ -37,6 +37,22 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
 
+	// Extract and strip proxy request ID for cross-service log
+	// correlation. Absent for direct requests not routed through
+	// aibridgeproxyd.
+	if proxyReqID := r.Header.Get(agplaibridge.HeaderCoderRequestID); proxyReqID != "" {
+		// Inject into context so downstream loggers include it.
+		ctx = slog.With(ctx, slog.F("aibridgeproxy_id", proxyReqID))
+		logger = logger.With(slog.F("aibridgeproxy_id", proxyReqID))
+	}
+	r.Header.Del(agplaibridge.HeaderCoderRequestID)
+
+	byok := agplaibridge.IsBYOK(r.Header)
+	authMode := "centralized"
+	if byok {
+		authMode = "byok"
+	}
+
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
 	if key == "" {
 		logger.Warn(ctx, "no auth key provided")
@@ -44,8 +60,23 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Remove the Coder token header so it's not forwarded to upstream providers.
-	r.Header.Del(agplaibridge.HeaderCoderAuth)
+	// Strip every header that may carry the Coder token so it is
+	// never forwarded to upstream providers. After stripping, the
+	// aibridge library can treat the request as a normal LLM API call
+	// with no Coder-specific information.
+	if byok {
+		// In BYOK mode the token is in X-Coder-AI-Governance-Token;
+		// Authorization and X-Api-Key carry the user's own LLM credentials
+		// and must be preserved.
+		r.Header.Del(agplaibridge.HeaderCoderToken)
+	} else {
+		// In centralized mode the token may be in Authorization (the
+		// documented path) or X-Api-Key (legacy clients that set
+		// ANTHROPIC_API_KEY to their Coder token). Both are
+		// stripped.
+		r.Header.Del("Authorization")
+		r.Header.Del("X-Api-Key")
+	}
 
 	client, err := s.Client()
 	if err != nil {
@@ -56,7 +87,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: key})
 	if err != nil {
-		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
+		logger.Warn(ctx, "key authorization check failed", slog.Error(err), slog.F("auth_mode", authMode))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
 	}

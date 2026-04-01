@@ -102,11 +102,7 @@ manually updated the workspace.
 
 ## Bulk operations
 
-> [!NOTE]
-> Bulk operations are a Premium feature.
-> [Learn more](https://coder.com/pricing#compare-plans).
-
-Licensed admins may apply bulk operations (update, delete, start, stop) in the
+Admins may apply bulk operations (update, delete, start, stop) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
 checkboxes on the left, then use the top-right **Actions** dropdown to apply the
 operation.

@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -230,6 +231,10 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 }
 
 func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
+	if r.clock == nil {
+		r.clock = quartz.NewReal()
+	}
+
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	hiddenAgentAuth := &AgentAuth{}
@@ -548,32 +553,45 @@ type RootCmd struct {
 	useKeyring                 bool
 	keyringServiceName         string
 	useKeyringWithGlobalConfig bool
+
+	// clock is used for time-dependent operations. Initialized to
+	// quartz.NewReal() in Command() if not set via SetClock.
+	clock quartz.Clock
+}
+
+// SetClock sets the clock used for time-dependent operations.
+// Must be called before Command() to take effect.
+func (r *RootCmd) SetClock(clk quartz.Clock) {
+	r.clock = clk
+}
+
+// ensureClientURL loads the client URL from the config file if it
+// wasn't provided via --url or CODER_URL.
+func (r *RootCmd) ensureClientURL() error {
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		return nil
+	}
+	rawURL, err := r.createConfig().URL().Read()
+	// If the configuration files are absent, the user is logged out.
+	if os.IsNotExist(err) {
+		binPath, err := os.Executable()
+		if err != nil {
+			binPath = "coder"
+		}
+		return xerrors.Errorf(notLoggedInMessage, binPath)
+	}
+	if err != nil {
+		return err
+	}
+	r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+	return err
 }
 
 // InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
 func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
-	conf := r.createConfig()
-	var err error
-	// Read the client URL stored on disk.
-	if r.clientURL == nil || r.clientURL.String() == "" {
-		rawURL, err := conf.URL().Read()
-		// If the configuration files are absent, the user is logged out
-		if os.IsNotExist(err) {
-			binPath, err := os.Executable()
-			if err != nil {
-				binPath = "coder"
-			}
-			return nil, xerrors.Errorf(notLoggedInMessage, binPath)
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-		if err != nil {
-			return nil, err
-		}
+	if err := r.ensureClientURL(); err != nil {
+		return nil, err
 	}
 	if r.token == "" {
 		tok, err := r.ensureTokenBackend().Read(r.clientURL)
@@ -884,16 +902,27 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
 			return org.Name == o.FlagSelect || org.ID.String() == o.FlagSelect
 		})
+		if index >= 0 {
+			return orgs[index], nil
+		}
 
-		if index < 0 {
+		// Not in membership list - try direct fetch.
+		// This allows site-wide admins (e.g., Owners) to use orgs they aren't
+		// members of.
+		org, err := client.OrganizationByName(inv.Context(), o.FlagSelect)
+		if err != nil {
 			var names []string
 			for _, org := range orgs {
 				names = append(names, org.Name)
 			}
-			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
-				"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
+			var sdkErr *codersdk.Error
+			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+				return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
+					"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
+			}
+			return codersdk.Organization{}, xerrors.Errorf("get organization %q: %w", o.FlagSelect, err)
 		}
-		return orgs[index], nil
+		return org, nil
 	}
 
 	if len(orgs) == 1 {
@@ -1385,7 +1414,6 @@ func tailLineStyle() pretty.Style {
 	return pretty.Style{pretty.Nop}
 }
 
-//nolint:unused
 func SlimUnsupported(w io.Writer, cmd string) {
 	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", pretty.Sprint(cliui.DefaultStyles.Code, cmd))
 	_, _ = fmt.Fprintln(w, "")

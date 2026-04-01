@@ -106,6 +106,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+const DefaultDERPMeshKey = "test-key"
+
 const defaultTestDaemonName = "test-daemon"
 
 type Options struct {
@@ -512,8 +514,18 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
-	derpServer.SetMeshKey("test-key")
+	const derpMeshKey = "test-key"
+	// Technically AGPL coderd servers don't set this value, but it doesn't
+	// change any behavior. It's useful for enterprise tests.
+	err = options.Database.InsertDERPMeshKey(dbauthz.AsSystemRestricted(ctx), derpMeshKey) //nolint:gocritic // test
+	if !database.IsUniqueViolation(err, database.UniqueSiteConfigsKeyKey) {
+		require.NoError(t, err, "insert DERP mesh key")
+	}
+	var derpServer *derp.Server
+	if options.DeploymentValues.DERP.Server.Enable.Value() {
+		derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
+		derpServer.SetMeshKey(derpMeshKey)
+	}
 
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
@@ -867,6 +879,15 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		m(&req)
 	}
 
+	// Service accounts cannot have a password or email and must
+	// use login_type=none. Enforce this after mutators so callers
+	// only need to set ServiceAccount=true.
+	if req.ServiceAccount {
+		req.Password = ""
+		req.Email = ""
+		req.UserLoginType = codersdk.LoginTypeNone
+	}
+
 	user, err := client.CreateUserWithOrgs(context.Background(), req)
 	var apiError *codersdk.Error
 	// If the user already exists by username or email conflict, try again up to "retries" times.
@@ -879,9 +900,10 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	require.NoError(t, err)
 
 	var sessionToken string
-	if req.UserLoginType == codersdk.LoginTypeNone {
-		// Cannot log in with a disabled login user. So make it an api key from
-		// the client making this user.
+	switch req.UserLoginType {
+	case codersdk.LoginTypeNone, codersdk.LoginTypeGithub, codersdk.LoginTypeOIDC:
+		// Cannot log in with a non-password user. So make it an api key from the
+		// client making this user.
 		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
 			Lifetime:  time.Hour * 24,
 			Scope:     codersdk.APIKeyScopeAll,
@@ -889,7 +911,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		})
 		require.NoError(t, err)
 		sessionToken = token.Key
-	} else {
+	default:
 		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
 			Password: req.Password,
@@ -1140,7 +1162,7 @@ func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, ver
 		templateVersion, err = client.TemplateVersion(ctx, version)
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalMedium, "make sure you set `IncludeProvisionerDaemon`!")
+	}, testutil.WaitLong, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
 	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
@@ -1166,7 +1188,7 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 			return false
 		}
 		return true
-	}, testutil.WaitMedium, testutil.IntervalMedium)
+	}, testutil.WaitMedium, testutil.IntervalFast)
 	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }
@@ -1290,7 +1312,7 @@ func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 			}
 		}
 		return true
-	}, testutil.IntervalMedium)
+	}, testutil.IntervalFast)
 }
 
 // Wait waits for the agent(s) to connect and fails the test if they do not connect before the
@@ -1342,7 +1364,7 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 			return true
 		}
 		return w.resourcesMatcher(resources)
-	}, testutil.IntervalMedium)
+	}, testutil.IntervalFast)
 	w.t.Logf("got workspace agents (workspace %s)", w.workspaceID)
 	return resources
 }

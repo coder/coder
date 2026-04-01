@@ -1,12 +1,12 @@
-import { API } from "api/api";
-import { Avatar } from "components/Avatar/Avatar";
+import type { FC } from "react";
+import { API } from "#/api/api";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-	SelectFilterSearch,
-} from "components/Filter/SelectFilter";
-import { useAuthenticated } from "hooks";
-import type { FC } from "react";
+} from "#/components/Filter/SelectFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
 export const DEFAULT_USER_FILTER_WIDTH = 175;
@@ -97,15 +97,15 @@ export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
+			width={width}
 			selectFilterSearch={
-				<SelectFilterSearch
+				<ComboboxInput
 					placeholder="Search user..."
 					value={menu.query}
-					onChange={menu.setQuery}
+					onValueChange={menu.setQuery}
 					aria-label="Search user"
 				/>
 			}
-			width={width}
 		/>
 	);
 };

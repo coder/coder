@@ -1,25 +1,30 @@
-import { getErrorMessage } from "api/errors";
-import { groupsByUserIdInOrganization } from "api/queries/groups";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useParams, useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
 	addOrganizationMember,
 	paginatedOrganizationMembers,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
-} from "api/queries/organizations";
-import { organizationRoles } from "api/queries/roles";
-import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
+} from "#/api/queries/organizations";
+import { organizationRoles } from "#/api/queries/roles";
+import type {
+	OrganizationMemberWithUserData,
+	User,
+} from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Stack } from "#/components/Stack/Stack";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
@@ -29,7 +34,9 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { entitlements } = useDashboard();
 	const searchParamsResult = useSearchParams();
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -96,6 +103,7 @@ const OrganizationMembersPage: FC = () => {
 				}
 				isAddingMember={addMemberMutation.isPending}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
+				showAISeatColumn={showAISeatColumn}
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
@@ -121,20 +129,25 @@ const OrganizationMembersPage: FC = () => {
 				onClose={() => setMemberToDelete(undefined)}
 				title="Remove member"
 				confirmText="Remove"
-				onConfirm={async () => {
-					try {
-						if (memberToDelete) {
-							await removeMemberMutation.mutateAsync(memberToDelete?.user_id);
-						}
-						setMemberToDelete(undefined);
-						await membersQuery.refetch();
-						displaySuccess("User removed from organization successfully!");
-					} catch (error) {
-						setMemberToDelete(undefined);
-						displayError(
-							getErrorMessage(error, "Failed to remove user from organization"),
+				onConfirm={() => {
+					if (memberToDelete) {
+						const mutation = removeMemberMutation.mutateAsync(
+							memberToDelete.user_id,
+							{
+								onSuccess: () => {
+									membersQuery.refetch();
+								},
+							},
 						);
-					} finally {
+						toast.promise(mutation, {
+							loading: `Removing member "${memberToDelete.username}" from organization "${organization.display_name}"...`,
+							success: `User "${memberToDelete.username}" removed from organization "${organization.display_name}" successfully.`,
+							error: (error) =>
+								getErrorMessage(
+									error,
+									`Failed to remove user "${memberToDelete.username}" from organization "${organization.display_name}".`,
+								),
+						});
 						setMemberToDelete(undefined);
 					}
 				}}

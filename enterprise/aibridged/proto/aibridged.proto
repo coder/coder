@@ -9,12 +9,13 @@ import "google/protobuf/timestamp.proto";
 // Recorder is responsible for persisting AI usage records along with their related interception.
 service Recorder {
   // RecordInterception creates a new interception record to which all other sub-resources
-  // (token, prompt, tool uses) will be related.
+  // (token, prompt, tool uses, model thoughts) will be related.
   rpc RecordInterception(RecordInterceptionRequest) returns (RecordInterceptionResponse);
   rpc RecordInterceptionEnded(RecordInterceptionEndedRequest) returns (RecordInterceptionEndedResponse);
   rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
   rpc RecordPromptUsage(RecordPromptUsageRequest) returns (RecordPromptUsageResponse);
   rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
+  rpc RecordModelThought(RecordModelThoughtRequest) returns (RecordModelThoughtResponse);
 }
 
 // MCPConfigurator is responsible for retrieving any relevant data required for configuring MCP clients
@@ -43,6 +44,10 @@ message RecordInterceptionRequest {
   map<string, google.protobuf.Any> metadata = 5;
   google.protobuf.Timestamp started_at = 6;
   string api_key_id = 7;
+  string client = 8;
+  string user_agent = 9;
+  optional string correlating_tool_call_id = 10;
+  optional string client_session_id = 11;
 }
 
 message RecordInterceptionResponse {}
@@ -83,8 +88,17 @@ message RecordToolUsageRequest {
   optional string invocation_error = 7; // Only injected tools are invoked.
   map<string, google.protobuf.Any> metadata = 8;
   google.protobuf.Timestamp created_at = 9;
+  string tool_call_id = 10; // The ID of the tool call provided by the AI provider.
 }
 message RecordToolUsageResponse {}
+
+message RecordModelThoughtRequest {
+  string interception_id = 1; // UUID.
+  string content = 2;
+  map<string, google.protobuf.Any> metadata = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+message RecordModelThoughtResponse {}
 
 message GetMCPServerConfigsRequest {
   string user_id = 1; // UUID. // Not used yet, will be necessary for later RBAC purposes.

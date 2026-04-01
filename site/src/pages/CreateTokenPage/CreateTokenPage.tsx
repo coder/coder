@@ -1,15 +1,16 @@
-import { API } from "api/api";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
-import { pageTitle } from "utils/page";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizontalForm";
+import { Loader } from "#/components/Loader/Loader";
+import { pageTitle } from "#/utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
 import { type CreateTokenData, NANO_HOUR } from "./utils";
 
@@ -18,7 +19,11 @@ const initialValues: CreateTokenData = {
 	lifetime: 30,
 };
 
-const CreateTokenPage: FC = () => {
+type CreateTokenPageProps = {
+	now?: Date;
+};
+
+const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
 	const navigate = useNavigate();
 
 	const {
@@ -41,13 +46,15 @@ const CreateTokenPage: FC = () => {
 	const [formError, setFormError] = useState<unknown>(undefined);
 
 	const onCreateSuccess = () => {
-		displaySuccess("Token has been created");
+		toast.success("Token has been created.");
 		navigate("/settings/tokens");
 	};
 
 	const onCreateError = (error: unknown) => {
 		setFormError(error);
-		displayError("Failed to create token");
+		toast.error("Failed to create token.", {
+			description: getErrorDetail(error),
+		});
 	};
 
 	const form = useFormik<CreateTokenData>({
@@ -72,12 +79,7 @@ const CreateTokenPage: FC = () => {
 			<CodeExample
 				secret={false}
 				code={newToken?.key ?? ""}
-				css={{
-					minHeight: "auto",
-					userSelect: "all",
-					width: "100%",
-					marginTop: 24,
-				}}
+				className="min-h-0 select-all w-full mt-6"
 			/>
 		</>
 	);
@@ -102,6 +104,7 @@ const CreateTokenPage: FC = () => {
 					setFormError={setFormError}
 					isCreating={isCreating}
 					creationFailed={creationFailed}
+					now={now}
 				/>
 
 				<ConfirmDialog

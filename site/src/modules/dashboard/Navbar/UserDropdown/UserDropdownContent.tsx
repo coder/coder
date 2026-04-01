@@ -1,16 +1,4 @@
-import type * as TypesGen from "api/typesGenerated";
 import {
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-} from "components/DropdownMenu/DropdownMenu";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useClipboard } from "hooks/useClipboard";
-import {
-	CheckIcon,
 	CircleUserIcon,
 	CopyIcon,
 	LogOutIcon,
@@ -19,13 +7,19 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import {
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+} from "#/components/DropdownMenu/DropdownMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { SupportIcon } from "../SupportIcon";
-
-export const Language = {
-	accountLabel: "Account",
-	signOutLabel: "Sign Out",
-	copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
-};
 
 interface UserDropdownContentProps {
 	user: TypesGen.User;
@@ -50,7 +44,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			>
 				<Link to="/settings/account">
 					<div className="flex flex-col">
-						<span className="text-white">{user.username}</span>
+						<span className="text-content-primary">{user.username}</span>
 						<span className="text-xs font-semibold">{user.email}</span>
 					</div>
 				</Link>
@@ -126,7 +120,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				</Tooltip>
 			)}
 			<DropdownMenuItem className="text-xs" disabled>
-				<span>{Language.copyrightText}</span>
+				<span>&copy; {new Date().getFullYear()} Coder Technologies, Inc.</span>
 			</DropdownMenuItem>
 		</>
 	);

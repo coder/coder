@@ -1,15 +1,15 @@
-import { API } from "api/api";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { API } from "#/api/api";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { Loader } from "components/Loader/Loader";
-import { Markdown } from "components/Markdown/Markdown";
-import type { FC } from "react";
-import { useQuery } from "react-query";
+} from "#/components/Dialog/Dialog";
+import { Loader } from "#/components/Loader/Loader";
+import { Markdown } from "#/components/Markdown/Markdown";
 
 interface ChangelogDialogProps {
 	version: string | null;

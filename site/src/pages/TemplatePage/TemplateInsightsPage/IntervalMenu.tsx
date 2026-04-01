@@ -1,13 +1,13 @@
-import { Button } from "components/Button/Button";
+import type { FC } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { ChevronDownIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/DropdownMenu/DropdownMenu";
 
 const insightsIntervals = {
 	day: {

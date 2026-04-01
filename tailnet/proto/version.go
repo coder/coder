@@ -63,6 +63,7 @@ import (
 //
 // API v2.8:
 //   - Added support for pre-created sub agents on the Agent API.
+//   - Added support for UpdateAppStatus on the Agent API.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 8

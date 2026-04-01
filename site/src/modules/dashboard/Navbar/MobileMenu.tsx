@@ -1,21 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Latency } from "components/Latency/Latency";
-import type { ProxyContextValue } from "contexts/ProxyContext";
 import {
 	ChevronRightIcon,
 	CircleHelpIcon,
@@ -24,7 +6,25 @@ import {
 } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
-import { cn } from "utils/cn";
+import { toast } from "sonner";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Latency } from "#/components/Latency/Latency";
+import type { ProxyContextValue } from "#/contexts/ProxyContext";
+import { cn } from "#/utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 const itemStyles = {
@@ -63,7 +63,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			{open && (
-				<div className="fixed inset-0 top-[72px] backdrop-blur-sm z-10 bg-surface-primary/50" />
+				<div className="fixed inset-0 top-[72px] z-10 bg-surface-primary" />
 			)}
 			<DropdownMenuTrigger asChild>
 				<Button
@@ -151,7 +151,9 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 									e.preventDefault();
 
 									if (!p.healthy) {
-										displayError("Please select a healthy workspace proxy.");
+										toast.error("Failed to select proxy.", {
+											description: "Please select a healthy workspace proxy.",
+										});
 										return;
 									}
 

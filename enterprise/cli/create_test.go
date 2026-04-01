@@ -192,6 +192,41 @@ func TestEnterpriseCreate(t *testing.T) {
 		}
 	})
 
+	// Site-wide admins (Owners) can create workspaces in organizations they
+	// are not a member of by using the --org flag.
+	t.Run("OwnerCanCreateInNonMemberOrg", func(t *testing.T) {
+		t.Parallel()
+
+		const templateName = "ownertemplate"
+		setup := setupMultipleOrganizations(t, setupArgs{
+			secondTemplates: []string{templateName},
+		})
+
+		// Create a new Owner user who is NOT a member of the second org.
+		// The setup.owner created the second org and is auto-added as member,
+		// so we need a different Owner to test the RBAC-only path.
+		newOwner, _ := coderdtest.CreateAnotherUser(t, setup.owner, setup.firstResponse.OrganizationID, rbac.RoleOwner())
+
+		args := []string{
+			"create",
+			"owner-workspace",
+			"-y",
+			"--template", templateName,
+			"--org", setup.second.Name,
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, newOwner, root)
+		_ = ptytest.New(t).Attach(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		ws, err := newOwner.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "owner-workspace", codersdk.WorkspaceOptions{})
+		if assert.NoError(t, err, "expected workspace to be created") {
+			assert.Equal(t, ws.TemplateName, templateName)
+			assert.Equal(t, ws.OrganizationName, setup.second.Name, "workspace in second organization")
+		}
+	})
+
 	// If an organization is specified, but the template is not in that
 	// organization, an error is thrown.
 	t.Run("CreateIncorrectOrg", func(t *testing.T) {

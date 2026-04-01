@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -549,8 +548,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		leasedIDs = append(leasedIDs, msg.ID.String())
 	}
 
-	sort.Strings(msgs)
-	sort.Strings(leasedIDs)
+	slices.Sort(msgs)
+	slices.Sort(leasedIDs)
 	require.EqualValues(t, msgs, leasedIDs)
 
 	// Wait out the lease period; all messages should be eligible to be re-acquired.
@@ -1316,6 +1315,37 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateTaskPaused",
+			id:   notifications.TemplateTaskPaused,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":         "my-task",
+					"task_id":      "00000000-0000-0000-0000-000000000000",
+					"workspace":    "my-workspace",
+					"pause_reason": "idle timeout",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateTaskResumed",
+			id:   notifications.TemplateTaskResumed,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":      "my-task",
+					"task_id":   "00000000-0000-0000-0000-000000000001",
+					"workspace": "my-workspace",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
@@ -1455,12 +1485,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// as appearance changes are enterprise features and we do not want to mix those
 				// can't use the api
 				if tc.appName != "" {
-					err = (*db).UpsertApplicationName(dbauthz.AsSystemRestricted(ctx), "Custom Application")
+					err = (*db).UpsertApplicationName(ctx, "Custom Application")
 					require.NoError(t, err)
 				}
 
 				if tc.logoURL != "" {
-					err = (*db).UpsertLogoURL(dbauthz.AsSystemRestricted(ctx), "https://custom.application/logo.png")
+					err = (*db).UpsertLogoURL(ctx, "https://custom.application/logo.png")
 					require.NoError(t, err)
 				}
 

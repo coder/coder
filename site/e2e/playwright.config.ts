@@ -66,6 +66,9 @@ export default defineConfig({
 	},
 	webServer: {
 		url: `http://localhost:${coderPort}/api/v2/deployment/config`,
+		// The default timeout is 60s, but `go run` compilation with the
+		// embed tag can take longer on CI.
+		timeout: 120_000,
 		command: [
 			`go run -tags embed ${path.join(__dirname, "../../enterprise/cmd/coder")}`,
 			"server",

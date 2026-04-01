@@ -94,7 +94,7 @@
         # 3. Update the sha256 and run again
         # 4. Nix will fail with the correct vendorHash
         # 5. Update the vendorHash
-        sqlc-custom = unstablePkgs.buildGo124Module {
+        sqlc-custom = unstablePkgs.buildGo125Module {
           pname = "sqlc";
           version = "coder-fork-aab4e865a51df0c43e1839f81a9d349b41d14f05";
 
@@ -108,6 +108,24 @@
           subPackages = [ "cmd/sqlc" ];
           vendorHash = "sha256-69kg3qkvEWyCAzjaCSr3a73MNonub9sZTYyGaCW+UTI=";
         };
+
+        # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
+        # so `make gen` remains deterministic in Nix shells.
+        terraform_1_14_1 =
+          if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
+            pkgs.runCommand "terraform-1.14.1" {
+              nativeBuildInputs = [ pkgs.unzip ];
+              src = pkgs.fetchurl {
+                url = "https://releases.hashicorp.com/terraform/1.14.1/terraform_1.14.1_linux_amd64.zip";
+                hash = "sha256-n1MHDuYm354VeIfB0/mvPYEHobZUNxzZkEBinu1piyc=";
+              };
+            } ''
+              mkdir -p "$out/bin"
+              unzip -p "$src" terraform > "$out/bin/terraform"
+              chmod +x "$out/bin/terraform"
+            ''
+          else
+            unstablePkgs.terraform;
 
         # Packages required to build the frontend
         frontendPackages =
@@ -123,7 +141,7 @@
             python312Packages.setuptools # Needed for node-gyp
           ]
           ++ (lib.optionals stdenv.targetPlatform.isDarwin [
-            darwin.apple_sdk.frameworks.Foundation
+            darwin.apple_sdk_12_3.frameworks.Foundation
             xcbuild
           ]);
 
@@ -156,7 +174,7 @@
             gnused
             gnugrep
             gnutar
-            unstablePkgs.go_1_24
+            unstablePkgs.go_1_26
             gofumpt
             go-migrate
             (pinnedPkgs.golangci-lint)
@@ -170,7 +188,7 @@
             lazydocker
             lazygit
             less
-            mockgen
+            unstablePkgs.mockgen
             moreutils
             nfpm
             nix-prefetch-git
@@ -191,7 +209,7 @@
             # sqlc
             sqlc-custom
             syft
-            unstablePkgs.terraform
+            terraform_1_14_1
             typos
             which
             # Needed for many LD system libs!
@@ -224,7 +242,7 @@
         # slim bundle into it's own derivation.
         buildFat =
           osArch:
-          unstablePkgs.buildGo124Module {
+          unstablePkgs.buildGo125Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
@@ -274,7 +292,13 @@
         inherit formatter;
 
         devShells = {
-          default = pkgs.mkShell {
+          default =
+            (pkgs.mkShell.override (
+              pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+                stdenv = pkgs.overrideSDK pkgs.stdenv "12.3";
+              }
+            ))
+            {
             buildInputs = devShellPackages;
 
             PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
@@ -285,6 +309,14 @@
               lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
 
             NODE_OPTIONS = "--max-old-space-size=8192";
+            BIOME_BINARY =
+              if pkgs.stdenv.isLinux then
+                if pkgs.stdenv.hostPlatform.isAarch64 then
+                  "@biomejs/cli-linux-arm64-musl/biome"
+                else
+                  "@biomejs/cli-linux-x64-musl/biome"
+              else
+                "";
             GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
           };
         };
