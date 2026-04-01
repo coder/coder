@@ -66,11 +66,12 @@ const (
 	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
-// chatGitRef holds the branch and remote origin reported by the
-// workspace agent during a git operation.
+// chatGitRef holds the branch, remote origin, and optional chat
+// ID reported by the workspace agent during a git operation.
 type chatGitRef struct {
 	Branch       string
 	RemoteOrigin string
+	ChatID       uuid.UUID
 }
 
 type chatRepositoryRef struct {
