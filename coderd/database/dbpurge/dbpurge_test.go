@@ -1677,7 +1677,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		if archived {
-			err = db.ArchiveChatByID(ctx, chat.ID)
+			_, err = db.ArchiveChatByID(ctx, chat.ID)
 			require.NoError(t, err)
 		}
 		_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", updatedAt, chat.ID)
@@ -1966,7 +1966,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				// Archive the chat.
-				err = db.ArchiveChatByID(ctx, chat.ID)
+				_, err = db.ArchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
 				// Simulate dbpurge deleting files A and B.
@@ -1974,7 +1974,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				// Unarchive — should scrub stale file_ids.
-				err = db.UnarchiveChatByID(ctx, chat.ID)
+				_, err = db.UnarchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
 				// Only file C should remain in file_ids.
@@ -1985,11 +1985,11 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// Now test the all-files-stale edge case: the
 				// COALESCE(array_agg(...), '{}') must return an
 				// empty array, not NULL, when every file is gone.
-				err = db.ArchiveChatByID(ctx, chat.ID)
+				_, err = db.ArchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = $1", fileC)
 				require.NoError(t, err)
-				err = db.UnarchiveChatByID(ctx, chat.ID)
+				_, err = db.UnarchiveChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 
 				updated, err = db.GetChatByID(ctx, chat.ID)
