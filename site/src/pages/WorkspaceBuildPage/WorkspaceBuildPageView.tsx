@@ -6,7 +6,7 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import type {
 	ProvisionerJobLog,
 	WorkspaceAgent,
@@ -77,6 +77,8 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	builds,
 	activeBuildNumber,
 }) => {
+	const [searchParams, setSearchParams] = useSearchParams();
+
 	if (buildError) {
 		return (
 			<Margins>
@@ -88,6 +90,13 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	if (!build) {
 		return <Loader />;
 	}
+
+	const agents = build.resources.flatMap((resource) => resource.agents ?? []);
+	const logsParam = searchParams.get(LOGS_TAB_KEY);
+	const selectedTab =
+		logsParam && agents.some((agent) => agent.id === logsParam)
+			? logsParam
+			: "build";
 
 	return (
 		<DashboardFullPage>
@@ -150,16 +159,28 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 
 				<ScrollArea>
 					<div className="flex items-center justify-between border-0 border-b border-solid border-border relative">
-						<Tabs defaultValue="build" className="w-full -m-px">
+						<Tabs
+							value={selectedTab}
+							onValueChange={(value: string) => {
+								setSearchParams((previous) => {
+									const next = new URLSearchParams(previous);
+									if (value === "build") {
+										next.delete(LOGS_TAB_KEY);
+									} else {
+										next.set(LOGS_TAB_KEY, value);
+									}
+									return next;
+								});
+							}}
+							className="w-full -m-px"
+						>
 							<TabsList variant="insideBox">
 								<TabsTrigger value="build">Build</TabsTrigger>
-								{build.resources
-									.flatMap((r) => r.agents ?? [])
-									.map((agent) => (
-										<TabsTrigger value={agent.id} key={agent.id}>
-											coder_agent.{agent.name}
-										</TabsTrigger>
-									))}
+								{agents.map((agent) => (
+									<TabsTrigger value={agent.id} key={agent.id}>
+										coder_agent.{agent.name}
+									</TabsTrigger>
+								))}
 							</TabsList>
 							<TabsContent value="build">
 								<div className="p-2 flex justify-end absolute right-0 top-0">
@@ -203,25 +224,23 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 								)}
 								<BuildLogsContent logs={logs} build={build} />
 							</TabsContent>
-							{build.resources
-								.flatMap((r) => r.agents ?? [])
-								.map((agent) => (
-									<TabsContent value={agent.id} key={agent.id}>
-										<div className="p-2 flex justify-end absolute right-0 top-0">
-											<Button asChild size="sm" variant="outline">
-												<a
-													href={`/api/v2/workspaceagents/${agent.id}/logs?format=text`}
-													target="_blank"
-													rel="noopener noreferrer"
-												>
-													View raw logs
-													<ExternalLinkIcon className="size-3" />
-												</a>
-											</Button>
-										</div>
-										<AgentLogsContent agent={agent} />
-									</TabsContent>
-								))}
+							{agents.map((agent) => (
+								<TabsContent value={agent.id} key={agent.id}>
+									<div className="p-2 flex justify-end absolute right-0 top-0">
+										<Button asChild size="sm" variant="outline">
+											<a
+												href={`/api/v2/workspaceagents/${agent.id}/logs?format=text`}
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												View raw logs
+												<ExternalLinkIcon className="size-3" />
+											</a>
+										</Button>
+									</div>
+									<AgentLogsContent agent={agent} />
+								</TabsContent>
+							))}
 						</Tabs>
 					</div>
 				</ScrollArea>
