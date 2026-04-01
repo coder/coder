@@ -882,6 +882,68 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 	assert.Equal(t, targetChat, publishedIDs[0])
 }
 
+func TestWorker_MarkStale_WithInvalidChatID(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	workspaceID := uuid.New()
+	ownerID := uuid.New()
+	chat1 := uuid.New()
+
+	var mu sync.Mutex
+	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
+	var publishedIDs []uuid.UUID
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	// GetChats IS called because the invalid ChatID triggers
+	// fallback to workspace-wide broadcast.
+	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.GetChatsParams) ([]database.GetChatsRow, error) {
+			require.Equal(t, ownerID, arg.OwnerID)
+			return []database.GetChatsRow{
+				{Chat: database.Chat{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}}},
+			}, nil
+		})
+	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
+		mu.Lock()
+		upsertRefCalls = append(upsertRefCalls, arg)
+		mu.Unlock()
+		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
+	}).Times(1)
+
+	pub := func(_ context.Context, chatID uuid.UUID) error {
+		mu.Lock()
+		publishedIDs = append(publishedIDs, chatID)
+		mu.Unlock()
+		return nil
+	}
+
+	mClock := quartz.NewMock(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	refresher := newTestRefresher(t, mClock)
+	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
+
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		Branch:      "main",
+		Origin:      "https://github.com/org/repo",
+		ChatID:      "not-a-uuid",
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Len(t, upsertRefCalls, 1)
+	assert.Equal(t, chat1, upsertRefCalls[0].ChatID)
+	assert.Equal(t, "main", upsertRefCalls[0].GitBranch)
+
+	require.Len(t, publishedIDs, 1)
+	assert.Equal(t, chat1, publishedIDs[0])
+}
+
 // TestWorker exercises the worker tick against a
 // real PostgreSQL database to verify that the SQL queries, foreign key
 // constraints, and upsert logic work end-to-end.
