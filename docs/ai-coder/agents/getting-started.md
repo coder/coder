@@ -245,7 +245,7 @@ narrowly scoped.
 Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or
 the workspace agent's working directory to provide persistent context to the
 agent. This file is automatically read and included in the system prompt
-for every Coder Agent that uses that workspace.
+for every conversation with a Coder Agent that uses that workspace.
 
 Use it for:
 
@@ -275,7 +275,7 @@ Good feedback includes:
 - **What you tried** — the prompt, the template, and the model.
 - **What happened** — the agent's behavior, any errors, unexpected results.
 - **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, Coder Agent IDs, or links to the Agents page help
+- **Context** — screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
 
 Your input directly influences product direction during Early Access.
