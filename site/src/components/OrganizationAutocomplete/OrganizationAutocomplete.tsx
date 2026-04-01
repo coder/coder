@@ -26,6 +26,8 @@ type OrganizationAutocompleteProps = {
 	id?: string;
 	required?: boolean;
 	check?: AuthorizationCheck;
+	/** When provided, controls which organization is displayed as selected. */
+	organizationId?: string;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
@@ -33,6 +35,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	id,
 	required,
 	check,
+	organizationId,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [selected, setSelected] = useState<Organization | null>(null);
@@ -66,10 +69,25 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: [];
 	}
 
-	// Unfortunate: this useEffect sets a default org value
-	// if only one is available and is necessary as the autocomplete loads
-	// its own data. Until we refactor, proceed cautiously!
+	// Sync internal selection state from the controlled `organizationId` prop
+	// when the options finish loading. This ensures the button shows
+	// the correct org name instead of the placeholder text.
 	useEffect(() => {
+		if (organizationId === undefined || options.length === 0) {
+			return;
+		}
+		const match = options.find((o) => o.id === organizationId);
+		if (match && match.id !== selected?.id) {
+			setSelected(match);
+		}
+	}, [organizationId, options, selected?.id]);
+
+	// Auto-select when only one option exists and no controlled organizationId
+	// was provided. This preserves the original single-org behavior.
+	useEffect(() => {
+		if (organizationId !== undefined) {
+			return;
+		}
 		const org = options[0];
 		if (options.length !== 1 || org === selected) {
 			return;
@@ -77,7 +95,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 
 		setSelected(org);
 		onChange(org);
-	}, [options, selected, onChange]);
+	}, [options, selected, onChange, organizationId]);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
