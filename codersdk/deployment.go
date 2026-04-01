@@ -1251,7 +1251,11 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 }
 
 func removeTrailingVersionInfo(v string) string {
-	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+	// Strip build metadata (everything after '+').
+	v, _, _ = strings.Cut(v, "+")
+	// Strip '-devel' suffix if present.
+	v = strings.TrimSuffix(v, "-devel")
+	return v
 }
 
 func DefaultDocsURL() string {
