@@ -1,7 +1,6 @@
-import { ExternalLinkIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
-import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Pill } from "#/components/Pill/Pill";
 import { Response, Shimmer } from "../ChatElements";
 import { getKindLabel, getProviderStatusURL } from "./chatStatusHelpers";
@@ -133,20 +132,7 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 		(status.phase === "failed" && status.statusCode !== undefined);
 
 	return (
-		<Alert
-			severity={severity}
-			className="py-3"
-			actions={
-				statusURL && (
-					<Button asChild variant="subtle" size="sm">
-						<a href={statusURL} target="_blank" rel="noreferrer">
-							Status
-							<ExternalLinkIcon />
-						</a>
-					</Button>
-				)
-			}
-		>
+		<Alert severity={severity} className="py-3">
 			<div className="space-y-2.5">
 				<div className="flex flex-wrap items-center gap-2">
 					<AlertTitle>{status.title}</AlertTitle>
@@ -157,7 +143,19 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 						{getKindLabel(status.kind)}
 					</Pill>
 				</div>
-				<AlertDescription>{status.message}</AlertDescription>
+				<AlertDescription>
+					{status.message}
+					{statusURL && (
+						<Link
+							href={statusURL}
+							target="_blank"
+							rel="noreferrer"
+							className="ml-1"
+						>
+							Status
+						</Link>
+					)}
+				</AlertDescription>
 				{hasMetadata && (
 					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
 						{status.phase === "retrying" && status.retryingAt && (
