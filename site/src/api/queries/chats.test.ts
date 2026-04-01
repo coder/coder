@@ -791,12 +791,12 @@ describe("mutation invalidation scope", () => {
 			content: [{ type: "text" as const, text: `msg ${id}` }],
 		}));
 
-		type InfData = {
+		type InfMessages = {
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: (number | undefined)[];
 		};
 
-		queryClient.setQueryData<InfData>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -804,13 +804,13 @@ describe("mutation invalidation scope", () => {
 		const mutation = editChatMessage(queryClient, chatId);
 
 		// Invoke onMutate — this should optimistically truncate messages >= 3.
-		const context = await mutation.onMutate!({
+		const context = await mutation.onMutate({
 			messageId: 3,
 			req: { content: [{ type: "text", text: "edited" }] },
 		});
 
 		// Cache should only contain messages with id < 3.
-		const data = queryClient.getQueryData<InfData>(chatMessagesKey(chatId));
+		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
 		const remainingIds = data?.pages[0]?.messages.map((m) => m.id);
 		expect(remainingIds).toEqual([2, 1]);
 
@@ -830,12 +830,12 @@ describe("mutation invalidation scope", () => {
 			content: [{ type: "text" as const, text: `msg ${id}` }],
 		}));
 
-		type InfData = {
+		type InfMessages = {
 			pages: TypesGen.ChatMessagesResponse[];
 			pageParams: (number | undefined)[];
 		};
 
-		queryClient.setQueryData<InfData>(chatMessagesKey(chatId), {
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [{ messages, queued_messages: [], has_more: false }],
 			pageParams: [undefined],
 		});
@@ -843,26 +843,43 @@ describe("mutation invalidation scope", () => {
 		const mutation = editChatMessage(queryClient, chatId);
 
 		// Optimistically truncate.
-		const context = await mutation.onMutate!({
+		const context = await mutation.onMutate({
 			messageId: 3,
 			req: { content: [{ type: "text", text: "edited" }] },
 		});
 
 		// Verify truncation happened.
-		let data = queryClient.getQueryData<InfData>(chatMessagesKey(chatId));
+		let data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
 		expect(data?.pages[0]?.messages).toHaveLength(2);
 
 		// Simulate error — onError should restore the original data.
-		mutation.onError!(
+		mutation.onError(
 			new Error("network failure"),
 			{ messageId: 3, req: { content: [{ type: "text", text: "edited" }] } },
 			context,
 		);
 
 		// Cache should be fully restored.
-		data = queryClient.getQueryData<InfData>(chatMessagesKey(chatId));
+		data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));
 		const restoredIds = data?.pages[0]?.messages.map((m) => m.id);
 		expect(restoredIds).toEqual([5, 4, 3, 2, 1]);
+	});
+
+	it("editChatMessage onMutate is a no-op when cache is empty", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		// Don't seed the cache — it should be undefined.
+		const mutation = editChatMessage(queryClient, chatId);
+		const context = await mutation.onMutate({
+			messageId: 3,
+			req: { content: [{ type: "text", text: "edited" }] },
+		});
+
+		// previousData should be undefined since nothing was cached.
+		expect(context.previousData).toBeUndefined();
+		// Cache should still be undefined — no crash.
+		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeUndefined();
 	});
 
 	it("interruptChat does not invalidate unrelated queries", async () => {
