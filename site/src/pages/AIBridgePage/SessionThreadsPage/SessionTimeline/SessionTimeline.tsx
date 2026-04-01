@@ -499,7 +499,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-3 border-0 border-l border-solid">
 					{/* vertical line */}
 				</div>
-				<div className="row-start-4 col-start-4 border-0 border-t border-dashed">
+				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
 				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg size-4">
