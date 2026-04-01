@@ -160,7 +160,10 @@ const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 			<LoaderIcon className="size-icon-xs text-content-secondary" />
 			<span className="font-mono ml-2 text-xs">Thinking...</span>
 		</div>
-		<ExpandableText text={text} className="text-sm text-pretty m-0" />
+		<ExpandableText
+			text={text}
+			className="text-sm text-pretty font-normal m-0"
+		/>
 	</BracketConnector>
 );
 
@@ -191,7 +194,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 		<BracketConnector contentClassName="mt-2 mr-4 border border-solid rounded-md overflow-x-auto">
 			<div className="flex items-center">
 				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
-					<span className="text-sm">Tool call</span>
+					<span className="text-sm font-normal">Tool call</span>
 					<Badge size="xs" className="font-mono ml-1">
 						{tool}
 					</Badge>
@@ -236,13 +239,13 @@ const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
 		>
 			<div className="flex items-center">
 				<CollapseButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)}>
-					<span className="text-sm">Agentic loop completed</span>
+					<span className="text-sm font-normal">Agentic loop completed</span>
 				</CollapseButton>
 			</div>
 			{isOpen && (
 				<div className="mb-4 ml-3 mr-4 flex flex-col gap-2 lg:w-1/2 text-sm text-content-secondary">
 					<div className="flex items-center justify-between">
-						<span className="font-medium">In / out tokens</span>
+						<span className="font-normal">In / out tokens</span>
 						<TokenBadges
 							inputTokens={inputTokens}
 							outputTokens={outputTokens}
@@ -302,9 +305,9 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 	return (
 		<>
-			<div className="border border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
+			<div className="border border-solid rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
 				{/* left column: avatar and username */}
-				<div className="flex flex-row items-items-start gap-1">
+				<div className="flex flex-row items-center gap-1">
 					<Avatar
 						src={initiator.avatar_url}
 						fallback={initiator.name ?? initiator.username}
@@ -323,7 +326,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 							<div className="text-sm text-content-secondary font-normal my-1">
 								Prompt
 							</div>
-							<p className="text-sm text-content-secondary bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
+							<p className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
 								{thread.prompt}
 							</p>
 						</>
@@ -332,7 +335,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 				{/* right column: details */}
 				<PromptTable
-					className="lg:max-w-64 flex-shrink-0"
+					className="lg:max-w-64 flex-shrink-0 w-full lg:w-auto"
 					timestamp={new Date(thread.started_at)}
 					model={thread.model}
 					inputTokens={thread.token_usage.input_tokens}
@@ -352,7 +355,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 							isOpen={agenticLoopOpen}
 							onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
 						>
-							<span className="text-sm">Agentic loop</span>
+							<span className="text-sm font-normal">Agentic loop</span>
 						</CollapseButton>
 					</div>
 
@@ -440,7 +443,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					/>
 				</div>
 				<div className="row-start-1 col-start-4 col-span-2 flex items-center h-10">
-					<span className="text-content-secondary ml-4 py-1 text-sm">
+					<span className="text-content-secondary font-normal ml-4 py-1 text-sm">
 						Session started
 					</span>
 				</div>
@@ -456,7 +459,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 3/4: AI Governance tooltip */}
-				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-sm text-content-secondary px-2 pt-1">
+				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-sm text-content-secondary font-normal px-2 pt-1">
 					AI Governance
 					<TooltipProvider>
 						<Tooltip>
@@ -464,11 +467,11 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
 							</TooltipTrigger>
 							<TooltipContent
-								className="max-w-64 text-sm"
+								className="max-w-80 text-sm font-normal"
 								align="end"
 								side="top"
 							>
-								<div className="text-content-secondary font-medium mb-1">
+								<div className="text-content-secondary mb-1">
 									Controls and logs AI tooling so AI use stays secure,
 									compliant, and visible.
 								</div>
@@ -554,7 +557,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					/>
 				</div>
 				<div className="row-start-8 col-start-4 flex items-center">
-					<span className="text-content-success ml-4 text-sm py-1">
+					<span className="text-content-success font-normal ml-4 text-sm py-1">
 						Session completed
 					</span>
 				</div>

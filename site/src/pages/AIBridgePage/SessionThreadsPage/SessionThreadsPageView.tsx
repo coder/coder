@@ -1,6 +1,5 @@
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import type { FC, PropsWithChildren } from "react";
-import { Link as RouterLink } from "react-router";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
@@ -27,7 +26,7 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 			<TooltipContent
 				side="top"
 				align="start"
-				className="max-w-xs flex flex-col gap-1 text-sm p-3"
+				className="max-w-xs flex flex-col gap-1 text-sm font-normal p-3"
 			>
 				<p className="m-0 leading-snug">
 					A session is a set of threads or interceptions logically grouped by a
@@ -47,6 +46,7 @@ interface SessionThreadsPageViewProps {
 	onFetchNextPage: () => void;
 	isAISessionsEnabled: boolean;
 	isAISessionsEntitled: boolean;
+	onBackClicked: () => void;
 }
 
 export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
@@ -58,6 +58,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	onFetchNextPage,
 	isAISessionsEnabled,
 	isAISessionsEntitled,
+	onBackClicked,
 }) => {
 	if (!isAISessionsEntitled) {
 		return <PaywallAIGovernance />;
@@ -81,19 +82,20 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					variant="outline"
 					size="lg"
 					title="Back to AI Bridge sessions list"
+					onClick={onBackClicked}
 				>
-					<RouterLink to="/aibridge/sessions">
+					<span>
 						<ArrowLeftIcon />
 						Back
-					</RouterLink>
+					</span>
 				</Button>
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">
-				<aside className="md:w-64 md:shrink-0 px-3 py-2.5 border border-solid rounded-md flex flex-col gap-1">
+				<aside className="md:w-80 md:shrink-0 px-3 py-2.5 border border-solid rounded-md flex flex-col gap-1">
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
-							<InfoIcon className="ml-2 text-content-secondary size-icon-sm" />
+							<InfoIcon className="ml-2 text-content-secondary size-icon-xs" />
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && <Loader className="my-4" />}

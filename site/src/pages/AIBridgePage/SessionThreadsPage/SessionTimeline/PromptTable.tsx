@@ -31,7 +31,7 @@ export const PromptTable: FC<PromptTableProps> = ({
 	return (
 		<dl
 			className={cn(
-				"text-sm text-content-secondary m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-center",
+				"text-sm text-content-secondary font-normal m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-center",
 				"[&_dt]:whitespace-nowrap py-1",
 				"[&_dt]:pr-4 [&_dt]:flex [&_dt]:items-center [&_dt]:h-6",
 				"[&_dd]:m-0 [&_dd]:min-w-0 [&_dd]:h-6",

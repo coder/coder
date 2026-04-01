@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { infiniteSessionThreads } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -12,6 +12,7 @@ import { SessionThreadsPageView } from "./SessionThreadsPageView";
 const SessionThreadsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
+	const navigate = useNavigate();
 
 	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
 		entitlements,
@@ -44,6 +45,7 @@ const SessionThreadsPage: FC = () => {
 				onFetchNextPage={sessionQuery.fetchNextPage}
 				isAISessionsEnabled={isEnabled}
 				isAISessionsEntitled={isEntitled}
+				onBackClicked={() => navigate(-1)}
 			/>
 		</RequirePermission>
 	);
