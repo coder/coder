@@ -76,6 +76,10 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 
 	// In controlled mode, derive the displayed selection from the
 	// prop so we never need to sync prop → state via an effect.
+	// Note: when `check` is also provided, options may be empty
+	// until permissions load, causing a brief placeholder flash.
+	// The follow-up refactor (passing the full Organization object
+	// instead of just an ID) will eliminate this.
 	const displayedSelection = organizationId
 		? (options.find((o) => o.id === organizationId) ?? null)
 		: selected;
@@ -140,7 +144,12 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
 									onSelect={() => {
-										setSelected(org);
+										// Only update internal state in uncontrolled mode.
+										// In controlled mode, displayedSelection is derived
+										// from the organizationId prop.
+										if (!organizationId) {
+											setSelected(org);
+										}
 										onChange(org);
 										setOpen(false);
 									}}
