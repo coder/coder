@@ -89,7 +89,7 @@ func TestTruncateLabel(t *testing.T) {
 		{name: "NegativeMaxLen", input: "hello", maxLen: -1, want: ""},
 		{name: "ZeroMaxLen", input: "hello", maxLen: 0, want: ""},
 		{name: "SingleRuneLimit", input: "hello", maxLen: 1, want: "…"},
-		{name: "MultipleWhitespaceRuns", input: "  hello   world  	 again  ", maxLen: 100, want: "hello world again"},
+		{name: "MultipleWhitespaceRuns", input: "  hello   world  \t again  ", maxLen: 100, want: "hello world again"},
 		{name: "UnicodeRunes", input: "こんにちは世界", maxLen: 3, want: "こん…"},
 	}
 
