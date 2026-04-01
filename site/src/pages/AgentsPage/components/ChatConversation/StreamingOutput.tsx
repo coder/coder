@@ -1,7 +1,13 @@
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConversationItem, Message, MessageContent } from "../ChatElements";
+import {
+	ConversationItem,
+	Message,
+	MessageContent,
+	Response,
+	Shimmer,
+} from "../ChatElements";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -19,6 +25,26 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
  */
 const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 	blocks.some((b) => b.type === "response" || b.type === "thinking");
+
+/**
+ * Stateless "Thinking..." shimmer used during the streaming phase
+ * when no text or reasoning blocks have arrived yet. Unlike the
+ * `StartingPlaceholder` in `ChatStatusCallout`, this has no
+ * delayed-startup timer — the streaming phase is transient and
+ * will be replaced as soon as real content arrives.
+ */
+const StreamingThinkingPlaceholder: FC = () => (
+	<div className="relative">
+		<Response aria-hidden className="invisible select-none">
+			Thinking...
+		</Response>
+		<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
+			<Shimmer as="div" className="text-[13px] leading-relaxed">
+				Thinking...
+			</Shimmer>
+		</div>
+	</div>
+);
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
@@ -66,16 +92,6 @@ export const StreamingOutput: FC<{
 		return null;
 	}
 
-	// When we need the thinking indicator during streaming, present
-	// a synthetic "starting" status so ChatStatusCallout renders
-	// the shimmer placeholder rather than returning null.
-	const calloutStatus: LiveStatusModel = needsStreamingThinking
-		? {
-				phase: "starting",
-				hasAccumulatedOutput: liveStatus.hasAccumulatedOutput,
-			}
-		: liveStatus;
-
 	const conversationItemProps = { role: "assistant" as const };
 
 	return (
@@ -96,9 +112,12 @@ export const StreamingOutput: FC<{
 								mcpServers={mcpServers}
 							/>
 						)}
-						{shouldShowStatusCallout && (
+						{needsStreamingThinking && (
+							<StreamingThinkingPlaceholder />
+						)}
+						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
 							<ChatStatusCallout
-								status={calloutStatus}
+								status={liveStatus}
 								startingResetKey={startingResetKey}
 							/>
 						)}
