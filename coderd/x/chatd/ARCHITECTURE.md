@@ -28,13 +28,13 @@ flowchart TB
     WA["Workspace Agent<br/><small>shell · files · desktop</small>"]
 
     %% ── Persistence ──────────────────────────────────────
-    DB[("PostgreSQL<br/><small>chats · chat_messages<br/>chat_files · chat_model_configs<br/>chat_providers · chat_queued_messages</small>")]
+    DB[("PostgreSQL<br/><small>chats · chat_messages<br/>chat_files · chat_model_configs<br/>chat_providers · chat_queued_messages<br/>chat_diff_statuses · mcp_server_configs</small>")]
     PS(["Pubsub<br/><small>cross-replica events</small>"])
 
     %% ── API layer ────────────────────────────────────────
     subgraph API ["coderd HTTP API"]
         REST["REST Handlers<br/><small>/api/experimental/chats/*</small>"]
-        SSE["SSE Streams<br/><small>watchChat · watchChats</small>"]
+        WS["WebSocket Streams<br/><small>watchChat · watchChats</small>"]
     end
 
     %% ── chatd Server ─────────────────────────────────────
@@ -98,10 +98,10 @@ flowchart TB
 
     %% ── Connections ──────────────────────────────────────
     User -->|"send message<br/>create chat"| REST
-    User <-.->|"stream events"| SSE
+    User <-.->|"stream events"| WS
     REST -->|"insert message<br/>set status=pending"| DB
     REST -->|"notify"| PS
-    SSE <-.->|"subscribe"| PS
+    WS <-.->|"subscribe"| PS
 
     ACQ -->|"SELECT pending"| DB
     PERSIST -->|"INSERT messages"| DB
@@ -138,7 +138,7 @@ flowchart TB
 
     class User,LLM,MCP,WA external
     class DB,PS storage
-    class REST,SSE api
+    class REST,WS api
     class ACQ,HB,STALE,QUEUE,RC core
     class FT,ET,WT,CU,SA,MT,PT tool
     class CP,CV,CC,UL,QG support

@@ -68,8 +68,8 @@ Several cross-cutting topics recur throughout the system:
 
 - identity and authorization are partly request-scoped and partly performed by
   privileged helper actors,
-- chat-to-workspace binding is durable only at the workspace level, not the
-  agent level,
+- chat-to-workspace binding is durable at the workspace and agent levels,
+  though `agent_id` functions as an optimistic cache rather than a stable identity,
 - realtime delivery mixes durable and non-durable events,
 - configuration exists at deployment, user, group, chat, message, and
   browser-local layers, and
@@ -174,7 +174,7 @@ surfaces and assumes the backend is the source of truth.
   - `coderd/exp_chats.go`
   - `coderd/database/dbauthz/dbauthz.go`
   - `coderd/httpmw/chatparam.go`
-  - `site/src/pages/AgentsPage/components/ChatConversation/ChatAccessDeniedAlert.tsx`
+  - `site/src/pages/AgentsPage/components/ChatAccessDeniedAlert.tsx`
     (shown when a user lacks the `agents-access` role)
 
 ## Chat/workspace binding and lifecycle
@@ -370,7 +370,7 @@ terminal failure states from one source of truth.
 
 - Backend appendix section: `Streaming Architecture`
 - Frontend appendix sections:
-  - `Chat Store (`chatStore.ts`)`
+  - `Chat Store`
   - `Realtime Reconciliation Model`
 - Representative files:
   - `coderd/x/chatd/chatd.go`
@@ -463,7 +463,7 @@ users, while other deployment-wide settings remain admin-only even for reads.
 - Backend appendix section: `Configuration Layers and Ownership`
 - Frontend appendix sections:
   - `Configuration Sources the UI Must Reconcile`
-  - `Admin Settings (`AgentSettingsPageView`)`
+  - `Admin Settings`
 - Representative files:
   - `coderd/exp_chats.go`
   - `coderd/mcp.go`

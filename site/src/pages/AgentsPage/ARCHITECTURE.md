@@ -115,8 +115,8 @@ AgentEmbedPage (iframe wrapper with theme sync + navigation blocking)
 ### Real-time updates
 
 Primary real-time connections:
-1. **`watchChats()`** — global, owned by `AgentsPage`. Receives status, title,
-   and diff_status changes for all chats. Updates the sidebar in real time.
+1. **`watchChats()`** — global, owned by `AgentsPage`. Receives created, deleted, status_change,
+   title_change, and diff_status_change events for the authenticated user's chats (owner-scoped).
 2. **`watchChat(chatId)`** — per-chat, owned by `useChatStore` inside
    `AgentChatPage`. Receives `message_part`, `message`, `status`, `error`,
    `retry`, and `queue_update` events.
