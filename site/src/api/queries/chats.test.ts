@@ -9,10 +9,14 @@ import {
 	chatCostSummaryKey,
 	chatCostUsers,
 	chatCostUsersKey,
+	chatDebugLogging,
+	chatDebugRun,
+	chatDebugRuns,
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
 	chatsKey,
+	chatUserDebugLogging,
 	createChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -26,6 +30,8 @@ import {
 	reorderPinnedChat,
 	unarchiveChat,
 	unpinChat,
+	updateChatDebugLogging,
+	updateChatUserDebugLogging,
 	updateInfiniteChatsCache,
 } from "./chats";
 
@@ -38,6 +44,12 @@ vi.mock("#/api/api", () => ({
 			getChats: vi.fn(),
 			getChatCostSummary: vi.fn(),
 			getChatCostUsers: vi.fn(),
+			getChatDebugLogging: vi.fn(),
+			updateChatDebugLogging: vi.fn(),
+			getChatUserDebugLogging: vi.fn(),
+			updateChatUserDebugLogging: vi.fn(),
+			getChatDebugRuns: vi.fn(),
+			getChatDebugRun: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -106,6 +118,116 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+describe("chat debug queries", () => {
+	it("builds the expected chat debug logging query", async () => {
+		const settings = {
+			debug_logging_enabled: true,
+		} satisfies TypesGen.ChatDebugSettings;
+		vi.mocked(API.experimental.getChatDebugLogging).mockResolvedValue(settings);
+
+		const query = chatDebugLogging();
+
+		expect(query.queryKey).toEqual(["chatDebugLogging"]);
+		await expect(query.queryFn()).resolves.toEqual(settings);
+	});
+
+	it("invalidates chat debug logging after updates", async () => {
+		const queryClient = createTestQueryClient();
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const req = {
+			debug_logging_enabled: true,
+		} satisfies TypesGen.UpdateChatDebugLoggingRequest;
+		vi.mocked(API.experimental.updateChatDebugLogging).mockResolvedValue();
+
+		const mutation = updateChatDebugLogging(queryClient);
+		await expect(mutation.mutationFn(req)).resolves.toBeUndefined();
+		await mutation.onSuccess();
+
+		expect(API.experimental.updateChatDebugLogging).toHaveBeenCalledWith(req);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["chatDebugLogging"],
+		});
+	});
+
+	it("builds the expected chat user debug logging query", async () => {
+		const settings = {
+			debug_logging_enabled: false,
+		} satisfies TypesGen.ChatDebugSettings;
+		vi.mocked(API.experimental.getChatUserDebugLogging).mockResolvedValue(
+			settings,
+		);
+
+		const query = chatUserDebugLogging();
+
+		expect(query.queryKey).toEqual(["chatUserDebugLogging"]);
+		await expect(query.queryFn()).resolves.toEqual(settings);
+	});
+
+	it("invalidates chat user debug logging after updates", async () => {
+		const queryClient = createTestQueryClient();
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const req = {
+			debug_logging_enabled: false,
+		} satisfies TypesGen.UpdateChatDebugLoggingRequest;
+		vi.mocked(API.experimental.updateChatUserDebugLogging).mockResolvedValue();
+
+		const mutation = updateChatUserDebugLogging(queryClient);
+		await expect(mutation.mutationFn(req)).resolves.toBeUndefined();
+		await mutation.onSuccess();
+
+		expect(API.experimental.updateChatUserDebugLogging).toHaveBeenCalledWith(
+			req,
+		);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["chatUserDebugLogging"],
+		});
+	});
+
+	it("builds the expected chat debug runs query", async () => {
+		const chatId = "chat-1";
+		const runs = [
+			{
+				id: "run-1",
+				chat_id: chatId,
+				kind: "message",
+				status: "running",
+				summary: {},
+				started_at: "2025-01-01T00:00:00.000Z",
+				updated_at: "2025-01-01T00:00:00.000Z",
+			},
+		] satisfies TypesGen.ChatDebugRunSummary[];
+		vi.mocked(API.experimental.getChatDebugRuns).mockResolvedValue(runs);
+
+		const query = chatDebugRuns(chatId);
+
+		expect(query.queryKey).toEqual(["chats", chatId, "debug-runs"]);
+		expect(query.refetchInterval).toBe(5_000);
+		expect(query.refetchIntervalInBackground).toBe(false);
+		await expect(query.queryFn()).resolves.toEqual(runs);
+	});
+
+	it("builds the expected chat debug run query", async () => {
+		const chatId = "chat-1";
+		const runId = "run-1";
+		const run = {
+			id: runId,
+			chat_id: chatId,
+			kind: "message",
+			status: "running",
+			summary: {},
+			started_at: "2025-01-01T00:00:00.000Z",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			steps: [],
+		} satisfies TypesGen.ChatDebugRun;
+		vi.mocked(API.experimental.getChatDebugRun).mockResolvedValue(run);
+
+		const query = chatDebugRun(chatId, runId);
+
+		expect(query.queryKey).toEqual(["chats", chatId, "debug-runs", runId]);
+		await expect(query.queryFn()).resolves.toEqual(run);
+	});
+});
 
 describe("invalidateChatListQueries", () => {
 	it("invalidates flat and infinite chat list queries", async () => {

@@ -1201,6 +1201,11 @@ export interface Chat {
 	 */
 	readonly has_unread: boolean;
 	/**
+	 * DebugLogsEnabledOverride overrides debug logging for this
+	 * chat when set.
+	 */
+	readonly debug_logs_enabled_override?: boolean;
+	/**
 	 * LastInjectedContext holds the most recently persisted
 	 * injected context parts (AGENTS.md files and skills). It
 	 * is updated only when context changes — first workspace
@@ -1341,6 +1346,105 @@ export interface ChatCostUsersResponse {
 	readonly end_date: string;
 	readonly count: number;
 	readonly users: readonly ChatCostUserRollup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugAttempt is a single LLM attempt within a step.
+ * Kept opaque for now — the attempts field on ChatDebugStep
+ * is json.RawMessage.
+ */
+export interface ChatDebugAttempt {
+	readonly attempt_number: number;
+	readonly status: string;
+	readonly raw_request?: Record<string, string>;
+	readonly raw_response?: Record<string, string>;
+	readonly error?: Record<string, string>;
+	readonly duration_ms?: number;
+	readonly started_at: string;
+	readonly finished_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugEvent is a forward-compatible SSE event type for future
+ * live debug streaming. No transport is wired in this phase.
+ */
+export interface ChatDebugEvent {
+	readonly type: string;
+	readonly data: Record<string, string>;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugRun is the detailed run response including steps.
+ */
+export interface ChatDebugRun {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly root_chat_id?: string;
+	readonly parent_chat_id?: string;
+	readonly model_config_id?: string;
+	readonly trigger_message_id?: number;
+	readonly history_tip_message_id?: number;
+	readonly kind: string;
+	readonly status: string;
+	readonly provider?: string;
+	readonly model?: string;
+	readonly summary: Record<string, string>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+	readonly steps: readonly ChatDebugStep[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugRunSummary is a lightweight run entry for list endpoints.
+ */
+export interface ChatDebugRunSummary {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly kind: string;
+	readonly status: string;
+	readonly provider?: string;
+	readonly model?: string;
+	readonly summary: Record<string, string>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugSettings is the response for getting the debug logging setting.
+ */
+export interface ChatDebugSettings {
+	readonly debug_logging_enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatDebugStep is a single step within a debug run.
+ */
+export interface ChatDebugStep {
+	readonly id: string;
+	readonly run_id: string;
+	readonly chat_id: string;
+	readonly step_number: number;
+	readonly operation: string;
+	readonly status: string;
+	readonly history_tip_message_id?: number;
+	readonly assistant_message_id?: number;
+	readonly normalized_request: Record<string, string>;
+	readonly normalized_response?: Record<string, string>;
+	readonly usage?: Record<string, string>;
+	readonly attempts: Record<string, string>;
+	readonly error?: Record<string, string>;
+	readonly metadata: Record<string, string>;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly finished_at?: string;
 }
 
 // From codersdk/chats.go
@@ -7119,6 +7223,14 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatDebugLoggingRequest is the request to update the debug logging setting.
+ */
+export interface UpdateChatDebugLoggingRequest {
+	readonly debug_logging_enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
  */
 export interface UpdateChatDesktopEnabledRequest {
@@ -7171,6 +7283,7 @@ export interface UpdateChatRequest {
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+	readonly debug_logs_enabled_override?: boolean;
 }
 
 // From codersdk/chats.go
