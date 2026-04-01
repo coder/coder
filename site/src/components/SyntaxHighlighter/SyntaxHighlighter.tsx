@@ -103,6 +103,13 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 					original={compareWith}
 					modified={value}
 					{...commonProps}
+					// Let the editor dispose handle model cleanup.
+					// Without this, @monaco-editor/react disposes
+					// models before the DiffEditorWidget, which
+					// throws "TextModel got disposed before
+					// DiffEditorWidget model got reset".
+					keepCurrentOriginalModel
+					keepCurrentModifiedModel
 					onMount={handleDiffEditorMount}
 				/>
 			) : (
