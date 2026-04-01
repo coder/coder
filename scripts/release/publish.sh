@@ -73,6 +73,10 @@ while true; do
 	esac
 done
 
+if [[ "$stable" == 1 ]] && [[ "$rc" == 1 ]]; then
+	error "Cannot specify both --stable and --rc"
+fi
+
 # Check dependencies
 dependencies gh
 
