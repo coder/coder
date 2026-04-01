@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -1317,11 +1318,25 @@ func isContextLimitKey(key string) bool {
 		return true
 	}
 
-	return strings.Contains(normalized, "context") &&
-		(strings.Contains(normalized, "limit") ||
-			strings.Contains(normalized, "window") ||
-			strings.Contains(normalized, "length") ||
-			strings.HasPrefix(normalized, "max"))
+	words := metadataKeyWords(key)
+	if !slices.Contains(words, "context") {
+		return false
+	}
+
+	if slices.Contains(words, "limit") {
+		return true
+	}
+
+	if slices.Contains(words, "window") {
+		return slices.Contains(words, "size") || slices.Contains(words, "max")
+	}
+
+	if slices.Contains(words, "length") {
+		return slices.Contains(words, "max")
+	}
+
+	return (slices.Contains(words, "token") || slices.Contains(words, "tokens")) &&
+		(slices.Contains(words, "max") || slices.Contains(words, "limit"))
 }
 
 func normalizeMetadataKey(key string) string {
@@ -1340,6 +1355,40 @@ func normalizeMetadataKey(key string) string {
 	}
 
 	return b.String()
+}
+
+func metadataKeyWords(key string) []string {
+	words := make([]string, 0, 4)
+	var current strings.Builder
+
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		words = append(words, current.String())
+		current.Reset()
+	}
+
+	var prev rune
+	var hasPrev bool
+	for _, r := range key {
+		if !unicode.IsLetter(r) {
+			flush()
+			hasPrev = false
+			continue
+		}
+
+		if hasPrev && unicode.IsUpper(r) && unicode.IsLower(prev) {
+			flush()
+		}
+
+		_, _ = current.WriteRune(unicode.ToLower(r))
+		prev = r
+		hasPrev = true
+	}
+
+	flush()
+	return words
 }
 
 func numericContextLimitValue(value any) (int64, bool) {
