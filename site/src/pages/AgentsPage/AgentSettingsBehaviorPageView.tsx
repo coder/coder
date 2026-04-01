@@ -130,7 +130,7 @@ export const AgentSettingsBehaviorPageView: FC<
 	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
 		useState(false);
 	const kylesophyForced = isKylesophyForced();
-	const [kylesophyEnabled, setLocalKyleosophy] = useState(getKylesophyEnabled);
+	const [kylesophyEnabled, setLocalKylesophy] = useState(getKylesophyEnabled);
 
 	// ── Derived state ──
 	const hasLoadedSystemPrompt = systemPromptData !== undefined;
@@ -536,7 +536,7 @@ export const AgentSettingsBehaviorPageView: FC<
 						checked={kylesophyEnabled}
 						onCheckedChange={(checked) => {
 							setKylesophyEnabled(checked);
-							setLocalKyleosophy(checked);
+							setLocalKylesophy(checked);
 						}}
 						aria-label="Enable Kyleosophy"
 						disabled={kylesophyForced}

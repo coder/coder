@@ -465,6 +465,7 @@ export const NoWarningForCleanPrompt: Story = {
 
 export const KylesophyToggle: Story = {
 	play: async ({ canvasElement }) => {
+		localStorage.removeItem("agents.kyleosophy");
 		const canvas = within(canvasElement);
 		await canvas.findByText("Kyleosophy");
 		await canvas.findByText(/Replace the standard completion chime/i);
@@ -477,6 +478,7 @@ export const KylesophyToggle: Story = {
 
 export const TogglesKyleosophy: Story = {
 	play: async ({ canvasElement }) => {
+		localStorage.removeItem("agents.kyleosophy");
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
 			name: "Enable Kyleosophy",
