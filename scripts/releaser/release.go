@@ -32,8 +32,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	var latestMainline *version
 	for _, t := range allTags {
 		if t.Pre == "" {
-			v := t
-			latestMainline = &v
+			latestMainline = &t
 			break
 		}
 	}
