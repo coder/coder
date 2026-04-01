@@ -12,7 +12,7 @@ export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
 export ANTHROPIC_AUTH_TOKEN="<your-coder-session-token>"
 ```
 
-## Personal API Key
+## BYOK (Personal API Key)
 
 ```bash
 # AI Bridge base URL.
@@ -28,7 +28,7 @@ export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-sessio
 unset ANTHROPIC_AUTH_TOKEN
 ```
 
-## Claude Subscription
+## BYOK (Claude Subscription)
 
 ```bash
 # AI Bridge base URL.

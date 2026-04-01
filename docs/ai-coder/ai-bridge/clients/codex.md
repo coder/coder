@@ -24,7 +24,7 @@ export OPENAI_API_KEY="<your-coder-session-token>"
 
 Run Codex as usual. It will automatically use the `aibridge` model provider from your configuration.
 
-## Personal API Key
+## BYOK (Personal API Key)
 
 Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
 
@@ -49,7 +49,7 @@ export OPENAI_API_KEY="<your-openai-api-key>"
 export CODER_SESSION_TOKEN="<your-coder-session-token>"
 ```
 
-## ChatGPT Subscription
+## BYOK (ChatGPT Subscription)
 
 Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
 
