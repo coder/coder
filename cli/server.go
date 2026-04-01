@@ -842,6 +842,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
+			aibridgeProviders, err := ReadAIBridgeProvidersFromEnv(os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read aibridge providers from env: %w", err)
+			}
+			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aibridgeProviders...)
+
 			// Manage push notifications.
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 			if experiments.Enabled(codersdk.ExperimentWebPush) || buildinfo.IsDev() {

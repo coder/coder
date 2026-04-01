@@ -5478,6 +5478,22 @@ func validateChatProviderAPIKeySize(apiKey string) error {
 	return nil
 }
 
+func chatProviderAPIKeysFromDeploymentValues(
+	deploymentValues *codersdk.DeploymentValues,
+) chatprovider.ProviderAPIKeys {
+	_ = deploymentValues
+	// For now, we'll just manage configs in the UI.
+	// We should probably not be reusing the AI bridge configs anyways.
+	return chatprovider.ProviderAPIKeys{
+		// OpenAI:    deploymentValues.AI.BridgeConfig.LegacyOpenAI.Key.Value(),
+		// Anthropic: deploymentValues.AI.BridgeConfig.LegacyAnthropic.Key.Value(),
+		// BaseURLByProvider: map[string]string{
+		// 	"openai":    deploymentValues.AI.BridgeConfig.LegacyOpenAI.BaseURL.Value(),
+		// 	"anthropic": deploymentValues.AI.BridgeConfig.LegacyAnthropic.BaseURL.Value(),
+		// },
+	}
+}
+
 //nolint:revive // This helper validates the explicit credential policy tuple.
 func validateChatProviderCredentialPolicy(
 	centralEnabled, allowUserKey, allowFallback bool,
