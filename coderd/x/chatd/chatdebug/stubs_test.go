@@ -1,8 +1,7 @@
-package chatdebug //nolint:testpackage // Branch-02 test shims need package-private names.
+package chatdebug //nolint:testpackage // Branch-03 test shims need package-private names.
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"unicode/utf8"
 
@@ -11,9 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// This branch-02 test compatibility shim forward-declares later branch
-// symbols needed for test compilation. Delete it once recorder.go,
-// transport.go, and redaction.go are available here.
+// This branch-03 test compatibility shim keeps the branch-02 stub model
+// needed by model_test.go until later stacked branches remove it.
 
 type stubModel struct {
 	provider string
@@ -91,7 +89,7 @@ func TestTruncateLabel(t *testing.T) {
 		{name: "NegativeMaxLen", input: "hello", maxLen: -1, want: ""},
 		{name: "ZeroMaxLen", input: "hello", maxLen: 0, want: ""},
 		{name: "SingleRuneLimit", input: "hello", maxLen: 1, want: "…"},
-		{name: "MultipleWhitespaceRuns", input: "  hello   world  \t again  ", maxLen: 100, want: "hello world again"},
+		{name: "MultipleWhitespaceRuns", input: "  hello   world  	 again  ", maxLen: 100, want: "hello world again"},
 		{name: "UnicodeRunes", input: "こんにちは世界", maxLen: 3, want: "こん…"},
 	}
 
@@ -111,26 +109,4 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
-}
-
-// RedactedValue replaces sensitive values in debug payloads.
-const RedactedValue = "[REDACTED]"
-
-// RecordingTransport is the branch-02 placeholder HTTP recording transport.
-type RecordingTransport struct {
-	Base http.RoundTripper
-}
-
-var _ http.RoundTripper = (*RecordingTransport)(nil)
-
-func (t *RecordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req == nil {
-		panic("chatdebug: nil request")
-	}
-
-	base := t.Base
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	return base.RoundTrip(req)
 }
