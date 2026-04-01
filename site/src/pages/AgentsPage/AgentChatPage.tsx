@@ -1,4 +1,4 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -82,6 +82,17 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
 /** @internal Exported for testing. */
+export function getPersistedDraftInputValue(
+	chatID: string | undefined,
+): string {
+	if (typeof window === "undefined" || !chatID) {
+		return "";
+	}
+
+	return localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`) ?? "";
+}
+
+/** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (
@@ -91,31 +102,35 @@ export function useConversationEditingState(deps: {
 	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
-	inputValueRef: React.RefObject<string>;
 }) {
-	const { chatID, onSend, onDeleteQueuedMessage, chatInputRef, inputValueRef } =
-		deps;
+	const { chatID, onSend, onDeleteQueuedMessage, chatInputRef } = deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
-	const [editorInitialValue, setEditorInitialValue] = useState(() => {
+	const getDraftBeforeEdit = () => {
+		const currentInputValue = chatInputRef.current?.getValue() ?? "";
+		if (currentInputValue) {
+			return currentInputValue;
+		}
+		// The editor seeds its initial value after paint, so the live editor can
+		// still be empty while the persisted draft already exists.
 		if (typeof window === "undefined" || !draftStorageKey) {
 			return "";
 		}
 		return localStorage.getItem(draftStorageKey) ?? "";
-	});
-
-	// Sync the ref with the initial draft value so callers that
-	// read inputValueRef.current see the persisted draft. Uses a
-	// layout effect so the value is available before paint.
-	const initialSyncDone = useRef(false);
-	useLayoutEffect(() => {
-		if (!initialSyncDone.current && editorInitialValue) {
-			initialSyncDone.current = true;
-			(inputValueRef as React.MutableRefObject<string>).current =
-				editorInitialValue;
+	};
+	const replaceInputValue = (content: string) => {
+		chatInputRef.current?.setValue(content);
+	};
+	const focusInputIfDesktop = () => {
+		if (!isMobileViewport()) {
+			chatInputRef.current?.focus();
 		}
-	}, [editorInitialValue, inputValueRef]);
+	};
+	const replaceInputValueAndFocus = (content: string) => {
+		replaceInputValue(content);
+		focusInputIfDesktop();
+	};
 
 	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
@@ -132,24 +147,19 @@ export function useConversationEditingState(deps: {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => {
 		setDraftBeforeHistoryEdit((prev) =>
-			editingMessageId !== null ? prev : inputValueRef.current,
+			editingMessageId !== null ? prev : getDraftBeforeEdit(),
 		);
 		setEditingMessageId(messageId);
-		setEditorInitialValue(text);
-		inputValueRef.current = text;
+		replaceInputValueAndFocus(text);
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
 	const handleCancelHistoryEdit = () => {
-		setEditorInitialValue(draftBeforeHistoryEdit ?? "");
-		inputValueRef.current = draftBeforeHistoryEdit ?? "";
+		const draft = draftBeforeHistoryEdit ?? "";
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
-		chatInputRef.current?.clear();
-		if (draftBeforeHistoryEdit) {
-			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
-		}
+		replaceInputValue(draft);
 	};
 
 	// -- Queue editing state --
@@ -166,20 +176,19 @@ export function useConversationEditingState(deps: {
 		fileBlocks: readonly ChatMessagePart[],
 	) => {
 		setDraftBeforeQueueEdit((prev) =>
-			editingQueuedMessageID === null ? inputValueRef.current : prev,
+			editingQueuedMessageID === null ? getDraftBeforeEdit() : prev,
 		);
 		setEditingQueuedMessageID(id);
-		setEditorInitialValue(text);
-		inputValueRef.current = text;
+		replaceInputValueAndFocus(text);
 		setEditingFileBlocks(fileBlocks);
 	};
 
 	const handleCancelQueueEdit = () => {
-		setEditorInitialValue(draftBeforeQueueEdit ?? "");
-		inputValueRef.current = draftBeforeQueueEdit ?? "";
+		const draft = draftBeforeQueueEdit ?? "";
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
 		setEditingFileBlocks([]);
+		replaceInputValue(draft);
 	};
 
 	// Wraps the parent onSend to clear local input/editing state
@@ -192,10 +201,7 @@ export function useConversationEditingState(deps: {
 		await onSend(message, fileIds, editedMessageID);
 		// Clear input and editing state on success.
 		chatInputRef.current?.clear();
-		if (!isMobileViewport()) {
-			chatInputRef.current?.focus();
-		}
-		inputValueRef.current = "";
+		focusInputIfDesktop();
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
@@ -213,7 +219,6 @@ export function useConversationEditingState(deps: {
 	};
 
 	const handleContentChange = (content: string) => {
-		inputValueRef.current = content;
 		if (draftStorageKey) {
 			if (content) {
 				localStorage.setItem(draftStorageKey, content);
@@ -224,9 +229,7 @@ export function useConversationEditingState(deps: {
 	};
 
 	return {
-		inputValueRef,
 		chatInputRef,
-		editorInitialValue,
 		editingMessageId,
 		editingFileBlocks,
 		handleEditUserMessage,
@@ -357,10 +360,10 @@ const AgentChatPage: FC = () => {
 	>(null);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
-	const inputValueRef = useRef(
-		agentId
-			? (localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`) ?? "")
-			: "",
+	// Read once on mount — agentId is stable because KeyedAgentChatPage
+	// remounts the entire component when the route param changes.
+	const [initialInputValue] = useState(() =>
+		getPersistedDraftInputValue(agentId),
 	);
 
 	// Right panel open/closed state is owned here so the loading
@@ -607,13 +610,15 @@ const AgentChatPage: FC = () => {
 
 	const handleCommit = (repoRoot: string) => {
 		const commitPrompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
-		const current = inputValueRef.current;
+		const current = chatInputRef.current?.getValue() ?? "";
 		if (current.includes(commitPrompt)) {
 			return;
 		}
 		const prefix = current.trim() ? "\n\n" : "";
 		chatInputRef.current?.insertText(prefix + commitPrompt);
-		chatInputRef.current?.focus();
+		if (!isMobileViewport()) {
+			chatInputRef.current?.focus();
+		}
 	};
 
 	// Prefer the explicit PR number from the API, and only fall back to URL
@@ -863,7 +868,6 @@ const AgentChatPage: FC = () => {
 		onSend: handleSend,
 		onDeleteQueuedMessage: handleDeleteQueuedMessage,
 		chatInputRef,
-		inputValueRef,
 	});
 
 	const chatTitle = chatQuery.data?.title;
@@ -1031,6 +1035,7 @@ const AgentChatPage: FC = () => {
 			isArchived={isArchived}
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
+			initialInputValue={initialInputValue}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}
 			effectiveSelectedModel={effectiveSelectedModel}

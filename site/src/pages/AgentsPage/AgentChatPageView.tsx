@@ -31,7 +31,6 @@ type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
-	editorInitialValue: string;
 	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
@@ -66,6 +65,9 @@ interface AgentChatPageViewProps {
 	// Editing state.
 	editing: EditingState;
 	pendingEditMessageId: number | null;
+
+	// Input configuration.
+	initialInputValue: string;
 
 	// Model/input configuration.
 	effectiveSelectedModel: string;
@@ -151,6 +153,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	store,
 	editing,
 	pendingEditMessageId,
+	initialInputValue,
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
@@ -335,7 +338,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							modelSelectorPlaceholder={modelSelectorPlaceholder}
 							isModelCatalogLoading={isModelCatalogLoading}
 							inputRef={editing.chatInputRef}
-							initialValue={editing.editorInitialValue}
+							initialInputValue={initialInputValue}
 							onContentChange={editing.handleContentChange}
 							editingQueuedMessageID={editing.editingQueuedMessageID}
 							onStartQueueEdit={editing.handleStartQueueEdit}

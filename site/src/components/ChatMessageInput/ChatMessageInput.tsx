@@ -11,7 +11,6 @@ import {
 	$createTextNode,
 	$getRoot,
 	$getSelection,
-	$insertNodes,
 	$isRangeSelection,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
@@ -95,6 +94,28 @@ function insertPlainTextIntoEditor(editor: LexicalEditor, text: string) {
 			root.append(paragraph);
 			textNode.selectEnd();
 		}
+	});
+}
+
+function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
+	editor.update(() => {
+		const root = $getRoot();
+		root.clear();
+		const paragraph = $createParagraphNode();
+		root.append(paragraph);
+		if (!text) {
+			paragraph.select();
+			return;
+		}
+		paragraph.select();
+		const selection = $getSelection();
+		if ($isRangeSelection(selection)) {
+			selection.insertText(text);
+			return;
+		}
+		const textNode = $createTextNode(text);
+		paragraph.append(textNode);
+		textNode.selectEnd();
 	});
 }
 
@@ -296,35 +317,6 @@ const ContentChangePlugin: FC<{
 	return null;
 });
 
-// Seeds the editor with an initial value on first mount.
-const ValueSyncPlugin: FC<{ initialValue?: string }> = memo(
-	function ValueSyncPlugin({ initialValue }) {
-		const [editor] = useLexicalComposerContext();
-		const hasInitialized = useRef(false);
-
-		useEffect(() => {
-			if (!hasInitialized.current && initialValue !== undefined) {
-				hasInitialized.current = true;
-
-				if (initialValue === "") {
-					return;
-				}
-
-				editor.update(() => {
-					const root = $getRoot();
-					root.clear();
-					const paragraph = $createParagraphNode();
-					const textNode = $createTextNode(initialValue);
-					paragraph.append(textNode);
-					root.append(paragraph);
-				});
-			}
-		}, [editor, initialValue]);
-
-		return null;
-	},
-);
-
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
 const InsertTextPlugin: FC<{
@@ -361,6 +353,10 @@ type EditorContentPart =
 	  };
 
 export interface ChatMessageInputRef {
+	/**
+	 * Replace the editor's plain-text content in a single Lexical update.
+	 */
+	setValue: (text: string) => void;
 	insertText: (text: string) => void;
 	clear: () => void;
 	focus: () => void;
@@ -444,13 +440,37 @@ const ChatMessageInput = memo(
 		);
 
 		const editorRef = useRef<LexicalEditor | null>(null);
+		const lastKnownValueRef = useRef(initialValue ?? "");
+		const pendingReplacementRef = useRef<string | null>(null);
+
+		const replaceValueOrQueue = useCallback((text: string) => {
+			lastKnownValueRef.current = text;
+			const editor = editorRef.current;
+			if (!editor) {
+				pendingReplacementRef.current = text;
+				return;
+			}
+			pendingReplacementRef.current = null;
+			replacePlainTextInEditor(editor, text);
+		}, []);
 
 		const handleEditorReady = useCallback((editor: LexicalEditor) => {
 			editorRef.current = editor;
+			const pendingReplacement = pendingReplacementRef.current;
+			if (pendingReplacement !== null) {
+				pendingReplacementRef.current = null;
+				replacePlainTextInEditor(editor, pendingReplacement);
+				return;
+			}
+			const initialText = lastKnownValueRef.current;
+			if (initialText) {
+				replacePlainTextInEditor(editor, initialText);
+			}
 		}, []);
 
 		const handleContentChange = useCallback(
 			(content: string, hasFileReferences: boolean) => {
+				lastKnownValueRef.current = content;
 				onChange?.(content, hasFileReferences);
 			},
 			[onChange],
@@ -459,51 +479,17 @@ const ChatMessageInput = memo(
 		useImperativeHandle(
 			ref,
 			() => ({
+				setValue: (text: string) => {
+					replaceValueOrQueue(text);
+				},
 				insertText: (text: string) => {
 					const editor = editorRef.current;
 					if (!editor) return;
 
-					editor.update(() => {
-						const selection = $getSelection();
-						if ($isRangeSelection(selection)) {
-							const textNode = $createTextNode(text);
-							$insertNodes([textNode]);
-							textNode.selectEnd();
-						} else {
-							const root = $getRoot();
-							const lastChild = root.getLastChild();
-							if (lastChild) {
-								if (lastChild.getType() === "paragraph") {
-									const paragraph = lastChild as ParagraphNode;
-									const textNode = $createTextNode(text);
-									paragraph.append(textNode);
-									textNode.selectEnd();
-								} else {
-									const textNode = $createTextNode(text);
-									lastChild.insertAfter(textNode);
-									textNode.selectEnd();
-								}
-							} else {
-								const paragraph = $createParagraphNode();
-								const textNode = $createTextNode(text);
-								paragraph.append(textNode);
-								root.append(paragraph);
-								textNode.selectEnd();
-							}
-						}
-					});
+					insertPlainTextIntoEditor(editor, text);
 				},
 				clear: () => {
-					const editor = editorRef.current;
-					if (!editor) return;
-
-					editor.update(() => {
-						const root = $getRoot();
-						root.clear();
-						const paragraph = $createParagraphNode();
-						root.append(paragraph);
-						paragraph.select();
-					});
+					replaceValueOrQueue("");
 				},
 				focus: () => {
 					const editor = editorRef.current;
@@ -524,7 +510,9 @@ const ChatMessageInput = memo(
 				},
 				getValue: () => {
 					const editor = editorRef.current;
-					if (!editor) return "";
+					if (!editor) {
+						return lastKnownValueRef.current;
+					}
 					let content = "";
 					editor.getEditorState().read(() => {
 						content = $getRoot().getTextContent();
@@ -600,11 +588,11 @@ const ChatMessageInput = memo(
 					return parts;
 				},
 			}),
-			[],
+			[replaceValueOrQueue],
 		);
 
 		return (
-			<LexicalComposer initialConfig={initialConfig} key={initialValue}>
+			<LexicalComposer initialConfig={initialConfig}>
 				<div
 					className={cn(
 						"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-none whitespace-pre-wrap break-words [&>*]:col-start-1 [&>*]:row-start-1",
@@ -639,7 +627,6 @@ const ChatMessageInput = memo(
 					/>
 					<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
 					<ContentChangePlugin onChange={handleContentChange} />
-					<ValueSyncPlugin initialValue={initialValue} />
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
 					<EditableStatePlugin disabled={!!disabled} />
 					{autoFocus && <AutoFocusPlugin />}

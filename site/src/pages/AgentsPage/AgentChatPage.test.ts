@@ -3,9 +3,86 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	draftInputStorageKeyPrefix,
+	getPersistedDraftInputValue,
 	useConversationEditingState,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+
+type MockChatInputHandle = {
+	handle: ChatMessageInputRef;
+	setValue: ReturnType<typeof vi.fn>;
+	clear: ReturnType<typeof vi.fn>;
+	focus: ReturnType<typeof vi.fn>;
+	getValue: ReturnType<typeof vi.fn>;
+	currentValue: { value: string };
+};
+
+const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
+	const currentValue = { value: initialValue };
+	const setValue = vi.fn((text: string) => {
+		currentValue.value = text;
+	});
+	const clear = vi.fn(() => {
+		currentValue.value = "";
+	});
+	const focus = vi.fn();
+	const getValue = vi.fn(() => currentValue.value);
+
+	return {
+		handle: {
+			setValue,
+			insertText: vi.fn(),
+			clear,
+			focus,
+			getValue,
+			addFileReference: vi.fn(),
+			getContentParts: vi.fn(() => []),
+		},
+		setValue,
+		clear,
+		focus,
+		getValue,
+		currentValue,
+	};
+};
+
+const setMobileViewport = (isMobile: boolean) => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn((query: string): MediaQueryList => {
+			return {
+				matches: query === "(max-width: 639px)" ? isMobile : false,
+				media: query,
+				onchange: null,
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+				dispatchEvent: vi.fn(() => true),
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+			} as MediaQueryList;
+		}),
+	});
+};
+
+describe("getPersistedDraftInputValue", () => {
+	const chatID = "chat-abc-123";
+	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
+
+	beforeEach(() => {
+		localStorage.clear();
+		setMobileViewport(false);
+	});
+
+	it("reads the initial value from localStorage for a given chatID", () => {
+		localStorage.setItem(expectedKey, "saved draft");
+
+		expect(getPersistedDraftInputValue(chatID)).toBe("saved draft");
+	});
+
+	it("returns empty string when localStorage has no draft", () => {
+		expect(getPersistedDraftInputValue(chatID)).toBe("");
+	});
+});
 
 describe("useConversationEditingState", () => {
 	const chatID = "chat-abc-123";
@@ -13,144 +90,212 @@ describe("useConversationEditingState", () => {
 
 	beforeEach(() => {
 		localStorage.clear();
+		setMobileViewport(false);
 	});
 
-	const renderEditing = (id: string | undefined = chatID) => {
+	const renderEditing = () => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
-		const inputValueRef: import("react").RefObject<string> = { current: "" };
 
 		const hook = renderHook(() =>
 			useConversationEditingState({
-				chatID: id,
+				chatID,
 				onSend,
 				onDeleteQueuedMessage,
 				chatInputRef,
-				inputValueRef,
 			}),
 		);
 
-		return { ...hook, onSend, onDeleteQueuedMessage };
+		return { ...hook, onSend };
 	};
 
-	it("reads the initial value from localStorage for a given chatID", () => {
-		localStorage.setItem(expectedKey, "saved draft");
-
-		const { result, unmount } = renderEditing();
-
-		expect(result.current.editorInitialValue).toBe("saved draft");
-		expect(result.current.inputValueRef.current).toBe("saved draft");
-		unmount();
-	});
-
-	it("returns empty string when localStorage has no draft", () => {
-		const { result, unmount } = renderEditing();
-
-		expect(result.current.editorInitialValue).toBe("");
-		expect(result.current.inputValueRef.current).toBe("");
-		unmount();
-	});
-
-	it("writes content to localStorage via handleContentChange", () => {
+	it("persists and removes drafts via handleContentChange", () => {
 		const { result, unmount } = renderEditing();
 
 		act(() => {
 			result.current.handleContentChange("work in progress");
 		});
-
 		expect(localStorage.getItem(expectedKey)).toBe("work in progress");
-		expect(result.current.inputValueRef.current).toBe("work in progress");
-		unmount();
-	});
-
-	it("removes the draft key when handleContentChange receives empty string", () => {
-		localStorage.setItem(expectedKey, "old draft");
-		const { result, unmount } = renderEditing();
 
 		act(() => {
 			result.current.handleContentChange("");
 		});
-
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+
 		unmount();
 	});
 
-	it("does not write a draft key when chatID is undefined", () => {
-		const { result, unmount } = renderEditing(undefined);
+	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("work in progress");
+		result.current.chatInputRef.current = mockInput.handle;
 
 		act(() => {
-			result.current.handleContentChange("should not persist");
+			result.current.handleEditUserMessage(7, "edited message");
 		});
 
-		// The ref is still updated even without persistence.
-		expect(result.current.inputValueRef.current).toBe("should not persist");
-		// No draft for "undefined" chatID should appear.
-		expect(
-			localStorage.getItem(`${draftInputStorageKeyPrefix}undefined`),
-		).toBeNull();
+		expect(result.current.editingMessageId).toBe(7);
+		expect(mockInput.setValue).toHaveBeenCalledWith("edited message");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+
+		expect(result.current.editingMessageId).toBeNull();
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("work in progress");
+		expect(mockInput.currentValue.value).toBe("work in progress");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
 		unmount();
 	});
 
-	it("calls focus on the input ref after a successful send", async () => {
-		const { result, onSend, unmount } = renderEditing();
-
-		// Attach a mock ChatMessageInputRef to the chatInputRef
-		const mockFocus = vi.fn();
-		const mockClear = vi.fn();
-		const mockInputRef = {
-			focus: mockFocus,
-			clear: mockClear,
-			insertText: vi.fn(),
-			getValue: vi.fn().mockReturnValue(""),
-			addFileReference: vi.fn(),
-			getContentParts: vi.fn().mockReturnValue([]),
-		}; // The hook exposes chatInputRef – assign the mock to it.
-		result.current.chatInputRef.current = mockInputRef;
-
-		await act(async () => {
-			result.current.handleSendFromInput("hello");
-			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
-			});
-		});
-
-		expect(mockClear).toHaveBeenCalled();
-		expect(mockFocus).toHaveBeenCalled();
-		unmount();
-	});
-
-	it("initializes with the correct draft for each chatID", () => {
-		const chatA = "chat-aaa";
-		const chatB = "chat-bbb";
-		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
-		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
-
-		// Each chatID should initialize with its own draft — this is
-		// what the key={agentId} wrapper guarantees at the component
-		// level (a new chatID means a full remount).
-		const hookA = renderEditing(chatA);
-		expect(hookA.result.current.editorInitialValue).toBe("draft A");
-		hookA.unmount();
-
-		const hookB = renderEditing(chatB);
-		expect(hookB.result.current.editorInitialValue).toBe("draft B");
-		hookB.unmount();
-	});
-
-	it("clears the draft from localStorage on successful send", async () => {
-		localStorage.setItem(expectedKey, "draft to clear");
-
+	it("loads queue edit text into the composer and restores the prior draft on cancel without refocusing", () => {
 		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("work in progress");
+		result.current.chatInputRef.current = mockInput.handle;
 
-		expect(localStorage.getItem(expectedKey)).toBe("draft to clear");
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued message", []);
+		});
+
+		expect(result.current.editingQueuedMessageID).toBe(9);
+		expect(mockInput.setValue).toHaveBeenCalledWith("queued message");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+
+		act(() => {
+			result.current.handleCancelQueueEdit();
+		});
+
+		expect(result.current.editingQueuedMessageID).toBeNull();
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("work in progress");
+		expect(mockInput.currentValue.value).toBe("work in progress");
+		expect(mockInput.focus).toHaveBeenCalledTimes(1);
+		unmount();
+	});
+
+	it("does not force focus when replacing input values on mobile", () => {
+		setMobileViewport(true);
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("draft before edit");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued message", []);
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+
+		act(() => {
+			result.current.handleCancelQueueEdit();
+		});
+		expect(mockInput.focus).not.toHaveBeenCalled();
+		unmount();
+	});
+
+	it("falls back to the persisted draft when history edit starts before hydration", () => {
+		localStorage.setItem(expectedKey, "persisted draft");
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("persisted draft");
+		expect(mockInput.currentValue.value).toBe("persisted draft");
+		unmount();
+	});
+
+	it("falls back to the persisted draft when queue edit starts before hydration", () => {
+		localStorage.setItem(expectedKey, "persisted draft");
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleStartQueueEdit(9, "queued message", []);
+		});
+
+		act(() => {
+			result.current.handleCancelQueueEdit();
+		});
+
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("persisted draft");
+		expect(mockInput.currentValue.value).toBe("persisted draft");
+		unmount();
+	});
+
+	it("prefers the live editor value over stale persisted draft state", () => {
+		localStorage.setItem(expectedKey, "stale persisted draft");
+		const { result, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("live draft");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "edited message");
+		});
+
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+
+		expect(mockInput.setValue).toHaveBeenLastCalledWith("live draft");
+		expect(mockInput.currentValue.value).toBe("live draft");
+		unmount();
+	});
+
+	it("can load the same edit text again after send without relying on a remount", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle();
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "hello");
+		});
 
 		await act(async () => {
-			result.current.handleSendFromInput("hello");
-			await vi.waitFor(() => {
-				expect(localStorage.getItem(expectedKey)).toBeNull();
-			});
+			await result.current.handleSendFromInput("hello");
 		});
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "hello");
+		});
+
+		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		expect(mockInput.setValue).toHaveBeenNthCalledWith(1, "hello");
+		expect(mockInput.setValue).toHaveBeenNthCalledWith(2, "hello");
+		unmount();
+	});
+
+	it("clears the composer and persisted draft after a successful send", async () => {
+		localStorage.setItem(expectedKey, "draft to clear");
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+
+		await act(async () => {
+			await result.current.handleSendFromInput("hello");
+		});
+
+		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(mockInput.focus).toHaveBeenCalled();
+		expect(localStorage.getItem(expectedKey)).toBeNull();
 		unmount();
 	});
 });
