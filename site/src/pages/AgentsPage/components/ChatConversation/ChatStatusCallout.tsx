@@ -120,20 +120,34 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 			: status.kind === "generic"
 				? "info"
 				: "warning";
-	const metadata = (
-		<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
-			{status.phase === "retrying" && status.retryingAt && (
-				<StatusCountdown deadline={status.retryingAt} label="Retrying in" />
-			)}
-			{status.phase === "retrying" && <span>Attempt {status.attempt}</span>}
-			{status.phase === "failed" && status.statusCode !== undefined && (
-				<span>HTTP {status.statusCode}</span>
-			)}
-		</div>
-	);
+	const metadataItems: React.ReactNode[] = [];
+	if (status.phase === "retrying" && status.retryingAt) {
+		metadataItems.push(
+			<StatusCountdown
+				key="countdown"
+				deadline={status.retryingAt}
+				label="Retrying in"
+			/>,
+		);
+	}
+	if (status.phase === "retrying") {
+		metadataItems.push(<span key="attempt">Attempt {status.attempt}</span>);
+	}
+	if (status.phase === "failed" && status.statusCode !== undefined) {
+		metadataItems.push(<span key="code">HTTP {status.statusCode}</span>);
+	}
 
 	return (
-		<Alert severity={severity} actions={metadata}>
+		<Alert
+			severity={severity}
+			actions={
+				metadataItems.length > 0 ? (
+					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
+						{metadataItems}
+					</div>
+				) : undefined
+			}
+		>
 			<AlertTitle>{status.title}</AlertTitle>
 			<AlertDescription>
 				{status.message}{" "}
