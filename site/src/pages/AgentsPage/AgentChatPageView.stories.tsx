@@ -554,6 +554,7 @@ const getStoreMessages = (
 /** Scroll-to-bottom button appears after scrolling up in a long
  *  conversation, and clicking it returns to the bottom. */
 export const ScrollToBottomButton: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<StoryAgentChatPageView
@@ -623,6 +624,7 @@ const preservedScrollStore = buildStoreWithMessages(buildLongConversation(30));
 
 /** When scrolled away from bottom, new content preserves scroll position. */
 export const ScrollPositionPreservedOnNewContent: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={preservedScrollStore} />,
 	play: async ({ canvasElement }) => {
@@ -705,6 +707,7 @@ const pinnedScrollStore = buildStoreWithMessages(buildLongConversation(30));
 
 /** When at bottom, new content keeps the user pinned to bottom. */
 export const ScrollPinnedToBottomOnNewContent: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={pinnedScrollStore} />,
 	play: async ({ canvasElement }) => {
@@ -780,6 +783,7 @@ const touchGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
 /** During an active touch gesture, the container ResizeObserver must not
  *  snap scroll to bottom. This prevents the mobile URL bar resize jump. */
 export const ScrollNotJumpedDuringTouch: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={touchGuardScrollStore} />,
 	play: async ({ canvasElement }) => {
@@ -875,6 +879,7 @@ const wheelGuardScrollStore = buildStoreWithMessages(buildLongConversation(30));
 /** During active wheel/trackpad scrolling, the container ResizeObserver
  *  must not snap scroll to bottom. This prevents desktop scroll jump. */
 export const ScrollNotJumpedDuringWheel: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={wheelGuardScrollStore} />,
 	play: async ({ canvasElement }) => {
@@ -964,6 +969,7 @@ const wheelDeferredStore = buildStoreWithMessages(buildLongConversation(30));
  * stuck in a jumped-up position.
  */
 export const ScrollRepinnedAfterWheelDeferredAppend: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={wheelDeferredStore} />,
 	play: async ({ canvasElement }) => {

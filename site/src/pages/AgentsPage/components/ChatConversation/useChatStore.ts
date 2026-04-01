@@ -381,8 +381,8 @@ export const useChatStore = (
 		};
 
 		// Immediate flush for non-message_part events that need
-		// the parts applied before they execute (e.g. a status
-		// change right after the last part).
+		// the parts applied before they execute (e.g. a durable
+		// message commit right after the last part).
 		const flushMessageParts = () => {
 			if (partsBuf.length === 0) {
 				return;
@@ -398,6 +398,19 @@ export const useChatStore = (
 			}
 			store.applyMessageParts(parts);
 		};
+
+		// Discard buffered parts without applying them. Used when
+		// stream state is about to be cleared (pending, waiting,
+		// retry) — flushing would re-populate the state that the
+		// event is about to clear.
+		const discardBufferedParts = () => {
+			partsBuf.length = 0;
+			if (partsFlushTimer !== null) {
+				clearTimeout(partsFlushTimer);
+				partsFlushTimer = null;
+			}
+		};
+
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
@@ -444,7 +457,20 @@ export const useChatStore = (
 						}
 						continue;
 					}
-					flushMessageParts();
+
+					// Only flush buffered parts before events that
+					// need them applied first. `message` events
+					// commit durable state that must include all
+					// stream parts. `error` events should surface
+					// partial output. Other events (status, retry,
+					// queue_update) must NOT flush — status changes
+					// need to be visible before parts so the
+					// "Thinking..." indicator can render, and retry
+					// clears stream state which a flush would
+					// re-populate.
+					if (streamEvent.type === "message" || streamEvent.type === "error") {
+						flushMessageParts();
+					}
 
 					switch (streamEvent.type) {
 						case "message": {
@@ -494,6 +520,7 @@ export const useChatStore = (
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
+								discardBufferedParts();
 								store.clearStreamState();
 								store.clearRetryState();
 							}
@@ -530,6 +557,7 @@ export const useChatStore = (
 							}
 							const retry = streamEvent.retry;
 							if (retry) {
+								discardBufferedParts();
 								store.clearStreamState();
 								store.setRetryState(normalizeRetryState(retry));
 							}
