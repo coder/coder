@@ -3056,7 +3056,8 @@ func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID 
 		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
 			return q.db.GetLatestWorkspaceAppStatusByAppID(ctx, appID)
 		}
-		q.log.Debug(ctx, "fast path authorization failed for GetLatestWorkspaceAppStatusByAppID, using slow path")
+		q.log.Debug(ctx, "fast path authorization failed for GetLatestWorkspaceAppStatusByAppID, using slow path",
+			slog.F("app_id", appID))
 	}
 
 	// Slow path: fetch status to get workspace ID, then check auth.
@@ -4370,7 +4371,8 @@ func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []
 		if err := q.authorizeContext(ctx, policy.ActionRead, rbacObj); err == nil {
 			return q.db.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
 		}
-		q.log.Debug(ctx, "fast path authorization failed for GetWorkspaceAgentScriptsByAgentIDs, using slow path")
+		q.log.Debug(ctx, "fast path authorization failed for GetWorkspaceAgentScriptsByAgentIDs, using slow path",
+			slog.F("agent_ids", ids))
 	}
 
 	// Slow path: look up workspace per agent ID (deduplicated).
