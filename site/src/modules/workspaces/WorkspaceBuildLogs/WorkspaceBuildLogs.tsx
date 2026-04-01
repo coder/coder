@@ -13,10 +13,6 @@ import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
 import { BODY_FONT_FAMILY } from "#/theme/constants";
 import { cn } from "#/utils/cn";
 
-const Language = {
-	seconds: "seconds",
-};
-
 type Stage = ProvisionerJobLog["stage"];
 type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>;
 type GroupLogsByStageFn = (logs: ProvisionerJobLog[]) => LogsGroupedByStage;
@@ -98,9 +94,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 						>
 							<div>{stage}</div>
 							{shouldDisplayDuration && (
-								<div css={styles.duration}>
-									{duration} {Language.seconds}
-								</div>
+								<div css={styles.duration}>{duration} seconds</div>
 							)}
 						</div>
 						{!isEmpty && <Logs hideTimestamps={hideTimestamps} lines={lines} />}

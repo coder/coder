@@ -78,7 +78,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 							))}
 						</div>
 
-						<Button size="sm" asChild css={{ borderRadius: 9999 }}>
+						<Button size="sm" asChild className="rounded-full">
 							<RouterLink to="/starter-templates">
 								View all starter templates
 							</RouterLink>

@@ -64,7 +64,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 			<Skeleton
 				width="110px"
 				height={40}
-				css={{ borderRadius: 6, transform: "none" }}
+				className="rounded-[6px] transform-none"
 			/>
 		);
 	}

@@ -9,15 +9,15 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { templateVersion } from "#/api/queries/templates";
 import type { Workspace } from "#/api/typesGenerated";
 import {
-	HelpTooltip,
-	HelpTooltipAction,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverAction,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
 	useWorkspaceUpdate,
@@ -36,22 +36,22 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
-		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
+		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
 			{children ? (
-				<HelpTooltipTrigger asChild>
+				<HelpPopoverTrigger asChild>
 					<span className="flex items-center gap-1.5 cursor-help">
 						<InfoIcon css={styles.icon} size={14} />
 						<span>{children}</span>
 					</span>
-				</HelpTooltipTrigger>
+				</HelpPopoverTrigger>
 			) : (
-				<HelpTooltipIconTrigger size="small" hoverEffect={false}>
+				<HelpPopoverIconTrigger size="small" hoverEffect={false}>
 					<InfoIcon css={styles.icon} />
 					<span className="sr-only">Outdated info</span>
-				</HelpTooltipIconTrigger>
+				</HelpPopoverIconTrigger>
 			)}
 			<WorkspaceOutdatedTooltipContent isOpen={isOpen} workspace={workspace} />
-		</HelpTooltip>
+		</HelpPopover>
 	);
 };
 
@@ -86,14 +86,14 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 
 	return (
 		<>
-			<HelpTooltipContent disablePortal={false}>
-				<HelpTooltipTitle>Outdated</HelpTooltipTitle>
-				<HelpTooltipText>
+			<HelpPopoverContent disablePortal={false}>
+				<HelpPopoverTitle>Outdated</HelpPopoverTitle>
+				<HelpPopoverText>
 					This workspace version is outdated and a newer version is available.
-				</HelpTooltipText>
+				</HelpPopoverText>
 
 				<div css={styles.container}>
-					<div css={{ lineHeight: "1.6" }}>
+					<div className="leading-[1.6]">
 						<div css={styles.bold}>New version</div>
 						<div>
 							{activeVersion ? (
@@ -110,7 +110,7 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 						</div>
 					</div>
 
-					<div css={{ lineHeight: "1.6" }}>
+					<div className="leading-[1.6]">
 						<div css={styles.bold}>Message</div>
 						<div>
 							{activeVersion ? (
@@ -122,15 +122,15 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					</div>
 				</div>
 
-				<HelpTooltipLinksGroup>
-					<HelpTooltipAction
+				<HelpPopoverLinksGroup>
+					<HelpPopoverAction
 						icon={RotateCcwIcon}
 						onClick={updateWorkspace.update}
 					>
 						Update
-					</HelpTooltipAction>
-				</HelpTooltipLinksGroup>
-			</HelpTooltipContent>
+					</HelpPopoverAction>
+				</HelpPopoverLinksGroup>
+			</HelpPopoverContent>
 			<WorkspaceUpdateDialogs {...updateWorkspace.dialogs} />
 		</>
 	);

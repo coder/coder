@@ -30,17 +30,8 @@ import {
 	type WorkspaceFilterState,
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
-import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
+import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
 import { WorkspacesButton } from "./WorkspacesButton";
-
-const Language = {
-	pageTitle: "Workspaces",
-	yourWorkspacesButton: "Your workspaces",
-	allWorkspacesButton: "All workspaces",
-	runningWorkspacesButton: "Running workspaces",
-	seeAllTemplates: "See all templates",
-	template: "Template",
-};
 
 type TemplateQuery = UseQueryResult<Template[]>;
 interface WorkspacesPageViewProps {
@@ -109,8 +100,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 			>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.pageTitle}</span>
-						<WorkspaceHelpTooltip />
+						<span>Workspaces</span>
+						<WorkspaceHelpPopover />
 					</Stack>
 				</PageHeaderTitle>
 			</PageHeader>
@@ -240,7 +231,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				// Temporary styling stopgap before component is migrated to using
 				// PaginationContainer (which renders PaginationWidgetBase using CSS
 				// flexbox gaps)
-				<div css={{ paddingTop: "16px" }}>
+				<div className="pt-4">
 					<PaginationWidgetBase
 						totalRecords={count}
 						pageSize={limit}

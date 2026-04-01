@@ -23,6 +23,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	menus: {
 		user: MockMenu,
 		provider: MockMenu,
+		client: MockMenu,
 		model: MockMenu,
 	},
 });

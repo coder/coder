@@ -1069,6 +1069,7 @@ const AgentChatPage: FC = () => {
 			selectedMCPServerIds={effectiveMCPServerIds}
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
+			lastInjectedContext={chatQuery.data?.last_injected_context}
 		/>
 	);
 };

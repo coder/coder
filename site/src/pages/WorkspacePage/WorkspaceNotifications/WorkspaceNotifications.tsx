@@ -208,7 +208,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 					This workspace build job is waiting for a provisioner to become
 					available. If you have been waiting for an extended period of time,
 					please contact your administrator for assistance.
-					<span css={{ display: "block", marginTop: 12 }}>
+					<span className="block mt-3">
 						Position in queue:{" "}
 						<strong>{workspace.latest_build.job.queue_position}</strong>
 					</span>

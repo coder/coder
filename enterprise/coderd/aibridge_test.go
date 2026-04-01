@@ -440,7 +440,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			},
 			{
 				name:   "Client/Unknown",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: "Unknown"},
+				filter: codersdk.AIBridgeListInterceptionsFilter{Client: string(aiblib.ClientUnknown)},
 				want:   []codersdk.AIBridgeInterception{i1SDK},
 			},
 			{
@@ -1212,6 +1212,302 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Contains(t, sdkErr.Message, "Invalid pagination limit value.")
 		require.Empty(t, res.Sessions)
+	})
+
+	t.Run("StartedBeforeFilter", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Session started recently.
+		recentEndedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+		}, &recentEndedAt)
+
+		// Session started 2 hours ago.
+		oldEndedAt := now.Add(-2*time.Hour + time.Minute)
+		old := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-2 * time.Hour),
+		}, &oldEndedAt)
+
+		// Only the old session should be returned when started_before
+		// is set to 1 hour ago.
+		//nolint:gocritic // Owner role is irrelevant; testing filter.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			StartedBefore: now.Add(-time.Hour),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, old.ID.String(), res.Sessions[0].ID)
+	})
+
+	t.Run("NullClientCoalescesToUnknown", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Session with explicit client.
+		withClientEndedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+			Client:      sql.NullString{String: "claude-code", Valid: true},
+		}, &withClientEndedAt)
+
+		// Session with NULL client (should COALESCE to ClientUnknown).
+		nullClientEndedAt := now.Add(-time.Hour + time.Minute)
+		nullClient := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-time.Hour),
+			// Client field deliberately omitted (NULL).
+		}, &nullClientEndedAt)
+
+		// Filtering by ClientUnknown should return only the NULL-client
+		// session.
+		//nolint:gocritic // Owner role is irrelevant; testing COALESCE.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Client: string(aiblib.ClientUnknown),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, nullClient.ID.String(), res.Sessions[0].ID)
+	})
+
+	t.Run("MetadataFromFirstInterception", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// First interception (chronologically) carries the expected
+		// metadata for the session.
+		i1EndedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now,
+			Metadata:        json.RawMessage(`{"editor":"vscode"}`),
+			Client:          sql.NullString{String: "claude-code", Valid: true},
+			ClientSessionID: sql.NullString{String: "meta-session", Valid: true},
+		}, &i1EndedAt)
+
+		// Second interception has different metadata.
+		i2EndedAt := now.Add(2 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now.Add(time.Minute),
+			Metadata:        json.RawMessage(`{"editor":"jetbrains"}`),
+			Client:          sql.NullString{String: "claude-code", Valid: true},
+			ClientSessionID: sql.NullString{String: "meta-session", Valid: true},
+		}, &i2EndedAt)
+
+		//nolint:gocritic // Owner role is irrelevant; testing metadata.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 1)
+		// Metadata should come from the first interception.
+		require.Equal(t, "vscode", res.Sessions[0].Metadata["editor"])
+	})
+
+	t.Run("SessionTimestamps", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Two interceptions in the same session with different
+		// started_at and ended_at values. The session should report
+		// MIN(started_at) and MAX(ended_at).
+		i1StartedAt := now
+		i1EndedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       i1StartedAt,
+			ClientSessionID: sql.NullString{String: "ts-session", Valid: true},
+		}, &i1EndedAt)
+
+		i2StartedAt := now.Add(2 * time.Minute)
+		i2EndedAt := now.Add(5 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       i2StartedAt,
+			ClientSessionID: sql.NullString{String: "ts-session", Valid: true},
+		}, &i2EndedAt)
+
+		//nolint:gocritic // Owner role is irrelevant; testing timestamps.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 1)
+		s := res.Sessions[0]
+		require.WithinDuration(t, i1StartedAt, s.StartedAt, time.Millisecond,
+			"session started_at should be MIN of interception started_at values")
+		require.NotNil(t, s.EndedAt)
+		require.WithinDuration(t, i2EndedAt, *s.EndedAt, time.Millisecond,
+			"session ended_at should be MAX of interception ended_at values")
+	})
+
+	t.Run("LastPromptAcrossInterceptions", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Two interceptions in the same session.
+		i1EndedAt := now.Add(time.Minute)
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "prompt-session", Valid: true},
+		}, &i1EndedAt)
+		i2EndedAt := now.Add(3 * time.Minute)
+		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now.Add(2 * time.Minute),
+			ClientSessionID: sql.NullString{String: "prompt-session", Valid: true},
+		}, &i2EndedAt)
+
+		// Add prompts to both interceptions. The most recent prompt
+		// overall belongs to the second interception.
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: i1.ID,
+			Prompt:         "early prompt from i1",
+			CreatedAt:      now,
+		})
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: i2.ID,
+			Prompt:         "latest prompt from i2",
+			CreatedAt:      now.Add(2 * time.Minute),
+		})
+
+		//nolint:gocritic // Owner role is irrelevant; testing lateral join.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 1)
+		require.NotNil(t, res.Sessions[0].LastPrompt)
+		require.Equal(t, "latest prompt from i2", *res.Sessions[0].LastPrompt,
+			"last_prompt should be the most recent prompt across all interceptions in the session")
+	})
+
+	t.Run("CombinedFilters", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+
+		// Session A: user1, anthropic, claude-4, started now.
+		aEndedAt := now.Add(time.Minute)
+		a := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			Provider:    "anthropic",
+			Model:       "claude-4",
+			StartedAt:   now,
+		}, &aEndedAt)
+
+		// Session B: user1, anthropic, gpt-4, started 2h ago.
+		bEndedAt := now.Add(-2*time.Hour + time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			Provider:    "anthropic",
+			Model:       "gpt-4",
+			StartedAt:   now.Add(-2 * time.Hour),
+		}, &bEndedAt)
+
+		// Session C: user2, anthropic, claude-4, started 1h ago.
+		cEndedAt := now.Add(-time.Hour + time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: user2.ID,
+			Provider:    "anthropic",
+			Model:       "claude-4",
+			StartedAt:   now.Add(-time.Hour),
+		}, &cEndedAt)
+
+		// Combining provider + model + started_after should return
+		// only session A (user1, anthropic, claude-4, recent).
+		//nolint:gocritic // Owner role is irrelevant; testing combined filters.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Provider:     "anthropic",
+			Model:        "claude-4",
+			StartedAfter: now.Add(-30 * time.Minute),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, a.ID.String(), res.Sessions[0].ID)
+	})
+
+	t.Run("CursorPaginationWithTiedStartedAt", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Create 3 standalone sessions all starting at the same time.
+		// The tie-breaker is session_id DESC.
+		for range 3 {
+			endedAt := now.Add(time.Minute)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: firstUser.UserID,
+				StartedAt:   now,
+			}, &endedAt)
+		}
+
+		// Fetch all to learn the sort order (started_at DESC,
+		// session_id DESC).
+		//nolint:gocritic // Owner role is irrelevant; testing cursor.
+		all, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, all.Sessions, 3)
+
+		// Use the first result as cursor. The remaining 2 should be
+		// returned.
+		afterID := all.Sessions[0].ID
+		page, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Pagination:     codersdk.Pagination{Limit: 10},
+			AfterSessionID: afterID,
+		})
+		require.NoError(t, err)
+		require.Len(t, page.Sessions, 2)
+		require.Equal(t, all.Sessions[1].ID, page.Sessions[0].ID)
+		require.Equal(t, all.Sessions[2].ID, page.Sessions[1].ID)
+	})
+
+	t.Run("DefaultLimit", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		// Create 3 sessions. Without an explicit limit the default of
+		// 100 should apply and return all 3.
+		for i := range 3 {
+			endedAt := now.Add(-time.Duration(i)*time.Hour + time.Minute)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: firstUser.UserID,
+				StartedAt:   now.Add(-time.Duration(i) * time.Hour),
+			}, &endedAt)
+		}
+
+		// No Pagination.Limit set.
+		//nolint:gocritic // Owner role is irrelevant; testing default limit.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 3)
+		require.EqualValues(t, 3, res.Count)
 	})
 }
 

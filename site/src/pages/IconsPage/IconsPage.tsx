@@ -172,16 +172,7 @@ const IconsPage: FC = () => {
 										),
 									]}
 								/>
-								<figcaption
-									css={{
-										width: 88,
-										height: 48,
-										fontSize: 13,
-										textOverflow: "ellipsis",
-										textAlign: "center",
-										overflow: "hidden",
-									}}
-								>
+								<figcaption className="w-[88px] h-12 text-[13px] text-ellipsis text-center overflow-hidden">
 									{icon.description}
 								</figcaption>
 							</div>

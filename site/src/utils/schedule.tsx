@@ -9,7 +9,7 @@ import utc from "dayjs/plugin/utc";
 import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import type { Template, Workspace } from "#/api/typesGenerated";
-import { HelpTooltipTitle } from "#/components/HelpTooltip/HelpTooltip";
+import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import type { WorkspaceActivityStatus } from "#/modules/workspaces/activity";
 import { isWorkspaceOn } from "./workspace";
 
@@ -54,15 +54,6 @@ export const extractTimezone = (
 	return defaultTZ;
 };
 
-/** Language used in the schedule components */
-const Language = {
-	manual: "Manual",
-	workspaceShuttingDownLabel: "Workspace is shutting down",
-	afterStart: "after start",
-	autostartLabel: "Starts at",
-	autostopLabel: "Stops at",
-};
-
 export const autostartDisplay = (schedule: string | undefined): string => {
 	if (schedule) {
 		return (
@@ -74,7 +65,7 @@ export const autostartDisplay = (schedule: string | undefined): string => {
 				.replace("At", "")
 		);
 	}
-	return Language.manual;
+	return "Manual";
 };
 
 const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
@@ -119,7 +110,7 @@ export const autostopDisplay = (
 					message: "Required to stop soon",
 					tooltip: (
 						<>
-							<HelpTooltipTitle>Upcoming stop required</HelpTooltipTitle>
+							<HelpPopoverTitle>Upcoming stop required</HelpPopoverTitle>
 							This workspace will be required to stop by{" "}
 							{dayjs(workspace.latest_build.max_deadline).format(
 								"MMMM D [at] h:mm A",
@@ -135,15 +126,15 @@ export const autostopDisplay = (
 
 		if (isShuttingDown(workspace, deadline)) {
 			return {
-				message: Language.workspaceShuttingDownLabel,
+				message: "Workspace is shutting down",
 			};
 		}
 		let title = (
-			<HelpTooltipTitle>Template Autostop requirement</HelpTooltipTitle>
+			<HelpPopoverTitle>Template Autostop requirement</HelpPopoverTitle>
 		);
 		let reason: ReactNode = ` because the ${template.display_name} template has an autostop requirement.`;
 		if (template.autostop_requirement && template.allow_user_autostop) {
-			title = <HelpTooltipTitle>Autostop schedule</HelpTooltipTitle>;
+			title = <HelpPopoverTitle>Autostop schedule</HelpPopoverTitle>;
 			reason = (
 				<span data-chromatic="ignore">
 					{" "}
@@ -173,14 +164,14 @@ export const autostopDisplay = (
 		// If the workspace is not on, and the ttl is 0 or undefined, then the
 		// workspace is set to manually shutdown.
 		return {
-			message: Language.manual,
+			message: "Manual",
 		};
 	}
 	// The workspace has a ttl set, but is either in an unknown state or is
 	// not running. Therefore, we derive from workspace.ttl.
 	const duration = dayjs.duration(ttl, "milliseconds");
 	return {
-		message: `Stop ${duration.humanize()} ${Language.afterStart}`,
+		message: `Stop ${duration.humanize()} after start`,
 	};
 };
 

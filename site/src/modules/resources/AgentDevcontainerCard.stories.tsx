@@ -211,8 +211,8 @@ export const TerraformManagedDirty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const outdatedStatus = canvas.getByText("Outdated");
-		await userEvent.hover(outdatedStatus);
-		await screen.findByRole("tooltip");
+		await userEvent.click(outdatedStatus);
+		await screen.findByRole("dialog");
 	},
 };
 
