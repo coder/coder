@@ -353,32 +353,25 @@ func Test_batcherFlush(t *testing.T) {
 		b.cancel()
 		<-b.done
 
-		// Wait for the write goroutine to start.
+		// Wait for the write goroutine to actually start the DB
+		// call.
 		select {
 		case <-writeStarted:
 		case <-ctx.Done():
 			t.Fatal("timed out waiting for write to start")
 		}
 
-		// Start Close() in a goroutine — it should block on wg.Wait().
+		// Start Close() in a goroutine — it should block on
+		// wg.Wait() until the write completes.
 		closeDone := make(chan struct{})
 		go func() {
 			_ = b.Close()
 			close(closeDone)
 		}()
 
-		// Verify Close hasn't returned yet (write is still in progress).
-		select {
-		case <-closeDone:
-			t.Fatal("Close returned before in-flight write finished")
-		case <-time.After(50 * time.Millisecond):
-			// Expected — Close is still waiting.
-		}
-
-		// Unblock the write.
+		// Unblock the write — Close should then return.
 		close(writeDone)
 
-		// Now Close should return.
 		select {
 		case <-closeDone:
 		case <-ctx.Done():

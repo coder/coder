@@ -324,8 +324,8 @@ func (b *DBBatcher) flush(ctx context.Context) {
 	// Clear the batch immediately so the run loop can continue
 	// accumulating new entries while the write (and any retries)
 	// proceed asynchronously.
-	clear(b.dedupedBatch)
-	b.nullConnIDBatch = b.nullConnIDBatch[:0]
+	b.dedupedBatch = make(map[uuid.UUID]batchEntry, b.maxBatchSize)
+	b.nullConnIDBatch = nil
 
 	b.wg.Add(1)
 	go func() {
@@ -412,10 +412,8 @@ func (b *DBBatcher) ensureUpsertLogs(params database.BatchUpsertConnectionLogsPa
 	eb.MaxElapsedTime = maxRetryDuration
 	eb.MaxInterval = maxRetryInterval
 
-	// Use a background context so retries continue even after the
-	// batcher context is canceled (shutdown). The backoff's
-	// MaxElapsedTime bounds the total duration.
-	bkoff := backoff.WithContext(eb, context.Background())
+	// Use the batcher's context so shutdown stops the retry loop.
+	bkoff := backoff.WithContext(eb, b.ctx)
 
 	err := backoff.Retry(func() error {
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
@@ -423,13 +421,28 @@ func (b *DBBatcher) ensureUpsertLogs(params database.BatchUpsertConnectionLogsPa
 		//nolint:gocritic // System-level batch operation for connection logs.
 		return b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
 	}, bkoff)
-	if err != nil {
-		b.log.Error(b.ctx, "batch retries exhausted, dropping batch",
-			slog.Error(err), slog.F("dropped", count))
+	if err == nil {
+		b.log.Debug(b.ctx, "connection log batch flush complete", slog.F("count", count))
 		return
 	}
 
-	b.log.Debug(b.ctx, "connection log batch flush complete", slog.F("count", count))
+	// If the context was canceled (shutdown), try one final time.
+	if b.ctx.Err() != nil {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
+		defer cancel()
+		//nolint:gocritic // System-level batch operation for connection logs.
+		finalErr := b.store.BatchUpsertConnectionLogs(dbauthz.AsConnectionLogger(ctxTimeout), params)
+		if finalErr == nil {
+			b.log.Info(b.ctx, "final retry on shutdown succeeded", slog.F("count", count))
+			return
+		}
+		b.log.Error(b.ctx, "final retry on shutdown failed, dropping batch",
+			slog.Error(finalErr), slog.F("dropped", count))
+		return
+	}
+
+	b.log.Error(b.ctx, "batch retries exhausted, dropping batch",
+		slog.Error(err), slog.F("dropped", count))
 }
 
 type connectionSlogBackend struct {
