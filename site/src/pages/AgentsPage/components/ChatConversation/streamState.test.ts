@@ -72,6 +72,22 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result).toBe(prev);
 	});
 
+	it("returns prev for text part with whitespace-only text", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "text",
+			text: "   ",
+		});
+		expect(result).toBeNull();
+	});
+
+	it("returns prev for reasoning part with whitespace-only text", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "reasoning",
+			text: "  \n\t  ",
+		});
+		expect(result).toBeNull();
+	});
+
 	it("creates tool call entry from tool-call part", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",

@@ -551,17 +551,26 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
-	// Only treat "running" as awaiting a first chunk. During "pending"
-	// status the transport drops incoming message_part events
-	// (shouldApplyMessagePart returns false), so streamState can never
-	// transition away from null. Including "pending" here caused the
-	// "Response startup is taking longer than expected" warning to
-	// fire spuriously during multi-turn tool-call cycles.
-	return (
-		state.streamState === null &&
-		state.chatStatus === "running" &&
-		latestMessageNeedsAssistantResponse
-	);
+	// Show the "Thinking..." indicator when the store has no stream
+	// data yet and the conversation is waiting for an assistant
+	// response. For "running" status we use the existing broad
+	// check (any non-assistant latest message). For "pending" we
+	// restrict to the case where the latest message is explicitly
+	// a user message — this covers the fresh-send flow (user just
+	// submitted and the server hasn't started streaming yet) while
+	// avoiding a spurious indicator during multi-turn tool-call
+	// cycles, where the latest durable message is a tool result
+	// and the assistant response is still being assembled.
+	if (state.streamState !== null || !latestMessageNeedsAssistantResponse) {
+		return false;
+	}
+	if (state.chatStatus === "running") {
+		return true;
+	}
+	if (state.chatStatus === "pending" && latestMessage?.role === "user") {
+		return true;
+	}
+	return false;
 };
 
 export const useChatSelector = <T>(

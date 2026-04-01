@@ -5,6 +5,7 @@ import {
 	buildLiveStatus,
 	buildReconnectState,
 	buildRetryState,
+	buildStreamRenderState,
 	FIXTURE_NOW,
 } from "./storyFixtures";
 
@@ -250,5 +251,30 @@ export const RetryStartupTimeout: Story = {
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * During streaming, if only tool-call blocks have arrived (no text
+ * or reasoning), the "Thinking..." indicator should still be visible
+ * alongside the tool cards.
+ */
+export const ThinkingDuringStreamingWithToolCalls: Story = {
+	args: {
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_name: "execute",
+				tool_call_id: "tc-1",
+				args: { command: "ls -la" },
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// "Thinking..." should still be visible during streaming
+		// when only tool-call blocks have arrived.
+		const matches = canvas.getAllByText("Thinking...");
+		expect(matches.length).toBeGreaterThanOrEqual(1);
 	},
 };
