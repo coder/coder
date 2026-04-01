@@ -16,12 +16,17 @@ import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAle
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 
 interface TerminalPanelProps {
+	/** Used as the reconnection token so the PTY session survives
+	 * navigation and page reloads. When omitted a random token is
+	 * generated per mount (no reconnection). */
+	chatId?: string;
 	isVisible?: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 }
 
 export const TerminalPanel: FC<TerminalPanelProps> = ({
+	chatId,
 	isVisible,
 	workspace,
 	workspaceAgent,
@@ -29,7 +34,10 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
-	const [reconnectionToken] = useState(() => crypto.randomUUID());
+	// Use the chat ID as a stable reconnection token so the PTY
+	// session persists across navigations and reloads. Fall back
+	// to a random UUID when no chat ID is provided.
+	const [reconnectionToken] = useState(() => chatId ?? crypto.randomUUID());
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const config = useQuery(deploymentConfig());
