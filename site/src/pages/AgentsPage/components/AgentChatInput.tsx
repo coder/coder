@@ -22,7 +22,7 @@ import {
 } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
 	Command,
@@ -683,9 +683,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{invisibleCharCount > 0 && (
 					<div className="px-3 pb-1">
 						<Alert severity="warning">
-							This message contains {invisibleCharCount} invisible Unicode
-							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
-							content. Review carefully before sending.
+							<AlertDescription>
+								This message contains {invisibleCharCount} invisible Unicode
+								character{invisibleCharCount !== 1 ? "s" : ""} that could hide
+								content. Review carefully before sending.
+							</AlertDescription>
 						</Alert>
 					</div>
 				)}

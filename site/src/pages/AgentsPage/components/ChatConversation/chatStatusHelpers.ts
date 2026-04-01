@@ -23,19 +23,6 @@ const normalizeProvider = (provider?: string): string | undefined => {
 	}
 };
 
-const humanizeKind = (kind: string): string => {
-	const words = kind
-		.trim()
-		.split(/[_\-\s]+/)
-		.filter(Boolean);
-	if (words.length === 0) {
-		return "Unexpected error";
-	}
-	return words
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(" ");
-};
-
 export const getErrorTitle = (
 	kind: ChatProviderFailureKind | (string & {}),
 	mode: "retry" | "error",
@@ -55,29 +42,6 @@ export const getErrorTitle = (
 			return "Configuration error";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
-	}
-};
-
-export const getKindLabel = (
-	kind: ChatProviderFailureKind | (string & {}),
-): string => {
-	switch (kind) {
-		case "generic":
-			return "Unexpected error";
-		case "overloaded":
-			return "Overloaded";
-		case "rate_limit":
-			return "Rate limit";
-		case "timeout":
-			return "Timeout";
-		case "startup_timeout":
-			return "Startup timeout";
-		case "auth":
-			return "Authentication";
-		case "config":
-			return "Configuration";
-		default:
-			return humanizeKind(kind);
 	}
 };
 

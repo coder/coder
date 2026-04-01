@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -320,14 +320,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					isUsageLimitData(createError.response.data) ? (
 						<Alert
 							severity="info"
-							className="py-2"
 							actions={
-								<Button asChild variant="subtle" size="sm">
+								<Button asChild size="sm">
 									<Link to="/agents/analytics">View Usage</Link>
 								</Button>
 							}
 						>
-							{formatUsageLimitMessage(createError.response.data)}
+							<AlertDescription>
+								{formatUsageLimitMessage(createError.response.data)}
+							</AlertDescription>
 						</Alert>
 					) : (
 						<ErrorAlert error={createError} />
