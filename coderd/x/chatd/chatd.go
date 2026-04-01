@@ -850,7 +850,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
-			MCPServerIDs:      opts.MCPServerIDs,
+			// Chats created with an initial user message start pending.
+			// Waiting is reserved for idle chats with no pending work.
+			Status:       database.ChatStatusPending,
+			MCPServerIDs: opts.MCPServerIDs,
 			Labels: pqtype.NullRawMessage{
 				RawMessage: labelsJSON,
 				Valid:      true,
@@ -919,10 +922,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("insert initial chat messages: %w", err)
 		}
 
-		chat, err = setChatPendingWithStore(ctx, tx, insertedChat.ID)
-		if err != nil {
-			return xerrors.Errorf("set chat pending: %w", err)
-		}
+		chat = insertedChat
 
 		if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
 			chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
@@ -1994,33 +1994,6 @@ func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
 
 	p.publishStatus(chat.ID, chat.Status, chat.WorkerID)
 	return nil
-}
-
-func setChatPendingWithStore(
-	ctx context.Context,
-	store database.Store,
-	chatID uuid.UUID,
-) (database.Chat, error) {
-	chat, err := store.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get chat: %w", err)
-	}
-	if chat.Status == database.ChatStatusPending {
-		return chat, nil
-	}
-
-	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusPending,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
-	}
-	return updatedChat, nil
 }
 
 func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {

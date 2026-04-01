@@ -140,6 +140,7 @@ func seedWaitingChat(
 	t.Helper()
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 		Title:             title,

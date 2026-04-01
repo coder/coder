@@ -5707,6 +5707,7 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    status,
     mcp_server_ids,
     labels
 ) VALUES (
@@ -5719,8 +5720,9 @@ INSERT INTO chats (
     $7::uuid,
     $8::text,
     $9::chat_mode,
-    COALESCE($10::uuid[], '{}'::uuid[]),
-    COALESCE($11::jsonb, '{}'::jsonb)
+    $10::chat_status,
+    COALESCE($11::uuid[], '{}'::uuid[]),
+    COALESCE($12::jsonb, '{}'::jsonb)
 )
 RETURNING
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context
@@ -5736,6 +5738,7 @@ type InsertChatParams struct {
 	LastModelConfigID uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
 	Title             string                `db:"title" json:"title"`
 	Mode              NullChatMode          `db:"mode" json:"mode"`
+	Status            ChatStatus            `db:"status" json:"status"`
 	MCPServerIDs      []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
 	Labels            pqtype.NullRawMessage `db:"labels" json:"labels"`
 }
@@ -5751,6 +5754,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.LastModelConfigID,
 		arg.Title,
 		arg.Mode,
+		arg.Status,
 		pq.Array(arg.MCPServerIDs),
 		arg.Labels,
 	)

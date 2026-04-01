@@ -833,6 +833,7 @@ func TestWorker(t *testing.T) {
 	require.NoError(t, err)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		Status:            database.ChatStatusWaiting,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "integration-test",
