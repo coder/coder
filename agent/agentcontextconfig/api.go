@@ -44,15 +44,16 @@ func NewAPI(workingDir string) *API {
 // Config reads env vars and resolves paths. Exported for use
 // by the MCP manager and tests.
 func Config(workingDir string) workspacesdk.ContextConfigResponse {
-	// TrimSpace is applied only to file-name vars (basenames)
-	// because stray whitespace would silently break lookups.
-	// Directory vars go through ResolvePaths which splits on
-	// commas and trims each element.
-	instructionsDir := cmp.Or(os.Getenv(EnvInstructionsDirs), workspacesdk.DefaultInstructionsDir)
+	// TrimSpace all env vars before cmp.Or so that a
+	// whitespace-only value falls through to the default
+	// consistently. ResolvePaths also trims each comma-
+	// separated entry, but without pre-trimming here a
+	// bare " " would bypass cmp.Or and produce nil.
+	instructionsDir := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsDirs)), workspacesdk.DefaultInstructionsDir)
 	instructionsFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsFile)), workspacesdk.DefaultInstructionsFile)
-	skillsDir := cmp.Or(os.Getenv(EnvSkillsDirs), workspacesdk.DefaultSkillsDir)
+	skillsDir := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillsDirs)), workspacesdk.DefaultSkillsDir)
 	skillMetaFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillMetaFile)), workspacesdk.DefaultSkillMetaFile)
-	mcpConfigFile := cmp.Or(os.Getenv(EnvMCPConfigFiles), workspacesdk.DefaultMCPConfigFile)
+	mcpConfigFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)), workspacesdk.DefaultMCPConfigFile)
 
 	return workspacesdk.ContextConfigResponse{
 		InstructionsDirs: ResolvePaths(instructionsDir, workingDir),
