@@ -2161,7 +2161,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		require.True(t, listed.HasCentralAPIKeyFallback)
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled: ptr.Ref(false),
+			CentralAPIKeyEnabled:       ptr.Ref(false),
+			AllowCentralAPIKeyFallback: ptr.Ref(false),
 		})
 		require.NoError(t, err)
 
