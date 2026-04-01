@@ -3034,9 +3034,10 @@ func TestAgent_Reconnect(t *testing.T) {
 	})
 	defer closer.Close()
 
-	// Each iteration writes a.contextConfigAPI in handleManifest
-	// while the tracked HTTP server goroutine (from connection 1's
-	// createTailnet) is still alive, widening the race window.
+	// Each iteration forces the agent to reconnect by closing
+	// the current coordinate call while the tracked HTTP server
+	// goroutine (from connection 1's createTailnet) is still
+	// alive, widening the race window.
 	const reconnections = 5
 	for i := range reconnections {
 		call := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)

@@ -36,6 +36,9 @@ type API struct {
 // The directory is evaluated lazily on each call to Config(),
 // so the caller can update it after construction.
 func NewAPI(workingDir func() string) *API {
+	if workingDir == nil {
+		workingDir = func() string { return "" }
+	}
 	return &API{workingDir: workingDir}
 }
 

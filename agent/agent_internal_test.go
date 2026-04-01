@@ -58,7 +58,15 @@ func TestReportConnectionEmpty(t *testing.T) {
 }
 
 func TestContextConfigAPI_InitOnce(t *testing.T) {
-	t.Parallel()
+	// Not parallel: uses t.Setenv to clear env vars.
+
+	// Clear env vars so defaults are used and the test is
+	// hermetic regardless of the surrounding environment.
+	t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
+	t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
+	t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
+	t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
+	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
 	// After the fix, contextConfigAPI is set once in init() and
 	// never reassigned. Config() evaluates lazily via the
