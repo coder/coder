@@ -14,6 +14,7 @@ func TestConfig(t *testing.T) {
 	t.Run("Defaults", func(t *testing.T) {
 		fakeHome := t.TempDir()
 		t.Setenv("HOME", fakeHome)
+		t.Setenv("USERPROFILE", fakeHome)
 
 		// Clear all env vars so defaults are used.
 		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
@@ -22,7 +23,8 @@ func TestConfig(t *testing.T) {
 		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
 		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
-		cfg := agentcontextconfig.Config("/work")
+		workDir := platformAbsPath("work")
+		cfg := agentcontextconfig.Config(workDir)
 
 		require.Equal(t, workspacesdk.DefaultInstructionsFile, cfg.InstructionsFile)
 		require.Equal(t, workspacesdk.DefaultSkillMetaFile, cfg.SkillMetaFile)
@@ -31,29 +33,35 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, []string{filepath.Join(fakeHome, ".coder")}, cfg.InstructionsDirs)
 		// Default skills dir is ".agents/skills" (relative),
 		// resolved against the working directory.
-		require.Equal(t, []string{"/work/.agents/skills"}, cfg.SkillsDirs)
+		require.Equal(t, []string{filepath.Join(workDir, ".agents", "skills")}, cfg.SkillsDirs)
 		// Default MCP config file is ".mcp.json" (relative),
 		// resolved against the working directory.
-		require.Equal(t, []string{"/work/.mcp.json"}, cfg.MCPConfigFiles)
+		require.Equal(t, []string{filepath.Join(workDir, ".mcp.json")}, cfg.MCPConfigFiles)
 	})
 
 	t.Run("CustomEnvVars", func(t *testing.T) {
 		fakeHome := t.TempDir()
 		t.Setenv("HOME", fakeHome)
+		t.Setenv("USERPROFILE", fakeHome)
 
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "/opt/instructions")
+		optInstructions := platformAbsPath("opt", "instructions")
+		optSkills := platformAbsPath("opt", "skills")
+		optMCP := platformAbsPath("opt", "mcp.json")
+
+		t.Setenv(agentcontextconfig.EnvInstructionsDirs, optInstructions)
 		t.Setenv(agentcontextconfig.EnvInstructionsFile, "CUSTOM.md")
-		t.Setenv(agentcontextconfig.EnvSkillsDirs, "/opt/skills")
+		t.Setenv(agentcontextconfig.EnvSkillsDirs, optSkills)
 		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "META.yaml")
-		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "/opt/mcp.json")
+		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, optMCP)
 
-		cfg := agentcontextconfig.Config("/work")
+		workDir := platformAbsPath("work")
+		cfg := agentcontextconfig.Config(workDir)
 
 		require.Equal(t, "CUSTOM.md", cfg.InstructionsFile)
 		require.Equal(t, "META.yaml", cfg.SkillMetaFile)
-		require.Equal(t, []string{"/opt/instructions"}, cfg.InstructionsDirs)
-		require.Equal(t, []string{"/opt/skills"}, cfg.SkillsDirs)
-		require.Equal(t, []string{"/opt/mcp.json"}, cfg.MCPConfigFiles)
+		require.Equal(t, []string{optInstructions}, cfg.InstructionsDirs)
+		require.Equal(t, []string{optSkills}, cfg.SkillsDirs)
+		require.Equal(t, []string{optMCP}, cfg.MCPConfigFiles)
 	})
 
 	t.Run("WhitespaceInFileNames", func(t *testing.T) {
@@ -63,20 +71,25 @@ func TestConfig(t *testing.T) {
 		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
 		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
-		cfg := agentcontextconfig.Config("/work")
+		workDir := platformAbsPath("work")
+		cfg := agentcontextconfig.Config(workDir)
 
 		require.Equal(t, "CLAUDE.md", cfg.InstructionsFile)
 	})
 
 	t.Run("CommaSeparatedDirs", func(t *testing.T) {
-		t.Setenv(agentcontextconfig.EnvInstructionsDirs, "/opt/a,/opt/b")
+		a := platformAbsPath("opt", "a")
+		b := platformAbsPath("opt", "b")
+
+		t.Setenv(agentcontextconfig.EnvInstructionsDirs, a+","+b)
 		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
 		t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
 		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
 		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
-		cfg := agentcontextconfig.Config("/work")
+		workDir := platformAbsPath("work")
+		cfg := agentcontextconfig.Config(workDir)
 
-		require.Equal(t, []string{"/opt/a", "/opt/b"}, cfg.InstructionsDirs)
+		require.Equal(t, []string{a, b}, cfg.InstructionsDirs)
 	})
 }
