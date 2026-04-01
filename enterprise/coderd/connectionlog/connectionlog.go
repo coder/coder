@@ -136,7 +136,6 @@ type DBBatcher struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
-	done   chan struct{}
 	wg     sync.WaitGroup
 }
 
@@ -147,7 +146,6 @@ func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, op
 	b := &DBBatcher{
 		store: store,
 		log:   log,
-		done:  make(chan struct{}),
 		clock: quartz.NewReal(),
 	}
 
@@ -167,9 +165,10 @@ func NewDBBatcher(ctx context.Context, store database.Store, log slog.Logger, op
 	b.dedupedBatch = make(map[uuid.UUID]batchEntry, b.maxBatchSize)
 
 	b.ctx, b.cancel = context.WithCancel(ctx)
+	b.wg.Add(1)
 	go func() {
+		defer b.wg.Done()
 		b.run(b.ctx)
-		close(b.done)
 	}()
 
 	return b
@@ -202,7 +201,6 @@ func (b *DBBatcher) Close() error {
 	if b.timer != nil {
 		b.timer.Stop()
 	}
-	<-b.done
 	b.wg.Wait()
 	return nil
 }

@@ -351,7 +351,6 @@ func Test_batcherFlush(t *testing.T) {
 		// Cancel the run loop so it flushes and spawns the write
 		// goroutine.
 		b.cancel()
-		<-b.done
 
 		// Wait for the write goroutine to actually start the DB
 		// call.
