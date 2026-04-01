@@ -4,7 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { type CSSProperties, type FC, type JSX, useState } from "react";
-import type { FileTree } from "utils/filetree";
+import type { FileTree } from "#/utils/filetree";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 
 const isFolder = (content?: FileTree | string): content is FileTree =>
@@ -100,52 +100,52 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 					)
 				}
 				css={(theme) => css`
-          overflow: hidden;
-          user-select: none;
+					overflow: hidden;
+					user-select: none;
 
-          & > .MuiTreeItem-content {
+					& > .MuiTreeItem-content {
 						border-radius: 0;
-            padding: 2px 16px;
-            color: ${
+						padding: 2px 16px;
+						color: ${
 							isHiddenFile
 								? theme.palette.text.disabled
 								: theme.palette.text.secondary
 						};
-            height: 32px;
+						height: 32px;
 
-            & svg {
-              width: 12px;
-              height: 12px;
-              color: currentColor;
-            }
+						& svg {
+							width: 12px;
+							height: 12px;
+							color: currentColor;
+						}
 
-            & > .MuiTreeItem-label {
-              margin-left: 4px;
-              font-size: 13px;
-              color: inherit;
-              white-space: nowrap;
-            }
+						& > .MuiTreeItem-label {
+							margin-left: 4px;
+							font-size: 13px;
+							color: inherit;
+							white-space: nowrap;
+						}
 
-            &.Mui-selected {
-              color: ${theme.roles.active.text};
-              background: ${theme.roles.active.background};
-            }
+						&.Mui-selected {
+							color: ${theme.roles.active.text};
+							background: ${theme.roles.active.background};
+						}
 
-            &.Mui-focused {
-              box-shadow: inset 0 0 0 1px ${theme.palette.primary.main};
-            }
-          }
+						&.Mui-focused {
+							box-shadow: inset 0 0 0 1px ${theme.palette.primary.main};
+						}
+					}
 
-          & .MuiTreeItem-group {
-            margin-left: 0;
-            position: relative;
+					& .MuiTreeItem-group {
+						margin-left: 0;
+						position: relative;
 
-            // We need to find a better way to recursive padding here
-            & .MuiTreeItem-content {
-              padding-left: calc(8px + (var(--level) + 1) * 8px);
-            }
-          }
-        `}
+						// We need to find a better way to recursive padding here
+						& .MuiTreeItem-content {
+							padding-left: calc(8px + (var(--level) + 1) * 8px);
+						}
+					}
+				`}
 				onClick={() => {
 					onSelect(currentPath);
 				}}

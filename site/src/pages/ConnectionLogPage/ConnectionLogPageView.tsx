@@ -1,31 +1,31 @@
-import type { ConnectionLog } from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Margins } from "components/Margins/Margins";
+import type { ComponentProps, FC } from "react";
+import type { ConnectionLog } from "#/api/typesGenerated";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+} from "#/components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
-import { Stack } from "components/Stack/Stack";
-import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { Timeline } from "components/Timeline/Timeline";
-import type { ComponentProps, FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/PaginationWidget/PaginationContainer";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { Timeline } from "#/components/Timeline/Timeline";
+import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
-import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
+import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
-
-const Language = {
-	title: "Connection Log",
-	subtitle: "View workspace connection events.",
-};
 
 interface ConnectionLogPageViewProps {
 	connectionLogs?: readonly ConnectionLog[];
@@ -56,11 +56,13 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
-						<span>{Language.title}</span>
-						<ConnectionLogHelpTooltip />
+						<span>Connection Log</span>
+						<ConnectionLogHelpPopover />
 					</Stack>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					View workspace connection events.
+				</PageHeaderSubtitle>
 			</PageHeader>
 
 			<ChooseOne>

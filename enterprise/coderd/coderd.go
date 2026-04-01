@@ -46,7 +46,6 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
-	entchatd "github.com/coder/coder/v2/enterprise/coderd/chatd"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
@@ -56,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
+	entchatd "github.com/coder/coder/v2/enterprise/coderd/x/chatd"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
@@ -462,6 +462,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 
 				r.Get("/", api.groupByOrganization)
+				r.Get("/members", api.groupMembersByOrganization)
 			})
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
@@ -546,6 +547,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.group)
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
+				r.Get("/members", api.groupMembers)
 			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {

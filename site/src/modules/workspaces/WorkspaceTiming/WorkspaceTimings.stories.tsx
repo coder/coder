@@ -1,6 +1,6 @@
-import { chromatic } from "testHelpers/chromatic";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import { chromatic } from "#/testHelpers/chromatic";
 import { WorkspaceTimingsResponse } from "./storybookData";
 import { WorkspaceTimings } from "./WorkspaceTimings";
 
@@ -285,7 +285,7 @@ export const InvalidTimeRange: Story = {
 export const MultipleAgents: Story = {
 	decorators: [
 		(Story) => (
-			<div css={{ "--collapse-body-height": "600px" }}>
+			<div style={{ "--collapse-body-height": "600px" } as React.CSSProperties}>
 				<Story />
 			</div>
 		),

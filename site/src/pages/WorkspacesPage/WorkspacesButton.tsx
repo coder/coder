@@ -1,25 +1,25 @@
 import Link from "@mui/material/Link";
-import type { Template } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
-import { MenuSearch } from "components/Menu/MenuSearch";
-import { OverflowY } from "components/OverflowY/OverflowY";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SearchEmpty } from "components/Search/Search";
 import { ExternalLinkIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
 import {
 	Link as RouterLink,
 	type LinkProps as RouterLinkProps,
 } from "react-router";
+import type { Template } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
+import { MenuSearch } from "#/components/Menu/MenuSearch";
+import { OverflowY } from "#/components/OverflowY/OverflowY";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { SearchEmpty } from "#/components/Search/Search";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
@@ -67,21 +67,13 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			>
 				<MenuSearch
 					value={searchTerm}
-					autoFocus={true}
+					autoFocus
 					onChange={setSearchTerm}
 					placeholder="Type/select a workspace template"
 					aria-label="Template select for workspace"
 				/>
 
-				<OverflowY
-					maxHeight={380}
-					css={{
-						display: "flex",
-						flexDirection: "column",
-						paddingTop: "8px",
-						paddingBottom: "8px",
-					}}
-				>
+				<OverflowY maxHeight={380} className="flex flex-col py-2">
 					{templatesFetchStatus === "pending" ? (
 						<Loader size="sm" />
 					) : (
@@ -132,11 +124,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 	return (
 		<PopoverLink
 			to={`${templateLink}/workspace`}
-			css={{
-				display: "flex",
-				gap: 12,
-				alignItems: "center",
-			}}
+			className="flex gap-3 items-center"
 		>
 			<Avatar
 				variant="icon"
@@ -154,7 +142,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 					overflow: "hidden",
 				})}
 			>
-				<span css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+				<span className="whitespace-nowrap text-ellipsis">
 					{template.display_name || template.name || "[Unnamed]"}
 				</span>
 				<span

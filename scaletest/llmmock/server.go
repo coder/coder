@@ -740,8 +740,8 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	writeChunk := func(data string) bool {
-		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
+	writeChunk := func(eventType string, data []byte) bool {
+		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
 			s.logger.Error(ctx, "failed to write Anthropic stream chunk",
 				slog.F("response_id", resp.ID),
 				slog.Error(err),
@@ -756,8 +756,9 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 
 	totalDuration := s.randomStreamDuration()
 
+	startEventType := "message_start"
 	startEvent := map[string]interface{}{
-		"type": "message_start",
+		"type": startEventType,
 		"message": map[string]interface{}{
 			"id":    resp.ID,
 			"type":  resp.Type,
@@ -766,18 +767,18 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		},
 	}
 	startBytes, _ := json.Marshal(startEvent)
-	if !writeChunk(fmt.Sprintf(`data: %s
-
-`, startBytes)) {
+	if !writeChunk(startEventType, startBytes) {
 		return
 	}
 
+	// Send content_block_start event
+	contentStartEventType := "content_block_start"
 	contentStartText := resp.Content[0].Text
 	if totalDuration > 0 {
 		contentStartText = ""
 	}
 	contentStartEvent := map[string]interface{}{
-		"type":  "content_block_start",
+		"type":  contentStartEventType,
 		"index": 0,
 		"content_block": map[string]interface{}{
 			"type": "text",
@@ -785,15 +786,15 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		},
 	}
 	contentStartBytes, _ := json.Marshal(contentStartEvent)
-	if !writeChunk(fmt.Sprintf(`data: %s
-
-`, contentStartBytes)) {
+	if !writeChunk(contentStartEventType, contentStartBytes) {
 		return
 	}
 
+	// Send content_block_delta event(s)
+	deltaEventType := "content_block_delta"
 	if totalDuration == 0 {
 		deltaEvent := map[string]interface{}{
-			"type":  "content_block_delta",
+			"type":  deltaEventType,
 			"index": 0,
 			"delta": map[string]interface{}{
 				"type": "text_delta",
@@ -801,9 +802,7 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 			},
 		}
 		deltaBytes, _ := json.Marshal(deltaEvent)
-		if !writeChunk(fmt.Sprintf(`data: %s
-
-`, deltaBytes)) {
+		if !writeChunk(deltaEventType, deltaBytes) {
 			return
 		}
 	} else {
@@ -814,7 +813,7 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		delay := totalDuration / time.Duration(len(chunks))
 		for i, content := range chunks {
 			deltaEvent := map[string]interface{}{
-				"type":  "content_block_delta",
+				"type":  deltaEventType,
 				"index": 0,
 				"delta": map[string]interface{}{
 					"type": "text_delta",
@@ -822,9 +821,7 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 				},
 			}
 			deltaBytes, _ := json.Marshal(deltaEvent)
-			if !writeChunk(fmt.Sprintf(`data: %s
-
-`, deltaBytes)) {
+			if !writeChunk(deltaEventType, deltaBytes) {
 				return
 			}
 			if i < len(chunks)-1 && !streamWait(ctx, delay) {
@@ -833,19 +830,21 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		}
 	}
 
+	// Send content_block_stop event
+	contentStopEventType := "content_block_stop"
 	contentStopEvent := map[string]interface{}{
-		"type":  "content_block_stop",
+		"type":  contentStopEventType,
 		"index": 0,
 	}
 	contentStopBytes, _ := json.Marshal(contentStopEvent)
-	if !writeChunk(fmt.Sprintf(`data: %s
-
-`, contentStopBytes)) {
+	if !writeChunk(contentStopEventType, contentStopBytes) {
 		return
 	}
 
+	// Send message_delta event
+	deltaMsgEventType := "message_delta"
 	deltaMsgEvent := map[string]interface{}{
-		"type": "message_delta",
+		"type": deltaMsgEventType,
 		"delta": map[string]interface{}{
 			"stop_reason":   resp.StopReason,
 			"stop_sequence": resp.StopSequence,
@@ -853,19 +852,17 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		"usage": resp.Usage,
 	}
 	deltaMsgBytes, _ := json.Marshal(deltaMsgEvent)
-	if !writeChunk(fmt.Sprintf(`data: %s
-
-`, deltaMsgBytes)) {
+	if !writeChunk(deltaMsgEventType, deltaMsgBytes) {
 		return
 	}
 
+	// Send message_stop event
+	stopEventType := "message_stop"
 	stopEvent := map[string]interface{}{
-		"type": "message_stop",
+		"type": stopEventType,
 	}
 	stopBytes, _ := json.Marshal(stopEvent)
-	writeChunk(fmt.Sprintf(`data: %s
-
-`, stopBytes))
+	writeChunk(stopEventType, stopBytes)
 }
 
 func (s *Server) tracingMiddleware(next http.Handler) http.Handler {

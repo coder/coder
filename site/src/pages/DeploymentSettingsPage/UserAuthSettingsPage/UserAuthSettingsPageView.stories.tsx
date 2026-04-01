@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { SerpentGroup } from "api/typesGenerated";
+import type { SerpentGroup } from "#/api/typesGenerated";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const oidcGroup: SerpentGroup = {

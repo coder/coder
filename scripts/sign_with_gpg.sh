@@ -34,6 +34,13 @@ export GNUPGHOME="$gnupg_home_temp"
 # Ensure GPG uses the temporary directory
 echo "$CODER_GPG_RELEASE_KEY_BASE64" | base64 -d | gpg --homedir "$gnupg_home_temp" --import 1>&2
 
+# Mark the imported key as ultimately trusted so GPG does not emit an
+# "untrusted key" warning during signature verification. We derive the
+# fingerprint from the keyring rather than hard-coding it so this works
+# regardless of which key is supplied.
+fingerprint="$(gpg --homedir "$gnupg_home_temp" --with-colons --fingerprint | awk -F: '/^fpr/ { print $10; exit }')"
+echo "${fingerprint}:6:" | gpg --homedir "$gnupg_home_temp" --import-ownertrust 1>&2
+
 # Sign the binary. This generates a file in the same directory and
 # with the same name as the binary but ending in ".asc".
 #

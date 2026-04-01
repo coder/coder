@@ -16,7 +16,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,7 +38,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
-	"github.com/coder/coder/v2/agent/agentdesktop"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -51,6 +49,8 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/x/agentdesktop"
+	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -312,6 +312,8 @@ type agent struct {
 	gitAPI     *agentgit.API
 	processAPI *agentproc.API
 	desktopAPI *agentdesktop.API
+	mcpManager *agentmcp.Manager
+	mcpAPI     *agentmcp.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -385,13 +387,20 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore, func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	})
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
+	a.mcpManager = agentmcp.NewManager(a.logger.Named("mcp"))
+	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1344,6 +1353,14 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
+
+				// Connect to workspace MCP servers after the
+				// lifecycle transition to avoid delaying Ready.
+				// This runs inside the tracked goroutine so it
+				// is properly awaited on shutdown.
+				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, manifest.Directory); mcpErr != nil {
+					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
+				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)
@@ -1872,7 +1889,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		}()
 	}
 	wg.Wait()
-	sort.Float64s(durations)
+	slices.Sort(durations)
 	durationsLength := len(durations)
 	switch {
 	case durationsLength == 0:
@@ -2064,6 +2081,10 @@ func (a *agent) Close() error {
 
 	if err := a.desktopAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
+	}
+
+	if err := a.mcpManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

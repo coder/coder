@@ -4,15 +4,15 @@ import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { API } from "api/api";
-import type {
-	UpdateTemplateMeta,
-	WorkspaceBuildParameter,
-} from "api/typesGenerated";
 import express from "express";
 import capitalize from "lodash/capitalize";
 import * as ssh from "ssh2";
-import { TarWriter } from "utils/tar";
+import { API } from "#/api/api";
+import type {
+	UpdateTemplateMeta,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
+import { TarWriter } from "#/utils/tar";
 import {
 	agentPProfPort,
 	coderBinary,
@@ -210,9 +210,23 @@ export const verifyParameters = async (
 				switch (richParameter.type) {
 					case "bool":
 						{
+							// Use auto-retrying assertions to avoid capturing
+							// a stale default value before data hydration
+							// completes.
 							const parameterField = parameterLabel.locator("input");
-							const value = await parameterField.isChecked();
-							expect(value.toString()).toEqual(buildParameter.value);
+							if (buildParameter.value === "true") {
+								await expect(parameterField).toBeChecked({
+									timeout: 15_000,
+								});
+							} else if (buildParameter.value === "false") {
+								await expect(parameterField).not.toBeChecked({
+									timeout: 15_000,
+								});
+							} else {
+								throw new Error(
+									`Invalid boolean build parameter value: ${buildParameter.value}`,
+								);
+							}
 						}
 						break;
 					case "string":
@@ -1157,7 +1171,7 @@ export const updateTemplateSettings = async (
 	await page.getByRole("button", { name: /save/i }).click();
 
 	const name = templateSettingValues.name ?? templateName;
-	await expectUrl(page).toHavePathNameEndingWith(`/${name}`);
+	await expectUrl(page).toHavePathNameEndingWith(`/${name}/docs`);
 };
 
 export const updateWorkspace = async (

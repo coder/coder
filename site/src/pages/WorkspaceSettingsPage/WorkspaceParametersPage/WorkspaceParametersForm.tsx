@@ -1,28 +1,28 @@
+import { useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
 import type {
 	TemplateVersionParameter,
 	Workspace,
 	WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
-import { Spinner } from "components/Spinner/Spinner";
-import { useFormik } from "formik";
-import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
-import type { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
+} from "#/components/Form/Form";
+import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { ClassicParameterFlowDeprecationWarning } from "#/modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
+import { getFormHelpers } from "#/utils/formUtils";
 import {
 	type AutofillBuildParameter,
 	getInitialRichParameterValues,
 	useValidationSchemaForRichParameters,
-} from "utils/richParameters";
-import * as Yup from "yup";
+} from "#/utils/richParameters";
 
 export type WorkspaceParametersFormValues = {
 	rich_parameter_values: WorkspaceBuildParameter[];

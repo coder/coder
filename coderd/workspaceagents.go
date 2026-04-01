@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -314,17 +315,22 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// This functionality has been moved to the AppsAPI in the agentapi. We keep this HTTP handler around for back
 	// compatibility with older agents. We'll translate the request into the protobuf so there is only one primary
 	// implementation.
+	cachedWs := &agentapi.CachedWorkspaceFields{}
+	cachedWs.UpdateValues(workspace)
+
 	appAPI := &agentapi.AppsAPI{
-		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-			return workspaceAgent, nil
+		AgentID:   workspaceAgent.ID,
+		Database:  api.Database,
+		Log:       api.Logger,
+		Workspace: cachedWs,
+		AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+			return api.Database.GetWorkspaceAgentByID(ctx, workspaceAgent.ID)
 		},
-		Database: api.Database,
-		Log:      api.Logger,
-		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 			api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 				Kind:        kind,
 				WorkspaceID: workspace.ID,
-				AgentID:     &agent.ID,
+				AgentID:     &agentID,
 			})
 			return nil
 		},
@@ -1835,6 +1841,11 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		Branch:       strings.TrimSpace(query.Get("git_branch")),
 		RemoteOrigin: strings.TrimSpace(query.Get("git_remote_origin")),
 	}
+	if raw := strings.TrimSpace(query.Get("chat_id")); raw != "" {
+		if parsed, err := uuid.Parse(raw); err == nil {
+			gitRef.ChatID = parsed
+		}
+	}
 	// Either match or configID must be provided!
 	match := query.Get("match")
 	if match == "" {
@@ -1933,7 +1944,13 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// context is retained even if the flow requires an out-of-band login.
 	if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
 		//nolint:gocritic // Chat processor context required for cross-user chat lookup
-		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
+		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
+			WorkspaceID: workspace.ID,
+			OwnerID:     workspace.OwnerID,
+			Branch:      gitRef.Branch,
+			Origin:      gitRef.RemoteOrigin,
+			ChatID:      gitRef.ChatID,
+		})
 	}
 
 	var previousToken *database.ExternalAuthLink
@@ -2082,7 +2099,13 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		}
 		// MarkStale will trigger a refresh by coderd/gitsync.
 		//nolint:gocritic // Chat processor context required for cross-user chat lookup
-		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
+		api.gitSyncWorker.MarkStale(dbauthz.AsChatd(ctx), gitsync.MarkStaleParams{
+			WorkspaceID: workspace.ID,
+			OwnerID:     workspace.OwnerID,
+			Branch:      gitRef.Branch,
+			Origin:      gitRef.RemoteOrigin,
+			ChatID:      gitRef.ChatID,
+		})
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}

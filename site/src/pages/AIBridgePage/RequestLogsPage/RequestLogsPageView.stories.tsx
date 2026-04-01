@@ -1,18 +1,18 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "#/components/Filter/storyHelpers";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "#/components/PaginationWidget/PaginationContainer.mocks";
 import {
 	MockInterception,
 	MockInterceptionAnthropic,
 	MockInterceptionCopilot,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "components/Filter/storyHelpers";
-import {
-	mockInitialRenderResult,
-	mockSuccessResult,
-} from "components/PaginationWidget/PaginationContainer.mocks";
-import type { ComponentProps } from "react";
+} from "#/testHelpers/entities";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 type FilterProps = ComponentProps<typeof RequestLogsPageView>["filterProps"];
@@ -27,6 +27,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		user: MockMenu,
 		provider: MockMenu,
 		model: MockMenu,
+		client: MockMenu,
 	},
 });
 

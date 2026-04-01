@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockAssignableSiteRoles,
 	MockAuditorRole,
@@ -8,8 +9,7 @@ import {
 	MockUserAdminRole,
 	MockUserMember,
 	MockUserOwner,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+} from "#/testHelpers/entities";
 import { UsersTable } from "./UsersTable";
 
 const mockGroupsByUserId = new Map([
@@ -31,18 +31,34 @@ type Story = StoryObj<typeof UsersTable>;
 
 export const Example: Story = {
 	args: {
-		users: [MockUserOwner, MockUserMember],
+		users: [
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
+		],
 		roles: MockAssignableSiteRoles,
 		canEditUsers: false,
 		groupsByUserId: mockGroupsByUserId,
 	},
 };
 
+export const ExampleWithAISeatColumn: Story = {
+	args: {
+		users: [
+			{ ...MockUserOwner, has_ai_seat: true },
+			{ ...MockUserMember, has_ai_seat: false },
+		],
+		roles: MockAssignableSiteRoles,
+		canEditUsers: false,
+		groupsByUserId: mockGroupsByUserId,
+		showAISeatColumn: true,
+	},
+};
+
 export const Editable: Story = {
 	args: {
 		users: [
-			MockUserOwner,
-			MockUserMember,
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
 			{
 				...MockUserOwner,
 				username: "John Doe",
@@ -54,6 +70,7 @@ export const Editable: Story = {
 					MockAuditorRole,
 				],
 				status: "dormant",
+				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -61,6 +78,7 @@ export const Editable: Story = {
 				email: "roger.moore@coder.com",
 				roles: [],
 				status: "suspended",
+				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -69,12 +87,57 @@ export const Editable: Story = {
 				roles: [],
 				status: "active",
 				login_type: "oidc",
+				has_ai_seat: false,
 			},
 		],
 		roles: MockAssignableSiteRoles,
 		canEditUsers: true,
 		canViewActivity: true,
 		groupsByUserId: mockGroupsByUserId,
+	},
+};
+
+export const EditableWithAISeatColumn: Story = {
+	args: {
+		users: [
+			{ ...MockUserOwner, has_ai_seat: true },
+			{ ...MockUserMember, has_ai_seat: false },
+			{
+				...MockUserOwner,
+				username: "John Doe",
+				email: "john.doe@coder.com",
+				roles: [
+					MockUserAdminRole,
+					MockTemplateAdminRole,
+					MockMemberRole,
+					MockAuditorRole,
+				],
+				status: "dormant",
+				has_ai_seat: false,
+			},
+			{
+				...MockUserOwner,
+				username: "Roger Moore",
+				email: "roger.moore@coder.com",
+				roles: [],
+				status: "suspended",
+				has_ai_seat: false,
+			},
+			{
+				...MockUserOwner,
+				username: "OIDC User",
+				email: "oidc.user@coder.com",
+				roles: [],
+				status: "active",
+				login_type: "oidc",
+				has_ai_seat: false,
+			},
+		],
+		roles: MockAssignableSiteRoles,
+		canEditUsers: true,
+		canViewActivity: true,
+		groupsByUserId: mockGroupsByUserId,
+		showAISeatColumn: true,
 	},
 };
 

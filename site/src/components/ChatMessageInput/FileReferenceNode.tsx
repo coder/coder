@@ -1,5 +1,4 @@
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
-import { FileIcon } from "components/FileIcon/FileIcon";
 import {
 	$getNodeByKey,
 	DecoratorNode,
@@ -11,7 +10,8 @@ import {
 } from "lexical";
 import { XIcon } from "lucide-react";
 import { type FC, memo, type ReactNode } from "react";
-import { cn } from "utils/cn";
+import { FileIcon } from "#/components/FileIcon/FileIcon";
+import { cn } from "#/utils/cn";
 
 type SerializedFileReferenceNode = Spread<
 	{
@@ -30,6 +30,7 @@ export function FileReferenceChip({
 	isSelected,
 	onRemove,
 	onClick,
+	className: extraClassName,
 }: {
 	fileName: string;
 	startLine: number;
@@ -37,6 +38,7 @@ export function FileReferenceChip({
 	isSelected?: boolean;
 	onRemove?: () => void;
 	onClick?: () => void;
+	className?: string;
 }) {
 	const shortFile = fileName.split("/").pop() || fileName;
 	const lineLabel =
@@ -45,9 +47,10 @@ export function FileReferenceChip({
 	return (
 		<span
 			className={cn(
-				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-secondary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
+				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-primary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
 				isSelected &&
 					"border-content-link bg-content-link/10 ring-1 ring-content-link/40",
+				extraClassName,
 			)}
 			contentEditable={false}
 			title={`${fileName}:${lineLabel}`}
@@ -62,9 +65,11 @@ export function FileReferenceChip({
 			tabIndex={0}
 		>
 			<FileIcon fileName={shortFile} className="shrink-0" />
-			<span className="shrink-0 text-content-secondary">
-				{shortFile}
-				<span className="text-content-link">:{lineLabel}</span>
+			<span className="inline-flex min-w-0 text-content-secondary">
+				<span dir="rtl" className="min-w-0 truncate">
+					{shortFile}
+				</span>
+				<span className="shrink-0 text-content-link">:{lineLabel}</span>
 			</span>
 			{onRemove && (
 				<button
@@ -119,8 +124,9 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 		this.__content = content;
 	}
 
-	createDOM(_config: EditorConfig): HTMLElement {
+	createDOM(config: EditorConfig): HTMLElement {
 		const span = document.createElement("span");
+		span.className = config.theme.inlineDecorator ?? "";
 		span.style.display = "inline";
 		span.style.userSelect = "none";
 		return span;

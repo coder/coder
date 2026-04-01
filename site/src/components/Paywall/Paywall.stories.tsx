@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { PremiumBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import {
 	Paywall,
 	PaywallContent,

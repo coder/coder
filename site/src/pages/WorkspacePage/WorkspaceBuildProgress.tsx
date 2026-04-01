@@ -1,11 +1,15 @@
 import { css } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
-import type { Template, TransitionStats, Workspace } from "api/typesGenerated";
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import capitalize from "lodash/capitalize";
 import { type FC, useEffect, useState } from "react";
+import type {
+	Template,
+	TransitionStats,
+	Workspace,
+} from "#/api/typesGenerated";
 
 dayjs.extend(duration);
 
@@ -166,11 +170,11 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 
 const classNames = {
 	bar: css`
-    transition: none;
-  `,
+		transition: none;
+	`,
 	root: css`
-    border-radius: 0;
-  `,
+		border-radius: 0;
+	`,
 };
 
 const styles = {

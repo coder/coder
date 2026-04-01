@@ -11,11 +11,11 @@ import {
 	$createTextNode,
 	$getRoot,
 	$getSelection,
-	$insertNodes,
 	$isRangeSelection,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
 	FORMAT_TEXT_COMMAND,
+	KEY_DOWN_COMMAND,
 	KEY_ENTER_COMMAND,
 	type LexicalEditor,
 	PASTE_COMMAND,
@@ -31,11 +31,18 @@ import {
 	useMemo,
 	useRef,
 } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
 } from "./FileReferenceNode";
+import {
+	createPasteFile,
+	getPasteDataTransfer,
+	getPastedPlainText,
+	isLargePaste,
+	type PasteCommandEvent,
+} from "./pasteHelpers";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -60,76 +67,192 @@ const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
 	return null;
 });
 
+function insertPlainTextIntoEditor(editor: LexicalEditor, text: string) {
+	editor.update(() => {
+		const selection = $getSelection();
+		if ($isRangeSelection(selection)) {
+			selection.insertText(text);
+			return;
+		}
+		const root = $getRoot();
+		const lastChild = root.getLastChild();
+		if (lastChild) {
+			if (lastChild.getType() === "paragraph") {
+				const paragraph = lastChild as ParagraphNode;
+				const textNode = $createTextNode(text);
+				paragraph.append(textNode);
+				textNode.selectEnd();
+			} else {
+				const textNode = $createTextNode(text);
+				lastChild.insertAfter(textNode);
+				textNode.selectEnd();
+			}
+		} else {
+			const paragraph = $createParagraphNode();
+			const textNode = $createTextNode(text);
+			paragraph.append(textNode);
+			root.append(paragraph);
+			textNode.selectEnd();
+		}
+	});
+}
+
+function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
+	editor.update(() => {
+		const root = $getRoot();
+		root.clear();
+		const paragraph = $createParagraphNode();
+		root.append(paragraph);
+		if (!text) {
+			paragraph.select();
+			return;
+		}
+		paragraph.select();
+		const selection = $getSelection();
+		if ($isRangeSelection(selection)) {
+			selection.insertText(text);
+			return;
+		}
+		const textNode = $createTextNode(text);
+		paragraph.append(textNode);
+		textNode.selectEnd();
+	});
+}
+
 // Intercepts paste events and inserts clipboard content as plain text,
-// stripping any rich-text formatting. Image files are forwarded to
-// the parent via the onFilePaste callback instead of being inserted.
+// stripping any rich-text formatting. Image files and large pasted text
+// are forwarded to the parent via the onFilePaste callback instead.
+//
+// Cmd/Ctrl+Shift+V ("paste and match style") is treated as an explicit
+// user intent to paste inline, so the large-paste-to-attachment
+// conversion is bypassed for that shortcut.
 const PasteSanitizationPlugin: FC<{
 	onFilePaste?: (file: File) => void;
-}> = memo(function PasteSanitizationPlugin({ onFilePaste }) {
+	allowTextAttachmentPaste?: boolean;
+}> = memo(function PasteSanitizationPlugin({
+	onFilePaste,
+	allowTextAttachmentPaste = true,
+}) {
 	const [editor] = useLexicalComposerContext();
+	const plainTextPasteRef = useRef(false);
+	const plainTextPasteTimeoutRef = useRef<number | null>(null);
 
 	useEffect(() => {
-		return editor.registerCommand(
-			PASTE_COMMAND,
-			(event: ClipboardEvent | null) => {
-				if (!event) return false;
-				const clipboardData = event.clipboardData;
-				if (!clipboardData) return false;
-
-				// Check for image files in the clipboard (e.g. pasted
-				// screenshots). Forward them to the parent via callback
-				// instead of inserting text.
-				if (onFilePaste && clipboardData.files.length > 0) {
-					const images = Array.from(clipboardData.files).filter((f) =>
-						f.type.startsWith("image/"),
-					);
-					if (images.length > 0) {
-						event.preventDefault();
-						for (const file of images) {
-							onFilePaste(file);
+		const unregister = mergeRegister(
+			// Detect Cmd/Ctrl+Shift+V so the PASTE_COMMAND handler
+			// can bypass attachment conversion for that shortcut.
+			editor.registerCommand(
+				KEY_DOWN_COMMAND,
+				(event: KeyboardEvent) => {
+					if (
+						event.shiftKey &&
+						(event.metaKey || event.ctrlKey) &&
+						event.key.toLowerCase() === "v"
+					) {
+						plainTextPasteRef.current = true;
+						if (plainTextPasteTimeoutRef.current !== null) {
+							window.clearTimeout(plainTextPasteTimeoutRef.current);
 						}
+						plainTextPasteTimeoutRef.current = window.setTimeout(() => {
+							plainTextPasteRef.current = false;
+							plainTextPasteTimeoutRef.current = null;
+						}, 500);
+					}
+					return false;
+				},
+				COMMAND_PRIORITY_HIGH,
+			),
+
+			editor.registerCommand(
+				PASTE_COMMAND,
+				(event: PasteCommandEvent | null) => {
+					if (!event) return false;
+
+					const isPlainTextPaste = plainTextPasteRef.current;
+					plainTextPasteRef.current = false;
+					if (plainTextPasteTimeoutRef.current !== null) {
+						window.clearTimeout(plainTextPasteTimeoutRef.current);
+						plainTextPasteTimeoutRef.current = null;
+					}
+					const isNativePaste = "clipboardData" in event;
+					const dataTransfer = getPasteDataTransfer(event);
+
+					// Some browsers deliver paste as beforeinput with
+					// payload on `event.data` / `dataTransfer` instead of
+					// a native ClipboardEvent. Consume that payload here so
+					// plain-text paste shortcuts never become a no-op.
+					if (!isNativePaste) {
+						const text = getPastedPlainText(event, dataTransfer);
+						if (!text) {
+							return false;
+						}
+						if (
+							!isPlainTextPaste &&
+							allowTextAttachmentPaste &&
+							onFilePaste &&
+							isLargePaste(text)
+						) {
+							event.preventDefault();
+							onFilePaste(createPasteFile(text));
+							return true;
+						}
+						event.preventDefault();
+						insertPlainTextIntoEditor(editor, text);
 						return true;
 					}
-				}
+					// Native paste event (ClipboardEvent).
 
-				const text = clipboardData.getData("text/plain");
-				if (!text) return false;
-
-				event.preventDefault();
-
-				editor.update(() => {
-					const selection = $getSelection();
-					if ($isRangeSelection(selection)) {
-						selection.insertText(text);
-					} else {
-						const root = $getRoot();
-						const lastChild = root.getLastChild();
-						if (lastChild) {
-							if (lastChild.getType() === "paragraph") {
-								const paragraph = lastChild as ParagraphNode;
-								const textNode = $createTextNode(text);
-								paragraph.append(textNode);
-								textNode.selectEnd();
-							} else {
-								const textNode = $createTextNode(text);
-								lastChild.insertAfter(textNode);
-								textNode.selectEnd();
+					// Check for image files in the clipboard (e.g.
+					// pasted screenshots). Forward them to the parent
+					// via callback instead of inserting text.
+					if (onFilePaste && dataTransfer?.files.length) {
+						const images = Array.from(dataTransfer.files).filter((f) =>
+							f.type.startsWith("image/"),
+						);
+						if (images.length > 0) {
+							event.preventDefault();
+							for (const file of images) {
+								onFilePaste(file);
 							}
-						} else {
-							const paragraph = $createParagraphNode();
-							const textNode = $createTextNode(text);
-							paragraph.append(textNode);
-							root.append(paragraph);
-							textNode.selectEnd();
+							return true;
 						}
 					}
-				});
 
-				return true;
-			},
-			COMMAND_PRIORITY_HIGH,
+					const text = getPastedPlainText(event, dataTransfer);
+					if (!text) return false;
+
+					// Convert large pastes to file attachments, but
+					// only for normal Cmd+V. Cmd+Shift+V is the
+					// user’s explicit "paste inline" escape hatch.
+					if (
+						!isPlainTextPaste &&
+						allowTextAttachmentPaste &&
+						onFilePaste &&
+						isLargePaste(text)
+					) {
+						event.preventDefault();
+						onFilePaste(createPasteFile(text));
+						return true;
+					}
+
+					// Small paste (or Cmd+Shift+V): insert as plain text.
+					event.preventDefault();
+					insertPlainTextIntoEditor(editor, text);
+
+					return true;
+				},
+				COMMAND_PRIORITY_HIGH,
+			),
 		);
-	}, [editor, onFilePaste]);
+
+		return () => {
+			if (plainTextPasteTimeoutRef.current !== null) {
+				window.clearTimeout(plainTextPasteTimeoutRef.current);
+				plainTextPasteTimeoutRef.current = null;
+			}
+			unregister();
+		};
+	}, [allowTextAttachmentPaste, editor, onFilePaste]);
 
 	return null;
 });
@@ -194,35 +317,6 @@ const ContentChangePlugin: FC<{
 	return null;
 });
 
-// Seeds the editor with an initial value on first mount.
-const ValueSyncPlugin: FC<{ initialValue?: string }> = memo(
-	function ValueSyncPlugin({ initialValue }) {
-		const [editor] = useLexicalComposerContext();
-		const hasInitialized = useRef(false);
-
-		useEffect(() => {
-			if (!hasInitialized.current && initialValue !== undefined) {
-				hasInitialized.current = true;
-
-				if (initialValue === "") {
-					return;
-				}
-
-				editor.update(() => {
-					const root = $getRoot();
-					root.clear();
-					const paragraph = $createParagraphNode();
-					const textNode = $createTextNode(initialValue);
-					paragraph.append(textNode);
-					root.append(paragraph);
-				});
-			}
-		}, [editor, initialValue]);
-
-		return null;
-	},
-);
-
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
 const InsertTextPlugin: FC<{
@@ -259,6 +353,10 @@ type EditorContentPart =
 	  };
 
 export interface ChatMessageInputRef {
+	/**
+	 * Replace the editor's plain-text content in a single Lexical update.
+	 */
+	setValue: (text: string) => void;
 	insertText: (text: string) => void;
 	clear: () => void;
 	focus: () => void;
@@ -284,6 +382,7 @@ interface ChatMessageInputProps
 	rows?: number;
 	onEnter?: () => void;
 	onFilePaste?: (file: File) => void;
+	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
 	"aria-label"?: string;
@@ -313,6 +412,7 @@ const ChatMessageInput = memo(
 		rows,
 		onEnter,
 		onFilePaste,
+		allowTextAttachmentPaste,
 		disabled,
 		autoFocus,
 		"aria-label": ariaLabel,
@@ -324,6 +424,7 @@ const ChatMessageInput = memo(
 				namespace: "ChatMessageInput",
 				theme: {
 					paragraph: "m-0",
+					inlineDecorator: "mx-1",
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
 				nodes: [FileReferenceNode],
@@ -339,13 +440,37 @@ const ChatMessageInput = memo(
 		);
 
 		const editorRef = useRef<LexicalEditor | null>(null);
+		const lastKnownValueRef = useRef(initialValue ?? "");
+		const pendingReplacementRef = useRef<string | null>(null);
+
+		const replaceValueOrQueue = useCallback((text: string) => {
+			lastKnownValueRef.current = text;
+			const editor = editorRef.current;
+			if (!editor) {
+				pendingReplacementRef.current = text;
+				return;
+			}
+			pendingReplacementRef.current = null;
+			replacePlainTextInEditor(editor, text);
+		}, []);
 
 		const handleEditorReady = useCallback((editor: LexicalEditor) => {
 			editorRef.current = editor;
+			const pendingReplacement = pendingReplacementRef.current;
+			if (pendingReplacement !== null) {
+				pendingReplacementRef.current = null;
+				replacePlainTextInEditor(editor, pendingReplacement);
+				return;
+			}
+			const initialText = lastKnownValueRef.current;
+			if (initialText) {
+				replacePlainTextInEditor(editor, initialText);
+			}
 		}, []);
 
 		const handleContentChange = useCallback(
 			(content: string, hasFileReferences: boolean) => {
+				lastKnownValueRef.current = content;
 				onChange?.(content, hasFileReferences);
 			},
 			[onChange],
@@ -354,51 +479,17 @@ const ChatMessageInput = memo(
 		useImperativeHandle(
 			ref,
 			() => ({
+				setValue: (text: string) => {
+					replaceValueOrQueue(text);
+				},
 				insertText: (text: string) => {
 					const editor = editorRef.current;
 					if (!editor) return;
 
-					editor.update(() => {
-						const selection = $getSelection();
-						if ($isRangeSelection(selection)) {
-							const textNode = $createTextNode(text);
-							$insertNodes([textNode]);
-							textNode.selectEnd();
-						} else {
-							const root = $getRoot();
-							const lastChild = root.getLastChild();
-							if (lastChild) {
-								if (lastChild.getType() === "paragraph") {
-									const paragraph = lastChild as ParagraphNode;
-									const textNode = $createTextNode(text);
-									paragraph.append(textNode);
-									textNode.selectEnd();
-								} else {
-									const textNode = $createTextNode(text);
-									lastChild.insertAfter(textNode);
-									textNode.selectEnd();
-								}
-							} else {
-								const paragraph = $createParagraphNode();
-								const textNode = $createTextNode(text);
-								paragraph.append(textNode);
-								root.append(paragraph);
-								textNode.selectEnd();
-							}
-						}
-					});
+					insertPlainTextIntoEditor(editor, text);
 				},
 				clear: () => {
-					const editor = editorRef.current;
-					if (!editor) return;
-
-					editor.update(() => {
-						const root = $getRoot();
-						root.clear();
-						const paragraph = $createParagraphNode();
-						root.append(paragraph);
-						paragraph.select();
-					});
+					replaceValueOrQueue("");
 				},
 				focus: () => {
 					const editor = editorRef.current;
@@ -419,7 +510,9 @@ const ChatMessageInput = memo(
 				},
 				getValue: () => {
 					const editor = editorRef.current;
-					if (!editor) return "";
+					if (!editor) {
+						return lastKnownValueRef.current;
+					}
 					let content = "";
 					editor.getEditorState().read(() => {
 						content = $getRoot().getTextContent();
@@ -495,11 +588,11 @@ const ChatMessageInput = memo(
 					return parts;
 				},
 			}),
-			[],
+			[replaceValueOrQueue],
 		);
 
 		return (
-			<LexicalComposer initialConfig={initialConfig} key={initialValue}>
+			<LexicalComposer initialConfig={initialConfig}>
 				<div
 					className={cn(
 						"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-none whitespace-pre-wrap break-words [&>*]:col-start-1 [&>*]:row-start-1",
@@ -528,10 +621,12 @@ const ChatMessageInput = memo(
 					/>
 					<HistoryPlugin />
 					<DisableFormattingPlugin />
-					<PasteSanitizationPlugin onFilePaste={onFilePaste} />
+					<PasteSanitizationPlugin
+						onFilePaste={onFilePaste}
+						allowTextAttachmentPaste={allowTextAttachmentPaste}
+					/>
 					<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
 					<ContentChangePlugin onChange={handleContentChange} />
-					<ValueSyncPlugin initialValue={initialValue} />
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
 					<EditableStatePlugin disabled={!!disabled} />
 					{autoFocus && <AutoFocusPlugin />}

@@ -1000,6 +1000,12 @@ func mcpFromSDK(sdkTool toolsdk.GenericTool, tb toolsdk.Deps) server.ServerTool 
 				Properties: sdkTool.Schema.Properties,
 				Required:   sdkTool.Schema.Required,
 			},
+			Annotations: mcp.ToolAnnotation{
+				ReadOnlyHint:    mcp.ToBoolPtr(sdkTool.MCPAnnotations.ReadOnlyHint),
+				DestructiveHint: mcp.ToBoolPtr(sdkTool.MCPAnnotations.DestructiveHint),
+				IdempotentHint:  mcp.ToBoolPtr(sdkTool.MCPAnnotations.IdempotentHint),
+				OpenWorldHint:   mcp.ToBoolPtr(sdkTool.MCPAnnotations.OpenWorldHint),
+			},
 		},
 		Handler: func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			var buf bytes.Buffer

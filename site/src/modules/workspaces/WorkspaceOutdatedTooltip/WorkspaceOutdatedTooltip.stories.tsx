@@ -1,11 +1,11 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockWorkspace,
-} from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+} from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip";
 
 const meta: Meta<typeof WorkspaceOutdatedTooltip> = {
@@ -37,9 +37,9 @@ const Example: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(body.getByRole("button"));
+			await userEvent.click(body.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					MockTemplateVersion.message,
 				),
 			);

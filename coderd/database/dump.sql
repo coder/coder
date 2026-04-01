@@ -620,28 +620,35 @@ CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    -- Check for supported event types and throw error for unknown types
-    IF NEW.event_type NOT IN ('dc_managed_agents_v1') THEN
+    -- Check for supported event types and throw error for unknown types.
+    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1') THEN
         RAISE EXCEPTION 'Unhandled usage event type in aggregate_usage_event: %', NEW.event_type;
     END IF;
 
     INSERT INTO usage_events_daily (day, event_type, usage_data)
     VALUES (
-        -- Extract the date from the created_at timestamp, always using UTC for
-        -- consistency
         date_trunc('day', NEW.created_at AT TIME ZONE 'UTC')::date,
         NEW.event_type,
         NEW.event_data
     )
     ON CONFLICT (day, event_type) DO UPDATE SET
         usage_data = CASE
-            -- Handle simple counter events by summing the count
+            -- Handle simple counter events by summing the count.
             WHEN NEW.event_type IN ('dc_managed_agents_v1') THEN
                 jsonb_build_object(
                     'count',
                     COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0) +
                     COALESCE((NEW.event_data->>'count')::bigint, 0)
                 )
+			-- Heartbeat events: keep the max value seen that day
+            WHEN NEW.event_type IN ('hb_ai_seats_v1') THEN
+				jsonb_build_object(
+					'count',
+					GREATEST(
+						COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0),
+						COALESCE((NEW.event_data->>'count')::bigint, 0)
+					)
+				)
         END;
 
     RETURN NEW;
@@ -1092,7 +1099,8 @@ CREATE TABLE aibridge_interceptions (
     client character varying(64) DEFAULT 'Unknown'::character varying,
     thread_parent_id uuid,
     thread_root_id uuid,
-    client_session_id character varying(256)
+    client_session_id character varying(256),
+    session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1104,6 +1112,8 @@ COMMENT ON COLUMN aibridge_interceptions.thread_parent_id IS 'The interception w
 COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interception of the thread that this interception belongs to.';
 
 COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
+
+COMMENT ON COLUMN aibridge_interceptions.session_id IS 'Groups related interceptions into a logical session. Determined by a priority chain: (1) client_session_id — an explicit session identifier supplied by the calling client (e.g. Claude Code); (2) thread_root_id — the root of an agentic thread detected by Bridge through tool-call correlation, used when the client does not supply its own session ID; (3) id — the interception''s own ID, used as a last resort so every interception belongs to exactly one session even if it is standalone. This is a generated column stored on disk so it can be indexed and joined without recomputing the COALESCE on every query.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -1282,7 +1292,10 @@ CREATE TABLE chat_messages (
     compressed boolean DEFAULT false NOT NULL,
     created_by uuid,
     content_version smallint NOT NULL,
-    total_cost_micros bigint
+    total_cost_micros bigint,
+    runtime_ms bigint,
+    deleted boolean DEFAULT false NOT NULL,
+    provider_response_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1384,7 +1397,14 @@ CREATE TABLE chats (
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     last_error text,
-    mode chat_mode
+    mode chat_mode,
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    labels jsonb DEFAULT '{}'::jsonb NOT NULL,
+    build_id uuid,
+    agent_id uuid,
+    pin_order integer DEFAULT 0 NOT NULL,
+    last_read_message_id bigint,
+    last_injected_context jsonb
 );
 
 CREATE TABLE connection_logs (
@@ -1609,6 +1629,7 @@ CREATE VIEW group_members_expanded AS
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
     users.is_system AS user_is_system,
+    users.is_service_account AS user_is_service_account,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id
@@ -1616,8 +1637,6 @@ CREATE VIEW group_members_expanded AS
      JOIN users ON ((users.id = all_members.user_id)))
      JOIN groups ON ((groups.id = all_members.group_id)))
   WHERE (users.deleted = false);
-
-COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
 
 CREATE TABLE inbox_notifications (
     id uuid NOT NULL,
@@ -1660,6 +1679,54 @@ CREATE SEQUENCE licenses_id_seq
     CACHE 1;
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
+
+CREATE TABLE mcp_server_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    display_name text NOT NULL,
+    slug text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    icon_url text DEFAULT ''::text NOT NULL,
+    transport text DEFAULT 'streamable_http'::text NOT NULL,
+    url text NOT NULL,
+    auth_type text DEFAULT 'none'::text NOT NULL,
+    oauth2_client_id text DEFAULT ''::text NOT NULL,
+    oauth2_client_secret text DEFAULT ''::text NOT NULL,
+    oauth2_client_secret_key_id text,
+    oauth2_auth_url text DEFAULT ''::text NOT NULL,
+    oauth2_token_url text DEFAULT ''::text NOT NULL,
+    oauth2_scopes text DEFAULT ''::text NOT NULL,
+    api_key_header text DEFAULT 'Authorization'::text NOT NULL,
+    api_key_value text DEFAULT ''::text NOT NULL,
+    api_key_value_key_id text,
+    custom_headers text DEFAULT '{}'::text NOT NULL,
+    custom_headers_key_id text,
+    tool_allow_list text[] DEFAULT '{}'::text[] NOT NULL,
+    tool_deny_list text[] DEFAULT '{}'::text[] NOT NULL,
+    availability text DEFAULT 'default_off'::text NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    created_by uuid,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_intent boolean DEFAULT false NOT NULL,
+    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
+    CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
+    CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
+);
+
+CREATE TABLE mcp_server_user_tokens (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    mcp_server_config_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    access_token text NOT NULL,
+    access_token_key_id text,
+    refresh_token text DEFAULT ''::text NOT NULL,
+    refresh_token_key_id text,
+    token_type text DEFAULT 'Bearer'::text NOT NULL,
+    expiry timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 CREATE TABLE notification_messages (
     id uuid NOT NULL,
@@ -2655,7 +2722,7 @@ CREATE TABLE usage_events (
     publish_started_at timestamp with time zone,
     published_at timestamp with time zone,
     failure_message text,
-    CONSTRAINT usage_event_type_check CHECK ((event_type = 'dc_managed_agents_v1'::text))
+    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text])))
 );
 
 COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
@@ -3334,6 +3401,18 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_slug_key UNIQUE (slug);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
 
@@ -3586,6 +3665,10 @@ CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING bt
 
 CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
 
+CREATE INDEX idx_aibridge_interceptions_session_id ON aibridge_interceptions USING btree (session_id) WHERE (ended_at IS NOT NULL);
+
+CREATE INDEX idx_aibridge_interceptions_sessions_filter ON aibridge_interceptions USING btree (initiator_id, started_at DESC, id DESC) WHERE (ended_at IS NOT NULL);
+
 CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);
 
 CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptions USING btree (thread_parent_id);
@@ -3603,6 +3686,8 @@ CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages US
 CREATE INDEX idx_aibridge_tool_usages_provider_tool_call_id ON aibridge_tool_usages USING btree (provider_tool_call_id);
 
 CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_user_prompts_interception_created ON aibridge_user_prompts USING btree (interception_id, created_at DESC, id DESC);
 
 CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts USING btree (interception_id);
 
@@ -3648,6 +3733,8 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
+CREATE INDEX idx_chats_labels ON chats USING gin (labels);
+
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
@@ -3682,6 +3769,12 @@ CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USIN
 
 CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
 
+CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (enabled) WHERE (enabled = true);
+
+CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
+
+CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
@@ -3709,6 +3802,8 @@ CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_pre
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
+CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
 
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 
@@ -3945,6 +4040,12 @@ ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_build_id_fkey FOREIGN KEY (build_id) REFERENCES workspace_builds(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
 
 ALTER TABLE ONLY chats
@@ -4003,6 +4104,33 @@ ALTER TABLE ONLY jfrog_xray_scans
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_api_key_value_key_id_fkey FOREIGN KEY (api_key_value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_custom_headers_key_id_fkey FOREIGN KEY (custom_headers_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_oauth2_client_secret_key_id_fkey FOREIGN KEY (oauth2_client_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_access_token_key_id_fkey FOREIGN KEY (access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_refresh_token_key_id_fkey FOREIGN KEY (refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;

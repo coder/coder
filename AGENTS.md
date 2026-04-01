@@ -146,11 +146,20 @@ git config core.hooksPath scripts/githooks
 
 Two hooks run automatically:
 
-- **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
-  Fast checks that catch most CI failures. Allow at least 5 minutes.
-- **pre-push**: `make pre-push` (heavier checks including tests).
-  Allowlisted in `scripts/githooks/pre-push`. Runs only for developers
-  who opt in. Allow at least 15 minutes.
+- **pre-commit**: Classifies staged files by type and runs either
+  the full `make pre-commit` or the lightweight `make pre-commit-light`
+  depending on whether Go, TypeScript, SQL, proto, or Makefile
+  changes are present. Falls back to the full target when
+  `CODER_HOOK_RUN_ALL=1` is set. A markdown-only commit takes
+  seconds; a Go change takes several minutes.
+- **pre-push**: Classifies changed files (vs remote branch or
+  merge-base) and runs `make pre-push` when Go, TypeScript, SQL,
+  proto, or Makefile changes are detected. Skips tests entirely
+  for lightweight changes. Allowlisted in
+  `scripts/githooks/pre-push`. Runs only for developers who opt
+  in. Falls back to `make pre-push` when the diff range can't
+  be determined or `CODER_HOOK_RUN_ALL=1` is set. Allow at least
+  15 minutes for a full run.
 
 `git commit` and `git push` will appear to hang while hooks run.
 This is normal. Do not interrupt, retry, or reduce the timeout.
@@ -208,6 +217,11 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
+- PR titles follow the same `type(scope): message` format.
+- When you use a scope, it must be a real filesystem path containing every
+  changed file.
+- Use a broader path scope, or omit the scope, for cross-cutting changes.
+- Example: `fix(coderd/chatd): ...` for changes only in `coderd/chatd/`.
 
 ### Frontend Patterns
 
@@ -282,6 +296,27 @@ comments preserve important context about why code works a certain way.
 @.claude/docs/DATABASE.md
 @.claude/docs/PR_STYLE_GUIDE.md
 @.claude/docs/DOCS_STYLE_GUIDE.md
+
+If your agent tool does not auto-load `@`-referenced files, read these
+manually before starting work:
+
+**Always read:**
+
+- `.claude/docs/WORKFLOWS.md` — dev server, git workflow, hooks
+
+**Read when relevant to your task:**
+
+- `.claude/docs/GO.md` — Go patterns and modern Go usage (any Go changes)
+- `.claude/docs/TESTING.md` — testing patterns, race conditions (any test changes)
+- `.claude/docs/DATABASE.md` — migrations, SQLC, audit table (any DB changes)
+- `.claude/docs/ARCHITECTURE.md` — system overview (orientation or architecture work)
+- `.claude/docs/PR_STYLE_GUIDE.md` — PR description format (when writing PRs)
+- `.claude/docs/OAUTH2.md` — OAuth2 and RFC compliance (when touching auth)
+- `.claude/docs/TROUBLESHOOTING.md` — common failures and fixes (when stuck)
+- `.claude/docs/DOCS_STYLE_GUIDE.md` — docs conventions (when writing `docs/`)
+
+**For frontend work**, also read `site/AGENTS.md` before making any changes
+in `site/`.
 
 ## Local Configuration
 

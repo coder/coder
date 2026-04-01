@@ -1,20 +1,20 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { WorkspaceAgentStatus } from "api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
-import { Link } from "components/Link/Link";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { BlocksIcon, HistoryIcon } from "lucide-react";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { AgentRow } from "modules/resources/AgentRow";
-import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
+import { AgentRow } from "#/modules/resources/AgentRow";
+import { getAgentHealthIssue } from "#/modules/workspaces/health";
+import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceAlert } from "./WorkspaceAlert";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
@@ -157,161 +157,106 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 				</div>
 
-				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--surface-invert-secondary))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-8">
-					{selectedResource && (
-						<ResourceMetadata
-							resource={selectedResource}
-							className="-mx-8 -mt-8 mb-6"
-						/>
-					)}
-					<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
-						{workspace.latest_build.status === "deleted" && (
-							<WorkspaceDeletedBanner
-								handleClick={() => navigate("/templates")}
-							/>
-						)}
+				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-8">
+					<div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-surface-primary to-transparent"></div>
 
-						{shouldShowProvisionerAlert && (
-							<ProvisionerStatusAlert
-								matchingProvisioners={
-									workspace.latest_build.matched_provisioners?.count
-								}
-								availableProvisioners={
-									workspace.latest_build.matched_provisioners?.available ?? 0
-								}
-								tags={workspace.latest_build.job.tags}
-							/>
-						)}
-
-						{workspace.latest_build.job.error && (
-							<Alert severity="error" prominent>
-								<AlertTitle>Workspace build failed</AlertTitle>
-								<AlertDescription>
-									{workspace.latest_build.job.error}
-								</AlertDescription>
-							</Alert>
-						)}
-
-						{!workspace.health.healthy && (
-							<UnhealthyWorkspaceAlert
-								workspace={workspace}
-								troubleshootingURL={troubleshootingURL}
-							/>
-						)}
-
-						{transitionStats !== undefined && (
-							<WorkspaceBuildProgress
-								workspace={workspace}
-								transitionStats={transitionStats}
-							/>
-						)}
-
-						{shouldShowBuildLogs && (
-							<WorkspaceBuildLogsSection logs={buildLogs} />
-						)}
-
+					<div className="relative z-10">
 						{selectedResource && (
-							<section className="flex flex-col gap-6 flex-grow min-w-0">
-								{selectedResource.agents
-									// If an agent has a `parent_id`, that means it is
-									// child of another agent. We do not want these agents
-									// to be displayed at the top-level on this page. We
-									// want them to display _as children_ of their parents.
-									?.filter((agent) => agent.parent_id === null)
-									.map((agent) => (
-										<AgentRow
-											key={agent.id}
-											agent={agent}
-											subAgents={selectedResource.agents?.filter(
-												(a) => a.parent_id === agent.id,
-											)}
-											workspace={workspace}
-											template={template}
-											onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-										/>
-									))}
-
-								{(!selectedResource.agents ||
-									selectedResource.agents?.length === 0) && (
-									<div className="flex justify-center items-center w-full h-full">
-										<div>
-											<h4 className="text-base font-medium">
-												No agents are currently assigned to this resource.
-											</h4>
-										</div>
-									</div>
-								)}
-							</section>
+							<ResourceMetadata
+								resource={selectedResource}
+								className="-mx-8 -mt-8 mb-6"
+							/>
 						)}
+						<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
+							{workspace.latest_build.status === "deleted" && (
+								<WorkspaceDeletedBanner
+									handleClick={() => navigate("/templates")}
+								/>
+							)}
 
-						<WorkspaceTimings
-							provisionerTimings={timings?.provisioner_timings}
-							agentScriptTimings={timings?.agent_script_timings}
-							agentConnectionTimings={timings?.agent_connection_timings}
-						/>
+							{shouldShowProvisionerAlert && (
+								<ProvisionerStatusAlert
+									matchingProvisioners={
+										workspace.latest_build.matched_provisioners?.count
+									}
+									availableProvisioners={
+										workspace.latest_build.matched_provisioners?.available ?? 0
+									}
+									tags={workspace.latest_build.job.tags}
+								/>
+							)}
+
+							{workspace.latest_build.job.error && (
+								<Alert severity="error" prominent>
+									<AlertTitle>Workspace build failed</AlertTitle>
+									<AlertDescription>
+										{workspace.latest_build.job.error}
+									</AlertDescription>
+								</Alert>
+							)}
+
+							{!workspace.health.healthy && (
+								<WorkspaceAlert
+									{...getAgentHealthIssue(workspace)}
+									troubleshootingURL={troubleshootingURL}
+								/>
+							)}
+
+							{transitionStats !== undefined && (
+								<WorkspaceBuildProgress
+									workspace={workspace}
+									transitionStats={transitionStats}
+								/>
+							)}
+
+							{shouldShowBuildLogs && (
+								<WorkspaceBuildLogsSection logs={buildLogs} />
+							)}
+
+							{selectedResource && (
+								<section className="flex flex-col gap-6 flex-grow min-w-0">
+									{selectedResource.agents
+										// If an agent has a `parent_id`, that means it is
+										// child of another agent. We do not want these agents
+										// to be displayed at the top-level on this page. We
+										// want them to display _as children_ of their parents.
+										?.filter((agent) => agent.parent_id === null)
+										.map((agent) => (
+											<AgentRow
+												key={agent.id}
+												agent={agent}
+												subAgents={selectedResource.agents?.filter(
+													(a) => a.parent_id === agent.id,
+												)}
+												workspace={workspace}
+												template={template}
+												onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+											/>
+										))}
+
+									{(!selectedResource.agents ||
+										selectedResource.agents?.length === 0) && (
+										<div className="flex justify-center items-center w-full h-full">
+											<div>
+												<h4 className="text-base font-medium">
+													No agents are currently assigned to this resource.
+												</h4>
+											</div>
+										</div>
+									)}
+								</section>
+							)}
+
+							<WorkspaceTimings
+								provisionerTimings={timings?.provisioner_timings}
+								agentScriptTimings={timings?.agent_script_timings}
+								agentConnectionTimings={timings?.agent_connection_timings}
+							/>
+						</div>
 					</div>
 				</div>
 			</div>
 		</div>
-	);
-};
-
-interface UnhealthyWorkspaceAlertProps {
-	workspace: TypesGen.Workspace;
-	troubleshootingURL: string | undefined;
-}
-
-const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
-	workspace,
-	troubleshootingURL,
-}) => {
-	const failingAgentCount = workspace.health.failing_agents.length;
-	const failureSet = new Set<WorkspaceAgentStatus>();
-
-	workspace.latest_build.resources.forEach((resource) => {
-		resource.agents?.forEach((agent) => {
-			failureSet.add(agent.status);
-		});
-	});
-
-	var title = "Workspace agents are not connected";
-	var message =
-		"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
-
-	// Disconnected is a more serious failure than timeout, so we can
-	// prioritize handling it first.
-	if (failureSet.has("disconnected")) {
-		title = "Workspace agents have disconnected";
-		message =
-			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
-	} else if (failureSet.has("timeout")) {
-		// Handle timeout case
-		title = "Your workspace is starting, but the agent has not yet connected.";
-		message =
-			"The agent is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the agent does not connect, restarting the workspace can be used to try again.";
-	}
-
-	return (
-		<Alert severity="warning" prominent>
-			<AlertTitle>{title}</AlertTitle>
-			<AlertDescription>
-				<p>
-					Your workspace is running but{" "}
-					{failingAgentCount > 1
-						? `${failingAgentCount} agents have not connected yet.`
-						: "the agent has not connected yet."}
-					.{" "}
-				</p>
-				<p>{message}</p>
-				<p>
-					{troubleshootingURL && (
-						<Link href={troubleshootingURL} target="_blank">
-							View docs to troubleshoot
-						</Link>
-					)}
-				</p>
-			</AlertDescription>
-		</Alert>
 	);
 };
 

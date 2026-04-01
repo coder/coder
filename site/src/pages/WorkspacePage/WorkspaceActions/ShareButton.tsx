@@ -1,17 +1,16 @@
-import type { Workspace } from "api/typesGenerated";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
+import { Share2Icon } from "lucide-react";
+import type { FC } from "react";
+import type { Workspace } from "#/api/typesGenerated";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Share2Icon } from "lucide-react";
-import { isGroup } from "modules/groups";
-import { AddWorkspaceUserOrGroup } from "modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
-import { useWorkspaceSharing } from "modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
-import { WorkspaceSharingForm } from "modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
-import type { FC } from "react";
+} from "#/components/Popover/Popover";
+import { isGroup } from "#/modules/groups";
+import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
+import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
+import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 
 interface ShareButtonProps {
 	workspace: Workspace;
@@ -37,7 +36,6 @@ export const ShareButton: FC<ShareButtonProps> = ({
 					<h3 className="text-lg font-semibold m-0">
 						{workspace.task_id ? "Task" : "Workspace"} Sharing
 					</h3>
-					<FeatureStageBadge contentType="beta" size="sm" />
 				</div>
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}

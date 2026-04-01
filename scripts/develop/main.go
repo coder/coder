@@ -119,6 +119,24 @@ func main() {
 				Description: "Starter template to create (empty to skip).",
 				Value:       serpent.StringOf(&cfg.starterTemplate),
 			},
+			{
+				Flag:        "db-rollback",
+				Env:         "CODER_DEV_DB_ROLLBACK",
+				Description: "Roll back database migrations that no longer exist on the current branch.",
+				Value:       serpent.BoolOf(&cfg.dbRollback),
+			},
+			{
+				Flag:        "db-reset",
+				Env:         "CODER_DEV_DB_RESET",
+				Description: "Destroy the development database and start fresh.",
+				Value:       serpent.BoolOf(&cfg.dbReset),
+			},
+			{
+				Flag:        "db-continue",
+				Env:         "CODER_DEV_DB_CONTINUE",
+				Description: "Accept changed migration files and update tracking. Use when you've manually fixed the DB to match the new migrations.",
+				Value:       serpent.BoolOf(&cfg.dbContinue),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			cfg.serverExtraArgs = inv.Args
@@ -152,6 +170,9 @@ type devConfig struct {
 	multiOrg        bool
 	debug           bool
 	starterTemplate string
+	dbRollback      bool
+	dbReset         bool
+	dbContinue      bool
 	projectRoot     string
 	binaryPath      string
 	configDir       string
@@ -166,6 +187,12 @@ func (c *devConfig) validate() error {
 	}
 	if c.agpl && c.multiOrg {
 		return xerrors.New("cannot use both --agpl and --multi-organization")
+	}
+	if c.dbRollback && c.dbReset {
+		return xerrors.New("cannot use both --db-rollback and --db-reset")
+	}
+	if c.dbContinue && c.dbReset {
+		return xerrors.New("cannot use both --db-continue and --db-reset")
 	}
 	for _, p := range []struct {
 		name string
@@ -337,6 +364,15 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	if err := preflight(sigCtx, logger, cfg); err != nil {
 		return err
 	}
+
+	// Check the database before building. The mismatch check is
+	// a cheap file read; only starts temp postgres on actual
+	// mismatch. This avoids a wasted build cycle when the
+	// developer needs to re-run with --db-rollback or --db-reset.
+	if err := recoverDB(sigCtx, logger, cfg); err != nil {
+		return xerrors.Errorf("database recovery: %w", err)
+	}
+
 	if err := buildBinary(sigCtx, logger, cfg); err != nil {
 		return xerrors.Errorf("build: %w", err)
 	}
@@ -384,6 +420,14 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		if err := setupStarterTemplate(ctx, logger, cfg, client); err != nil {
 			logger.Warn(ctx, "starter template setup failed, continuing", slog.Error(err))
 		}
+	}
+
+	// Update migration tracking after the server has applied
+	// any new migrations. This keeps the cache current so the
+	// next run detects mismatches correctly.
+	if err := updateMigrationTracking(ctx, logger, cfg); err != nil {
+		logger.Warn(ctx, "failed to update migration tracking",
+			slog.Error(err))
 	}
 
 	if cfg.useProxy {

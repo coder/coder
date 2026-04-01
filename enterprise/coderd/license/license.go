@@ -46,6 +46,12 @@ func Entitlements(
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}
 
+	// nolint:gocritic // Getting active AI seat count is a system function.
+	activeAISeatCount, err := db.GetActiveAISeatCount(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		return codersdk.Entitlements{}, xerrors.Errorf("query active AI seat count: %w", err)
+	}
+
 	// nolint:gocritic // Getting external templates is a system function.
 	externalTemplates, err := db.GetTemplatesWithFilter(dbauthz.AsSystemRestricted(ctx), database.GetTemplatesWithFilterParams{
 		HasExternalAgent: sql.NullBool{
@@ -59,6 +65,7 @@ func Entitlements(
 
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
 		ActiveUserCount:       activeUserCount,
+		ActiveAISeatCount:     activeAISeatCount,
 		ReplicaCount:          replicaCount,
 		ExternalAuthCount:     externalAuthCount,
 		ExternalTemplateCount: int64(len(externalTemplates)),
@@ -88,6 +95,7 @@ func Entitlements(
 
 type FeatureArguments struct {
 	ActiveUserCount       int64
+	ActiveAISeatCount     int64
 	ReplicaCount          int
 	ExternalAuthCount     int
 	ExternalTemplateCount int64
@@ -326,6 +334,9 @@ func LicensesEntitlements(
 				if featureName == codersdk.FeatureUserLimit {
 					actual = &featureArguments.ActiveUserCount
 				}
+				if featureName == codersdk.FeatureAIGovernanceUserLimit {
+					actual = &featureArguments.ActiveAISeatCount
+				}
 
 				entitlements.AddFeature(featureName, codersdk.Feature{
 					Enabled:     true,
@@ -478,12 +489,43 @@ func LicensesEntitlements(
 				"Your deployment has %d active users but the license with the limit %d is expired.",
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
+		if featureArguments.ActiveAISeatCount > 0 {
+			actual := featureArguments.ActiveAISeatCount
+			feature := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
+			switch {
+			case feature.Entitlement == codersdk.EntitlementNotEntitled:
+				// If the limit is not set
+				entitlements.Errors = append(entitlements.Errors,
+					fmt.Sprintf("Your deployment has %d active AI Governance seats but the license is not entitled to this feature.", actual))
+			case feature.Entitlement == codersdk.EntitlementGracePeriod && feature.Limit != nil:
+				entitlements.Warnings = append(entitlements.Warnings,
+					fmt.Sprintf(
+						"Your deployment has %d active AI Governance seats but the license with the limit %d is expired.",
+						actual, *feature.Limit))
+				// Also emit seat-capacity warnings during grace period so admins
+				// see both expiry and usage details.
+				entitlements.Warnings = appendAIGovernanceSeatLimitWarning(
+					entitlements.Warnings,
+					actual,
+					*feature.Limit,
+				)
+			case feature.Limit != nil:
+				entitlements.Warnings = appendAIGovernanceSeatLimitWarning(
+					entitlements.Warnings,
+					actual,
+					*feature.Limit,
+				)
+			}
+		}
 
 		// Add a warning for every feature that is enabled but not entitled or
 		// is in a grace period.
 		for _, featureName := range codersdk.FeatureNames {
 			// The user limit has it's own warnings!
 			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			if featureName == codersdk.FeatureAIGovernanceUserLimit {
 				continue
 			}
 			// High availability has it's own warnings based on replica count!
@@ -523,7 +565,7 @@ func LicensesEntitlements(
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		if aiBridgeFeature.Enabled && aiBridgeFeature.Entitlement.Entitled() && !hasExplicitAIBridgeEntitlement {
 			entitlements.Warnings = append(entitlements.Warnings,
-				"AI Bridge is now Generally Available in v2.30. In a future Coder version, your deployment will require the AI Governance Add-On to continue using this feature. Please reach out to your account team or sales@coder.com to learn more.")
+				"The AI Governance add-on is required to use AI Bridge. Please reach out to your account team or sales@coder.com to learn more.")
 		}
 	}
 
@@ -538,6 +580,27 @@ func LicensesEntitlements(
 	entitlements.RefreshedAt = now
 
 	return entitlements, nil
+}
+
+func appendAIGovernanceSeatLimitWarning(warnings []string, actual int64, limit int64) []string {
+	if limit <= 0 {
+		return warnings
+	}
+
+	if actual > limit {
+		overLimitSeats := actual - limit
+		return append(warnings, fmt.Sprintf(
+			codersdk.LicenseAIGovernanceOverLimitWarningText,
+			actual,
+			limit,
+			overLimitSeats,
+		))
+	} else if actual*10 >= limit*9 {
+		usedPercent := (actual * 100) / limit
+		return append(warnings, fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, usedPercent))
+	}
+
+	return warnings
 }
 
 const (

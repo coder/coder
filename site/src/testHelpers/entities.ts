@@ -1,16 +1,16 @@
+import range from "lodash/range";
 import {
 	type DeploymentConfig,
 	type GetLicensesResponse,
 	withDefaultFeatures,
-} from "api/api";
-import type { FieldError } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
-import type { ProxyLatencyReport } from "contexts/useProxyLatency";
-import range from "lodash/range";
-import type { Permissions } from "modules/permissions";
-import type { OrganizationPermissions } from "modules/permissions/organizations";
-import type { FileTree } from "utils/filetree";
-import type { TemplateVersionFiles } from "utils/templateVersion";
+} from "#/api/api";
+import type { FieldError } from "#/api/errors";
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
+import type { Permissions } from "#/modules/permissions";
+import type { OrganizationPermissions } from "#/modules/permissions/organizations";
+import type { FileTree } from "#/utils/filetree";
+import type { TemplateVersionFiles } from "#/utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
 	id: "my-organization-id",
@@ -519,6 +519,7 @@ export const MockUserOwner: TypesGen.User = {
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	last_seen_at: "",
 	login_type: "password",
+	has_ai_seat: false,
 	name: "",
 };
 
@@ -534,6 +535,7 @@ export const MockUserMember: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "2022-09-14T19:12:21Z",
 	login_type: "oidc",
+	has_ai_seat: false,
 	name: "Mock User The Second",
 };
 
@@ -549,6 +551,7 @@ export const SuspendedMockUser: TypesGen.User = {
 	avatar_url: "",
 	last_seen_at: "",
 	login_type: "password",
+	has_ai_seat: false,
 	name: "",
 };
 
@@ -568,9 +571,15 @@ export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	email: MockUserOwner.email,
 	updated_at: "2025-05-22T17:51:49.49745Z",
 	created_at: "2025-05-22T17:51:49.497449Z",
+	user_updated_at: MockUserMember.updated_at,
+	user_created_at: MockUserMember.created_at,
+	last_seen_at: MockUserMember.last_seen_at,
+	status: MockUserMember.status,
+	login_type: MockUserMember.login_type,
 	name: MockUserOwner.name,
 	avatar_url: MockUserOwner.avatar_url,
 	global_roles: MockUserOwner.roles,
+	has_ai_seat: false,
 	roles: [],
 };
 
@@ -582,9 +591,15 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		email: MockUserMember.email,
 		updated_at: "2025-05-22T17:51:49.49745Z",
 		created_at: "2025-05-22T17:51:49.497449Z",
+		user_updated_at: MockUserMember.updated_at,
+		user_created_at: MockUserMember.created_at,
+		last_seen_at: MockUserMember.last_seen_at,
+		status: MockUserMember.status,
+		login_type: MockUserMember.login_type,
 		name: MockUserMember.name,
 		avatar_url: MockUserMember.avatar_url,
 		global_roles: MockUserMember.roles,
+		has_ai_seat: false,
 		roles: [],
 	};
 
@@ -2980,6 +2995,20 @@ export const MockGroup: TypesGen.Group = {
 	total_member_count: 2,
 };
 
+export const MockGroupWithoutMembers: TypesGen.Group = {
+	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+	name: "Front-End",
+	display_name: "Front-End",
+	avatar_url: "https://example.com",
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
+	members: [],
+	quota_allowance: 5,
+	source: "user",
+	total_member_count: 2,
+};
+
 export const MockGroup2: TypesGen.Group = {
 	id: "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
 	name: "developer",
@@ -3090,6 +3119,7 @@ export const MockPermissions: Permissions = {
 	editOAuth2App: true,
 	deleteOAuth2App: true,
 	viewOAuth2AppSecrets: true,
+	createChat: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3123,6 +3153,7 @@ export const MockNoPermissions: Permissions = {
 	editOAuth2App: false,
 	deleteOAuth2App: false,
 	viewOAuth2AppSecrets: false,
+	createChat: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -5254,4 +5285,30 @@ export const MockInterceptionCopilot: TypesGen.AIBridgeInterception = {
 			created_at: "2022-05-17T17:39:01.382927298Z",
 		},
 	],
+};
+
+export const MockSession: TypesGen.AIBridgeSession = {
+	id: "c8f2df8c-149c-43e1-9d51-898daaa2c505",
+	initiator: {
+		id: "59da0bfe-9c99-47fa-a563-f9fdb18449d0",
+		username: "bob",
+		name: "The Builder, Bob",
+		avatar_url:
+			"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeDqc5b7Ny5bJOKxDeFvy17kBQ2_ZmBE8vKw&s",
+	},
+	providers: ["anthropic", "openai"],
+	models: ["claude-opus-4-6", "gpt-5.4"],
+	client: "Mux",
+	metadata: {
+		request_user_agent:
+			"mux/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
+	},
+	started_at: "2026-03-09T09:28:15.03152Z",
+	ended_at: "2026-03-09T10:28:17.294897Z",
+	threads: 17,
+	token_usage_summary: {
+		input_tokens: 1234,
+		output_tokens: 4321,
+	},
+	last_prompt: "But *can* I really fix it?",
 };

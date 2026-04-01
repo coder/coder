@@ -5,16 +5,16 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import { type FC, useEffect, useState } from "react";
 import type {
 	TemplateVersionVariable,
 	VariableValue,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import type { DialogProps } from "components/Dialogs/Dialog";
-import { FormFields, VerticalForm } from "components/Form/Form";
-import { Loader } from "components/Loader/Loader";
-import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
-import { type FC, useEffect, useState } from "react";
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { FormFields, VerticalForm } from "#/components/Form/Form";
+import { Loader } from "#/components/Loader/Loader";
+import { VariableInput } from "#/pages/CreateTemplatePage/VariableInput";
 
 type MissingTemplateVariablesDialogProps = Omit<DialogProps, "onSubmit"> & {
 	onClose: () => void;
@@ -108,13 +108,13 @@ export const MissingTemplateVariablesDialog: FC<
 
 const classNames = {
 	root: css`
-    padding: 24px 40px;
+		padding: 24px 40px;
 
-    & h2 {
-      font-size: 20px;
-      font-weight: 400;
-    }
-  `,
+		& h2 {
+			font-size: 20px;
+			font-weight: 400;
+		}
+	`,
 };
 
 const styles = {

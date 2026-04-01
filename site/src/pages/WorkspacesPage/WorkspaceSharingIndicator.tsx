@@ -1,13 +1,13 @@
-import type { SharedWorkspaceActor } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Link } from "components/Link/Link";
+import { UsersIcon } from "lucide-react";
+import type { FC } from "react";
+import type { SharedWorkspaceActor } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Link } from "#/components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 interface WorkspaceSharingIndicatorProps {
 	sharedWith: readonly SharedWorkspaceActor[];
