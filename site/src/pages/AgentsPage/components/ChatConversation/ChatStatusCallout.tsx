@@ -132,7 +132,7 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 		(status.phase === "failed" && status.statusCode !== undefined);
 
 	return (
-		<Alert severity={severity} className="py-3">
+		<Alert severity={severity}>
 			<div className="space-y-2.5">
 				<div className="flex flex-wrap items-center gap-2">
 					<AlertTitle>{status.title}</AlertTitle>
