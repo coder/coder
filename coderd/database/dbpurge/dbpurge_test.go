@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1728,12 +1729,12 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				deps := setupChatDeps(ctx, t, db)
 
 				// Disable retention.
-				err := db.UpsertChatRetentionDays(ctx, "0")
+				err := db.UpsertChatRetentionDays(ctx, int32(0))
 				require.NoError(t, err)
 
 				// Create an old archived chat and an orphaned old file.
 				oldChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
-				_ = createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
+				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
 				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
@@ -1743,6 +1744,8 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// Both should still exist.
 				_, err = db.GetChatByID(ctx, oldChat.ID)
 				require.NoError(t, err, "chat should not be deleted when retention is disabled")
+				_, err = db.GetChatFileByID(ctx, oldFileID)
+				require.NoError(t, err, "chat file should not be deleted when retention is disabled")
 			},
 		},
 		{
@@ -1756,7 +1759,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 				deps := setupChatDeps(ctx, t, db)
 
-				err := db.UpsertChatRetentionDays(ctx, "30")
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
 
 				// Old archived chat (31 days) — should be deleted.
@@ -1825,7 +1828,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 				deps := setupChatDeps(ctx, t, db)
 
-				err := db.UpsertChatRetentionDays(ctx, "30")
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
 
 				// File A: 31 days old, NOT in any chat -> should be deleted.
@@ -1876,7 +1879,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 				deps := setupChatDeps(ctx, t, db)
 
-				err := db.UpsertChatRetentionDays(ctx, "30")
+				err := db.UpsertChatRetentionDays(ctx, int32(30))
 				require.NoError(t, err)
 
 				// File D: 31 days old, in a chat archived 31 days ago -> should be deleted.
@@ -1943,7 +1946,45 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			},
 		},
 		{
-			name: "BatchLimit",
+			name: "UnarchiveScrubsStaleFileIDs",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(ctx, t, db)
+
+				// Create a chat with three attached files.
+				fileA := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				fileB := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				fileC := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+
+				chat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				_, err := db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     chat.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{fileA, fileB, fileC},
+				})
+				require.NoError(t, err)
+
+				// Archive the chat.
+				err = db.ArchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				// Simulate dbpurge deleting files A and B.
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)", pq.Array([]uuid.UUID{fileA, fileB}))
+				require.NoError(t, err)
+
+				// Unarchive — should scrub stale file_ids.
+				err = db.UnarchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				// Only file C should remain in file_ids.
+				updated, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, []uuid.UUID{fileC}, updated.FileIDs, "stale file_ids should be scrubbed on unarchive")
+			},
+		},
+		{
+			name: "BatchLimitFiles",
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
@@ -1969,6 +2010,35 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Equal(t, int64(1), deleted, "should delete remaining 1 file")
+			},
+		},
+		{
+			name: "BatchLimitChats",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				deps := setupChatDeps(ctx, t, db)
+
+				// Create 3 deletable old archived chats.
+				for i := 0; i < 3; i++ {
+					createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, true, now.Add(-31*24*time.Hour))
+				}
+
+				// Delete with limit 2 — should delete 2, leave 1.
+				deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(2), deleted, "should delete exactly 2 chats")
+
+				// Delete again — should delete the remaining 1.
+				deleted, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+					BeforeTime: now.Add(-30 * 24 * time.Hour),
+					LimitCount: 2,
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(1), deleted, "should delete remaining 1 chat")
 			},
 		},
 	}

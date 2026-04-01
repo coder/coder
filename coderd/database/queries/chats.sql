@@ -1245,4 +1245,5 @@ WITH deletable AS (
 )
 DELETE FROM chats
 USING deletable
-WHERE chats.id = deletable.id;
+WHERE chats.id = deletable.id
+  AND chats.archived = true;
