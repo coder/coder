@@ -536,10 +536,11 @@ export const AgentSettingsBehaviorPageView: FC<
 						checked={kylesophyEnabled}
 						onCheckedChange={(checked) => {
 							setKylesophyEnabled(checked);
-						setLocalKyleosophy(checked);
-					}}
-					aria-label="Enable Kyleosophy"
-					disabled={kylesophyForced}					/>
+							setLocalKyleosophy(checked);
+						}}
+						aria-label="Enable Kyleosophy"
+						disabled={kylesophyForced}
+					/>
 				</div>
 			</div>
 			{showDefaultPromptPreview && (

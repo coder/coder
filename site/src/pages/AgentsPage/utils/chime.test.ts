@@ -301,7 +301,6 @@ describe("maybePlayChime", () => {
 		setKylesophyEnabled(false);
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 
-
 		const audioSpy = vi.spyOn(globalThis, "Audio" as never);
 
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-2");
@@ -319,14 +318,18 @@ describe("maybePlayChime", () => {
 // ---------------------------------------------------------------------------
 
 describe("isKylesophyForced", () => {
-	const originalLocation = globalThis.location;
+	const originalLocationDescriptor = Object.getOwnPropertyDescriptor(
+		globalThis,
+		"location",
+	);
 
 	afterEach(() => {
-		Object.defineProperty(globalThis, "location", {
-			value: originalLocation,
-			writable: true,
-			configurable: true,
-		});
+		if (originalLocationDescriptor) {
+			Object.defineProperty(globalThis, "location", originalLocationDescriptor);
+		} else {
+			// If location did not originally exist, remove the stub.
+			delete (globalThis as Record<string, unknown>).location;
+		}
 	});
 
 	it("returns true on dev.coder.com", () => {
