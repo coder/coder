@@ -1268,9 +1268,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		// Initialize the context config API with the expanded
 		// working directory so that it is ready before the HTTP
 		// handler is created (which happens after manifestOK).
-			a.contextConfigAPI = agentcontextconfig.NewAPI(
-				manifest.Directory,
-			)
+		a.contextConfigAPI = agentcontextconfig.NewAPI(
+			manifest.Directory,
+		)
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
