@@ -4044,7 +4044,6 @@ func (p *Server) runChat(
 					slog.Error(listErr))
 				return nil
 			}
-
 			// Cache the result for subsequent turns. Skip
 			// caching when the list is empty because the
 			// agent's MCP Connect may not have finished yet;
