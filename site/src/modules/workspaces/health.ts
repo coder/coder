@@ -1,5 +1,51 @@
 import type { Workspace, WorkspaceAgentStatus } from "#/api/typesGenerated";
 
+/**
+ * Canonical messages for startup and shutdown script issues.
+ * Used by the per-agent-row tooltips in AgentStatus; the
+ * start-related entries are also shared with the workspace-level
+ * health classification in getAgentHealthIssue.
+ */
+export const agentScriptMessages = {
+	start_error: {
+		title: "Startup script failed",
+		detail:
+			"A startup script exited with an error. Check the agent logs for details.",
+	},
+	start_timeout: {
+		title: "Startup script is taking longer than expected",
+		detail:
+			"A startup script has exceeded the expected time. Check the agent logs for details.",
+	},
+	shutdown_error: {
+		title: "Shutdown script failed",
+		detail:
+			"A shutdown script exited with an error. Check the agent logs for details.",
+	},
+	shutdown_timeout: {
+		title: "Shutdown script is taking longer than expected",
+		detail:
+			"A shutdown script has exceeded the expected time. Check the agent logs for details.",
+	},
+} as const;
+
+/**
+ * Canonical messages for agent connection issues (the agent
+ * process connecting to the Coder control plane).
+ */
+export const agentConnectionMessages = {
+	timeout: {
+		title: "Agent is taking longer than expected to connect",
+		detail:
+			"Continue to wait and check the log output for errors. If agents do not connect, try restarting the workspace.",
+	},
+	disconnected: {
+		title: "Workspace agent has disconnected",
+		detail:
+			"Check the log output for errors. If agents do not reconnect, try restarting the workspace.",
+	},
+} as const;
+
 interface AgentHealthIssue {
 	title: string;
 	detail: string;
@@ -53,9 +99,8 @@ export function getAgentHealthIssue(workspace: Workspace): AgentHealthIssue {
 		return {
 			title: plural
 				? `${failingAgentCount} workspace agents have disconnected`
-				: "Workspace agent has disconnected",
-			detail:
-				"Check the log output for errors. If agents do not reconnect, try restarting the workspace.",
+				: agentConnectionMessages.disconnected.title,
+			detail: agentConnectionMessages.disconnected.detail,
 			severity: "warning",
 			prominent: true,
 		};
@@ -65,9 +110,8 @@ export function getAgentHealthIssue(workspace: Workspace): AgentHealthIssue {
 		return {
 			title: plural
 				? `${failingAgentCount} agents are taking longer than expected to connect`
-				: "Agent is taking longer than expected to connect",
-			detail:
-				"Continue to wait and check the log output for errors. If agents do not connect, try restarting the workspace.",
+				: agentConnectionMessages.timeout.title,
+			detail: agentConnectionMessages.timeout.detail,
 			severity: "warning",
 			prominent: false,
 		};
@@ -88,9 +132,8 @@ export function getAgentHealthIssue(workspace: Workspace): AgentHealthIssue {
 		return {
 			title: plural
 				? `Startup scripts failed on ${failingAgentCount} agents`
-				: "Startup script failed",
-			detail:
-				"A startup script exited with an error. Check the agent logs for details.",
+				: agentScriptMessages.start_error.title,
+			detail: agentScriptMessages.start_error.detail,
 			severity: "warning",
 			prominent: true,
 		};
@@ -105,9 +148,8 @@ export function getAgentHealthIssue(workspace: Workspace): AgentHealthIssue {
 		return {
 			title: plural
 				? `Startup scripts are taking longer than expected on ${failingAgentCount} agents`
-				: "Startup script is taking longer than expected",
-			detail:
-				"A startup script has exceeded the expected time. Check the agent logs for details.",
+				: agentScriptMessages.start_timeout.title,
+			detail: agentScriptMessages.start_timeout.detail,
 			severity: "warning",
 			prominent: false,
 		};

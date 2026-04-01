@@ -8,6 +8,7 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { useClientFilterMenu } from "./RequestLogsFilter/ClientFilter";
 import { useModelFilterMenu } from "./RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "./RequestLogsFilter/ProviderFilter";
@@ -17,15 +18,11 @@ const RequestLogsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 
-	// Users are allowed to view their own request logs via the API,
-	// but this page is only visible if the feature is enabled and the user
-	// has the `viewAnyAIBridgeInterception` permission.
-	// (as its defined in the Admin settings dropdown).
-	const isEntitled =
-		entitlements.features.aibridge.entitlement === "entitled" ||
-		entitlements.features.aibridge.entitlement === "grace_period";
-	const isEnabled = entitlements.features.aibridge.enabled;
-	const hasPermission = permissions.viewAnyAIBridgeInterception;
+	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
+		entitlements,
+		permissions,
+	);
+
 	const canViewRequestLogs = isEntitled && hasPermission;
 
 	const [searchParams, setSearchParams] = useSearchParams();

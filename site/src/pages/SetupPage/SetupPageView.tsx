@@ -24,33 +24,7 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
-export const Language = {
-	emailLabel: "Email",
-	passwordLabel: "Password",
-	nameLabel: "Full Name",
-	usernameLabel: "Username",
-	emailInvalid: "Please enter a valid email address.",
-	emailRequired: "Please enter an email address.",
-	passwordRequired: "Please enter a password.",
-	create: "Continue with email",
-	githubCreate: "Continue with GitHub",
-	welcomeMessage: <>Welcome to Coder</>,
-	firstNameLabel: "First name",
-	lastNameLabel: "Last name",
-	companyLabel: "Company",
-	jobTitleLabel: "Job title",
-	phoneNumberLabel: "Phone number",
-	countryLabel: "Country",
-	developersLabel: "Number of developers",
-	firstNameRequired: "Please enter your first name.",
-	phoneNumberRequired: "Please enter your phone number.",
-	jobTitleRequired: "Please enter your job title.",
-	companyNameRequired: "Please enter your company name.",
-	countryRequired: "Please select your country.",
-	developersRequired: "Please select the number of developers in your company.",
-};
-
-const usernameValidator = nameValidator(Language.usernameLabel);
+const usernameValidator = nameValidator("Username");
 const usernameFromEmail = (email: string): string => {
 	try {
 		const emailPrefix = email.split("@")[0];
@@ -69,22 +43,24 @@ const usernameFromEmail = (email: string): string => {
 const validationSchema = Yup.object({
 	email: Yup.string()
 		.trim()
-		.email(Language.emailInvalid)
-		.required(Language.emailRequired),
-	password: Yup.string().required(Language.passwordRequired),
+		.email("Please enter a valid email address.")
+		.required("Please enter an email address."),
+	password: Yup.string().required("Please enter a password."),
 	username: usernameValidator,
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
 		is: true,
 		then: (schema) =>
 			schema.shape({
-				first_name: Yup.string().required(Language.firstNameRequired),
-				last_name: Yup.string().required(Language.firstNameRequired),
-				phone_number: Yup.string().required(Language.phoneNumberRequired),
-				job_title: Yup.string().required(Language.jobTitleRequired),
-				company_name: Yup.string().required(Language.companyNameRequired),
-				country: Yup.string().required(Language.countryRequired),
-				developers: Yup.string().required(Language.developersRequired),
+				first_name: Yup.string().required("Please enter your first name."),
+				last_name: Yup.string().required("Please enter your last name."),
+				phone_number: Yup.string().required("Please enter your phone number."),
+				job_title: Yup.string().required("Please enter your job title."),
+				company_name: Yup.string().required("Please enter your company name."),
+				country: Yup.string().required("Please select your country."),
+				developers: Yup.string().required(
+					"Please select the number of developers in your company.",
+				),
 			}),
 	}),
 });
@@ -142,15 +118,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 	return (
 		<SignInLayout>
-			<header css={{ textAlign: "center", marginBottom: 32 }}>
+			<header className="text-center mb-8">
 				<CoderIcon className="w-12 h-12" />
-				<h1
-					css={{
-						fontWeight: 400,
-						margin: 0,
-						marginTop: 16,
-					}}
-				>
+				<h1 className="font-normal m-0 mt-4">
 					Welcome to <strong>Coder</strong>
 				</h1>
 				<div
@@ -169,7 +139,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a href="/api/v2/users/oauth2/github/callback">
 									<ExternalImage src="/icon/github.svg" />
-									{Language.githubCreate}
+									Continue with GitHub
 								</a>
 							</Button>
 							<div className="flex items-center gap-4">
@@ -191,24 +161,17 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						}}
 						autoComplete="email"
 						fullWidth
-						label={Language.emailLabel}
+						label="Email"
 					/>
 					<PasswordField
 						{...getFieldHelpers("password")}
 						autoComplete="current-password"
 						fullWidth
-						label={Language.passwordLabel}
+						label="Password"
 					/>
 					<label
 						htmlFor="trial"
-						css={{
-							display: "flex",
-							cursor: "pointer",
-							alignItems: "flex-start",
-							gap: 4,
-							marginTop: -4,
-							marginBottom: 8,
-						}}
+						className="flex cursor-pointer items-start gap-1 -mt-1 mb-2"
 					>
 						<Checkbox
 							id="trial"
@@ -219,8 +182,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							size="small"
 						/>
 
-						<div css={{ fontSize: 14, paddingTop: 4 }}>
-							<span css={{ display: "block", fontWeight: 600 }}>
+						<div className="text-sm pt-1">
+							<span className="block font-semibold">
 								Start a free trial of Enterprise
 							</span>
 							<span
@@ -237,7 +200,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<Link
 								href="https://coder.com/pricing"
 								target="_blank"
-								css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
+								className="mt-1 inline-block text-[13px]"
 							>
 								Read more
 							</Link>
@@ -252,14 +215,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									id="trial_info.first_name"
 									name="trial_info.first_name"
 									fullWidth
-									label={Language.firstNameLabel}
+									label="First name"
 								/>
 								<TextField
 									{...getFieldHelpers("trial_info.last_name")}
 									id="trial_info.last_name"
 									name="trial_info.last_name"
 									fullWidth
-									label={Language.lastNameLabel}
+									label="Last name"
 								/>
 							</Stack>
 							<TextField
@@ -267,21 +230,21 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								id="trial_info.company_name"
 								name="trial_info.company_name"
 								fullWidth
-								label={Language.companyLabel}
+								label="Company"
 							/>
 							<TextField
 								{...getFieldHelpers("trial_info.job_title")}
 								id="trial_info.job_title"
 								name="trial_info.job_title"
 								fullWidth
-								label={Language.jobTitleLabel}
+								label="Job title"
 							/>
 							<TextField
 								{...getFieldHelpers("trial_info.phone_number")}
 								id="trial_info.phone_number"
 								name="trial_info.phone_number"
 								fullWidth
-								label={Language.phoneNumberLabel}
+								label="Phone number"
 							/>
 							<Autocomplete
 								autoHighlight
@@ -293,18 +256,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								onChange={(_, newValue) =>
 									form.setFieldValue("trial_info.country", newValue?.name)
 								}
-								css={{
-									"&:not(:has(label))": {
-										margin: 0,
-									},
-								}}
+								className="[&:not(:has(label))]:m-0"
 								renderInput={(params) => (
 									<TextField
 										{...params}
 										{...getFieldHelpers("trial_info.country")}
 										id="trial_info.country"
 										name="trial_info.country"
-										label={Language.countryLabel}
+										label="Country"
 										fullWidth
 										inputProps={{
 											...params.inputProps,
@@ -318,7 +277,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								id="trial_info.developers"
 								name="trial_info.developers"
 								fullWidth
-								label={Language.developersLabel}
+								label="Number of developers"
 								select
 							>
 								{numberOfDevelopersOptions.map((opt) => (
@@ -373,7 +332,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						size="lg"
 					>
 						<Spinner loading={isLoading} />
-						{Language.create}
+						Continue with email
 					</Button>
 				</FormFields>
 			</VerticalForm>

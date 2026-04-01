@@ -146,7 +146,7 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 };
 
 export const MenuSkeleton: FC = () => {
-	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
+	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
 };
 
 type FilterProps = {

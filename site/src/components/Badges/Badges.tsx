@@ -75,12 +75,7 @@ export const DeprecatedBadge: React.FC = () => {
 
 export const Badges: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack
-			css={{ margin: "0 0 16px" }}
-			direction="row"
-			alignItems="center"
-			spacing={1}
-		>
+		<Stack className="mb-4" direction="row" alignItems="center" spacing={1}>
 			{children}
 		</Stack>
 	);

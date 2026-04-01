@@ -13,11 +13,11 @@ import { Button } from "#/components/Button/Button";
 import { FormFields } from "#/components/Form/Form";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -147,10 +147,10 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 				ephemeralParameters.length > 0 ? (
 					<div className="divide-y">
 						<div className="p-5 text-content-secondary">
-							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
-							<HelpTooltipText>
+							<HelpPopoverTitle>Build Options</HelpPopoverTitle>
+							<HelpPopoverText>
 								These parameters only apply for a single workspace start.
-							</HelpTooltipText>
+							</HelpPopoverText>
 						</div>
 						<div className="border-0 border-solid p-5">
 							<Form
@@ -170,19 +170,19 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 					</div>
 				) : (
 					<div className="p-5 text-content-secondary">
-						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
-						<HelpTooltipText>
+						<HelpPopoverTitle>Build Options</HelpPopoverTitle>
+						<HelpPopoverText>
 							This template has no ephemeral build options.
-						</HelpTooltipText>
-						<HelpTooltipLinksGroup>
-							<HelpTooltipLink
+						</HelpPopoverText>
+						<HelpPopoverLinksGroup>
+							<HelpPopoverLink
 								href={docs(
 									"/admin/templates/extending-templates/parameters#ephemeral-parameters",
 								)}
 							>
 								Read the docs
-							</HelpTooltipLink>
-						</HelpTooltipLinksGroup>
+							</HelpPopoverLink>
+						</HelpPopoverLinksGroup>
 					</div>
 				)
 			) : (

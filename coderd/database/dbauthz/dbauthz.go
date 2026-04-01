@@ -1570,13 +1570,13 @@ func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UU
 	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
-func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.ArchiveChatByID(ctx, id)
 }
@@ -2811,7 +2811,15 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	// Any user who can read chat resources can read the default
+	// model config, since model resolution is required to create
+	// a chat. This avoids gating on ResourceDeploymentConfig
+	// which regular members lack.
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.ChatModelConfig{}, ErrNoActor
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(act.ID)); err != nil {
 		return database.ChatModelConfig{}, err
 	}
 	return q.db.GetDefaultChatModelConfig(ctx)
@@ -5641,13 +5649,13 @@ func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
 
-func (q *querier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.UnarchiveChatByID(ctx, id)
 }

@@ -11,10 +11,6 @@ import type { Line } from "#/components/Logs/LogLine";
 import { Logs } from "#/components/Logs/Logs";
 import { cn } from "#/utils/cn";
 
-const Language = {
-	seconds: "seconds",
-};
-
 type Stage = ProvisionerJobLog["stage"];
 type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>;
 type GroupLogsByStageFn = (logs: ProvisionerJobLog[]) => LogsGroupedByStage;
@@ -101,7 +97,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 							<div>{stage}</div>
 							{shouldDisplayDuration && (
 								<div className="ml-auto text-xs text-content-secondary">
-									{duration} {Language.seconds}
+									{duration} seconds
 								</div>
 							)}
 						</div>

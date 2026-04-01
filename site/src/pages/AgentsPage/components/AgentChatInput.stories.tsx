@@ -3,7 +3,11 @@ import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
-import { AgentChatInput, type UploadState } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type AgentContextUsage,
+	type UploadState,
+} from "./AgentChatInput";
 
 const defaultModelConfigID = "model-config-1";
 
@@ -651,5 +655,76 @@ export const OverflowBadges: Story = {
 		// canvas. Find it by role, then assert content within it.
 		const popover = await within(document.body).findByRole("dialog");
 		expect(within(popover).getByText("Confluence Cloud")).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Context-usage indicator stories
+// ---------------------------------------------------------------------------
+
+const baseContextUsage: AgentContextUsage = {
+	usedTokens: 45_000,
+	contextLimitTokens: 128_000,
+	inputTokens: 30_000,
+	outputTokens: 10_000,
+	cacheReadTokens: 3_000,
+	cacheCreationTokens: 2_000,
+	compressionThreshold: 90,
+};
+
+/** Shows the context-usage ring and token summary tooltip. */
+export const WithContextUsage: Story = {
+	args: {
+		contextUsage: baseContextUsage,
+	},
+};
+
+/** Tooltip includes loaded AGENTS.md files and discovered skills. */
+export const WithContextFiles: Story = {
+	args: {
+		contextUsage: {
+			...baseContextUsage,
+			lastInjectedContext: [
+				{
+					type: "context-file" as const,
+					context_file_path: "/home/coder/project/AGENTS.md",
+				},
+				{
+					type: "context-file" as const,
+					context_file_path: "/home/coder/project/.claude/docs/WORKFLOWS.md",
+					context_file_truncated: true,
+				},
+				{
+					type: "skill" as const,
+					skill_name: "pull-requests",
+					skill_description: "Guide for creating and updating pull requests",
+				},
+				{
+					type: "skill" as const,
+					skill_name: "deep-review",
+					skill_description: "Multi-reviewer code review",
+				},
+			] as TypesGen.ChatMessagePart[],
+		},
+	},
+};
+
+/** Context at 95%+ shows the ring in destructive (red) tone. */
+export const ContextNearLimit: Story = {
+	args: {
+		contextUsage: {
+			usedTokens: 124_000,
+			contextLimitTokens: 128_000,
+			inputTokens: 100_000,
+			outputTokens: 20_000,
+			cacheReadTokens: 4_000,
+			compressionThreshold: 90,
+			lastInjectedContext: [
+				{
+					type: "context-file" as const,
+					context_file_path: "/home/coder/project/AGENTS.md",
+				},
+			] as TypesGen.ChatMessagePart[],
+		},
 	},
 };

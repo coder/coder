@@ -1,15 +1,31 @@
 import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { infiniteSessionThreads } from "#/api/queries/aiBridge";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
+import { getAIBridgePermissions } from "../getAIBridgePermissions";
 import { SessionThreadsPageView } from "./SessionThreadsPageView";
 
 const SessionThreadsPage: FC = () => {
+	const { permissions } = useAuthenticated();
+	const { entitlements } = useDashboard();
+	const navigate = useNavigate();
+
+	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
+		entitlements,
+		permissions,
+	);
+
+	const canViewSessionThreads = isEntitled && hasPermission;
+
 	const { sessionId } = useParams() as { sessionId: string };
 
 	const sessionQuery = useInfiniteQuery({
 		...infiniteSessionThreads(sessionId),
-		enabled: !!sessionId,
+		enabled: canViewSessionThreads,
 	});
 
 	const firstPage = sessionQuery.data?.pages[0];
@@ -17,14 +33,21 @@ const SessionThreadsPage: FC = () => {
 		sessionQuery.data?.pages.flatMap((page) => page.threads) ?? [];
 
 	return (
-		<SessionThreadsPageView
-			session={firstPage}
-			threads={allThreads}
-			loading={sessionQuery.isLoading}
-			hasNextPage={sessionQuery.hasNextPage}
-			isFetchingNextPage={sessionQuery.isFetchingNextPage}
-			onFetchNextPage={sessionQuery.fetchNextPage}
-		/>
+		<RequirePermission isFeatureVisible={hasPermission}>
+			<title>{pageTitle("Session Threads", "AI Bridge")}</title>
+
+			<SessionThreadsPageView
+				session={firstPage}
+				threads={allThreads}
+				loading={sessionQuery.isLoading}
+				hasNextPage={sessionQuery.hasNextPage}
+				isFetchingNextPage={sessionQuery.isFetchingNextPage}
+				onFetchNextPage={sessionQuery.fetchNextPage}
+				isAISessionsEnabled={isEnabled}
+				isAISessionsEntitled={isEntitled}
+				onBackClicked={() => navigate(-1)}
+			/>
+		</RequirePermission>
 	);
 };
 

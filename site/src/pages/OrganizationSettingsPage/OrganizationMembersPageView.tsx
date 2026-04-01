@@ -38,7 +38,7 @@ import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
-import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
+import { TableColumnHelpPopover } from "./UserTable/TableColumnHelpPopover";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
 interface OrganizationMembersPageViewProps {
@@ -115,20 +115,20 @@ export const OrganizationMembersPageView: FC<
 								<TableHead className="w-2/6">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Roles</span>
-										<TableColumnHelpTooltip variant="roles" />
+										<TableColumnHelpPopover variant="roles" />
 									</Stack>
 								</TableHead>
 								<TableHead className={showAISeatColumn ? "w-1/6" : "w-2/6"}>
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Groups</span>
-										<TableColumnHelpTooltip variant="groups" />
+										<TableColumnHelpPopover variant="groups" />
 									</Stack>
 								</TableHead>
 								{showAISeatColumn && (
 									<TableHead className="w-1/6">
 										<Stack direction="row" spacing={1} alignItems="center">
 											<span>AI add-on</span>
-											<TableColumnHelpTooltip variant="ai_addon" />
+											<TableColumnHelpPopover variant="ai_addon" />
 										</Stack>
 									</TableHead>
 								)}

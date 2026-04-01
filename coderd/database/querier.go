@@ -54,7 +54,7 @@ type sqlcQuerier interface {
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
-	ArchiveChatByID(ctx context.Context, id uuid.UUID) error
+	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// Archiving templates is a soft delete action, so is reversible.
 	// Archiving prevents the version from being used and discovered
 	// by listing.
@@ -788,6 +788,10 @@ type sqlcQuerier interface {
 	// Returns paginated sessions with aggregated metadata, token counts, and
 	// the most recent user prompt. A "session" is a logical grouping of
 	// interceptions that share the same session_id (set by the client).
+	//
+	// Pagination-first strategy: identify the page of sessions cheaply via a
+	// single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
+	// first-interception metadata) only for the ~page-size result set.
 	ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
@@ -840,7 +844,7 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
-	UnarchiveChatByID(ctx context.Context, id uuid.UUID) error
+	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error

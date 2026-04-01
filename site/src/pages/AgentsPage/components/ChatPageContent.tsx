@@ -150,6 +150,7 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
@@ -182,6 +183,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	lastInjectedContext,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -212,7 +214,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage = rawUsage
-		? { ...rawUsage, compressionThreshold }
+		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
 	const { organizations } = useDashboard();
 	const organizationId = organizations[0]?.id;
