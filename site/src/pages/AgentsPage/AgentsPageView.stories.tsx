@@ -704,7 +704,7 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Go back to conversations
-		const backButton = screen.getByLabelText("Back to conversations");
+		const backButton = screen.getByLabelText("Back to Agents");
 		await userEvent.click(backButton);
 
 		// Re-open settings, should reset to Behavior

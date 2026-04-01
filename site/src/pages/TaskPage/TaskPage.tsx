@@ -471,12 +471,12 @@ type TaskLogPreviewProps = {
 
 function logPreviewLabel(count: number): string {
 	if (count === 0) {
-		return "AI agent logs";
+		return "AI chat logs";
 	}
 	if (count === 1) {
-		return "Last message of AI agent logs";
+		return "Last message of AI chat logs";
 	}
-	return `Last ${count} messages of AI agent logs`;
+	return `Last ${count} messages of AI chat logs`;
 }
 
 const TaskLogPreview: FC<TaskLogPreviewProps> = ({
