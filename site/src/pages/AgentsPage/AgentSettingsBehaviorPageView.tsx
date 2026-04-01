@@ -2,7 +2,7 @@ import type { FC, FormEvent } from "react";
 import { useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { Switch } from "#/components/Switch/Switch";
@@ -271,9 +271,11 @@ export const AgentSettingsBehaviorPageView: FC<
 				/>
 				{userInvisibleCharCount > 0 && (
 					<Alert severity="warning">
-						This text contains {userInvisibleCharCount} invisible Unicode{" "}
-						{userInvisibleCharCount !== 1 ? "characters" : "character"} that
-						could hide content. These will be stripped on save.
+						<AlertDescription>
+							This text contains {userInvisibleCharCount} invisible Unicode{" "}
+							{userInvisibleCharCount !== 1 ? "characters" : "character"} that
+							could hide content. These will be stripped on save.
+						</AlertDescription>
 					</Alert>
 				)}
 				<div className="flex justify-end gap-2">
@@ -368,9 +370,12 @@ export const AgentSettingsBehaviorPageView: FC<
 						/>
 						{systemInvisibleCharCount > 0 && (
 							<Alert severity="warning">
-								This text contains {systemInvisibleCharCount} invisible Unicode{" "}
-								{systemInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
-								that could hide content. These will be stripped on save.
+								<AlertDescription>
+									This text contains {systemInvisibleCharCount} invisible
+									Unicode{" "}
+									{systemInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
+									that could hide content. These will be stripped on save.
+								</AlertDescription>
 							</Alert>
 						)}
 						<div className="flex justify-end gap-2">

@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ChatStatusCallout } from "./ChatStatusCallout";
@@ -98,7 +98,7 @@ export const LiveStreamTailContent = ({
 						</Button>
 					}
 				>
-					{usageLimitStatus.message}
+					<AlertDescription>{usageLimitStatus.message}</AlertDescription>
 				</Alert>
 			) : terminalStatus ? (
 				<ChatStatusCallout status={terminalStatus} />
