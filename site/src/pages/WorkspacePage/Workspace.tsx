@@ -157,7 +157,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 				</div>
 
-				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--surface-invert-secondary))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-8">
+				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-8">
 					{selectedResource && (
 						<ResourceMetadata
 							resource={selectedResource}

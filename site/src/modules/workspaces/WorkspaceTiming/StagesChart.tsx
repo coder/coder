@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { CircleAlertIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { TimingStage } from "#/api/typesGenerated";
@@ -110,14 +109,11 @@ export const StagesChart: FC<StagesChartProps> = ({
 											key={stage.name}
 											id={encodeURIComponent(stage.name)}
 										>
-											<span css={styles.stageLabel}>
+											<span className="flex items-center justify-end gap-0.5">
 												{stage.label}
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<InfoIcon
-															className="size-icon-xs"
-															css={styles.info}
-														/>
+														<InfoIcon className="size-icon-xs cursor-pointer text-content-secondary" />
 													</TooltipTrigger>
 													<TooltipContent
 														side="bottom"
@@ -187,11 +183,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 											{validDuration ? (
 												<span>{formatTime(value)}</span>
 											) : (
-												<span
-													css={(theme) => ({
-														color: theme.palette.error.main,
-													})}
-												>
+												<span className="text-content-destructive">
 													Invalid
 												</span>
 											)}
@@ -206,24 +198,6 @@ export const StagesChart: FC<StagesChartProps> = ({
 		</Chart>
 	);
 };
-
-const styles = {
-	stageLabel: {
-		display: "flex",
-		alignItems: "center",
-		gap: 2,
-		justifyContent: "flex-end",
-	},
-	stageDescription: {
-		maxWidth: 300,
-	},
-	info: (theme) => ({
-		width: 12,
-		height: 12,
-		color: theme.palette.text.secondary,
-		cursor: "pointer",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export const provisioningStages: Stage[] = [
 	{
