@@ -92,6 +92,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 					<Fragment key={stage}>
 						<div
 							className={cn(
+								"logs-header",
 								"flex items-center border-solid border-0 border-b border-border font-sans",
 								"bg-surface-primary text-xs font-semibold leading-none",
 								"py-3 px-[var(--log-line-side-padding)] first-of-type:pt-4",
