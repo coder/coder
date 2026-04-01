@@ -35,7 +35,8 @@ type OrganizationAutocompleteProps = {
 	 * When combined with `check`, the ID must reference an org
 	 * the user is authorized for — if the org fails the check,
 	 * the button silently shows placeholder text without firing
-	 * onChange(null). The follow-up full-object refactor will
+	 * onChange(null). The follow-up full-object refactor
+	 * (https://github.com/coder/internal/issues/1440) will
 	 * address this.
 	 */
 	organizationId?: string;
