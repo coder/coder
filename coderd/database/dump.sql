@@ -2760,10 +2760,11 @@ CREATE TABLE user_chat_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     chat_provider_id uuid NOT NULL,
-    api_key text DEFAULT ''::text NOT NULL,
+    api_key text NOT NULL,
     api_key_key_id text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_chat_provider_keys_api_key_check CHECK ((api_key <> ''::text))
 );
 
 CREATE TABLE user_configs (

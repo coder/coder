@@ -16,7 +16,7 @@ CREATE TABLE user_chat_provider_keys (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id          UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     chat_provider_id UUID        NOT NULL REFERENCES chat_providers(id) ON DELETE CASCADE,
-    api_key          TEXT        NOT NULL DEFAULT '',
+    api_key          TEXT        NOT NULL CHECK (api_key != ''),
     api_key_key_id   TEXT        REFERENCES dbcrypt_keys(active_key_digest),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
