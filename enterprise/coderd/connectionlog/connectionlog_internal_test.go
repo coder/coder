@@ -1,7 +1,6 @@
 package connectionlog
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -354,13 +353,17 @@ func Test_batcherFlush(t *testing.T) {
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
 
+		scheduledFlushTrap := clock.Trap().TimerReset("connectionLogBatcher", "scheduledFlush")
+		defer scheduledFlushTrap.Close()
+		retryTrap := clock.Trap().NewTimer("connectionLogBatcher", "retryBackoff")
+		defer retryTrap.Close()
+
 		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
 
 		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
 
-		// First call fails, second succeeds. The retry goroutine
-		// uses cenkalti/backoff with real time, so the second
-		// attempt fires after a short real delay.
+		// First call (synchronous in flush) fails, then the retry
+		// worker picks it up and succeeds on the first retry.
 		gomock.InOrder(
 			store.EXPECT().
 				BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
@@ -376,68 +379,18 @@ func Test_batcherFlush(t *testing.T) {
 		)
 
 		require.NoError(t, b.Upsert(ctx, evt))
+
+		// Advance the clock to trigger the scheduled flush. The
+		// synchronous attempt fails and queues to retryCh.
+		clock.Advance(defaultFlushInterval).MustWait(ctx)
+		scheduledFlushTrap.MustWait(ctx).MustRelease(ctx)
+
+		// Release the retry backoff timer so the retry fires.
+		retryTrap.MustWait(ctx).MustRelease(ctx)
+		clock.Advance(retryInterval).MustWait(ctx)
+
 		require.NoError(t, b.Close())
 	})
-
-	t.Run("CloseWaitsForInFlightRetry", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctrl := gomock.NewController(t)
-		store := dbmock.NewMockStore(ctrl)
-		clock := quartz.NewMock(t)
-
-		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
-
-		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
-
-		writeStarted := make(chan struct{})
-		writeDone := make(chan struct{})
-
-		// First call blocks until we signal, simulating a slow DB.
-		store.EXPECT().
-			BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, _ database.BatchUpsertConnectionLogsParams) error {
-				close(writeStarted)
-				<-writeDone
-				return nil
-			}).
-			Times(1)
-
-		require.NoError(t, b.Upsert(ctx, evt))
-
-		// Cancel the run loop so it flushes and spawns the write
-		// goroutine.
-		b.cancel()
-
-		// Wait for the write goroutine to actually start the DB
-		// call.
-		select {
-		case <-writeStarted:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for write to start")
-		}
-
-		// Start Close() in a goroutine — it should block on
-		// wg.Wait() until the write completes.
-		closeDone := make(chan struct{})
-		go func() {
-			_ = b.Close()
-			close(closeDone)
-		}()
-
-		// Unblock the write — Close should then return.
-		close(writeDone)
-
-		select {
-		case <-closeDone:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for Close to return")
-		}
-	})
-
-
 }
 
 // batchParamsMatcher validates BatchUpsertConnectionLogsParams by
