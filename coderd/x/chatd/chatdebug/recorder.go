@@ -112,12 +112,20 @@ func beginStep(
 	op Operation,
 	normalizedReq any,
 ) (*stepHandle, context.Context) {
-	if svc == nil || !svc.IsEnabled(ctx, opts.ChatID, opts.OwnerID) {
+	if svc == nil {
 		return nil, ctx
 	}
 
 	rc, ok := RunFromContext(ctx)
 	if !ok || rc.RunID == uuid.Nil {
+		return nil, ctx
+	}
+
+	chatID := opts.ChatID
+	if chatID == uuid.Nil {
+		chatID = rc.ChatID
+	}
+	if !svc.IsEnabled(ctx, chatID, opts.OwnerID) {
 		return nil, ctx
 	}
 
@@ -135,7 +143,7 @@ func beginStep(
 	stepNum := nextStepNumber(rc.RunID)
 	step, err := svc.CreateStep(ctx, CreateStepParams{
 		RunID:               rc.RunID,
-		ChatID:              opts.ChatID,
+		ChatID:              chatID,
 		StepNumber:          stepNum,
 		Operation:           op,
 		Status:              StatusInProgress,
@@ -145,7 +153,7 @@ func beginStep(
 	if err != nil {
 		svc.log.Warn(ctx, "failed to create chat debug step",
 			slog.Error(err),
-			slog.F("chat_id", opts.ChatID),
+			slog.F("chat_id", chatID),
 			slog.F("run_id", rc.RunID),
 			slog.F("operation", op),
 		)
@@ -155,7 +163,7 @@ func beginStep(
 	sc := &StepContext{
 		StepID:              step.ID,
 		RunID:               rc.RunID,
-		ChatID:              opts.ChatID,
+		ChatID:              chatID,
 		StepNumber:          stepNum,
 		Operation:           op,
 		HistoryTipMessageID: rc.HistoryTipMessageID,
@@ -179,13 +187,13 @@ func (h *stepHandle) finish(
 	errPayload any,
 	metadata any,
 ) {
-	if h == nil {
+	if h == nil || h.stepCtx == nil {
 		return
 	}
 
 	_, _ = h.svc.UpdateStep(ctx, UpdateStepParams{
 		ID:                 h.stepCtx.StepID,
-		ChatID:             h.opts.ChatID,
+		ChatID:             h.stepCtx.ChatID,
 		Status:             status,
 		NormalizedResponse: response,
 		Usage:              usage,

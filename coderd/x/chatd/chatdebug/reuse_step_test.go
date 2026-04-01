@@ -2,15 +2,11 @@ package chatdebug //nolint:testpackage // Uses unexported recorder helpers.
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -20,25 +16,12 @@ func TestBeginStepReuseStep(t *testing.T) {
 	t.Run("reuses handle under ReuseStep", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
 		chatID := uuid.New()
 		ownerID := uuid.New()
 		runID := uuid.New()
-		stepID := uuid.New()
+		t.Cleanup(func() { CleanupStepCounter(runID) })
 
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Times(2).Return(database.Chat{
-			ID:                       chatID,
-			DebugLogsEnabledOverride: sql.NullBool{Bool: true, Valid: true},
-		}, nil)
-		db.EXPECT().InsertChatDebugStep(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, params database.InsertChatDebugStepParams) (database.ChatDebugStep, error) {
-				require.EqualValues(t, 1, params.StepNumber)
-				return database.ChatDebugStep{ID: stepID, RunID: runID, ChatID: chatID}, nil
-			},
-		)
-
-		svc := NewService(db, testutil.Logger(t), nil)
+		svc := NewService(nil, testutil.Logger(t), nil)
 		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 		ctx = ReuseStep(ctx)
 		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID}
@@ -50,6 +33,11 @@ func TestBeginStepReuseStep(t *testing.T) {
 		require.Same(t, firstHandle, secondHandle)
 		require.Same(t, firstHandle.stepCtx, secondHandle.stepCtx)
 		require.Same(t, firstHandle.sink, secondHandle.sink)
+		require.Equal(t, runID, firstHandle.stepCtx.RunID)
+		require.Equal(t, chatID, firstHandle.stepCtx.ChatID)
+		require.Equal(t, int32(1), firstHandle.stepCtx.StepNumber)
+		require.Equal(t, OperationStream, firstHandle.stepCtx.Operation)
+		require.NotEqual(t, uuid.Nil, firstHandle.stepCtx.StepID)
 
 		firstStepCtx, ok := StepFromContext(firstEnriched)
 		require.True(t, ok)
@@ -63,27 +51,12 @@ func TestBeginStepReuseStep(t *testing.T) {
 	t.Run("creates new handles without ReuseStep", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
 		chatID := uuid.New()
 		ownerID := uuid.New()
 		runID := uuid.New()
-		stepIDs := []uuid.UUID{uuid.New(), uuid.New()}
-		insertCalls := 0
+		t.Cleanup(func() { CleanupStepCounter(runID) })
 
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Times(2).Return(database.Chat{
-			ID:                       chatID,
-			DebugLogsEnabledOverride: sql.NullBool{Bool: true, Valid: true},
-		}, nil)
-		db.EXPECT().InsertChatDebugStep(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
-			func(ctx context.Context, params database.InsertChatDebugStepParams) (database.ChatDebugStep, error) {
-				insertCalls++
-				require.EqualValues(t, insertCalls, params.StepNumber)
-				return database.ChatDebugStep{ID: stepIDs[insertCalls-1], RunID: runID, ChatID: chatID}, nil
-			},
-		)
-
-		svc := NewService(db, testutil.Logger(t), nil)
+		svc := NewService(nil, testutil.Logger(t), nil)
 		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID}
 
@@ -93,6 +66,9 @@ func TestBeginStepReuseStep(t *testing.T) {
 		require.NotNil(t, firstHandle)
 		require.NotNil(t, secondHandle)
 		require.NotSame(t, firstHandle, secondHandle)
+		require.NotSame(t, firstHandle.sink, secondHandle.sink)
+		require.Equal(t, int32(1), firstHandle.stepCtx.StepNumber)
+		require.Equal(t, int32(2), secondHandle.stepCtx.StepNumber)
 		require.NotEqual(t, firstHandle.stepCtx.StepID, secondHandle.stepCtx.StepID)
 	})
 }

@@ -3,9 +3,12 @@ package chatdebug
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 // RedactedValue replaces sensitive values in debug payloads.
@@ -77,10 +80,14 @@ func RedactJSONSecrets(data []byte) []byte {
 
 func consumeJSONEOF(decoder *json.Decoder) error {
 	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return err
+	err := decoder.Decode(&extra)
+	if errors.Is(err, io.EOF) {
+		return nil
 	}
-	return nil
+	if err == nil {
+		return xerrors.New("chatdebug: extra JSON values")
+	}
+	return err
 }
 
 func isSensitiveHeaderName(name string) bool {
@@ -90,6 +97,11 @@ func isSensitiveHeaderName(name string) bool {
 	}
 	if strings.Contains(lowerName, "ratelimit") {
 		return false
+	}
+	if strings.Contains(lowerName, "api-key") ||
+		strings.Contains(lowerName, "api_key") ||
+		strings.Contains(lowerName, "apikey") {
+		return true
 	}
 	return strings.Contains(lowerName, "token") ||
 		strings.Contains(lowerName, "secret")

@@ -161,6 +161,22 @@ func TestBeginStep_NilService(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
+	t.Parallel()
+
+	runID := uuid.New()
+	runChatID := uuid.New()
+	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: runChatID})
+
+	handle, enriched := beginStep(ctx, &Service{}, RecorderOptions{}, OperationGenerate, nil)
+	require.NotNil(t, handle)
+	require.Equal(t, runChatID, handle.stepCtx.ChatID)
+
+	stepCtx, ok := StepFromContext(enriched)
+	require.True(t, ok)
+	require.Equal(t, runChatID, stepCtx.ChatID)
+}
+
 func TestWrapModel_ReturnsDebugModel(t *testing.T) {
 	t.Parallel()
 

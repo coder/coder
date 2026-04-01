@@ -111,6 +111,20 @@ func TestRedactHeaders(t *testing.T) {
 		require.Equal(t, []string{"value"}, headers["X-Test"])
 		require.Equal(t, chatdebug.RedactedValue, redacted["Authorization"])
 	})
+	t.Run("api-key header variants are redacted", func(t *testing.T) {
+		t.Parallel()
+
+		headers := http.Header{
+			"X-Goog-Api-Key": {"secret"},
+			"X-Api_Key":      {"other-secret"},
+			"X-Safe":         {"ok"},
+		}
+
+		redacted := chatdebug.RedactHeaders(headers)
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-Goog-Api-Key"])
+		require.Equal(t, chatdebug.RedactedValue, redacted["X-Api_Key"])
+		require.Equal(t, "ok", redacted["X-Safe"])
+	})
 }
 
 func TestRedactJSONSecrets(t *testing.T) {
@@ -138,6 +152,13 @@ func TestRedactJSONSecrets(t *testing.T) {
 		input := []byte(`[{"token":"abc"},{"value":1,"credentials":{"access_key":"def"}}]`)
 		redacted := chatdebug.RedactJSONSecrets(input)
 		require.JSONEq(t, `[{"token":"[REDACTED]"},{"value":1,"credentials":"[REDACTED]"}]`, string(redacted))
+	})
+
+	t.Run("concatenated JSON is unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		input := []byte(`{"token":"abc"}{"safe":"ok"}`)
+		require.Equal(t, input, chatdebug.RedactJSONSecrets(input))
 	})
 
 	t.Run("non JSON input is unchanged", func(t *testing.T) {
