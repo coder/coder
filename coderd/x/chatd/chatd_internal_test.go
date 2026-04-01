@@ -1083,7 +1083,9 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 		workspaceCtx.getWorkspaceConn,
 	)
 	require.NoError(t, err)
+	// Sentinel path: empty instruction, no skills.
 	require.Empty(t, instruction)
+	require.Empty(t, skills)
 }
 
 func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
