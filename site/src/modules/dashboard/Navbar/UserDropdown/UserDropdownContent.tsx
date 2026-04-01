@@ -1,5 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
-import { useClipboard } from "hooks/useClipboard";
 import {
 	CircleUserIcon,
 	CopyIcon,
@@ -9,6 +7,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import {
 	DropdownMenuItem,
@@ -19,13 +18,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { SupportIcon } from "../SupportIcon";
-
-export const Language = {
-	accountLabel: "Account",
-	signOutLabel: "Sign Out",
-	copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
-};
 
 interface UserDropdownContentProps {
 	user: TypesGen.User;
@@ -126,7 +120,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				</Tooltip>
 			)}
 			<DropdownMenuItem className="text-xs" disabled>
-				<span>{Language.copyrightText}</span>
+				<span>&copy; {new Date().getFullYear()} Coder Technologies, Inc.</span>
 			</DropdownMenuItem>
 		</>
 	);

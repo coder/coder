@@ -1,5 +1,3 @@
-import type { Task, Workspace } from "api/typesGenerated";
-import { useClipboard } from "hooks";
 import {
 	ArrowLeftIcon,
 	CheckIcon,
@@ -9,6 +7,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import type { Task, Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,
@@ -21,6 +20,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { ShareButton } from "../WorkspacePage/WorkspaceActions/ShareButton";
 import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";

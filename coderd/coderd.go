@@ -1155,6 +1155,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
+			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
@@ -1186,6 +1187,8 @@ func New(options *Options) *API {
 				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
 				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
+				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
+				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
@@ -1231,6 +1234,7 @@ func New(options *Options) *API {
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)

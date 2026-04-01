@@ -184,6 +184,30 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.Equal(t, []byte("inline-data"), part.Data)
 	})
 
+	t.Run("StripsContextFileContent", func(t *testing.T) {
+		t.Parallel()
+		agentID := uuid.New()
+		part := codersdk.ChatMessagePart{
+			Type:                     codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:          "/home/coder/AGENTS.md",
+			ContextFileContent:       "large content",
+			ContextFileAgentID:       uuid.NullUUID{UUID: agentID, Valid: true},
+			ContextFileOS:            "linux",
+			ContextFileDirectory:     "/home/coder/project",
+			ContextFileSkillMetaFile: "CUSTOM.md",
+		}
+		part.StripInternal()
+		// Internal fields stripped.
+		assert.Empty(t, part.ContextFileContent)
+		assert.Empty(t, part.ContextFileOS)
+		assert.Empty(t, part.ContextFileDirectory)
+		assert.Empty(t, part.ContextFileSkillMetaFile)
+		// Public fields preserved.
+		assert.Equal(t, "/home/coder/AGENTS.md", part.ContextFilePath)
+		assert.Equal(t, agentID, part.ContextFileAgentID.UUID)
+		assert.True(t, part.ContextFileAgentID.Valid)
+	})
+
 	t.Run("NoopOnCleanPart", func(t *testing.T) {
 		t.Parallel()
 		part := codersdk.ChatMessageText("hello")
@@ -209,12 +233,16 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	// If you add a new field to ChatMessagePart, either add a
 	// variants tag or add it here with a comment explaining why.
 	excludedFields := map[string]string{
-		"type":              "discriminant, added automatically by codegen",
-		"signature":         "added in #22290, never populated by any code path",
-		"result_delta":      "added in #22290, never populated by any code path",
-		"provider_metadata": "internal only, stripped by db2sdk before API responses",
+		"type":                         "discriminant, added automatically by codegen",
+		"signature":                    "added in #22290, never populated by any code path",
+		"result_delta":                 "added in #22290, never populated by any code path",
+		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
+		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
+		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
+		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
+		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
+		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
 	}
-
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
 		knownTypes[pt] = true
@@ -361,6 +389,84 @@ func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	err = json.Unmarshal(raw, &decoded)
 	require.NoError(t, err)
 	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
+}
+
+// TestChat_JSONRoundTrip verifies that every field of codersdk.Chat
+// survives a JSON marshal/unmarshal cycle. This catches omitempty
+// silently eating zero-ish values, struct tag typos, and similar
+// serialization bugs in the pubsub path.
+func TestChat_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	prState := "open"
+	prTitle := "test PR"
+	authorLogin := "testuser"
+	avatarURL := "https://example.com/avatar.png"
+	baseBranch := "main"
+	headBranch := "feature/test"
+	prNumber := int32(42)
+	commits := int32(3)
+	approved := true
+	reviewerCount := int32(2)
+	refreshedAt := now
+	staleAt := now.Add(time.Hour)
+	lastError := "boom"
+	prURL := "https://github.com/coder/coder/pull/42"
+	workspaceID := uuid.New()
+	buildID := uuid.New()
+	agentID := uuid.New()
+	parentChatID := uuid.New()
+	rootChatID := uuid.New()
+
+	original := codersdk.Chat{
+		ID:                uuid.New(),
+		OwnerID:           uuid.New(),
+		WorkspaceID:       &workspaceID,
+		BuildID:           &buildID,
+		AgentID:           &agentID,
+		ParentChatID:      &parentChatID,
+		RootChatID:        &rootChatID,
+		LastModelConfigID: uuid.New(),
+		Title:             "round-trip-test",
+		Status:            codersdk.ChatStatusRunning,
+		LastError:         &lastError,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		Archived:          true,
+		MCPServerIDs:      []uuid.UUID{uuid.New()},
+		Labels:            map[string]string{"env": "prod"},
+		DiffStatus: &codersdk.ChatDiffStatus{
+			ChatID:           uuid.New(),
+			URL:              &prURL,
+			PullRequestState: &prState,
+			PullRequestTitle: prTitle,
+			PullRequestDraft: true,
+			ChangesRequested: true,
+			Additions:        10,
+			Deletions:        5,
+			ChangedFiles:     3,
+			AuthorLogin:      &authorLogin,
+			AuthorAvatarURL:  &avatarURL,
+			BaseBranch:       &baseBranch,
+			HeadBranch:       &headBranch,
+			PRNumber:         &prNumber,
+			Commits:          &commits,
+			Approved:         &approved,
+			ReviewerCount:    &reviewerCount,
+			RefreshedAt:      &refreshedAt,
+			StaleAt:          &staleAt,
+		},
+	}
+
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var decoded codersdk.Chat
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	require.Equal(t, original, decoded)
 }
 
 //nolint:tparallel,paralleltest

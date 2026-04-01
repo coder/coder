@@ -1,6 +1,6 @@
-import { MockWorkspaceAppStatus } from "testHelpers/entities";
-import { withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockWorkspaceAppStatus } from "#/testHelpers/entities";
+import { withProxyProvider } from "#/testHelpers/storybook";
 import { WorkspaceAppStatus } from "./WorkspaceAppStatus";
 
 const meta: Meta<typeof WorkspaceAppStatus> = {

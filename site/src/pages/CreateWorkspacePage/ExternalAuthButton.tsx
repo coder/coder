@@ -1,6 +1,6 @@
-import type { TemplateVersionExternalAuth } from "api/typesGenerated";
 import { Check, Redo } from "lucide-react";
 import type { FC } from "react";
+import type { TemplateVersionExternalAuth } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";

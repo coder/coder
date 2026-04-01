@@ -1,11 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
-import type { ApiErrorResponse } from "api/errors";
-import type { ExternalAuthDevice } from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
+import type { ApiErrorResponse } from "#/api/errors";
+import type { ExternalAuthDevice } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 

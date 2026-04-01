@@ -1,12 +1,10 @@
+import { XIcon } from "lucide-react";
+import type { FC } from "react";
 import type {
 	Organization,
 	ProvisionerJob,
 	ProvisionerJobStatus,
-} from "api/typesGenerated";
-import { XIcon } from "lucide-react";
-import type { FC } from "react";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
+} from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
@@ -43,6 +41,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import { JobRow } from "./JobRow";
 
 const variantByStatus: Record<

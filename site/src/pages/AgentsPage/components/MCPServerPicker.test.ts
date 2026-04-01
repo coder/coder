@@ -1,5 +1,5 @@
-import type { MCPServerConfig } from "api/typesGenerated";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { MCPServerConfig } from "#/api/typesGenerated";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,

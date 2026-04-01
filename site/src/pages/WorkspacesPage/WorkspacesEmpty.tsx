@@ -1,10 +1,10 @@
-import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { Link } from "react-router";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;

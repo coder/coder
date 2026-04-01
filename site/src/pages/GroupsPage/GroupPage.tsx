@@ -1,12 +1,3 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	deleteGroup,
-	group,
-	groupMembers,
-	groupPermissions,
-} from "api/queries/groups";
-import type { Group, ReducedUser } from "api/typesGenerated";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { TrashIcon } from "lucide-react";
 import { type ComponentProps, type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -18,7 +9,14 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	deleteGroup,
+	group,
+	groupMembers,
+	groupPermissions,
+} from "#/api/queries/groups";
+import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
@@ -31,7 +29,9 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
+import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { pageTitle } from "#/utils/page";
 
 export type GroupPageOutletContext = {
 	group: Group;
@@ -135,16 +135,16 @@ const GroupPage: FC = () => {
 			</div>
 			<div className="flex flex-col gap-10 w-full">
 				{canUpdateGroup && (
-					<Tabs active={activeTab}>
-						<TabsList className="w-full justify-start">
+					<LinkTabs active={activeTab}>
+						<LinkTabsList className="w-full justify-start">
 							<TabLink to="." value="members">
 								Group members
 							</TabLink>
 							<TabLink to="settings" value="settings">
 								Group settings
 							</TabLink>
-						</TabsList>
-					</Tabs>
+						</LinkTabsList>
+					</LinkTabs>
 				)}
 
 				<Outlet

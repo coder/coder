@@ -7,9 +7,9 @@ import {
 	type ReactNode,
 	useContext,
 } from "react";
-import { cn } from "utils/cn";
 import { AlphaBadge, DeprecatedBadge } from "#/components/Badges/Badges";
 import { Stack } from "#/components/Stack/Stack";
+import { cn } from "#/utils/cn";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
 

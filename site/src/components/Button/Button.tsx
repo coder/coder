@@ -4,7 +4,7 @@
  */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 // Be careful when changing the child styles from the button such as images
 // because they can override the styles from other components like Avatar.

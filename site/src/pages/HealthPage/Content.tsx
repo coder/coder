@@ -1,6 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
-import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -14,7 +12,9 @@ import {
 	type HTMLAttributes,
 	type ReactElement,
 } from "react";
-import { docs } from "utils/docs";
+import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
+import { docs } from "#/utils/docs";
 import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;
@@ -22,12 +22,8 @@ const CONTENT_PADDING = 36;
 export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<header
-			css={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "space-between",
-				padding: `36px ${CONTENT_PADDING}px`,
-			}}
+			className="flex items-center justify-between"
+			style={{ padding: `36px ${CONTENT_PADDING}px` }}
 			{...props}
 		/>
 	);
@@ -36,15 +32,7 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<h2
-			css={{
-				margin: 0,
-				lineHeight: "1.2",
-				fontSize: 20,
-				fontWeight: 500,
-				display: "flex",
-				alignItems: "center",
-				gap: 16,
-			}}
+			className="m-0 leading-[1.2] text-xl font-medium flex items-center gap-4"
 			{...props}
 		/>
 	);
@@ -85,12 +73,8 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<div
-			css={{
-				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
-				display: "flex",
-				flexDirection: "column",
-				gap: 36,
-			}}
+			className="flex flex-col gap-9"
+			style={{ padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px` }}
 			{...props}
 		/>
 	);
@@ -99,15 +83,10 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
 		<div
-			css={{
-				lineHeight: "1.4",
-				display: "grid",
-				gridTemplateColumns: "auto auto",
-				gap: 12,
-				columnGap: 48,
-				width: "min-content",
-				whiteSpace: "nowrap",
-			}}
+			className={`
+				leading-[1.4] w-min whitespace-nowrap
+				grid grid-cols-[auto_auto] gap-3 gap-x-12
+			`}
 			{...props}
 		/>
 	);
@@ -142,16 +121,7 @@ export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 
 export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
 	return (
-		<h4
-			{...props}
-			css={{
-				fontSize: 14,
-				fontWeight: 500,
-				margin: 0,
-				lineHeight: "1.2",
-				marginBottom: 16,
-			}}
-		/>
+		<h4 {...props} className="text-sm font-medium m-0 leading-[1.2] mb-4" />
 	);
 };
 
@@ -247,7 +217,7 @@ export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
 			{...divProps}
 		>
 			{lines.map((line, index) => (
-				<span css={{ display: "block" }} key={index}>
+				<span className="block" key={index}>
 					{line}
 				</span>
 			))}
@@ -272,6 +242,7 @@ export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
 			href={docs(`/admin/monitoring/health-check#${code.toLocaleLowerCase()}`)}
 			target="_blank"
 			rel="noreferrer"
+			className="mx-0"
 		>
 			Docs for {code}
 		</Link>

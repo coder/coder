@@ -1,7 +1,7 @@
-import type * as TypesGen from "api/typesGenerated";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {

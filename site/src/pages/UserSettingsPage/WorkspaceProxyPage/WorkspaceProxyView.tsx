@@ -1,6 +1,5 @@
-import type { Region } from "api/typesGenerated";
-import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC } from "react";
+import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
@@ -18,6 +17,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
 interface WorkspaceProxyViewProps {

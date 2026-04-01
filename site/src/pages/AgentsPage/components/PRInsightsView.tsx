@@ -1,11 +1,9 @@
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { CodeIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { cn } from "utils/cn";
-import { formatCostMicros } from "utils/currency";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	type ChartConfig,
@@ -21,6 +19,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { cn } from "#/utils/cn";
+import { formatCostMicros } from "#/utils/currency";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
 dayjs.extend(relativeTime);

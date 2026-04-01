@@ -1,6 +1,6 @@
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { mockApiError } from "#/testHelpers/entities";
 import { EditUserForm } from "./EditUserForm";
 
 const meta: Meta<typeof EditUserForm> = {

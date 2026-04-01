@@ -24,13 +24,9 @@
 			"vitest/globals",
 			"novnc__novnc"
 		],
-		"baseUrl": "src/",
 		"paths": {
-			"#/*": ["*"]
-		},
-		// baseUrl is deprecated and will be removed in TypeScript 7.0. Migration is
-		// in progress.
-		"ignoreDeprecations": "6.0"
+			"#/*": ["./src/*"]
+		}
 	},
 	"include": ["**/*"],
 	"exclude": ["node_modules/"]

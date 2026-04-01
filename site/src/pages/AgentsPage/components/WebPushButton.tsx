@@ -1,8 +1,7 @@
-import { getErrorMessage } from "api/errors";
-import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import type { FC } from "react";
 import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -10,6 +9,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 
 export const WebPushButton: FC = () => {
 	const webPush = useWebpushNotifications();

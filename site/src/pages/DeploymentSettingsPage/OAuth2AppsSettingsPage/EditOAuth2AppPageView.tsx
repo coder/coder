@@ -1,10 +1,9 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Divider from "@mui/material/Divider";
-import type * as TypesGen from "api/typesGenerated";
 import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
-import { createDayString } from "utils/createDayString";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -29,6 +28,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { createDayString } from "#/utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type MutatingResource = {
@@ -117,12 +117,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							</p>
 							<CodeExample
 								code={fullNewSecret.client_secret_full}
-								css={{
-									minHeight: "auto",
-									userSelect: "all",
-									width: "100%",
-									marginTop: 24,
-								}}
+								className="min-h-auto select-all w-full mt-6"
 							/>
 						</>
 					}
@@ -260,7 +255,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 					{!isLoadingSecrets && (!secrets || secrets.length === 0) && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No client secrets have been generated.
 								</div>
 							</TableCell>

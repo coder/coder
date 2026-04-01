@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { SerpentGroup } from "api/typesGenerated";
+import type { SerpentGroup } from "#/api/typesGenerated";
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 
 const group: SerpentGroup = {

@@ -1,10 +1,10 @@
+import { Folder } from "lucide-react";
+import type { FC } from "react";
 import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
-} from "api/typesGenerated";
-import { Folder } from "lucide-react";
-import type { FC } from "react";
+} from "#/api/typesGenerated";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

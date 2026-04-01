@@ -1,5 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
 import type { FC } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -46,7 +46,7 @@ const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
 					{apps?.length === 0 && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No OAuth2 applications have been authorized.
 								</div>
 							</TableCell>

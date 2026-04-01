@@ -1,5 +1,5 @@
 # 1.93.1
-FROM rust:slim@sha256:f7bf1c266d9e48c8d724733fd97ba60464c44b743eb4f46f935577d3242d81d0 AS rust-utils
+FROM rust:slim@sha256:1d0000a49fb62f4fde24455f49d59c6c088af46202d65d8f455b722f7263e8f8 AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
@@ -11,8 +11,8 @@ RUN cargo install jj-cli typos-cli watchexec-cli
 FROM ubuntu:jammy@sha256:ce4a593b4e323dcc3dd728e397e0a866a1bf516a1b7c31d6aa06991baec4f2e0 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.25.7
-ARG GO_CHECKSUM="12e6d6a191091ae27dc31f6efc630e3a3b8ba409baf3573d955b196fdf086005"
+ARG GO_VERSION=1.25.8
+ARG GO_CHECKSUM="ceb5e041bbc3893846bd1614d76cb4681c91dadee579426cf21a63f2d7e03be6"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \

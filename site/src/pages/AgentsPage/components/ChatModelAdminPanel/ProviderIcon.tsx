@@ -1,13 +1,13 @@
 import { ServerIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "utils/cn";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { cn } from "#/utils/cn";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { normalizeProvider } from "./helpers";
 
 const providerIconMap: Record<string, string> = {
 	openai: "/icon/openai.svg",
-	anthropic: "/icon/claude.svg",
+	anthropic: "/icon/anthropic.svg",
 	azure: "/icon/azure.svg",
 	bedrock: "/icon/aws.svg",
 	google: "/icon/google.svg",

@@ -1,18 +1,18 @@
-import {
-	MockAssignableSiteRoles,
-	MockAuthMethodsPasswordOnly,
-	MockUserMember,
-	MockUserOwner,
-	mockApiError,
-} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import type { ComponentProps } from "react";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
+import {
+	MockAssignableSiteRoles,
+	MockAuthMethodsPasswordOnly,
+	MockUserMember,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { UsersPageView } from "./UsersPageView";
 
 type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
@@ -32,7 +32,10 @@ const meta: Meta<typeof UsersPageView> = {
 	component: UsersPageView,
 	args: {
 		isNonInitialPage: false,
-		users: [MockUserOwner, MockUserMember],
+		users: [
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
+		],
 		roles: MockAssignableSiteRoles,
 		canEditUsers: true,
 		filterProps: defaultFilterProps,

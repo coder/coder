@@ -1,4 +1,3 @@
-import { useClipboard } from "hooks/useClipboard";
 import { CopyIcon } from "lucide-react";
 import type { FC } from "react";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
@@ -8,6 +7,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 
 type CopyButtonProps = ButtonProps & {
 	text: string;

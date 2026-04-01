@@ -38,7 +38,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
-	"github.com/coder/coder/v2/agent/agentdesktop"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -50,6 +50,8 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/x/agentdesktop"
+	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -307,10 +309,13 @@ type agent struct {
 	containerAPI        *agentcontainers.API
 	gitAPIOptions       []agentgit.Option
 
-	filesAPI   *agentfiles.API
-	gitAPI     *agentgit.API
-	processAPI *agentproc.API
-	desktopAPI *agentdesktop.API
+	filesAPI         *agentfiles.API
+	gitAPI           *agentgit.API
+	processAPI       *agentproc.API
+	desktopAPI       *agentdesktop.API
+	mcpManager       *agentmcp.Manager
+	mcpAPI           *agentmcp.API
+	contextConfigAPI *agentcontextconfig.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -396,6 +401,8 @@ func (a *agent) init() {
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(),
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
+	a.mcpManager = agentmcp.NewManager(a.logger.Named("mcp"))
+	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1258,6 +1265,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			return xerrors.Errorf("update workspace agent startup: %w", err)
 		}
 
+		// Initialize the context config API with the expanded
+		// working directory so that it is ready before the HTTP
+		// handler is created (which happens after manifestOK).
+		a.contextConfigAPI = agentcontextconfig.NewAPI(
+			manifest.Directory,
+		)
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
@@ -1348,6 +1361,14 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
+
+				// Connect to workspace MCP servers after the
+				// lifecycle transition to avoid delaying Ready.
+				// This runs inside the tracked goroutine so it
+				// is properly awaited on shutdown.
+				if mcpErr := a.mcpManager.Connect(a.gracefulCtx, a.contextConfigAPI.Config().MCPConfigFiles); mcpErr != nil {
+					a.logger.Warn(ctx, "failed to connect to workspace MCP servers", slog.Error(mcpErr))
+				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)
@@ -2068,6 +2089,10 @@ func (a *agent) Close() error {
 
 	if err := a.desktopAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
+	}
+
+	if err := a.mcpManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

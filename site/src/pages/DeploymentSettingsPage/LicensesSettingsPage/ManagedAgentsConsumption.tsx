@@ -1,9 +1,7 @@
-import type { Feature } from "api/typesGenerated";
 import dayjs from "dayjs";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
+import type { Feature } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -12,6 +10,8 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
+import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 
 interface ManagedAgentsConsumptionProps {
 	managedAgentFeature?: Feature;

@@ -6,7 +6,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { AIBridgeHelpTooltip } from "./AIBridgeHelpTooltip";
+import { AIBridgeHelpPopover } from "./AIBridgeHelpPopover";
 
 const AIBridgeLayout: FC<PropsWithChildren> = () => {
 	return (
@@ -15,7 +15,7 @@ const AIBridgeLayout: FC<PropsWithChildren> = () => {
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
 						<span>AI Bridge Logs</span>
-						<AIBridgeHelpTooltip />
+						<AIBridgeHelpPopover />
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>

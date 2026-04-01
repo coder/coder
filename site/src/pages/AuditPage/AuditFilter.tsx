@@ -1,11 +1,6 @@
-import { AuditActions, ResourceTypes } from "api/typesGenerated";
 import capitalize from "lodash/capitalize";
-import {
-	type OrganizationsFilterMenu,
-	OrganizationsMenu,
-} from "modules/tableFiltering/options";
 import type { FC } from "react";
-import { docs } from "utils/docs";
+import { AuditActions, ResourceTypes } from "#/api/typesGenerated";
 import {
 	Filter,
 	MenuSkeleton,
@@ -24,6 +19,11 @@ import {
 	type UserFilterMenu,
 	UserMenu,
 } from "#/components/Filter/UserFilter";
+import {
+	type OrganizationsFilterMenu,
+	OrganizationsMenu,
+} from "#/modules/tableFiltering/options";
+import { docs } from "#/utils/docs";
 
 const PRESET_FILTERS = [
 	{

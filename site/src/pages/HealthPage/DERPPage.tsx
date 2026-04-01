@@ -1,13 +1,12 @@
 import { useTheme } from "@emotion/react";
+import { MapPinIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link, useOutletContext } from "react-router";
 import type {
 	HealthcheckReport,
 	HealthSeverity,
 	NetcheckReport,
-} from "api/typesGenerated";
-import { MapPinIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link, useOutletContext } from "react-router";
-import { pageTitle } from "utils/page";
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -16,6 +15,7 @@ import {
 	TableCell,
 	TableRow,
 } from "#/components/Table/Table";
+import { pageTitle } from "#/utils/page";
 import {
 	Header,
 	HeaderTitle,

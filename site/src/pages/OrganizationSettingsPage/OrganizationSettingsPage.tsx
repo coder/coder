@@ -1,19 +1,19 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteOrganization,
 	patchWorkspaceSharingSettings,
 	updateOrganization,
 	workspaceSharingSettings,
-} from "api/queries/organizations";
-import type { ShareableWorkspaceOwners } from "api/typesGenerated";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
-import { toast } from "sonner";
-import { pageTitle } from "utils/page";
+} from "#/api/queries/organizations";
+import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const sharingUpdatedToastLabels: Record<ShareableWorkspaceOwners, string> = {

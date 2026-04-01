@@ -1,25 +1,25 @@
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import { API } from "api/api";
-import type { Template, TemplateVersionParameter } from "api/typesGenerated";
-import { useDebouncedFunction } from "hooks/debounce";
-import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useId, useState } from "react";
 import { useQuery } from "react-query";
-import { nameValidator } from "utils/formUtils";
-import { pageTitle } from "utils/page";
-import { getInitialRichParameterValues } from "utils/richParameters";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { ValidationError } from "yup";
+import { API } from "#/api/api";
+import type { Template, TemplateVersionParameter } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { FormSection, VerticalForm } from "#/components/Form/Form";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import { RichParameterInput } from "#/components/RichParameterInput/RichParameterInput";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import { useClipboard } from "#/hooks/useClipboard";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+import { nameValidator } from "#/utils/formUtils";
+import { pageTitle } from "#/utils/page";
+import { getInitialRichParameterValues } from "#/utils/richParameters";
+import { paramsUsedToCreateWorkspace } from "#/utils/workspace";
 
 type ButtonValues = Record<string, string>;
 
@@ -174,9 +174,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 							</div>
 
 							{templateParameters.length > 0 && (
-								<div
-									css={{ display: "flex", flexDirection: "column", gap: 36 }}
-								>
+								<div className="flex flex-col gap-9">
 									{templateParameters.map((parameter) => {
 										const parameterValue =
 											buttonValues[`param.${parameter.name}`] ?? "";
@@ -218,17 +216,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 						})}
 					>
 						<img src="/open-in-coder.svg" alt="Open in Coder button" />
-						<div
-							css={{
-								padding: "48px 16px",
-								position: "absolute",
-								bottom: 0,
-								left: 0,
-								display: "flex",
-								justifyContent: "center",
-								width: "100%",
-							}}
-						>
+						<div className="px-4 py-12 absolute bottom-0 left-0 flex justify-center w-full">
 							<Button
 								className="rounded-full"
 								disabled={clipboard.showCopiedSuccess}

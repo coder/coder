@@ -1,12 +1,12 @@
 import set from "lodash/set";
 import { EditIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
-import type { FileTree } from "utils/filetree";
-import type { TemplateVersionFiles } from "utils/templateVersion";
 import { SyntaxHighlighter } from "#/components/SyntaxHighlighter/SyntaxHighlighter";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { cn } from "#/utils/cn";
+import type { FileTree } from "#/utils/filetree";
+import type { TemplateVersionFiles } from "#/utils/templateVersion";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 import { TemplateFileTree } from "./TemplateFileTree";
 

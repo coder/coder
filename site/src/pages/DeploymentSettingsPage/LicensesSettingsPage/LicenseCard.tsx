@@ -1,9 +1,8 @@
-import type { GetLicensesResponse } from "api/api";
-import type { Feature } from "api/typesGenerated";
 import dayjs from "dayjs";
 import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { cn } from "utils/cn";
+import type { GetLicensesResponse } from "#/api/api";
+import type { Feature } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Collapsible,
@@ -17,6 +16,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { cn } from "#/utils/cn";
 import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 import {
 	isLicenseApplicableForAiGovernanceOverage,

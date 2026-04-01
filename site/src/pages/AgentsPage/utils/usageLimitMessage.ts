@@ -1,4 +1,4 @@
-import { formatCostMicros } from "utils/currency";
+import { formatCostMicros } from "#/utils/currency";
 
 /**
  * Shape of structured usage-limit fields added to 409 responses
@@ -11,20 +11,28 @@ interface UsageLimitData {
 }
 
 /**
+ * Known provider failure kinds surfaced in chat retry/error events.
+ */
+export type ChatProviderFailureKind =
+	| "generic"
+	| "overloaded"
+	| "rate_limit"
+	| "timeout"
+	| "startup_timeout"
+	| "auth"
+	| "config"
+	| "usage_limit";
+
+/**
  * Typed classification for errors surfaced in the agent detail view.
- * - "usage-limit": the user hit a spending cap (409 + valid usage data).
+ * - "usage_limit": the user hit a spending cap (409 + valid usage data).
  * - other kinds come from normalized stream/provider failures such as
- *   "generic", "overloaded", "rate_limit", or "timeout".
+ *   "generic", "overloaded", "rate_limit", "timeout",
+ *   "startup_timeout", "auth", and "config".
  */
 export type ChatDetailError = {
 	message: string;
-	kind:
-		| "usage-limit"
-		| "generic"
-		| "overloaded"
-		| "rate_limit"
-		| "timeout"
-		| (string & {});
+	kind: ChatProviderFailureKind | (string & {});
 	provider?: string;
 	retryable?: boolean;
 	statusCode?: number;

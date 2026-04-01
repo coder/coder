@@ -1,7 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { GroupsByUserId } from "api/queries/groups";
-import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
@@ -14,6 +12,8 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import type { GroupsByUserId } from "#/api/queries/groups";
+import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { PremiumBadge } from "#/components/Badges/Badges";
@@ -34,6 +34,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 
@@ -48,6 +49,7 @@ interface UsersTableBodyProps {
 	canEditUsers: boolean;
 	isLoading: boolean;
 	canViewActivity?: boolean;
+	showAISeatColumn?: boolean;
 	onSuspendUser: (user: TypesGen.User) => void;
 	onDeleteUser: (user: TypesGen.User) => void;
 	onListWorkspaces: (user: TypesGen.User) => void;
@@ -80,6 +82,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 	isUpdatingUserRoles,
 	canEditUsers,
 	canViewActivity,
+	showAISeatColumn,
 	isLoading,
 	isNonInitialPage,
 	actorID,
@@ -105,6 +108,12 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 							<Skeleton variant="text" width="25%" />
 						</TableCell>
 
+						{showAISeatColumn && (
+							<TableCell>
+								<Skeleton variant="text" width="25%" />
+							</TableCell>
+						)}
+
 						<TableCell>
 							<Skeleton variant="text" width="25%" />
 						</TableCell>
@@ -127,7 +136,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 					<Cond condition={isNonInitialPage}>
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ padding: 32 }}>
+								<div className="p-8">
 									<EmptyState message="No users found on this page" />
 								</div>
 							</TableCell>
@@ -137,7 +146,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 					<Cond>
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ padding: 32 }}>
+								<div className="p-8">
 									<EmptyState message="No users found" />
 								</div>
 							</TableCell>
@@ -171,6 +180,8 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 
 						<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
 
+						{showAISeatColumn && <AISeatCell hasAISeat={user.has_ai_seat} />}
+
 						<TableCell>
 							<LoginType authMethods={authMethods!} value={user.login_type} />
 						</TableCell>
@@ -183,7 +194,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						>
 							<div>{user.status}</div>
 							{(user.status === "active" || user.status === "dormant") && (
-								<LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
+								<LastSeen at={user.last_seen_at} className="text-xs" />
 							)}
 						</TableCell>
 
@@ -298,7 +309,7 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 	}
 
 	return (
-		<div css={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+		<div className="flex items-center gap-2 text-sm">
 			{icon}
 			{displayName}
 		</div>

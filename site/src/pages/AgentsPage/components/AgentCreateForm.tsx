@@ -1,19 +1,17 @@
 import { type FC, useEffect, useRef, useState } from "react";
-import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
-import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import type { ModelSelectorOption } from "#/components/ai-elements";
 import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
-	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "../utils/modelOptions";
 import {
@@ -21,6 +19,8 @@ import {
 	isUsageLimitData,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
+import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
+import type { ModelSelectorOption } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -54,17 +54,30 @@ export type CreateChatOptions = {
  * @internal Exported for testing.
  */
 export function useEmptyStateDraft() {
-	const [initialInputValue] = useState(() => {
-		return localStorage.getItem(emptyInputStorageKey) ?? "";
+	const [{ initialInputValue, initialEditorState }] = useState(() => {
+		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		return {
+			initialInputValue: draft.text,
+			initialEditorState: draft.editorState,
+		};
 	});
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
 
-	const handleContentChange = (content: string) => {
+	const handleContentChange = (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
 		inputValueRef.current = content;
 		if (!sentRef.current) {
-			if (content) {
-				localStorage.setItem(emptyInputStorageKey, content);
+			const shouldPersist = content.trim() || hasFileReferences;
+			if (shouldPersist) {
+				try {
+					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
+				} catch {
+					// QuotaExceededError — silently discard the draft.
+				}
 			} else {
 				localStorage.removeItem(emptyInputStorageKey);
 			}
@@ -86,6 +99,7 @@ export function useEmptyStateDraft() {
 
 	return {
 		initialInputValue,
+		initialEditorState,
 		getCurrentContent,
 		handleContentChange,
 		submitDraft,
@@ -97,6 +111,7 @@ interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
+	canCreateChat: boolean;
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
 	isModelCatalogLoading: boolean;
@@ -104,12 +119,17 @@ interface AgentCreateFormProps {
 	isModelConfigsLoading: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspaceCount: number | undefined;
+	workspaceOptions: readonly TypesGen.Workspace[];
+	workspacesError: unknown;
+	isWorkspacesLoading: boolean;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
+	canCreateChat,
 	modelCatalog,
 	modelOptions,
 	modelConfigs,
@@ -117,50 +137,37 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelConfigsLoading,
 	mcpServers,
 	onMCPAuthComplete,
+	workspaceCount: _workspaceCount,
+	workspaceOptions,
+	workspacesError,
+	isWorkspacesLoading,
 }) => {
 	const { organizations } = useDashboard();
-	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
-		useEmptyStateDraft();
+	const {
+		initialInputValue,
+		initialEditorState,
+		handleContentChange,
+		submitDraft,
+		resetDraft,
+	} = useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
-	const modelIDByConfigID = (() => {
-		const optionIDByRef = new Map<string, string>();
-		for (const option of modelOptions) {
-			const provider = option.provider.trim().toLowerCase();
-			const model = option.model.trim();
-			if (!provider || !model) {
-				continue;
-			}
-			const key = `${provider}:${model}`;
-			if (!optionIDByRef.has(key)) {
-				optionIDByRef.set(key, option.id);
-			}
-		}
-
-		const byConfigID = new Map<string, string>();
-		for (const config of modelConfigs) {
-			const { provider, model } = getNormalizedModelRef(config);
-			if (!provider || !model) {
-				continue;
-			}
-			const modelID = optionIDByRef.get(`${provider}:${model}`);
-			if (!modelID || byConfigID.has(config.id)) {
-				continue;
-			}
-			byConfigID.set(config.id, modelID);
-		}
-		return byConfigID;
-	})();
-	const lastUsedModelID = initialLastModelConfigID
-		? (modelIDByConfigID.get(initialLastModelConfigID) ?? "")
-		: "";
+	const lastUsedModelID =
+		initialLastModelConfigID &&
+		modelOptions.some((option) => option.id === initialLastModelConfigID)
+			? initialLastModelConfigID
+			: "";
 	const defaultModelID = (() => {
-		const defaultModelConfig = modelConfigs.find((config) => config.is_default);
+		const defaultModelConfig = Array.isArray(modelConfigs)
+			? modelConfigs.find((config) => config.is_default)
+			: undefined;
 		if (!defaultModelConfig) {
 			return "";
 		}
-		return modelIDByConfigID.get(defaultModelConfig.id) ?? "";
+		return modelOptions.some((option) => option.id === defaultModelConfig.id)
+			? defaultModelConfig.id
+			: "";
 	})();
 	const preferredModelID =
 		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
@@ -173,13 +180,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -255,10 +260,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				selectedMCPServerIdsRef.current.length > 0
 					? [...selectedMCPServerIdsRef.current]
 					: undefined,
-		}).catch(() => {
+		}).catch((err) => {
 			// Re-enable draft persistence so the user can edit
-			// and retry after a failed send attempt.
+			// and retry after a failed send attempt, then rethrow
+			// so callers (handleSendWithAttachments) can preserve
+			// attachments on failure.
 			resetDraft();
+			throw err;
 		});
 	};
 
@@ -270,7 +278,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizations[0]?.id);
+	} = useFileAttachments(organizations[0]?.id, { persist: true });
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -299,37 +307,41 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
+	const isForbidden = !canCreateChat;
+
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-				{createError ? (
+				{isForbidden ? (
+					<ChatAccessDeniedAlert />
+				) : createError ? (
 					isApiError(createError) &&
 					createError.response?.status === 409 &&
 					isUsageLimitData(createError.response.data) ? (
 						<Alert
 							severity="info"
-							className="py-2"
 							actions={
-								<Button asChild variant="subtle" size="sm">
+								<Button asChild size="sm">
 									<Link to="/agents/analytics">View Usage</Link>
 								</Button>
 							}
 						>
-							{formatUsageLimitMessage(createError.response.data)}
+							<AlertDescription>
+								{formatUsageLimitMessage(createError.response.data)}
+							</AlertDescription>
 						</Alert>
 					) : (
 						<ErrorAlert error={createError} />
 					)
 				) : null}
-				{workspacesQuery.isError && (
-					<ErrorAlert error={workspacesQuery.error} />
-				)}
+				{workspacesError != null && <ErrorAlert error={workspacesError} />}
 				<AgentChatInput
 					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
-					isDisabled={isCreating}
+					isDisabled={isCreating || isForbidden}
 					isLoading={isCreating}
 					initialValue={initialInputValue}
+					initialEditorState={initialEditorState}
 					onContentChange={handleContentChange}
 					selectedModel={selectedModel}
 					onModelChange={handleModelChange}
@@ -353,12 +365,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					workspaceOptions={workspaceOptions}
 					selectedWorkspaceId={selectedWorkspaceId}
 					onWorkspaceChange={handleWorkspaceChange}
-					isWorkspaceLoading={workspacesQuery.isLoading}
+					isWorkspaceLoading={isWorkspacesLoading}
 				/>
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
 					Coder Agents is available via{" "}
 					<a
-						href="https://coder.com/docs/ai-coder/agents/early-access"
+						href={docs("/ai-coder/agents/early-access")}
 						target="_blank"
 						rel="noreferrer"
 						className="text-content-secondary/50 underline hover:text-content-secondary"

@@ -1,11 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import type { Group } from "api/typesGenerated";
-import { useClickableTableRow } from "hooks";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import { docs } from "utils/docs";
+import type { Group } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -26,6 +24,8 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { docs } from "#/utils/docs";
 
 type GroupsPageViewProps = {
 	groups: Group[] | undefined;
@@ -167,7 +167,7 @@ const TableLoader: FC = () => {
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell>
-					<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+					<div className="flex items-center gap-2">
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

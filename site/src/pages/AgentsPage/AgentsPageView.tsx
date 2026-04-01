@@ -1,9 +1,9 @@
-import type * as TypesGen from "api/typesGenerated";
-import type { FC } from "react";
+import { type FC, type RefObject, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
-import type { ModelSelectorOption } from "#/components/ai-elements";
+import type * as TypesGen from "#/api/typesGenerated";
+import { cn } from "#/utils/cn";
+import { pageTitle } from "#/utils/page";
+import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	AgentsSidebar,
 	sidebarViewFromPath,
@@ -20,9 +20,17 @@ export interface AgentsOutletContext {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	requestPinAgent: (chatId: string) => void;
+	requestUnpinAgent: (chatId: string) => void;
+	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle?: (chatId: string) => void;
+	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
+	onChatReady: () => void;
+	/** Ref attached to the chat scroll container by AgentChatPage. */
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 interface AgentsPageViewProps {
@@ -50,6 +58,11 @@ interface AgentsPageViewProps {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	requestPinAgent: (chatId: string) => void;
+	requestUnpinAgent: (chatId: string) => void;
+	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	onRegenerateTitle: (chatId: string) => void;
+	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
@@ -81,6 +94,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestArchiveAgent,
 	requestUnarchiveAgent,
 	requestArchiveAndDeleteWorkspace,
+	requestPinAgent,
+	requestUnpinAgent,
+	requestReorderPinnedAgent,
+	onRegenerateTitle,
+	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
 	hasNextPage,
@@ -109,6 +127,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		]),
 	);
 
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -116,9 +136,16 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestArchiveAgent,
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
+		requestPinAgent,
+		requestUnpinAgent,
+		requestReorderPinnedAgent,
+		onRegenerateTitle,
+		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
+		onChatReady: () => {},
+		scrollContainerRef,
 	};
 
 	return (
@@ -144,6 +171,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+					onPinAgent={requestPinAgent}
+					onUnpinAgent={requestUnpinAgent}
+					onReorderPinnedAgent={requestReorderPinnedAgent}
+					onRegenerateTitle={onRegenerateTitle}
+					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
 					isArchiving={isArchiving}

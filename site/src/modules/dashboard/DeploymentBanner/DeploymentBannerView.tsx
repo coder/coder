@@ -1,8 +1,3 @@
-import type {
-	DeploymentStats,
-	HealthcheckReport,
-	WorkspaceStatus,
-} from "api/typesGenerated";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -23,9 +18,13 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { getDisplayWorkspaceStatus } from "utils/workspace";
+import type {
+	DeploymentStats,
+	HealthcheckReport,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { HelpTooltipTitle } from "#/components/HelpTooltip/HelpTooltip";
+import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import { JetBrainsIcon } from "#/components/Icons/JetBrainsIcon";
 import { RocketIcon } from "#/components/Icons/RocketIcon";
 import { TerminalIcon } from "#/components/Icons/TerminalIcon";
@@ -37,6 +36,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;
@@ -137,9 +137,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					>
 						{healthErrors.length > 0 ? (
 							<>
-								<HelpTooltipTitle>
+								<HelpPopoverTitle>
 									We have detected problems with your Coder deployment.
-								</HelpTooltipTitle>
+								</HelpPopoverTitle>
 								<div className="flex flex-col gap-1">
 									{healthErrors.map((error) => (
 										<HealthIssue key={error}>{error}</HealthIssue>

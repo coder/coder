@@ -1,5 +1,5 @@
-import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import type { ComponentProps, FC } from "react";
+import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import {
 	PageHeader,
 	PageHeaderTitle,
@@ -29,7 +29,7 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
 }) => {
 	return (
 		<>
-			<PageHeader css={{ paddingTop: 0 }}>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>Template schedule</PageHeaderTitle>
 			</PageHeader>
 

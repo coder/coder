@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/slider}
  */
 import * as SliderPrimitive from "@radix-ui/react-slider";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 
 export const Slider: React.FC<
 	React.ComponentPropsWithRef<typeof SliderPrimitive.Root>

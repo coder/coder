@@ -1,10 +1,8 @@
 import Skeleton from "@mui/material/Skeleton";
-import type * as TypesGen from "api/typesGenerated";
-import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Abbr } from "#/components/Abbr/Abbr";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -18,6 +16,8 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Latency } from "#/components/Latency/Latency";
+import type { ProxyContextValue } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
@@ -64,7 +64,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 			<Skeleton
 				width="110px"
 				height={40}
-				css={{ borderRadius: 6, transform: "none" }}
+				className="rounded-[6px] transform-none"
 			/>
 		);
 	}
@@ -108,13 +108,12 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 							Select a region nearest to you
 						</div>
 						<div className="text-xs text-content-secondary leading-relaxed">
-							Workspace proxies improve terminal and web app connections to
-							workspaces. This does not apply to{" "}
+							Workspace proxies improve terminal and web app connections.{" "}
 							<Abbr title="Command-Line Interface" pronunciation="initialism">
 								CLI
 							</Abbr>{" "}
-							connections. A region must be manually selected, otherwise the
-							default primary region will be used.
+							connections are unaffected. If no region is selected, the primary
+							region will be used.
 						</div>
 					</DropdownMenuItem>
 				)}
@@ -124,51 +123,53 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				{proxyContextValue.proxies && (
-					<DropdownMenuRadioGroup value={selectedProxy?.id}>
-						{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
-							(proxy) => (
-								<DropdownMenuRadioItem
-									value={proxy.id}
-									key={proxy.id}
-									onClick={(e) => {
-										e.preventDefault();
-										if (!proxy.healthy) {
-											toast.error(
-												`Failed to select proxy "${proxy.display_name}".`,
-												{
-													description:
-														"Please select a healthy workspace proxy.",
-												},
-											);
-											closeMenu();
-											return;
-										}
+					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+						<DropdownMenuRadioGroup value={selectedProxy?.id}>
+							{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
+								(proxy) => (
+									<DropdownMenuRadioItem
+										value={proxy.id}
+										key={proxy.id}
+										onClick={(e) => {
+											e.preventDefault();
+											if (!proxy.healthy) {
+												toast.error(
+													`Failed to select proxy "${proxy.display_name}".`,
+													{
+														description:
+															"Please select a healthy workspace proxy.",
+													},
+												);
+												closeMenu();
+												return;
+											}
 
-										proxyContextValue.setProxy(proxy);
-										closeMenu();
-									}}
-								>
-									<div className="flex gap-3 items-center w-full">
-										<div className="leading-none size-4">
-											<img
-												src={proxy.icon_url}
-												alt=""
-												className="object-contain size-full"
+											proxyContextValue.setProxy(proxy);
+											closeMenu();
+										}}
+									>
+										<div className="flex gap-3 items-center w-full">
+											<div className="leading-none size-4">
+												<img
+													src={proxy.icon_url}
+													alt=""
+													className="object-contain size-full"
+												/>
+											</div>
+
+											{proxy.display_name}
+
+											<Latency
+												className="ml-auto"
+												latency={latencies?.[proxy.id]?.latencyMS}
+												isLoading={proxyLatencyLoading(proxy)}
 											/>
 										</div>
-
-										{proxy.display_name}
-
-										<Latency
-											className="ml-auto"
-											latency={latencies?.[proxy.id]?.latencyMS}
-											isLoading={proxyLatencyLoading(proxy)}
-										/>
-									</div>
-								</DropdownMenuRadioItem>
-							),
-						)}
-					</DropdownMenuRadioGroup>
+									</DropdownMenuRadioItem>
+								),
+							)}
+						</DropdownMenuRadioGroup>
+					</div>
 				)}
 
 				<DropdownMenuSeparator />

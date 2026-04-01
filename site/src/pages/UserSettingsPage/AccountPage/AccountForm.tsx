@@ -1,27 +1,20 @@
 import TextField from "@mui/material/TextField";
-import type { UpdateUserProfileRequest } from "api/typesGenerated";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
-import {
-	getFormHelpers,
-	nameValidator,
-	onChangeTrimmed,
-} from "utils/formUtils";
 import * as Yup from "yup";
+import type { UpdateUserProfileRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
 import { Spinner } from "#/components/Spinner/Spinner";
-
-export const Language = {
-	usernameLabel: "Username",
-	emailLabel: "Email",
-	nameLabel: "Name",
-	updateSettings: "Update account",
-};
+import {
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
-	username: nameValidator(Language.usernameLabel),
+	username: nameValidator("Username"),
 	name: Yup.string(),
 });
 
@@ -60,12 +53,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 					<ErrorAlert error={updateProfileError} />
 				)}
 
-				<TextField
-					disabled
-					fullWidth
-					label={Language.emailLabel}
-					value={email}
-				/>
+				<TextField disabled fullWidth label="Email" value={email} />
 				<TextField
 					{...getFieldHelpers("username")}
 					onChange={onChangeTrimmed(form)}
@@ -73,7 +61,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 					autoComplete="username"
 					disabled={!editable}
 					fullWidth
-					label={Language.usernameLabel}
+					label="Username"
 				/>
 				<TextField
 					{...getFieldHelpers("name")}
@@ -83,14 +71,14 @@ export const AccountForm: FC<AccountFormProps> = ({
 						e.target.value = e.target.value.trim();
 						form.handleChange(e);
 					}}
-					label={Language.nameLabel}
+					label="Name"
 					helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
 				/>
 
 				<div>
 					<Button disabled={isLoading} type="submit">
 						<Spinner loading={isLoading} />
-						{Language.updateSettings}
+						Update account
 					</Button>
 				</div>
 			</FormFields>

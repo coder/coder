@@ -144,7 +144,7 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	require.Equal(t, 429, records[0].classified.StatusCode)
 	require.Equal(
 		t,
-		"OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		"OpenAI is rate limiting requests (HTTP 429).",
 		records[0].classified.Message,
 	)
 }
@@ -254,7 +254,7 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time. Please try again.",
+		"OpenAI did not start responding in time.",
 		retries[0].Message,
 	)
 	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
@@ -313,7 +313,7 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time. Please try again.",
+		"OpenAI did not start responding in time.",
 		retries[0].Message,
 	)
 	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
@@ -475,7 +475,7 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time. Please try again.",
+		"OpenAI did not start responding in time.",
 		retries[0].Message,
 	)
 	require.ErrorIs(t, <-attemptCause, errStartupTimeout)

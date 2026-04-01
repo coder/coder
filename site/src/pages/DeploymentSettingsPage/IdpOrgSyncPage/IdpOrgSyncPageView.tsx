@@ -1,13 +1,11 @@
-import type {
-	Organization,
-	OrganizationSyncSettings,
-} from "api/typesGenerated";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { docs } from "utils/docs";
-import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
+import type {
+	Organization,
+	OrganizationSyncSettings,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -30,11 +28,11 @@ import {
 } from "#/components/Dialog/Dialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-} from "#/components/HelpTooltip/HelpTooltip";
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+} from "#/components/HelpPopover/HelpPopover";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -57,6 +55,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { docs } from "#/utils/docs";
+import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
@@ -206,7 +206,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
-										<AssignDefaultOrgHelpTooltip />
+										<AssignDefaultOrgHelpPopover />
 									</span>
 								</div>
 							</div>
@@ -490,16 +490,16 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-const AssignDefaultOrgHelpTooltip: FC = () => {
+const AssignDefaultOrgHelpPopover: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipText>
+		<HelpPopover>
+			<HelpPopoverIconTrigger />
+			<HelpPopoverContent>
+				<HelpPopoverText>
 					Disabling will remove all users from the default organization if a
 					mapping for the default organization is not defined.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+				</HelpPopoverText>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

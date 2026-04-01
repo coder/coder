@@ -1,15 +1,14 @@
-import { workspaceSharingSettings } from "api/queries/organizations";
+import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import type { FC, ReactNode } from "react";
+import { useQuery } from "react-query";
+import { workspaceSharingSettings } from "#/api/queries/organizations";
 import type {
 	Group,
 	WorkspaceACL,
 	WorkspaceGroup,
 	WorkspaceRole,
 	WorkspaceUser,
-} from "api/typesGenerated";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import type { FC, ReactNode } from "react";
-import { useQuery } from "react-query";
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -39,6 +38,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "#/modules/groups";
 
 interface RoleSelectProps {
 	value: WorkspaceRole;

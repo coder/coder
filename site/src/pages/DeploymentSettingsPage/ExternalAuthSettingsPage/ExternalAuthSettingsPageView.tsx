@@ -1,7 +1,9 @@
 import { css } from "@emotion/react";
-import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import type { FC } from "react";
-import { docs } from "utils/docs";
+import type {
+	DeploymentValues,
+	ExternalAuthConfig,
+} from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { PremiumBadge } from "#/components/Badges/Badges";
 import {
@@ -18,6 +20,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { docs } from "#/utils/docs";
 
 type ExternalAuthSettingsPageViewProps = {
 	config: DeploymentValues;
@@ -50,12 +53,7 @@ export const ExternalAuthSettingsPageView: FC<
 				}}
 			/>
 
-			<div
-				css={{
-					marginTop: 24,
-					marginBottom: 24,
-				}}
-			>
+			<div className="mt-6 mb-6">
 				<Alert severity="info" actions={<PremiumBadge key="enterprise" />}>
 					Integrating with multiple External authentication providers is an
 					Premium feature.
@@ -87,7 +85,7 @@ export const ExternalAuthSettingsPageView: FC<
 						config.external_auth?.length === 0) && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No providers have been configured!
 								</div>
 							</TableCell>

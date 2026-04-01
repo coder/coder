@@ -15,7 +15,7 @@
  */
 import type { TableRowProps } from "@mui/material/TableRow";
 import type { MouseEventHandler } from "react";
-import { cn } from "utils/cn";
+import { cn } from "#/utils/cn";
 import {
 	type ClickableAriaRole,
 	type UseClickableResult,

@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
-import { cn } from "utils/cn";
 import { Button } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 import { DesktopPanel } from "../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
@@ -42,6 +42,10 @@ interface SidebarTabViewProps {
 	onClose?: () => void;
 	/** Desktop chat ID. Omitted if desktop is not available. */
 	desktopChatId?: string;
+	/** The currently active tab ID (controlled by the parent). */
+	activeTabId: string | null;
+	/** Called when the user switches tabs. */
+	onActiveTabChange: (tabId: string) => void;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -107,12 +111,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	desktopChatId,
+	activeTabId,
+	onActiveTabChange,
 }) => {
 	const tabIdPrefix = useId();
-	const [activeTabId, setActiveTabId] = useState<string | null>(
-		tabs.length > 0 ? tabs[0].id : null,
-	);
-
 	// Build the full list of tab IDs including the desktop tab
 	// so that effectiveTabId validation covers it.
 	const allTabIds = new Set(tabs.map((t) => t.id));
@@ -131,7 +133,23 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					? "desktop"
 					: null;
 
-	const activeTab = tabs.find((t) => t.id === effectiveTabId) ?? null;
+	// Unified list of panels for rendering. Includes the desktop
+	// tab when available so we don't need to special-case it.
+	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
+		id: t.id,
+		content: t.content,
+	}));
+	if (desktopChatId) {
+		allPanels.push({
+			id: "desktop",
+			content: (
+				<DesktopPanel
+					chatId={desktopChatId}
+					isVisible={effectiveTabId === "desktop"}
+				/>
+			),
+		});
+	}
 
 	const {
 		ref: tabScrollRef,
@@ -227,7 +245,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}
-									onClick={() => setActiveTabId(tab.id)}
+									onClick={() => onActiveTabChange(tab.id)}
 									variant="outline"
 									size="lg"
 									className={cn(
@@ -257,7 +275,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								id={`${tabIdPrefix}-tab-desktop`}
 								role="tab"
 								aria-selected={effectiveTabId === "desktop"}
-								onClick={() => setActiveTabId("desktop")}
+								onClick={() => onActiveTabChange("desktop")}
 								variant="outline"
 								size="lg"
 								className={cn(
@@ -311,20 +329,21 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-			{/* Tab content */}
-			<div
-				role="tabpanel"
-				aria-labelledby={
-					effectiveTabId ? `${tabIdPrefix}-tab-${effectiveTabId}` : undefined
-				}
-				className="min-h-0 flex-1"
-			>
-				{effectiveTabId === "desktop" && desktopChatId ? (
-					<DesktopPanel chatId={desktopChatId} />
-				) : (
-					activeTab?.content
-				)}
-			</div>
+			{/* Tab panels – all stay mounted, only the active one visible. */}
+			{allPanels.map((panel) => {
+				const isActive = effectiveTabId === panel.id;
+				return (
+					<div
+						key={panel.id}
+						role="tabpanel"
+						aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
+						className={cn("min-h-0 flex-1", !isActive && "hidden")}
+						inert={!isActive}
+					>
+						{panel.content}
+					</div>
+				);
+			})}
 		</div>
 	);
 };

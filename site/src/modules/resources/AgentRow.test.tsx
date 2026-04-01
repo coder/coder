@@ -1,4 +1,4 @@
-import { MockWorkspaceApp } from "testHelpers/entities";
+import { MockWorkspaceApp } from "#/testHelpers/entities";
 import { organizeAgentApps } from "./AgentApps/AgentApps";
 
 describe("organizeAgentApps", () => {

@@ -1,18 +1,38 @@
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { API } from "#/api/api";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockWorkspace } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
+
+const modelConfigID = "model-config-1";
 
 const modelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: modelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
 	},
 ] as const;
+
+const mock403Error = Object.assign(
+	new Error("Request failed with status code 403"),
+	{
+		isAxiosError: true,
+		response: {
+			status: 403,
+			statusText: "Forbidden",
+			data: {
+				message: "Forbidden.",
+				detail: "Insufficient permissions to use Coder Agents.",
+			},
+			headers: {},
+			config: {},
+		},
+		config: {},
+		toJSON: () => ({}),
+	},
+);
 
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
@@ -22,18 +42,19 @@ const meta: Meta<typeof AgentCreateForm> = {
 		onCreateChat: fn(),
 		isCreating: false,
 		createError: undefined,
+		canCreateChat: true,
 		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
 		modelConfigs: [],
 		isModelConfigsLoading: false,
+		workspaceCount: 0,
+		workspaceOptions: [],
+		workspacesError: undefined,
+		isWorkspacesLoading: false,
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: [],
-			count: 0,
-		});
 	},
 };
 
@@ -69,12 +90,12 @@ const mockWorkspaces = [
 ];
 
 export const WithWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -95,12 +116,12 @@ export const WithWorkspaces: Story = {
 };
 
 export const SearchWorkspaces: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -131,12 +152,12 @@ export const SearchWorkspaces: Story = {
 };
 
 export const SelectWorkspaceViaSearch: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -189,6 +210,59 @@ export const NoModelsConfigured: Story = {
 	},
 };
 
+export const PreservesAttachmentsOnFailedSend: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockRejectedValue(new Error("server error")),
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		// Pre-persist an uploaded attachment so it is restored on mount.
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "persisted-file-1",
+					fileName: "photo.png",
+					fileType: "image/png",
+					lastModified: 1000,
+				},
+			]),
+		);
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// The restored attachment should appear on mount.
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+
+		// Type a message and submit.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard("test message");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		// Wait for onCreateChat to have been called (and rejected).
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+
+		// The attachment must still be visible after the failed send.
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+
+		// localStorage must still have the persisted attachment.
+		const stored = localStorage.getItem("agents.persisted-attachments");
+		expect(stored).not.toBeNull();
+		const parsed = JSON.parse(stored!);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].fileId).toBe("persisted-file-1");
+	},
+};
+
 export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
@@ -212,5 +286,48 @@ export const UsageLimitExceeded: Story = {
 				toJSON: () => ({}),
 			},
 		),
+	},
+};
+
+export const ForbiddenErrorWithRole: Story = {
+	args: {
+		...defaultArgs,
+		canCreateChat: true,
+		createError: mock403Error,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The friendly "role required" alert must NOT appear because the
+		// user has the agents-access role.
+		await expect(
+			canvas.queryByText("Permission required"),
+		).not.toBeInTheDocument();
+		// The generic ErrorAlert should surface the real backend message.
+		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
+		// The textbox should remain enabled since the user has the role.
+		const textbox = canvas.getByRole("textbox");
+		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+export const ForbiddenNoAgentsRole: Story = {
+	args: {
+		...defaultArgs,
+		canCreateChat: false,
+		createError: mock403Error,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: /View Docs/ }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("heading", { name: "Forbidden." }),
+		).not.toBeInTheDocument();
+		// The textarea should be disabled so the user cannot
+		// accidentally trigger the generic error.
+		const textbox = canvas.getByRole("textbox");
+		await expect(textbox).toHaveAttribute("aria-disabled", "true");
 	},
 };

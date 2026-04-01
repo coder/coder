@@ -1,6 +1,5 @@
 import Link from "@mui/material/Link";
 import { ExternalLinkIcon } from "lucide-react";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
 import {
@@ -20,6 +19,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { SearchEmpty } from "#/components/Search/Search";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
@@ -67,21 +67,13 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			>
 				<MenuSearch
 					value={searchTerm}
-					autoFocus={true}
+					autoFocus
 					onChange={setSearchTerm}
 					placeholder="Type/select a workspace template"
 					aria-label="Template select for workspace"
 				/>
 
-				<OverflowY
-					maxHeight={380}
-					css={{
-						display: "flex",
-						flexDirection: "column",
-						paddingTop: "8px",
-						paddingBottom: "8px",
-					}}
-				>
+				<OverflowY maxHeight={380} className="flex flex-col py-2">
 					{templatesFetchStatus === "pending" ? (
 						<Loader size="sm" />
 					) : (
@@ -132,11 +124,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 	return (
 		<PopoverLink
 			to={`${templateLink}/workspace`}
-			css={{
-				display: "flex",
-				gap: 12,
-				alignItems: "center",
-			}}
+			className="flex gap-3 items-center"
 		>
 			<Avatar
 				variant="icon"
@@ -154,7 +142,7 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 					overflow: "hidden",
 				})}
 			>
-				<span css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+				<span className="whitespace-nowrap text-ellipsis">
 					{template.display_name || template.name || "[Unnamed]"}
 				</span>
 				<span

@@ -1,13 +1,13 @@
-import type { ApiErrorResponse } from "api/errors";
-import {
-	getGitHubDevice,
-	getGitHubDeviceFlowCallback,
-} from "api/queries/oauth2";
 import { isAxiosError } from "axios";
 import type { FC } from "react";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import type { ApiErrorResponse } from "#/api/errors";
+import {
+	getGitHubDevice,
+	getGitHubDeviceFlowCallback,
+} from "#/api/queries/oauth2";
 import {
 	isExchangeErrorRetryable,
 	newRetryDelay,

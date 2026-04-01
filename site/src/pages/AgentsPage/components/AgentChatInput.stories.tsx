@@ -2,12 +2,18 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
-import { AgentChatInput, type UploadState } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type AgentContextUsage,
+	type UploadState,
+} from "./AgentChatInput";
+import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
+
+const defaultModelConfigID = "model-config-1";
 
 const defaultModelOptions = [
 	{
-		id: "openai:gpt-4o",
+		id: defaultModelConfigID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -478,6 +484,7 @@ const makeMCPServer = (
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
+	model_intent: overrides.model_intent ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -574,5 +581,150 @@ export const PlusMenuOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+const confluenceMCP = makeMCPServer({
+	id: "mcp-confluence",
+	display_name: "Confluence Cloud",
+	slug: "confluence",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogMCP = makeMCPServer({
+	id: "mcp-datadog",
+	display_name: "Datadog Monitoring",
+	slug: "datadog",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const pagerdutyMCP = makeMCPServer({
+	id: "mcp-pagerduty",
+	display_name: "PagerDuty",
+	slug: "pagerduty",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
+export const OverflowBadges: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			confluenceMCP,
+			datadogMCP,
+			pagerdutyMCP,
+		],
+		selectedMCPServerIds: [
+			sentryMCP.id,
+			linearMCP.id,
+			githubMCPConnected.id,
+			confluenceMCP.id,
+			datadogMCP.id,
+			pagerdutyMCP.id,
+		],
+		workspaceOptions: [
+			{ id: "ws-1", name: "my-long-workspace-name", owner_name: "admin" },
+		],
+		selectedWorkspaceId: "ws-1",
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		chromatic: { viewports: [414] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Wait for the overflow hook to measure and show the pill.
+		const pill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(pill).toBeVisible();
+		});
+		await userEvent.click(pill);
+		// The popover renders via a Radix portal outside the
+		// canvas. Find it by role, then assert content within it.
+		const popover = await within(document.body).findByRole("dialog");
+		expect(within(popover).getByText("Confluence Cloud")).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Context-usage indicator stories
+// ---------------------------------------------------------------------------
+
+const baseContextUsage: AgentContextUsage = {
+	usedTokens: 45_000,
+	contextLimitTokens: 128_000,
+	inputTokens: 30_000,
+	outputTokens: 10_000,
+	cacheReadTokens: 3_000,
+	cacheCreationTokens: 2_000,
+	compressionThreshold: 90,
+};
+
+/** Shows the context-usage ring and token summary tooltip. */
+export const WithContextUsage: Story = {
+	args: {
+		contextUsage: baseContextUsage,
+	},
+};
+
+/** Tooltip includes loaded AGENTS.md files and discovered skills. */
+export const WithContextFiles: Story = {
+	args: {
+		contextUsage: {
+			...baseContextUsage,
+			lastInjectedContext: [
+				{
+					type: "context-file" as const,
+					context_file_path: "/home/coder/project/AGENTS.md",
+				},
+				{
+					type: "context-file" as const,
+					context_file_path: "/home/coder/project/.claude/docs/WORKFLOWS.md",
+					context_file_truncated: true,
+				},
+				{
+					type: "skill" as const,
+					skill_name: "pull-requests",
+					skill_description: "Guide for creating and updating pull requests",
+				},
+				{
+					type: "skill" as const,
+					skill_name: "deep-review",
+					skill_description: "Multi-reviewer code review",
+				},
+			] as TypesGen.ChatMessagePart[],
+		},
+	},
+};
+
+/** Context at 95%+ shows the ring in destructive (red) tone. */
+export const ContextNearLimit: Story = {
+	args: {
+		contextUsage: {
+			usedTokens: 124_000,
+			contextLimitTokens: 128_000,
+			inputTokens: 100_000,
+			outputTokens: 20_000,
+			cacheReadTokens: 4_000,
+			compressionThreshold: 90,
+			lastInjectedContext: [
+				{
+					type: "context-file" as const,
+					context_file_path: "/home/coder/project/AGENTS.md",
+				},
+			] as TypesGen.ChatMessagePart[],
+		},
 	},
 };

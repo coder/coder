@@ -1,16 +1,19 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
+import type { Workspace, WorkspaceQuota } from "#/api/typesGenerated";
 import {
 	MockOrganization,
 	MockTemplate,
 	MockTemplateVersion,
 	MockUserOwner,
 	MockWorkspace,
-} from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
-import type { Workspace, WorkspaceQuota } from "api/typesGenerated";
-import dayjs from "dayjs";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 // We want a workspace without a deadline to not pollute the screenshot. Also
@@ -318,9 +321,9 @@ export const TemplateInfoPopover: Story = {
 		const canvas = within(canvasElement);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(canvas.getByText(baseWorkspace.name));
+			await userEvent.click(canvas.getByText(baseWorkspace.name));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
+				expect(screen.getByRole("dialog")).toHaveTextContent(
 					MockTemplate.display_name,
 				),
 			);
@@ -344,11 +347,9 @@ export const TemplateInfoPopoverWithoutDisplayName: Story = {
 		const canvas = within(canvasElement);
 
 		await step("activate hover trigger", async () => {
-			await userEvent.hover(canvas.getByText(baseWorkspace.name));
+			await userEvent.click(canvas.getByText(baseWorkspace.name));
 			await waitFor(() =>
-				expect(screen.getByRole("tooltip")).toHaveTextContent(
-					MockTemplate.name,
-				),
+				expect(screen.getByRole("dialog")).toHaveTextContent(MockTemplate.name),
 			);
 		});
 	},
