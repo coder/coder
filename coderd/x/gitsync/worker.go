@@ -297,6 +297,10 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 
 	// When a specific chat is identified, target it directly
 	// instead of broadcasting to every chat on the workspace.
+	// Note: this path does not verify that the chat belongs to
+	// WorkspaceID. This is safe because ChatID originates from
+	// chatd via the agent (trusted data flow), but differs from
+	// the broadcast path which filters by workspace.
 	if p.ChatID != "" {
 		parsed, err := uuid.Parse(p.ChatID)
 		if err != nil {
