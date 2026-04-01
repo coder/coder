@@ -30,9 +30,12 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	var latestMainline *version
-	if len(allTags) > 0 {
-		v := allTags[0]
-		latestMainline = &v
+	for _, t := range allTags {
+		if t.Pre == "" {
+			v := t
+			latestMainline = &v
+			break
+		}
 	}
 
 	stableMinor := -1
@@ -41,7 +44,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		stableMinor = latestMainline.Minor - 1
 		// Find highest tag in the stable minor series.
 		for _, t := range allTags {
-			if t.Major == latestMainline.Major && t.Minor == stableMinor {
+			if t.Major == latestMainline.Major && t.Minor == stableMinor && t.Pre == "" {
 				latestStableStr = t.String()
 				break
 			}
