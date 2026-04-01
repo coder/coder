@@ -38,6 +38,7 @@ interface InternalState {
 	mouseDown: boolean;
 	suppressNextResize: boolean;
 	activeTouchCount: number;
+	pendingPrepend: { scrollHeight: number } | null;
 }
 
 /** The maximum scrollable offset for the container. */
@@ -92,6 +93,8 @@ interface StickToBottomInstance {
 	isAtBottom: boolean;
 	/** Tell the hook to skip the next content resize auto-pin. */
 	suppressNextResize: () => void;
+	/** Capture scrollHeight for prepend restoration. */
+	capturePrependSnapshot: () => void;
 }
 
 function useStickToBottom(): StickToBottomInstance {
@@ -113,6 +116,7 @@ function useStickToBottom(): StickToBottomInstance {
 		mouseDown: false,
 		suppressNextResize: false,
 		activeTouchCount: 0,
+		pendingPrepend: null,
 	});
 
 	// Sync helpers — keep mutable state and React state in lockstep.
@@ -153,6 +157,15 @@ function useStickToBottom(): StickToBottomInstance {
 
 	const suppressNextResize = useEffectEvent(() => {
 		stateRef.current.suppressNextResize = true;
+	});
+
+	const capturePrependSnapshot = useEffectEvent(() => {
+		const s = stateRef.current;
+		if (s.scrollElement) {
+			s.pendingPrepend = {
+				scrollHeight: s.scrollElement.scrollHeight,
+			};
+		}
 	});
 
 	// -----------------------------------------------------------------------
@@ -549,6 +562,7 @@ function useStickToBottom(): StickToBottomInstance {
 		scrollToBottom,
 		isAtBottom: isAtBottom || nearBottom,
 		suppressNextResize,
+		capturePrependSnapshot,
 	};
 }
 
@@ -584,7 +598,7 @@ const ChatScrollContainer: FC<{
 		contentRef,
 		scrollToBottom,
 		isAtBottom,
-		suppressNextResize,
+		capturePrependSnapshot,
 	} = useStickToBottom();
 
 	// Merge our callback ref with the external RefObject so both
@@ -613,57 +627,14 @@ const ChatScrollContainer: FC<{
 		wasFetchingRef.current = isFetchingMoreMessages;
 
 		if (!wasFetching && isFetchingMoreMessages) {
-			// false -> true: fetch just started. Capture scrollHeight
-			// so we can restore position after prepend.
 			hasFetchedRef.current = true;
-			const container = scrollContainerRef.current;
-			if (container) {
-				pendingPrependRef.current = {
-					scrollHeight: container.scrollHeight,
-				};
-				// biome-ignore lint/suspicious/noConsole: temporary debug
-				console.debug("[STB] snapshot", {
-					scrollHeight: container.scrollHeight,
-				});
-			}
-		} else if (wasFetching && !isFetchingMoreMessages) {
-			const pending = pendingPrependRef.current;
-			const container = scrollContainerRef.current;
-			if (pending && container) {
-				const delta = container.scrollHeight - pending.scrollHeight;
-				// biome-ignore lint/suspicious/noConsole: temporary debug
-				console.debug("[STB] restore", {
-					delta,
-					snapshotH: pending.scrollHeight,
-					currentH: container.scrollHeight,
-					scrollTop: container.scrollTop,
-				});
-				if (delta > 0) {
-					suppressNextResize();
-					container.scrollTop += delta;
-				}
-			} else {
-				// biome-ignore lint/suspicious/noConsole: temporary debug
-				console.debug("[STB] restore SKIPPED", {
-					pending: !!pending,
-					container: !!container,
-				});
-			}
-			pendingPrependRef.current = null;
-		} else {
-			// biome-ignore lint/suspicious/noConsole: temporary debug
-			console.debug("[STB] transition", {
-				wasFetching,
-				isFetchingMoreMessages,
-			});
+			capturePrependSnapshot();
 		}
-	}, [isFetchingMoreMessages, scrollContainerRef, suppressNextResize]);
-
-	// Snapshot captured before a fetch so we can restore scroll
-	// position after older messages are prepended.
-	const pendingPrependRef = useRef<{
-		scrollHeight: number;
-	} | null>(null);
+		// Restoration happens in handleContentResize (via
+		// pendingPrepend) when the DOM actually reflects the
+		// prepended content — not here, because the store
+		// update may lag behind isFetchingMoreMessages.
+	}, [isFetchingMoreMessages, capturePrependSnapshot]);
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
