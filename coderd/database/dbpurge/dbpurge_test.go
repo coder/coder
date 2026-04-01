@@ -1981,6 +1981,20 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				updated, err := db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 				require.Equal(t, []uuid.UUID{fileC}, updated.FileIDs, "stale file_ids should be scrubbed on unarchive")
+
+				// Now test the all-files-stale edge case: the
+				// COALESCE(array_agg(...), '{}') must return an
+				// empty array, not NULL, when every file is gone.
+				err = db.ArchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = $1", fileC)
+				require.NoError(t, err)
+				err = db.UnarchiveChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+
+				updated, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Empty(t, updated.FileIDs, "all-files-stale should yield empty slice, not nil")
 			},
 		},
 		{
