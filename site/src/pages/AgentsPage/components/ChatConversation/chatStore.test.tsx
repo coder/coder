@@ -37,6 +37,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
+	selectIsAwaitingFirstStreamChunk,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
 	selectReconnectState,
@@ -2950,6 +2951,249 @@ describe("useChatStore", () => {
 			const textBlock = blocks.find((b) => b.type === "response");
 			expect(textBlock).toBeDefined();
 		});
+	});
+});
+
+describe("thinking indicator event ordering", () => {
+	it("shows starting phase when message_part arrives before status:running in same batch", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-thinking-parts-before-status";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					isAwaiting: useChatSelector(store, selectIsAwaitingFirstStreamChunk),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Server sends message_part BEFORE status:running in the same
+		// WebSocket frame. This is the event ordering that previously
+		// caused the "Thinking..." indicator to be skipped.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "reasoning", text: "Let me think..." },
+					},
+				},
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "running" },
+				},
+			]);
+		});
+
+		// After the batch, the status should be "running" but stream
+		// parts should NOT have been applied yet (deferred to
+		// setTimeout). This is the window where "Thinking..." shows.
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.isAwaiting).toBe(true);
+		});
+
+		// Let the deferred parts flush fire (setTimeout 0).
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		// Now stream state should be populated.
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.isAwaiting).toBe(false);
+		});
+	});
+
+	it("shows starting phase when status:running arrives before message_part in same batch", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-thinking-status-before-parts";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					isAwaiting: useChatSelector(store, selectIsAwaitingFirstStreamChunk),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Server sends status:running BEFORE message_part (the "good" order).
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "running" },
+				},
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "text", text: "Hello" },
+					},
+				},
+			]);
+		});
+
+		// Same contract: status set, parts deferred.
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.isAwaiting).toBe(true);
+		});
+
+		// Let the deferred parts flush fire.
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.isAwaiting).toBe(false);
+		});
+	});
+
+	it("discards buffered parts when status transitions to pending", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-thinking-discard-pending";
+		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [userMsg],
+					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [userMsg],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Server sends message_part then immediately transitions to pending.
+		// The buffered parts must be discarded (not applied) because
+		// pending status clears stream state.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "text", text: "partial response" },
+					},
+				},
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "pending" },
+				},
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("pending");
+			expect(result.current.streamState).toBeNull();
+		});
+
+		// Even after timers fire, parts should not re-appear.
+		await act(async () => {
+			vi.advanceTimersByTime(50);
+		});
+
+		expect(result.current.streamState).toBeNull();
 	});
 });
 
