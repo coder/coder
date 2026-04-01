@@ -68,17 +68,17 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("detecting branch: %w", err)
 	}
 
-	// Match standard release branches (release/2.32) and RC
-	// branches (release/2.32-rc.0).
-	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)(?:-rc\.(\d+))?$`)
+	// Match standard release branches (release/2.32, release/2.32.0)
+	// and RC branches (release/2.32-rc.0, release/2.32.0-rc.0).
+	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)(?:\.(\d+))?(?:-rc\.(\d+))?$`)
 	m := branchRe.FindStringSubmatch(currentBranch)
 	if m == nil {
-		warnf(w, "Current branch %q is not a release branch (release/X.Y or release/X.Y-rc.N).", currentBranch)
+		warnf(w, "Current branch %q is not a release branch (release/X.Y[.Z] or release/X.Y[.Z]-rc.N).", currentBranch)
 		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
-			Text: "Enter the release branch to use (e.g. release/2.21 or release/2.21-rc.0)",
+			Text: "Enter the release branch to use (e.g. release/2.21, release/2.21.0, or release/2.21.0-rc.0)",
 			Validate: func(s string) error {
 				if !branchRe.MatchString(s) {
-					return xerrors.New("must be in format release/X.Y or release/X.Y-rc.N (e.g. release/2.21 or release/2.21-rc.0)")
+					return xerrors.New("must be in format release/X.Y[.Z] or release/X.Y[.Z]-rc.N (e.g. release/2.21, release/2.21.0, or release/2.21.0-rc.0)")
 				}
 				return nil
 			},
@@ -91,9 +91,13 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	branchMajor, _ := strconv.Atoi(m[1])
 	branchMinor, _ := strconv.Atoi(m[2])
-	branchRC := -1 // -1 means not an RC branch.
+	branchPatch := 0
 	if m[3] != "" {
-		branchRC, _ = strconv.Atoi(m[3])
+		branchPatch, _ = strconv.Atoi(m[3])
+	}
+	branchRC := -1 // -1 means not an RC branch.
+	if m[4] != "" {
+		branchRC, _ = strconv.Atoi(m[4])
 	}
 	successf(w, "Using release branch: %s", currentBranch)
 
@@ -138,10 +142,40 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		}
 	}
 
+	// changelogBaseRef is the git ref used as the starting point
+	// for release notes generation. When a tag already exists in
+	// this minor series we use it directly. For the first release
+	// on a new minor (e.g. the first RC) no matching tag exists,
+	// so we compute the merge-base with the previous minor's
+	// release branch instead. This works even when that branch
+	// has no tags yet (it was just cut and pushed). As a last
+	// resort we fall back to the latest reachable tag from a
+	// previous minor.
+	var changelogBaseRef string
+	if prevVersion != nil {
+		changelogBaseRef = prevVersion.String()
+	} else {
+		prevReleaseBranch := fmt.Sprintf("release/%d.%d", branchMajor, branchMinor-1)
+		_ = gitRun("fetch", "--quiet", "origin", prevReleaseBranch)
+		if mb, mbErr := gitOutput("merge-base", "HEAD", "origin/"+prevReleaseBranch); mbErr == nil && mb != "" {
+			changelogBaseRef = mb
+			infof(w, "Using merge-base with %s as changelog base: %s", prevReleaseBranch, mb[:12])
+		} else {
+			// No previous release branch found; fall back to
+			// the latest reachable tag from a previous minor.
+			for _, t := range mergedTags {
+				if t.Major == branchMajor && t.Minor < branchMinor {
+					changelogBaseRef = t.String()
+					break
+				}
+			}
+		}
+	}
+
 	var suggested version
 	if prevVersion == nil {
 		infof(w, "No previous release tag found on this branch.")
-		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: 0}
+		suggested = version{Major: branchMajor, Minor: branchMinor, Patch: branchPatch}
 		if branchRC >= 0 {
 			suggested.Pre = fmt.Sprintf("rc.%d", branchRC)
 		}
@@ -366,8 +400,8 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	infof(w, "Generating release notes...")
 
 	commitRange := "HEAD"
-	if prevVersion != nil {
-		commitRange = prevVersion.String() + "..HEAD"
+	if changelogBaseRef != "" {
+		commitRange = changelogBaseRef + "..HEAD"
 	}
 
 	commits, err := commitLog(commitRange)
@@ -473,16 +507,16 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	if !hasContent {
 		prevStr := "the beginning of time"
-		if prevVersion != nil {
-			prevStr = prevVersion.String()
+		if changelogBaseRef != "" {
+			prevStr = changelogBaseRef
 		}
 		fmt.Fprintf(&notes, "\n_No changes since %s._\n", prevStr)
 	}
 
 	// Compare link.
-	if prevVersion != nil {
+	if changelogBaseRef != "" {
 		fmt.Fprintf(&notes, "\nCompare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n",
-			prevVersion, newVersion, owner, repo, prevVersion, newVersion)
+			changelogBaseRef, newVersion, owner, repo, changelogBaseRef, newVersion)
 	}
 
 	// Container image.
