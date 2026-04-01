@@ -1,7 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { EllipsisVertical } from "lucide-react";
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { type FC, useState } from "react";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -10,6 +15,7 @@ import {
 	groupMembersByOrganizationQueryKey,
 	removeMember,
 } from "#/api/queries/groups";
+import { organizationMembers } from "#/api/queries/organizations";
 import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -32,8 +38,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { isEveryoneGroup } from "#/modules/groups";
 import { AddUsersPopover } from "#/modules/users/AddUsersPopover";
+import { prepareQuery } from "#/utils/filters";
 import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {
@@ -51,6 +59,23 @@ const GroupMembersPage: FC = () => {
 		removeMember(queryClient, organization),
 	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+	const [addUsersSearch, setAddUsersSearch] = useState("");
+	const debouncedSearch = useDebouncedValue(addUsersSearch, 400);
+
+	const addableMembersQuery = useQuery({
+		...organizationMembers(organization, {
+			q: prepareQuery(debouncedSearch),
+			limit: 50,
+		}),
+		select: (data) =>
+			data.members.map((member) => ({
+				...member,
+				id: member.user_id,
+			})),
+		enabled:
+			canUpdateGroup && Boolean(groupData) && !isEveryoneGroup(groupData),
+		placeholderData: keepPreviousData,
+	});
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -61,6 +86,9 @@ const GroupMembersPage: FC = () => {
 					<AddUsersPopover
 						isLoading={addMemberMutation.isPending}
 						existingUserIds={new Set(members.map((m) => m.id))}
+						search={addUsersSearch}
+						onSearchChange={setAddUsersSearch}
+						usersQuery={addableMembersQuery}
 						onSubmit={async (usersToAdd) => {
 							const addPromises = usersToAdd.map((user) =>
 								addMemberMutation.mutateAsync({

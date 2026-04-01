@@ -11,10 +11,7 @@ import {
 	updateOrganizationMemberRoles,
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
-import type {
-	OrganizationMemberWithUserData,
-	User,
-} from "#/api/typesGenerated";
+import type { OrganizationMemberWithUserData } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
@@ -25,6 +22,7 @@ import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import type { AddableUser } from "#/modules/users/AddUsersPopover";
 import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -118,7 +116,7 @@ const OrganizationMembersPage: FC = () => {
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
-				addMembers={async (usersToAdd: readonly User[]) => {
+				addMembers={async (usersToAdd: readonly AddableUser[]) => {
 					const addMutationPromises = usersToAdd.map((user) =>
 						addMemberMutation.mutateAsync(user.id),
 					);

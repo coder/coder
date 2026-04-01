@@ -1,6 +1,8 @@
 import { EllipsisVertical, TriangleAlert } from "lucide-react";
-import type { ComponentProps, FC } from "react";
+import { type ComponentProps, type FC, useState } from "react";
+import { keepPreviousData, useQuery } from "react-query";
 import { toast } from "sonner";
+import { users } from "#/api/queries/users";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -33,10 +35,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { useDebouncedValue } from "#/hooks/debounce";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
-import { AddUsersPopover } from "#/modules/users/AddUsersPopover";
+import {
+	type AddableUser,
+	AddUsersPopover,
+} from "#/modules/users/AddUsersPopover";
 import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/pages/UsersPage/UsersTable/UserGroupsCell";
+import { prepareQuery } from "#/utils/filters";
 import { TableColumnHelpPopover } from "./UserTable/TableColumnHelpPopover";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
@@ -54,7 +61,7 @@ interface OrganizationMembersPageViewProps {
 	membersQuery: PaginationResultInfo & {
 		isPlaceholderData: boolean;
 	};
-	addMembers: (users: readonly User[]) => Promise<void>;
+	addMembers: (users: readonly AddableUser[]) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
 		member: OrganizationMemberWithUserData,
@@ -84,6 +91,16 @@ export const OrganizationMembersPageView: FC<
 	removeMember,
 	updateMemberRoles,
 }) => {
+	const [addUsersSearch, setAddUsersSearch] = useState("");
+	const debouncedSearch = useDebouncedValue(addUsersSearch, 400);
+	const addableUsersQuery = useQuery({
+		...users({
+			q: prepareQuery(debouncedSearch),
+			limit: 50,
+		}),
+		enabled: canEditMembers,
+	});
+
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
@@ -100,6 +117,9 @@ export const OrganizationMembersPageView: FC<
 							isLoading={isAddingMember}
 							onSubmit={addMembers}
 							existingUserIds={new Set(members?.map((m) => m.user_id) ?? [])}
+							search={addUsersSearch}
+							onSearchChange={setAddUsersSearch}
+							usersQuery={addableUsersQuery}
 						/>
 					)}
 				</div>

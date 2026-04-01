@@ -1,8 +1,7 @@
 import { ChevronDown, UserPlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { keepPreviousData, useQuery } from "react-query";
+import type { UseQueryResult } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { users } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
@@ -15,14 +14,20 @@ import {
 } from "#/components/Popover/Popover";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { useDebouncedValue } from "#/hooks/debounce";
-import { prepareQuery } from "#/utils/filters";
+
+export type AddableUser = Pick<
+	User,
+	"id" | "username" | "name" | "email" | "avatar_url"
+>;
 
 type AddUsersPopoverProps = {
 	isLoading: boolean;
-	onSubmit: (users: readonly User[]) => Promise<void>;
-	onSuccess?: (users: readonly User[]) => void | Promise<void>;
+	onSubmit: (users: readonly AddableUser[]) => Promise<void>;
+	onSuccess?: (users: readonly AddableUser[]) => void | Promise<void>;
 	existingUserIds: ReadonlySet<string>;
+	search: string;
+	onSearchChange: (value: string) => void;
+	usersQuery: UseQueryResult<readonly AddableUser[], unknown>;
 };
 
 export const AddUsersPopover: FC<AddUsersPopoverProps> = ({
@@ -30,28 +35,20 @@ export const AddUsersPopover: FC<AddUsersPopoverProps> = ({
 	onSubmit,
 	onSuccess,
 	existingUserIds,
+	search,
+	onSearchChange,
+	usersQuery,
 }) => {
 	const [open, setOpen] = useState(false);
-	const [search, setSearch] = useState("");
-	const debouncedSearch = useDebouncedValue(search, 400);
 	const [selectedById, setSelectedById] = useState(
-		() => new Map<string, User>(),
+		() => new Map<string, AddableUser>(),
 	);
 
-	const usersQuery = useQuery({
-		...users({
-			q: prepareQuery(debouncedSearch),
-			limit: 50,
-		}),
-		enabled: open,
-		placeholderData: keepPreviousData,
-	});
-
-	const addableUsers =
-		usersQuery.data?.users.filter((u) => !existingUserIds.has(u.id)) ?? [];
+	const addableUsers: AddableUser[] =
+		usersQuery.data?.filter((u) => !existingUserIds.has(u.id)) ?? [];
 
 	const resetPanel = () => {
-		setSearch("");
+		onSearchChange("");
 		setSelectedById(new Map());
 	};
 
@@ -62,7 +59,7 @@ export const AddUsersPopover: FC<AddUsersPopoverProps> = ({
 		}
 	};
 
-	const toggleUser = (user: User) => {
+	const toggleUser = (user: AddableUser) => {
 		setSelectedById((prev) => {
 			const next = new Map(prev);
 			if (next.has(user.id)) {
@@ -109,7 +106,7 @@ export const AddUsersPopover: FC<AddUsersPopoverProps> = ({
 					<div className="flex flex-col gap-2 p-4">
 						<SearchField
 							value={search}
-							onChange={setSearch}
+							onChange={onSearchChange}
 							placeholder="Search users…"
 							aria-label="Search users to add"
 							autoFocus
@@ -129,7 +126,7 @@ export const AddUsersPopover: FC<AddUsersPopoverProps> = ({
 							) : addableUsers.length === 0 ? (
 								<EmptyState
 									message={
-										debouncedSearch.trim() === ""
+										search.trim() === ""
 											? "No users available to add."
 											: "No users match your search."
 									}
