@@ -6649,6 +6649,58 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
+func TestChatRetentionDays(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	// Default value is 30 (days) when nothing has been configured.
+	resp, err := adminClient.GetChatRetentionDays(ctx)
+	require.NoError(t, err, "get default")
+	require.Equal(t, int32(30), resp.RetentionDays, "default should be 30")
+
+	// Admin can set retention days to 90.
+	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+		RetentionDays: 90,
+	})
+	require.NoError(t, err, "admin set 90")
+
+	resp, err = adminClient.GetChatRetentionDays(ctx)
+	require.NoError(t, err, "get after set")
+	require.Equal(t, int32(90), resp.RetentionDays, "should return 90")
+
+	// Non-admin member can read the value.
+	resp, err = memberClient.GetChatRetentionDays(ctx)
+	require.NoError(t, err, "member get")
+	require.Equal(t, int32(90), resp.RetentionDays, "member should see same value")
+
+	// Admin can disable purge by setting 0.
+	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+		RetentionDays: 0,
+	})
+	require.NoError(t, err, "admin set 0")
+
+	resp, err = adminClient.GetChatRetentionDays(ctx)
+	require.NoError(t, err, "get after zero")
+	require.Equal(t, int32(0), resp.RetentionDays, "should be 0 after disable")
+
+	// Validation: negative value is rejected.
+	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+		RetentionDays: -1,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Validation: exceeding the 3650-day maximum is rejected.
+	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+		RetentionDays: 3651,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+}
+
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()

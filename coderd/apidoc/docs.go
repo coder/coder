@@ -1292,40 +1292,6 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
-            },
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat retention days",
-                "operationId": "update-chat-retention-days",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatRetentionDaysRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
             }
         },
         "/experimental/watch-all-workspacebuilds": {
@@ -20962,14 +20928,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.BannerConfig"
                         }
                     ]
-                }
-            }
-        },
-        "codersdk.UpdateChatRetentionDaysRequest": {
-            "type": "object",
-            "properties": {
-                "retention_days": {
-                    "type": "integer"
                 }
             }
         },

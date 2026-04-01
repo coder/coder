@@ -10254,20 +10254,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
-## codersdk.UpdateChatRetentionDaysRequest
-
-```json
-{
-  "retention_days": 0
-}
-```
-
-### Properties
-
-| Name             | Type    | Required | Restrictions | Description |
-|------------------|---------|----------|--------------|-------------|
-| `retention_days` | integer | false    |              |             |
-
 ## codersdk.UpdateCheckResponse
 
 ```json
