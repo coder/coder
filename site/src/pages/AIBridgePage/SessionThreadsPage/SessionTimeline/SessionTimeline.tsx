@@ -62,7 +62,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 							}
 						: undefined
 				}
-				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
+				className={cn(className, "overflow-scroll", isExpanded && "pb-9")}
 			>
 				{text}
 			</p>
@@ -326,7 +326,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				</div>
 
 				{/* center column: prompt */}
-				<div className="flex-grow flex flex-col gap-1 mb-2">
+				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
 						<>
 							<div className="text-sm text-content-secondary font-normal my-1">
@@ -335,7 +335,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 							<ExpandableText
 								maxHeight={200}
 								text={thread.prompt}
-								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty"
+								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 m-0 text-pretty"
 							/>
 						</>
 					)}
