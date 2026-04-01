@@ -264,6 +264,7 @@ jobs:
       - name: Wait for Task Completion
         if: steps.check-secrets.outputs.skip != 'true'
         id: wait_task
+        continue-on-error: true
         env:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
         run: |
@@ -382,6 +383,7 @@ jobs:
           TASK_NAME: ${{ steps.create_task.outputs.task-name }}
           TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
           RESULT_URI: ${{ steps.wait_task.outputs.result_uri }}
+          WAIT_TASK_OUTCOME: ${{ steps.wait_task.outcome }}
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
         run: |
           {
@@ -389,7 +391,13 @@ jobs:
             echo "---"
             echo "### Result"
             echo ""
-            echo "**Status:** ${TASK_MESSAGE:-Task completed}"
+            if [[ "${WAIT_TASK_OUTCOME}" != "success" ]]; then
+              echo "**Status:** Timed out while waiting for the doc-check task."
+              echo ""
+              echo "The workflow logs include the task output for debugging."
+            else
+              echo "**Status:** ${TASK_MESSAGE:-Task completed}"
+            fi
             if [[ -n "${RESULT_URI}" ]]; then
               echo "**Comment:** ${RESULT_URI}"
             fi
