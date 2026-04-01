@@ -120,12 +120,20 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 			: status.kind === "generic"
 				? "info"
 				: "warning";
-	const hasMetadata =
-		status.phase === "retrying" ||
-		(status.phase === "failed" && status.statusCode !== undefined);
+	const metadata = (
+		<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
+			{status.phase === "retrying" && status.retryingAt && (
+				<StatusCountdown deadline={status.retryingAt} label="Retrying in" />
+			)}
+			{status.phase === "retrying" && <span>Attempt {status.attempt}</span>}
+			{status.phase === "failed" && status.statusCode !== undefined && (
+				<span>HTTP {status.statusCode}</span>
+			)}
+		</div>
+	);
 
 	return (
-		<Alert severity={severity}>
+		<Alert severity={severity} actions={metadata}>
 			<AlertTitle>{status.title}</AlertTitle>
 			<AlertDescription>
 				{status.message}{" "}
@@ -135,31 +143,26 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 					</Link>
 				)}
 			</AlertDescription>
-			{hasMetadata && (
-				<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
-					{status.phase === "retrying" && status.retryingAt && (
-						<StatusCountdown deadline={status.retryingAt} label="Retrying in" />
-					)}
-					{status.phase === "retrying" && <span>Attempt {status.attempt}</span>}
-
-					{status.phase === "failed" && status.statusCode !== undefined && (
-						<span>HTTP {status.statusCode}</span>
-					)}
-				</div>
-			)}
 		</Alert>
 	);
 };
 
 const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 	return (
-		<Alert severity="info">
+		<Alert
+			severity="info"
+			actions={
+				<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
+					<StatusCountdown
+						deadline={status.retryingAt}
+						label="Reconnecting in"
+					/>
+					<span>Attempt {status.attempt}</span>
+				</div>
+			}
+		>
 			<AlertTitle>{status.title}</AlertTitle>
 			<AlertDescription>{status.message}</AlertDescription>
-			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary">
-				<StatusCountdown deadline={status.retryingAt} label="Reconnecting in" />
-				<span>Attempt {status.attempt}</span>
-			</div>
 		</Alert>
 	);
 };
