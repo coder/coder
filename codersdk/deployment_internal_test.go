@@ -25,6 +25,19 @@ func TestRemoveTrailingVersionInfo(t *testing.T) {
 			Version:                    "v2.16.0+683a720-devel",
 			ExpectedAfterStrippingInfo: "v2.16.0",
 		},
+		// RC versions: preserve the -rc.X suffix, strip build metadata.
+		{
+			Version:                    "v2.32.0-rc.1+abc123",
+			ExpectedAfterStrippingInfo: "v2.32.0-rc.1",
+		},
+		{
+			Version:                    "v2.32.0-rc.0",
+			ExpectedAfterStrippingInfo: "v2.32.0-rc.0",
+		},
+		{
+			Version:                    "v2.32.0-rc.1+683a720-devel",
+			ExpectedAfterStrippingInfo: "v2.32.0-rc.1",
+		},
 	}
 
 	for _, tc := range testCases {
