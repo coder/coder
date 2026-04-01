@@ -605,12 +605,39 @@ const ChatScrollContainer: FC<{
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	const hasFetchedRef = useRef(false);
 
+	const wasFetchingRef = useRef(false);
+
 	useLayoutEffect(() => {
+		const wasFetching = wasFetchingRef.current;
 		isFetchingRef.current = isFetchingMoreMessages;
-		if (isFetchingMoreMessages) {
+		wasFetchingRef.current = isFetchingMoreMessages;
+
+		if (!wasFetching && isFetchingMoreMessages) {
+			// false -> true: fetch just started. Capture scrollHeight
+			// so we can restore position after prepend.
 			hasFetchedRef.current = true;
+			const container = scrollContainerRef.current;
+			if (container) {
+				pendingPrependRef.current = {
+					scrollHeight: container.scrollHeight,
+				};
+			}
+		} else if (wasFetching && !isFetchingMoreMessages) {
+			// true -> false: fetch completed, new messages in DOM.
+			// Adjust scrollTop by the height delta to maintain the
+			// user's visual position.
+			const pending = pendingPrependRef.current;
+			const container = scrollContainerRef.current;
+			if (pending && container) {
+				const delta = container.scrollHeight - pending.scrollHeight;
+				if (delta > 0) {
+					suppressNextResize();
+					container.scrollTop += delta;
+				}
+			}
+			pendingPrependRef.current = null;
 		}
-	}, [isFetchingMoreMessages]);
+	}, [isFetchingMoreMessages, scrollContainerRef, suppressNextResize]);
 
 	// Snapshot captured before a fetch so we can restore scroll
 	// position after older messages are prepended.
@@ -626,12 +653,6 @@ const ChatScrollContainer: FC<{
 		const observer = new IntersectionObserver(
 			([entry]) => {
 				if (entry.isIntersecting && !isFetchingRef.current) {
-					const container = scrollContainerRef.current;
-					if (container) {
-						pendingPrependRef.current = {
-							scrollHeight: container.scrollHeight,
-						};
-					}
 					onFetchMoreMessages();
 				}
 			},
@@ -674,45 +695,6 @@ const ChatScrollContainer: FC<{
 			observer.observe(sentinel);
 		}
 	}, [isFetchingMoreMessages]);
-
-	// Keep the prepend scrollHeight snapshot current while
-	// streaming, so the restoration delta only reflects
-	// prepended content, not streaming growth during fetch.
-	useLayoutEffect(() => {
-		if (!isFetchingMoreMessages) return;
-		const pending = pendingPrependRef.current;
-		const container = scrollContainerRef.current;
-		if (pending && container) {
-			pending.scrollHeight = container.scrollHeight;
-		}
-	});
-
-	// -------------------------------------------------------------------
-	// Prepend scroll restoration
-	// -------------------------------------------------------------------
-	// When older messages are prepended the browser keeps scrollTop
-	// constant while scrollHeight grows, shifting the viewport down.
-	// Compensate by adding the height delta to scrollTop.
-	useLayoutEffect(() => {
-		if (isFetchingMoreMessages) return;
-		const pending = pendingPrependRef.current;
-		const container = scrollContainerRef.current;
-		if (!pending || !container) return;
-
-		const delta = container.scrollHeight - pending.scrollHeight;
-		// biome-ignore lint/suspicious/noConsole: temporary debug
-		console.debug("[STB] prepend-restore", {
-			delta,
-			snapshotH: pending.scrollHeight,
-			currentH: container.scrollHeight,
-			scrollTopBefore: container.scrollTop,
-		});
-		if (delta > 0) {
-			suppressNextResize();
-			container.scrollTop += delta;
-		}
-		pendingPrependRef.current = null;
-	}, [isFetchingMoreMessages, scrollContainerRef, suppressNextResize]);
 
 	// -------------------------------------------------------------------
 	// Render
