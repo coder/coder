@@ -307,9 +307,9 @@ func (b *DBBatcher) run(ctx context.Context) {
 		case item := <-b.itemCh:
 			b.addToBatch(item)
 		default:
-			// Use the normal flush path so failed writes get
-			// queued to retryCh for the retry worker.
-			b.flush(authCtx)
+			if b.batchLen() > 0 {
+				b.writeBatch(b.buildParams())
+			}
 			// Signal the retry worker to skip delays and close
 			// the channel so it exits after processing any
 			// remaining items.

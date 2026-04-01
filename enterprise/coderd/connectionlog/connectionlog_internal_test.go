@@ -355,12 +355,15 @@ func Test_batcherFlush(t *testing.T) {
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
 
+		scheduledTrap := clock.Trap().TimerReset("connectionLogBatcher", "scheduledFlush")
+		defer scheduledTrap.Close()
+
 		b := NewDBBatcher(ctx, store, log, WithClock(clock), WithBatchSize(100))
 
 		evt := fakeConnectEvent(uuid.New(), "agent1", uuid.New())
 
 		// First call (synchronous in flush) fails, then the
-		// retry/drain path succeeds.
+		// retry worker retries after the backoff and succeeds.
 		gomock.InOrder(
 			store.EXPECT().
 				BatchUpsertConnectionLogs(gomock.Any(), gomock.Any()).
@@ -377,9 +380,14 @@ func Test_batcherFlush(t *testing.T) {
 
 		require.NoError(t, b.Upsert(ctx, evt))
 
-		// Close triggers flush (fails), queues to retryCh, sets
-		// draining, closes channel. Retry worker picks up the
-		// batch and writes it via writeBatch.
+		// Trigger a scheduled flush while the batcher is still
+		// running. The synchronous write fails and queues to
+		// retryCh. The retry worker picks it up after a real-
+		// time 1s delay and succeeds.
+		clock.Advance(defaultFlushInterval).MustWait(ctx)
+		scheduledTrap.MustWait(ctx).MustRelease(ctx)
+
+		// Wait for the retry to complete (real-time 1s delay).
 		require.NoError(t, b.Close())
 	})
 
