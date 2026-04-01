@@ -1413,6 +1413,7 @@ export interface ChatDebugRunSummary {
  */
 export interface ChatDebugSettings {
 	readonly debug_logging_enabled: boolean;
+	readonly debug_logging_override_set?: boolean;
 }
 
 // From codersdk/chats.go
@@ -4470,6 +4471,16 @@ export interface NullHCLString {
 	readonly valid: boolean;
 }
 
+// From codersdk/chats.go
+/**
+ * NullableBool distinguishes omitted, explicit null, and explicit boolean
+ * values in experimental chat update requests.
+ */
+export interface NullableBool {
+	readonly value: boolean;
+	readonly valid: boolean;
+}
+
 // From codersdk/oauth2.go
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
@@ -7252,6 +7263,7 @@ export interface UpdateAppearanceConfig {
  */
 export interface UpdateChatDebugLoggingRequest {
 	readonly debug_logging_enabled: boolean;
+	readonly debug_logging_override_set?: boolean;
 }
 
 // From codersdk/chats.go
@@ -7311,6 +7323,7 @@ export interface UpdateChatRequest {
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+	readonly debug_logs_enabled_override?: NullableBool;
 }
 
 // From codersdk/chats.go

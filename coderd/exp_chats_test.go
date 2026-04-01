@@ -3124,6 +3124,54 @@ func TestGetChat(t *testing.T) {
 	})
 }
 
+func TestUpdateChatDebugLogsEnabledOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ExplicitNullClearsOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "debug override clear",
+			}},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			DebugLogsEnabledOverride: &codersdk.NullableBool{Value: true, Valid: true},
+		})
+		require.NoError(t, err)
+
+		updatedChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updatedChat.DebugLogsEnabledOverride)
+		require.True(t, *updatedChat.DebugLogsEnabledOverride)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPatch,
+			fmt.Sprintf("/api/experimental/chats/%s", chat.ID),
+			bytes.NewBufferString(`{"debug_logs_enabled_override":null}`),
+			func(r *http.Request) {
+				r.Header.Set("Content-Type", "application/json")
+			},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+
+		clearedChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Nil(t, clearedChat.DebugLogsEnabledOverride)
+	})
+}
+
 func TestArchiveChat(t *testing.T) {
 	t.Parallel()
 

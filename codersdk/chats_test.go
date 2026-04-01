@@ -137,6 +137,80 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 	})
 }
 
+func TestNullableBool_JSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Marshal explicit bool as legacy boolean wire format", func(t *testing.T) {
+		t.Parallel()
+
+		encodedTrue, err := json.Marshal(codersdk.NullableBool{Value: true, Valid: true})
+		require.NoError(t, err)
+		require.JSONEq(t, `true`, string(encodedTrue))
+
+		encodedFalse, err := json.Marshal(codersdk.NullableBool{Value: false, Valid: true})
+		require.NoError(t, err)
+		require.JSONEq(t, `false`, string(encodedFalse))
+	})
+
+	t.Run("Marshal invalid state as explicit object", func(t *testing.T) {
+		t.Parallel()
+
+		encoded, err := json.Marshal(codersdk.NullableBool{Value: false, Valid: false})
+		require.NoError(t, err)
+		require.JSONEq(t, `{"value":false,"valid":false}`, string(encoded))
+	})
+
+	t.Run("Unmarshal legacy bool", func(t *testing.T) {
+		t.Parallel()
+
+		var decoded codersdk.NullableBool
+		require.NoError(t, json.Unmarshal([]byte(`true`), &decoded))
+		require.True(t, decoded.Valid)
+		require.True(t, decoded.Value)
+	})
+
+	t.Run("Unmarshal explicit object", func(t *testing.T) {
+		t.Parallel()
+
+		var decoded codersdk.NullableBool
+		require.NoError(t, json.Unmarshal([]byte(`{"value":false,"valid":false}`), &decoded))
+		require.False(t, decoded.Valid)
+		require.False(t, decoded.Value)
+	})
+}
+
+func TestUpdateChatRequest_JSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Unmarshal omitted override leaves field nil", func(t *testing.T) {
+		t.Parallel()
+
+		var decoded codersdk.UpdateChatRequest
+		require.NoError(t, json.Unmarshal([]byte(`{"title":"chat"}`), &decoded))
+		require.Nil(t, decoded.DebugLogsEnabledOverride)
+	})
+
+	t.Run("Unmarshal explicit null preserves clear intent", func(t *testing.T) {
+		t.Parallel()
+
+		var decoded codersdk.UpdateChatRequest
+		require.NoError(t, json.Unmarshal([]byte(`{"debug_logs_enabled_override":null}`), &decoded))
+		require.NotNil(t, decoded.DebugLogsEnabledOverride)
+		require.False(t, decoded.DebugLogsEnabledOverride.Valid)
+		require.False(t, decoded.DebugLogsEnabledOverride.Value)
+	})
+
+	t.Run("Unmarshal explicit boolean preserves override", func(t *testing.T) {
+		t.Parallel()
+
+		var decoded codersdk.UpdateChatRequest
+		require.NoError(t, json.Unmarshal([]byte(`{"debug_logs_enabled_override":true}`), &decoded))
+		require.NotNil(t, decoded.DebugLogsEnabledOverride)
+		require.True(t, decoded.DebugLogsEnabledOverride.Valid)
+		require.True(t, decoded.DebugLogsEnabledOverride.Value)
+	})
+}
+
 func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Parallel()
 

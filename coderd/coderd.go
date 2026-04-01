@@ -1182,6 +1182,10 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
 				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
+				r.Get("/debug-logging", api.getChatDebugLoggingEnabled)
+				r.Put("/debug-logging", api.putChatDebugLoggingEnabled)
+				r.Get("/user-debug-logging", api.getUserChatDebugLoggingEnabled)
+				r.Put("/user-debug-logging", api.putUserChatDebugLoggingEnabled)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
@@ -1248,6 +1252,10 @@ func New(options *Options) *API {
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
+				})
+				r.Route("/debug", func(r chi.Router) {
+					r.Get("/runs", api.getChatDebugRuns)
+					r.Get("/runs/{run}", api.getChatDebugRun)
 				})
 			})
 		})
