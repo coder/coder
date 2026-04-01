@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, within } from "storybook/test";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import {
