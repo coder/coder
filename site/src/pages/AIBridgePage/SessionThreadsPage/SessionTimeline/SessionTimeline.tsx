@@ -214,8 +214,11 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						outputTokens={outputTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
-					<pre className="bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
-						{tool} <JsonPrettyPrinter input={input} />
+					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
+						<span>{tool}</span>
+						<div>
+							<JsonPrettyPrinter input={input} />
+						</div>
 					</pre>
 				</>
 			)}
