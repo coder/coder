@@ -67,7 +67,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 			var ctxErr error
 			scriptCtx, ctxErr = a.Workspace.ContextInject(ctx)
 			if ctxErr != nil {
-				a.Log.Debug(ctx, "failed to inject workspace RBAC for scripts, falling back to slow path",
+				a.Log.Error(ctx, "failed to inject workspace RBAC for scripts, falling back to slow path",
 					slog.Error(ctxErr))
 			}
 		}

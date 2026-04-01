@@ -169,7 +169,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	var ctxErr error
 	ctx, ctxErr = a.Workspace.ContextInject(ctx)
 	if ctxErr != nil {
-		a.Log.Debug(ctx, "failed to inject workspace RBAC, falling back to slow path",
+		a.Log.Error(ctx, "failed to inject workspace RBAC, falling back to slow path",
 			slog.Error(ctxErr))
 	}
 
