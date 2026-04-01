@@ -350,7 +350,53 @@ func (t *Tunneler) handleAgentUpdate(update *agentUpdate) {
 func (*Tunneler) handleAgentLog(*codersdk.WorkspaceAgentLog) {
 }
 
-func (*Tunneler) handleAppUpdate(*networkedApplicationUpdate) {
+func (t *Tunneler) handleAppUpdate(update *networkedApplicationUpdate) {
+	if update.up {
+		t.config.DebugLogger.Debug(t.ctx, "networked application up")
+	} else {
+		// we already logged any error, so this is just debug to track the state change
+		t.config.DebugLogger.Debug(t.ctx, "networked application down", slog.Error(update.err))
+	}
+	switch t.state {
+	case exit:
+		return
+	case stateInit, waitToStart, waitForAgent, waitForWorkspaceStarted, establishTailnet:
+		t.config.DebugLogger.Error(t.ctx, "unexpected: application update before we started it",
+			slog.F("state", t.state), slog.F("app_up", update.up), slog.Error(update.err))
+		return
+	}
+	if update.up {
+		switch t.state {
+		case tailnetUp:
+			t.state = applicationUp
+			return
+		case applicationUp:
+			t.config.DebugLogger.Error(t.ctx, "unexpected: application 'up' update when it is already up")
+			return
+		case shutdownApplication:
+			// this means that we started shutting down while we were waiting for the goroutine that starts the
+			// application to complete. We need to tear down the app.
+			t.config.DebugLogger.Debug(t.ctx, "gracefully shutting down application after it started")
+			t.wg.Add(1)
+			go t.closeApp()
+			return
+		case shutdownTailnet:
+			t.config.DebugLogger.Error(t.ctx, "unexpected: application 'up' update when we were tearing down tailnet")
+			return
+		}
+	}
+	switch t.state {
+	case tailnetUp, applicationUp, shutdownApplication:
+		t.state = shutdownTailnet
+		t.wg.Add(1)
+		go t.shutdownTailnet()
+		return
+	case shutdownTailnet:
+		t.config.DebugLogger.Error(t.ctx, "unexpected: application 'down' update when we were tearing down tailnet")
+		return
+	}
+	t.config.DebugLogger.Critical(t.ctx, "unhandled application update",
+		slog.F("state", t.state), slog.F("app_up", update.up))
 }
 
 func (*Tunneler) handleTailnetUpdate(*tailnetUpdate) {
@@ -408,16 +454,15 @@ func (t *Tunneler) connectTailnet(id uuid.UUID) {
 	}
 }
 
-// TODO: Restore this func when we implement tearing down the tailnet
-// func (t *Tunneler) shutdownTailnet() {
-//	defer t.wg.Done()
-//	err := t.agentConn.Close()
-//	if err != nil {
-//		t.config.DebugLogger.Error(t.ctx, "failed to close agent connection", slog.Error(err))
-//	}
-//	select {
-//	case <-t.ctx.Done():
-//		t.config.DebugLogger.Debug(t.ctx, "context expired before sending event after shutting down tailnet")
-//	case t.events <- tunnelerEvent{tailnetUpdate: &tailnetUpdate{up: false, err: err}}:
-//	}
-//}
+func (t *Tunneler) shutdownTailnet() {
+	defer t.wg.Done()
+	err := t.agentConn.Close()
+	if err != nil {
+		t.config.DebugLogger.Error(t.ctx, "failed to close agent connection", slog.Error(err))
+	}
+	select {
+	case <-t.ctx.Done():
+		t.config.DebugLogger.Debug(t.ctx, "context expired before sending event after shutting down tailnet")
+	case t.events <- tunnelerEvent{tailnetUpdate: &tailnetUpdate{up: false, err: err}}:
+	}
+}
