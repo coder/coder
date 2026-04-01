@@ -194,12 +194,16 @@ function useStickToBottom(): StickToBottomInstance {
 		// Skip when a content resize or viewport resize is in
 		// progress — the browser may fire scroll events during
 		// layout that aren’t user-initiated.
-		if (s.resizeDifference === 0 && !viewportChanged) {
+		if (
+			s.resizeDifference === 0 &&
+			!viewportChanged &&
+			s.activeTouchCount === 0
+		) {
 			if (currentScrollTop < lastST) {
 				// If we believe we're at the bottom and the user
-				// hasn't escaped via wheel/touch, this upward
-				// movement is browser-initiated (e.g. Safari
-				// scroll restoration, focus-driven scroll).
+				// hasn't escaped via wheel, touch, or scrollbar,
+				// this upward movement is browser-initiated (e.g.
+				// Safari scroll restoration, focus-driven scroll).
 				// Re-pin instead of escaping.
 				if (s.internalIsAtBottom && !s.escapedFromLock) {
 					scrollTo(s, maxScrollTop(s));
@@ -265,6 +269,12 @@ function useStickToBottom(): StickToBottomInstance {
 		) {
 			syncEscapedFromLock(true);
 			syncIsAtBottom(false);
+			// Cancel any in-progress smooth scroll so the animation
+			// doesn't override the user's escape intent.
+			s.scrollElement.scrollTo({
+				top: s.scrollElement.scrollTop,
+				behavior: "instant",
+			});
 		}
 	});
 
@@ -366,6 +376,8 @@ function useStickToBottom(): StickToBottomInstance {
 
 	const handleTouchStart = useEffectEvent((e: TouchEvent) => {
 		stateRef.current.activeTouchCount += Math.max(e.changedTouches.length, 1);
+		syncEscapedFromLock(true);
+		syncIsAtBottom(false);
 	});
 
 	const handleTouchEnd = useEffectEvent((e: TouchEvent) => {
@@ -380,6 +392,16 @@ function useStickToBottom(): StickToBottomInstance {
 	// Ref callbacks
 	// -----------------------------------------------------------------------
 
+	const handlePointerDown = useEffectEvent((e: PointerEvent) => {
+		const s = stateRef.current;
+		// e.target === s.scrollElement is only true when clicking
+		// the scrollbar track/thumb, not content inside the container.
+		if (e.target === s.scrollElement) {
+			syncEscapedFromLock(true);
+			syncIsAtBottom(false);
+		}
+	});
+
 	const scrollRef = useEffectEvent((el: HTMLDivElement | null) => {
 		const s = stateRef.current;
 		const prev = s.scrollElement;
@@ -390,6 +412,7 @@ function useStickToBottom(): StickToBottomInstance {
 			prev.removeEventListener("touchcancel", handleTouchEnd);
 			prev.removeEventListener("scroll", handleScroll);
 			prev.removeEventListener("wheel", handleWheel);
+			prev.removeEventListener("pointerdown", handlePointerDown);
 		}
 
 		if (s.viewportObserver) {
@@ -412,6 +435,7 @@ function useStickToBottom(): StickToBottomInstance {
 			el.addEventListener("touchcancel", handleTouchEnd, {
 				passive: true,
 			});
+			el.addEventListener("pointerdown", handlePointerDown);
 
 			const vo = new ResizeObserver(handleViewportResize);
 			vo.observe(el);
@@ -485,6 +509,7 @@ function useStickToBottom(): StickToBottomInstance {
 				s.scrollElement.removeEventListener("touchstart", handleTouchStart);
 				s.scrollElement.removeEventListener("touchend", handleTouchEnd);
 				s.scrollElement.removeEventListener("touchcancel", handleTouchEnd);
+				s.scrollElement.removeEventListener("pointerdown", handlePointerDown);
 			}
 			if (s.resizeObserver) {
 				s.resizeObserver.disconnect();
@@ -493,7 +518,13 @@ function useStickToBottom(): StickToBottomInstance {
 				s.viewportObserver.disconnect();
 			}
 		};
-	}, [handleScroll, handleWheel, handleTouchStart, handleTouchEnd]);
+	}, [
+		handleScroll,
+		handleWheel,
+		handleTouchStart,
+		handleTouchEnd,
+		handlePointerDown,
+	]);
 
 	// Post-render consistency check. If we believe we're pinned
 	// to the bottom but the physical scroll position disagrees,
@@ -501,6 +532,7 @@ function useStickToBottom(): StickToBottomInstance {
 	// race between ResizeObserver callbacks, browser scroll
 	// clamping, and React re-renders (e.g. Safari PWA viewport
 	// settling after navigation).
+	// Intentionally no deps — runs every render as a safety net.
 	useLayoutEffect(() => {
 		const s = stateRef.current;
 		if (!s.scrollElement || !s.internalIsAtBottom) return;
@@ -580,7 +612,8 @@ const ChatScrollContainer: FC<{
 		}
 	}, [isFetchingMoreMessages]);
 
-	// Snapshot captured before a fetch so we can restore scroll	// position after older messages are prepended.
+	// Snapshot captured before a fetch so we can restore scroll
+	// position after older messages are prepended.
 	const pendingPrependRef = useRef<{
 		scrollHeight: number;
 	} | null>(null);
