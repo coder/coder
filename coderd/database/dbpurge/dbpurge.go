@@ -113,6 +113,17 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purgeTick performs a single purge iteration. It returns an error if the
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
+	// Read chat retention config outside the transaction to
+	// avoid poisoning the tx if the stored value is corrupt.
+	// A SQL-level cast error (e.g. non-numeric text) puts PG
+	// into error state, failing all subsequent queries in the
+	// same transaction.
+	chatRetentionDays, err := db.GetChatRetentionDays(ctx)
+	if err != nil {
+		i.logger.Warn(ctx, "failed to read chat retention config, skipping chat purge", slog.Error(err))
+		chatRetentionDays = 0
+	}
+
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
 	return db.InTx(func(tx database.Store) error {
@@ -225,11 +236,6 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		// in the same tick.
 		var purgedChats int64
 		var purgedChatFiles int64
-		chatRetentionDays, err := tx.GetChatRetentionDays(ctx)
-		if err != nil {
-			i.logger.Warn(ctx, "failed to read chat retention config, skipping chat purge", slog.Error(err))
-			chatRetentionDays = 0
-		}
 		if chatRetentionDays > 0 {
 			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour
 			deleteChatsBefore := start.Add(-chatRetention)

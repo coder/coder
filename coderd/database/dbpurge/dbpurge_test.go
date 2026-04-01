@@ -54,6 +54,7 @@ func TestPurge(t *testing.T) {
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
 	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, clk, prometheus.NewRegistry())
 	<-done // wait for doTick() to run.
@@ -149,6 +150,7 @@ func TestMetrics(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			Return(xerrors.New("simulated database error")).
 			MinTimes(1)
@@ -1994,7 +1996,65 @@ func TestDeleteOldChatFiles(t *testing.T) {
 
 				updated, err = db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, err)
+				require.NotNil(t, updated.FileIDs, "file_ids should be empty array, not NULL")
 				require.Empty(t, updated.FileIDs, "all-files-stale should yield empty slice, not nil")
+
+				// Test parent+child cascade: UnarchiveChatByID operates
+				// on both the target chat and its children (via
+				// root_chat_id). Each row's file_ids should be scrubbed
+				// independently.
+				parentChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.modelConfig.ID, false, now)
+				childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+					OwnerID:           deps.user.ID,
+					LastModelConfigID: deps.modelConfig.ID,
+					Title:             "child-chat",
+				})
+				require.NoError(t, err)
+				// Set root_chat_id to link child to parent.
+				_, err = rawDB.ExecContext(ctx, "UPDATE chats SET root_chat_id = $1 WHERE id = $2", parentChat.ID, childChat.ID)
+				require.NoError(t, err)
+
+				// Attach different files to parent and child.
+				parentFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				parentFileStale := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				childFileKeep := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+				childFileStale := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now)
+
+				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     parentChat.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{parentFileKeep, parentFileStale},
+				})
+				require.NoError(t, err)
+				_, err = db.AppendChatFileIDs(ctx, database.AppendChatFileIDsParams{
+					ChatID:     childChat.ID,
+					MaxFileIDs: 100,
+					FileIDs:    []uuid.UUID{childFileKeep, childFileStale},
+				})
+				require.NoError(t, err)
+
+				// Archive via parent (cascades to child).
+				_, err = db.ArchiveChatByID(ctx, parentChat.ID)
+				require.NoError(t, err)
+
+				// Delete one file from each chat.
+				_, err = rawDB.ExecContext(ctx, "DELETE FROM chat_files WHERE id = ANY($1)",
+					pq.Array([]uuid.UUID{parentFileStale, childFileStale}))
+				require.NoError(t, err)
+
+				// Unarchive via parent — should scrub both rows.
+				_, err = db.UnarchiveChatByID(ctx, parentChat.ID)
+				require.NoError(t, err)
+
+				updatedParent, err := db.GetChatByID(ctx, parentChat.ID)
+				require.NoError(t, err)
+				require.Equal(t, []uuid.UUID{parentFileKeep}, updatedParent.FileIDs,
+					"parent should retain only non-stale file")
+
+				updatedChild, err := db.GetChatByID(ctx, childChat.ID)
+				require.NoError(t, err)
+				require.Equal(t, []uuid.UUID{childFileKeep}, updatedChild.FileIDs,
+					"child should retain only non-stale file")
 			},
 		},
 		{
